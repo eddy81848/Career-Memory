@@ -1,0 +1,280 @@
+{
+  "schema_version": "event-draft-manifest.v1",
+  "dataset_id": "career-memory-event-synthetic-draft-v1",
+  "task_ref": "T-001A",
+  "approval_status": "DRAFT",
+  "base_commit_sha": "efe251071fbee1be9a2ffee680a73f3ca3cd8084",
+  "scope_boundary": {
+    "includes": [
+      "Synthetic Event source fixtures (workspaces, repositories, sync runs, PRs, commits, context-only tickets, initial events, post-sync observations)",
+      "Synthetic user curation commands (SPLIT, MANUAL_MERGE, EXCLUDE, DISSOLVE)",
+      "DRAFT expected proposals separated from inputs and rationale",
+      "Isolated intentionally broken negative fixtures (NEG-001..NEG-006)",
+      "Automated format, referential, scope, and Event-invariant fixture linter",
+      "Coverage matrix and T-001B human review queue"
+    ],
+    "excludes": [
+      "Event Builder runtime implementation",
+      "Human ground-truth approval and dataset freeze (T-001B)",
+      "Actual Event Builder quality evaluation (M3/T-306A)",
+      "CLAIM-QA fixtures, shared schemas, CI workflows, and main branch merge/push",
+      "OD-007 physical database table or SQL schema assumptions"
+    ],
+    "od_007_physical_table_assumption": false,
+    "synthetic_only": true
+  },
+  "generation_provenance": {
+    "generation_method": "AI-assisted structured authoring by EVENT-QA agent without external API calls",
+    "agent_role": "EVENT-QA (T-001A)",
+    "model_identifier": "UNEXPOSED_IN_RUNTIME_METADATA (Antigravity interactive session; exact model build/checkpoint ID not readable from local environment)",
+    "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 (user prompt with base SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084)",
+    "generated_at_utc": "2026-11-26T17:45:00Z",
+    "external_api_calls": {
+      "github_api": 0,
+      "llm_api_from_script": 0,
+      "notion_api": 0
+    },
+    "seed_reproducibility": {
+      "deterministic_seed_available": false,
+      "limitation_note": "Interactive agent authoring does not expose a deterministic sampling seed, temperature, or model checkpoint ID. Exact regeneration from prompt+seed is not possible; reproducibility of this draft artifact is guaranteed via version-controlled JSON files and deterministic lint checks."
+    }
+  },
+  "reference_docs": [
+    {
+      "name": "T-001A",
+      "url": "https://app.notion.com/p/3f1f86591b5f8101b185fe047eee825a",
+      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
+      "note": "Notion page requires authentication (only generic marketing shell returned via HTTP). Requirements followed from task brief; unverified tokens flagged REVIEW_REQUIRED."
+    },
+    {
+      "name": "AI 합성 Dataset 가이드",
+      "url": "https://app.notion.com/p/3f1f86591b5f81649267ee498a576d5c",
+      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
+      "note": "Notion page unreadable without authentication. Applied synthetic-only, separation-of-concerns, provenance recording, and DRAFT-only rules from prompt."
+    },
+    {
+      "name": "Snapshot Import",
+      "url": "https://app.notion.com/p/3f0f86591b5f8170940fe98da87609aa",
+      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
+      "note": "Notion page unreadable without authentication. Cross-referenced read-only local branch contract/t-106-import-v1 README for INITIAL_BACKFILL/SUCCESS/OD-010 terminology."
+    },
+    {
+      "name": "ADR-018",
+      "url": "https://app.notion.com/p/3f1f86591b5f81618267f1e7034902d9",
+      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
+      "note": "Notion page unreadable without authentication. Key invariants (UNKNOWN != NO_PR, context-only tickets, no auto multi-PR merge, no composite double counting, OD-007 neutrality) enforced from prompt; exact enum strings marked REVIEW_REQUIRED."
+    },
+    {
+      "name": "Base commit AGENTS.md check",
+      "url": "git://efe251071fbee1be9a2ffee680a73f3ca3cd8084/AGENTS.md",
+      "access_status": "LOCAL_REPO_ONLY",
+      "note": "Checked tree at efe251071fbee1be9a2ffee680a73f3ca3cd8084; only README.md exists at base SHA (AGENTS.md is not present yet)."
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "EV-001",
+      "path": "cases/EV-001-pr-centered-basic.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-PR-01"],
+      "test_ids": ["T-001A-01"]
+    },
+    {
+      "case_id": "EV-002",
+      "path": "cases/EV-002-default-branch-direct-commit.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-COMMIT-01"],
+      "test_ids": ["T-001A-02"]
+    },
+    {
+      "case_id": "EV-003",
+      "path": "cases/EV-003-unknown-association-hold.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-ASSOC-01"],
+      "test_ids": ["T-001A-03"]
+    },
+    {
+      "case_id": "EV-004",
+      "path": "cases/EV-004-non-default-branch-no-pr.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-BRANCH-01"],
+      "test_ids": ["T-001A-04"]
+    },
+    {
+      "case_id": "EV-005",
+      "path": "cases/EV-005-issue-ticket-context-only.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CONTEXT-01"],
+      "test_ids": ["T-001A-05"]
+    },
+    {
+      "case_id": "EV-006",
+      "path": "cases/EV-006-shared-ticket-no-auto-merge.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
+      "test_ids": ["T-001A-06"]
+    },
+    {
+      "case_id": "EV-007",
+      "path": "cases/EV-007-mixed-purpose-pr.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-MIXED-01"],
+      "test_ids": ["T-001A-07"]
+    },
+    {
+      "case_id": "EV-008",
+      "path": "cases/EV-008-user-split-mixed-pr.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CMD-SPLIT-01", "REQ-EV-MIXED-01"],
+      "test_ids": ["T-001A-08"]
+    },
+    {
+      "case_id": "EV-009",
+      "path": "cases/EV-009-user-manual-merge-composite.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
+      "test_ids": ["T-001A-09"]
+    },
+    {
+      "case_id": "EV-010",
+      "path": "cases/EV-010-composite-no-double-counting.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-COMP-01"],
+      "test_ids": ["T-001A-10"]
+    },
+    {
+      "case_id": "EV-011",
+      "path": "cases/EV-011-user-exclude-event.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
+      "test_ids": ["T-001A-11"]
+    },
+    {
+      "case_id": "EV-012",
+      "path": "cases/EV-012-user-dissolve-composite.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-CMD-DISSOLVE-01", "REQ-EV-COMP-01"],
+      "test_ids": ["T-001A-12"]
+    },
+    {
+      "case_id": "EV-013",
+      "path": "cases/EV-013-cannot-link-context-and-unknown.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
+      "test_ids": ["T-001A-13"]
+    },
+    {
+      "case_id": "EV-014",
+      "path": "cases/EV-014-cannot-link-nested-and-excluded.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
+      "test_ids": ["T-001A-14"]
+    },
+    {
+      "case_id": "EV-015",
+      "path": "cases/EV-015-version-conflict-optimistic-lock.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-ERR-VER-01"],
+      "test_ids": ["T-001A-15"]
+    },
+    {
+      "case_id": "EV-016",
+      "path": "cases/EV-016-workspace-boundary-conflict.json",
+      "scope": "MVP",
+      "backlog_ref": null,
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-ERR-WS-01"],
+      "test_ids": ["T-001A-16"]
+    },
+    {
+      "case_id": "EV-017",
+      "path": "cases/EV-017-post-mvp-b003-auto-change-discovery.json",
+      "scope": "POST_MVP",
+      "backlog_ref": "B-003",
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-POST-01"],
+      "test_ids": ["T-001A-17"]
+    },
+    {
+      "case_id": "EV-018",
+      "path": "cases/EV-018-post-mvp-b003-late-association-recovery.json",
+      "scope": "POST_MVP",
+      "backlog_ref": "B-003",
+      "review_status": "REVIEW_REQUIRED",
+      "requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
+      "test_ids": ["T-001A-18"]
+    }
+  ],
+  "negative_variants": [
+    {
+      "variant_id": "NEG-001",
+      "path": "negative-fixtures/NEG-001-broken-id-ref.json",
+      "expected_rule_codes": ["ID_REFERENCE_INTEGRITY"],
+      "purpose": "Verifies linter detects dangling PR and commit ID references."
+    },
+    {
+      "variant_id": "NEG-002",
+      "path": "negative-fixtures/NEG-002-missing-required-field.json",
+      "expected_rule_codes": ["SCHEMA_REQUIRED_FIELD"],
+      "purpose": "Verifies linter detects omitted rationale, approval_status, and command expected_version."
+    },
+    {
+      "variant_id": "NEG-003",
+      "path": "negative-fixtures/NEG-003-unknown-as-no-pr.json",
+      "expected_rule_codes": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
+      "purpose": "Verifies linter rejects classifying a commit with UNKNOWN association as DIRECT_COMMIT / NO_PR."
+    },
+    {
+      "variant_id": "NEG-004",
+      "path": "negative-fixtures/NEG-004-composite-double-count.json",
+      "expected_rule_codes": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
+      "purpose": "Verifies linter rejects double-counting Composite members in search results and metrics."
+    },
+    {
+      "variant_id": "NEG-005",
+      "path": "negative-fixtures/NEG-005-context-only-auto-merge.json",
+      "expected_rule_codes": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
+      "purpose": "Verifies linter rejects automatic multi-PR merges triggered by CONTEXT_ONLY tickets."
+    },
+    {
+      "variant_id": "NEG-006",
+      "path": "negative-fixtures/NEG-006-premature-approval-and-od007.json",
+      "expected_rule_codes": [
+        "APPROVAL_STATUS_MUST_BE_DRAFT",
+        "SCOPE_TAG_POLICY",
+        "OD007_NO_PHYSICAL_TABLE"
+      ],
+      "purpose": "Verifies linter blocks self-approval, mistagged B-003 MVP scope, and OD-007 physical table fields."
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-017",
+  "slug": "post-mvp-b003-auto-change-discovery",
+  "title": "[POST_MVP / B-003] Automatic discovery of new PRs merged after INITIAL_BACKFILL SUCCESS",
+  "scope": "POST_MVP",
+  "backlog_ref": "B-003",
+  "post_mvp_reason": "Post-success automatic change discovery after completed Snapshot Import (INITIAL_BACKFILL) is deferred to B-003 (POST_MVP).",
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-POST-01"],
+    "test_ids": ["T-001A-17"],
+    "scenario_tags": ["post_mvp", "b_003", "auto_change_discovery", "snapshot_import_boundary"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_017",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_017",
+        "workspace_id": "ws_syn_017",
+        "full_name": "acme-syn-lab/ledger-service",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_017",
+        "workspace_id": "ws_syn_017",
+        "repo_id": "repo_syn_017",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1701",
+        "repo_id": "repo_syn_017",
+        "number": 1701,
+        "title": "Initial snapshot PR before backfill completion",
+        "body": "Captured during INITIAL_BACKFILL.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/initial-snapshot",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-30T10:00:00Z",
+        "commit_ids": ["cmt_syn_1701a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1701a",
+        "repo_id": "repo_syn_017",
+        "sha": "1701a00000000000000000000000000000000001",
+        "message": "Implement initial ledger snapshot hook",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-30T09:00:00Z",
+        "branch_name": "feat/initial-snapshot",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1701",
+        "changed_paths": ["src/ledger/snapshot.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": [
+      {
+        "observation_id": "obs_syn_1701",
+        "observation_type": "POST_SUCCESS_NEW_PR",
+        "observed_at": "2026-11-05T15:00:00Z",
+        "details": {
+          "new_pr_number": 1702,
+          "new_pr_title": "Add post-backfill tax calculator",
+          "merged_after_sync_run_id": "sync_syn_017",
+          "backlog_ref": "B-003"
+        }
+      }
+    ]
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_exp_017_1",
+        "workspace_id": "ws_syn_017",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1701",
+        "source_commit_ids": ["cmt_syn_1701a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Initial snapshot PR before backfill completion",
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [
+      {
+        "held_id": "hold_exp_017_post_mvp",
+        "source_type": "OBSERVATION",
+        "source_id": "obs_syn_1701",
+        "hold_status": "DEFERRED_POST_MVP",
+        "hold_reason": "B-003 automatic change discovery after INITIAL_BACKFILL SUCCESS is POST_MVP; MVP snapshot does not auto-discover or auto-ingest post-success PR #1702.",
+        "interpreted_as_no_pr": false,
+        "review_required_tokens": ["hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"]
+      }
+    ],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "initial snapshot",
+        "expected_event_ids": ["ev_exp_017_1"],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_composite_events": 0,
+      "total_held_items": 1,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), incremental sync or webhook delivery will discover PR #1702 and emit a second PR_CENTERED Event without re-running INITIAL_BACKFILL.",
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.held_items[0]",
+        "proposed_value": "DEFERRED_POST_MVP (B-003)",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether POST_MVP cases in T-001A should assert MVP non-ingestion behavior (as drafted here) or assert the future B-003 post-sync Event state behind a POST_MVP harness flag."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Explicitly marks B-003 post-success automatic change discovery as POST_MVP so MVP evaluators do not conflate Snapshot Import one-shot backfill with ongoing incremental synchronization.",
+    "invariants_exercised": [
+      "POST_MVP_B003_EXPLICITLY_TAGGED",
+      "MVP_SNAPSHOT_DOES_NOT_AUTO_POLL_POST_SUCCESS"
+    ],
+    "assumptions_without_notion": [
+      "Follows prompt instruction to tag B-003 post-success change discovery as POST_MVP."
+    ],
+    "reviewer_questions": [
+      "Confirm how M3/T-306A test runner will filter scope='POST_MVP' cases (skip in MVP gate vs run in B-003 suite)."
+    ]
+  }
+}

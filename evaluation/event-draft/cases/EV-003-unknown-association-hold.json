@@ -1,0 +1,116 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-003",
+  "slug": "unknown-association-hold",
+  "title": "Commit with UNKNOWN PR association is held for classification and never treated as NO_PR",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-ASSOC-01"],
+    "test_ids": ["T-001A-03"],
+    "scenario_tags": ["unknown_association", "classification_held", "never_interpret_as_no_pr", "mvp_core"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_003",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_003",
+        "workspace_id": "ws_syn_003",
+        "full_name": "acme-syn-lab/billing-engine",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_003",
+        "workspace_id": "ws_syn_003",
+        "repo_id": "repo_syn_003",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "PARTIAL_SUCCESS",
+        "completed_at": "2026-11-01T10:20:00Z"
+      }
+    ],
+    "pull_requests": [],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_301",
+        "repo_id": "repo_syn_003",
+        "sha": "3010000000000000000000000000000000000001",
+        "message": "Adjust invoice proration rounding precision",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-22T09:10:00Z",
+        "branch_name": "main",
+        "on_default_branch": true,
+        "pr_association_status": "UNKNOWN",
+        "associated_pr_id": null,
+        "changed_paths": ["src/billing/proration.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [],
+    "held_items": [
+      {
+        "held_id": "hold_exp_003_1",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_301",
+        "hold_status": "CLASSIFICATION_HELD",
+        "hold_reason": "PR association state is UNKNOWN; must hold classification and must NOT infer NO_PR or emit a DIRECT_COMMIT Event.",
+        "interpreted_as_no_pr": false,
+        "review_required_tokens": ["hold_status:CLASSIFICATION_HELD"]
+      }
+    ],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "invoice proration",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 0,
+      "total_composite_events": 0,
+      "total_held_items": 1,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": "Late source association recovery for held UNKNOWN commits is tracked separately under B-003 (POST_MVP, see EV-018).",
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.held_items[0].hold_status",
+        "proposed_value": "CLASSIFICATION_HELD",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm exact status token and visibility rule (hidden from Event search vs visible in a dedicated uncategorized/pending review bucket) when pr_association_status is UNKNOWN."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "When Snapshot Import cannot determine whether a commit belongs to a PR (pr_association_status='UNKNOWN'), Event classification must be held. Treating UNKNOWN as NO_PR/DIRECT_COMMIT violates ADR-018 and corrupts attribution.",
+    "invariants_exercised": [
+      "UNKNOWN_ASSOCIATION_HOLDS_CLASSIFICATION",
+      "UNKNOWN_NEVER_INTERPRETED_AS_NO_PR"
+    ],
+    "assumptions_without_notion": [
+      "Exact status name CLASSIFICATION_HELD and whether held commits appear in a separate UI inbox are not confirmed from Notion."
+    ],
+    "reviewer_questions": [
+      "Should held UNKNOWN commits have a dedicated Event lifecycle state (e.g., UNCLASSIFIED/HELD) or stay outside the active Event list in a separate held collection?",
+      "Confirm whether held items are excluded from default Event search (expected_result_count=0)."
+    ]
+  }
+}

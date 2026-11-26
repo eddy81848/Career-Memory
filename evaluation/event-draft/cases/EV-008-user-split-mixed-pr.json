@@ -1,0 +1,247 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-008",
+  "slug": "user-split-mixed-pr",
+  "title": "User SPLIT command partitions a mixed-purpose PR Event into two active child Events without double counting",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-CMD-SPLIT-01", "REQ-EV-MIXED-01"],
+    "test_ids": ["T-001A-08"],
+    "scenario_tags": ["user_split", "mixed_purpose_pr", "no_double_counting", "curation_command"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_008",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_008",
+        "workspace_id": "ws_syn_008",
+        "full_name": "acme-syn-lab/reporting-core",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_008",
+        "workspace_id": "ws_syn_008",
+        "repo_id": "repo_syn_008",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T11:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_801",
+        "repo_id": "repo_syn_008",
+        "number": 801,
+        "title": "Refactor auth header parser and add monthly CSV export",
+        "body": "Two distinct changes bundled into one PR.",
+        "author_handle": "syn-dev-c",
+        "head_branch": "feat/auth-and-csv-export",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-26T17:15:00Z",
+        "commit_ids": ["cmt_syn_801a", "cmt_syn_801b"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_801a",
+        "repo_id": "repo_syn_008",
+        "sha": "801a000000000000000000000000000000000001",
+        "message": "Refactor bearer header parsing into dedicated middleware helper",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-26T14:00:00Z",
+        "branch_name": "feat/auth-and-csv-export",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_801",
+        "changed_paths": ["src/middleware/auth_header.py"]
+      },
+      {
+        "commit_id": "cmt_syn_801b",
+        "repo_id": "repo_syn_008",
+        "sha": "801b000000000000000000000000000000000002",
+        "message": "Add streaming CSV exporter for monthly invoice summary",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-26T16:30:00Z",
+        "branch_name": "feat/auth-and-csv-export",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_801",
+        "changed_paths": ["src/export/csv_stream.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_008_parent",
+        "workspace_id": "ws_syn_008",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_801",
+        "source_commit_ids": ["cmt_syn_801a", "cmt_syn_801b"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_008_split",
+      "command_type": "SPLIT",
+      "workspace_id": "ws_syn_008",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "target_event_ids": ["ev_init_008_parent"],
+      "target_versions": {
+        "ev_init_008_parent": 1
+      },
+      "payload": {
+        "partitions": [
+          {
+            "title": "Refactor auth header parser",
+            "source_commit_ids": ["cmt_syn_801a"]
+          },
+          {
+            "title": "Add monthly CSV export",
+            "source_commit_ids": ["cmt_syn_801b"]
+          }
+        ]
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_008_parent",
+        "workspace_id": "ws_syn_008",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "SUPERSEDED",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_008_split",
+        "primary_pr_id": "pr_syn_801",
+        "source_commit_ids": ["cmt_syn_801a", "cmt_syn_801b"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "SPLIT_PARENT",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Refactor auth header parser and add monthly CSV export",
+        "review_required_tokens": ["lifecycle_status:SUPERSEDED", "membership_state:SPLIT_PARENT"]
+      },
+      {
+        "event_id": "ev_exp_008_child_1",
+        "workspace_id": "ws_syn_008",
+        "event_kind": "SPLIT_CHILD",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_008_split",
+        "primary_pr_id": "pr_syn_801",
+        "source_commit_ids": ["cmt_syn_801a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_008_parent",
+        "membership_state": "SPLIT_CHILD",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Refactor auth header parser",
+        "review_required_tokens": ["event_kind:SPLIT_CHILD"]
+      },
+      {
+        "event_id": "ev_exp_008_child_2",
+        "workspace_id": "ws_syn_008",
+        "event_kind": "SPLIT_CHILD",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_008_split",
+        "primary_pr_id": "pr_syn_801",
+        "source_commit_ids": ["cmt_syn_801b"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_008_parent",
+        "membership_state": "SPLIT_CHILD",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add monthly CSV export",
+        "review_required_tokens": ["event_kind:SPLIT_CHILD"]
+      }
+    ],
+    "held_items": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_008_split",
+        "outcome": "ACCEPTED",
+        "error_code": null,
+        "state_mutated": true,
+        "resulting_event_ids": ["ev_exp_008_child_1", "ev_exp_008_child_2"],
+        "review_required_tokens": ["command_type:SPLIT"]
+      }
+    ],
+    "search_checks": [
+      {
+        "query": "CSV export",
+        "expected_event_ids": ["ev_exp_008_child_2"],
+        "expected_result_count": 1
+      },
+      {
+        "query": "auth header",
+        "expected_event_ids": ["ev_exp_008_child_1"],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events[0].lifecycle_status",
+        "proposed_value": "SUPERSEDED",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm exact parent Event status after SPLIT (e.g., SUPERSEDED vs SPLIT vs ARCHIVED) and whether split partitions must cover 100% of parent commits or allow file-path partitioning for squash-merged PRs."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Executing a user SPLIT command on ev_init_008_parent (version 1) supersedes the parent Event so it is no longer counted or returned at top-level search, and creates two active SPLIT_CHILD Events carrying partitioned commit provenance.",
+    "invariants_exercised": [
+      "USER_SPLIT_CREATES_ACTIVE_CHILDREN",
+      "SPLIT_PARENT_NOT_DOUBLE_COUNTED",
+      "OPTIMISTIC_VERSION_INCREMENT_ON_MUTATION"
+    ],
+    "assumptions_without_notion": [
+      "Assumes SPLIT partitions by commit_ids and transitions parent to SUPERSEDED (version 2); squash-commit split semantics require human review in T-001B."
+    ],
+    "reviewer_questions": [
+      "How should SPLIT partition a squash-merged single-commit PR (file-path scopes vs manual notes)?",
+      "Can a user undo a SPLIT in MVP, or is undo/re-merge handled via MANUAL_MERGE?"
+    ]
+  }
+}

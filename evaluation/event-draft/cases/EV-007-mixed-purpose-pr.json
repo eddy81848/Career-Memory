@@ -1,0 +1,153 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-007",
+  "slug": "mixed-purpose-pr",
+  "title": "Single PR mixing two unrelated purposes stays one PR-centered Event until explicit user split",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-MIXED-01"],
+    "test_ids": ["T-001A-07"],
+    "scenario_tags": ["mixed_purpose_pr", "pr_centered", "no_unsolicited_auto_split"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_007",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_007",
+        "workspace_id": "ws_syn_007",
+        "full_name": "acme-syn-lab/reporting-core",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_007",
+        "workspace_id": "ws_syn_007",
+        "repo_id": "repo_syn_007",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T11:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_701",
+        "repo_id": "repo_syn_007",
+        "number": 701,
+        "title": "Refactor auth header parser and add monthly CSV export",
+        "body": "Cleans up JWT header parsing middleware and also adds a streaming CSV export endpoint for monthly summaries.",
+        "author_handle": "syn-dev-c",
+        "head_branch": "feat/auth-and-csv-export",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-26T17:15:00Z",
+        "commit_ids": ["cmt_syn_701a", "cmt_syn_701b"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_701a",
+        "repo_id": "repo_syn_007",
+        "sha": "701a000000000000000000000000000000000001",
+        "message": "Refactor bearer header parsing into dedicated middleware helper",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-26T14:00:00Z",
+        "branch_name": "feat/auth-and-csv-export",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_701",
+        "changed_paths": ["src/middleware/auth_header.py"]
+      },
+      {
+        "commit_id": "cmt_syn_701b",
+        "repo_id": "repo_syn_007",
+        "sha": "701b000000000000000000000000000000000002",
+        "message": "Add streaming CSV exporter for monthly invoice summary",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-26T16:30:00Z",
+        "branch_name": "feat/auth-and-csv-export",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_701",
+        "changed_paths": ["src/export/csv_stream.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_exp_007_1",
+        "workspace_id": "ws_syn_007",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_701",
+        "source_commit_ids": ["cmt_syn_701a", "cmt_syn_701b"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Refactor auth header parser and add monthly CSV export",
+        "review_required_tokens": ["mixed_purpose_flag:REVIEW_REQUIRED"]
+      }
+    ],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "CSV export",
+        "expected_event_ids": ["ev_exp_007_1"],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events[0]",
+        "proposed_value": "Single PR_CENTERED Event without auto-split",
+        "status": "REVIEW_REQUIRED",
+        "question": "Should a mixed-purpose PR in MVP stay as 1 PR_CENTERED Event (with or without a split-candidate advisory flag), or is automated sub-PR splitting allowed in the Notion Event Contract?"
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "A PR bundling two distinct purposes (auth middleware refactor + CSV export) starts as one PR-centered Event so Event Builder remains grounded in PR boundaries. Splitting into separate work units is an explicit user curation action (see EV-008).",
+    "invariants_exercised": [
+      "PR_BOUNDARY_PRESERVED_BEFORE_USER_SPLIT",
+      "NO_UNGROUNDED_AUTO_SPLIT"
+    ],
+    "assumptions_without_notion": [
+      "Assumes MVP Event Builder does not auto-split a single PR without user SPLIT command; whether a 'mixed_purpose_hint' metadata flag should be emitted is open for T-001B review."
+    ],
+    "reviewer_questions": [
+      "Does T-001A expect a non-destructive 'mixed_purpose_detected' annotation on EV-007, or purely 1 PR-centered Event?"
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "NEG-006",
+  "slug": "premature-approval-and-od007",
+  "title": "[NEGATIVE VARIANT] Self-approved expected, mistagged B-003 scope, and OD-007 physical table assumption",
+  "scope": "MVP",
+  "backlog_ref": "B-003",
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-POST-01"],
+    "test_ids": ["T-001A-NEG-06"],
+    "scenario_tags": ["negative_variant", "b_003", "governance_violation"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_neg6",
+        "name": "Synthetic Negative Workspace",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_neg6",
+        "workspace_id": "ws_syn_neg6",
+        "full_name": "acme-syn-lab/neg-service",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_neg6",
+        "workspace_id": "ws_syn_neg6",
+        "repo_id": "repo_syn_neg6",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "pull_requests": [],
+    "commits": [],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "APPROVED",
+    "approved_by": "event-qa-agent",
+    "physical_table": "event_members_tbl",
+    "events": [],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [],
+    "aggregation_check": {
+      "total_countable_events": 0,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": []
+  },
+  "rationale": {
+    "summary": "Intentionally broken fixture violating DRAFT-only rule, B-003 POST_MVP scope tagging, and OD-007 physical table neutrality.",
+    "invariants_exercised": [
+      "APPROVAL_STATUS_MUST_BE_DRAFT",
+      "SCOPE_TAG_POLICY",
+      "OD007_NO_PHYSICAL_TABLE"
+    ],
+    "assumptions_without_notion": [],
+    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+  }
+}

@@ -1,0 +1,234 @@
+{
+  "schema_version": "event-draft-review-queue.v1",
+  "task_ref": "T-001A",
+  "handoff_target": "T-001B",
+  "approval_status": "DRAFT",
+  "human_approval_required": true,
+  "queue": [
+    {
+      "review_id": "RQ-001",
+      "case_id": "EV-001",
+      "case_path": "cases/EV-001-pr-centered-basic.json",
+      "scope": "MVP",
+      "priority": "P1",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["event_kind:PR_CENTERED", "lifecycle_status:ACTIVE"],
+      "decision_questions": [
+        "Confirm canonical Event kind enum (PR_CENTERED vs PR vs PULL_REQUEST) against Notion Event Contract.",
+        "Confirm whether merge commits created on main during merge-commit strategy belong in source_commit_ids."
+      ]
+    },
+    {
+      "review_id": "RQ-002",
+      "case_id": "EV-002",
+      "case_path": "cases/EV-002-default-branch-direct-commit.json",
+      "scope": "MVP",
+      "priority": "P1",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["event_kind:DIRECT_COMMIT"],
+      "decision_questions": [
+        "Confirm exact enum name for default-branch direct-commit Events.",
+        "Confirm whether consecutive default-branch direct commits stay 1-per-commit in MVP or use any automatic grouping."
+      ]
+    },
+    {
+      "review_id": "RQ-003",
+      "case_id": "EV-003",
+      "case_path": "cases/EV-003-unknown-association-hold.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["hold_status:CLASSIFICATION_HELD"],
+      "decision_questions": [
+        "Confirm exact status name (CLASSIFICATION_HELD vs UNCLASSIFIED vs PENDING_ASSOCIATION) when pr_association_status='UNKNOWN'.",
+        "Confirm whether held UNKNOWN commits are omitted from default Event search (count=0) or visible in a dedicated pending bucket."
+      ]
+    },
+    {
+      "review_id": "RQ-004",
+      "case_id": "EV-004",
+      "case_path": "cases/EV-004-non-default-branch-no-pr.json",
+      "scope": "MVP",
+      "priority": "P1",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["hold_status:NON_ELIGIBLE_BRANCH"],
+      "decision_questions": [
+        "Confirm whether Snapshot Import filters out non-default-branch commits without PRs prior to Event Builder or marks them NON_ELIGIBLE_BRANCH."
+      ]
+    },
+    {
+      "review_id": "RQ-005",
+      "case_id": "EV-005",
+      "case_path": "cases/EV-005-issue-ticket-context-only.json",
+      "scope": "MVP",
+      "priority": "P1",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["relation_role:CONTEXT_ONLY"],
+      "decision_questions": [
+        "Confirm whether searching by a CONTEXT_ONLY ticket key ('SYN-101') should match the attached PR Event in MVP.",
+        "Confirm unreferenced issues/tickets produce zero Events and zero held items."
+      ]
+    },
+    {
+      "review_id": "RQ-006",
+      "case_id": "EV-006",
+      "case_path": "cases/EV-006-shared-ticket-no-auto-merge.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["merge_origin:NONE"],
+      "decision_questions": [
+        "Confirm zero automatic multi-PR merge suggestions/actions occur when two PRs share a CONTEXT_ONLY ticket and author within hours."
+      ]
+    },
+    {
+      "review_id": "RQ-007",
+      "case_id": "EV-007",
+      "case_path": "cases/EV-007-mixed-purpose-pr.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["mixed_purpose_flag:REVIEW_REQUIRED"],
+      "decision_questions": [
+        "Confirm whether MVP Event Builder keeps a mixed-purpose PR as 1 Event without auto-split, and whether a non-binding 'mixed_purpose' hint flag is expected."
+      ]
+    },
+    {
+      "review_id": "RQ-008",
+      "case_id": "EV-008",
+      "case_path": "cases/EV-008-user-split-mixed-pr.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["lifecycle_status:SUPERSEDED", "membership_state:SPLIT_PARENT", "event_kind:SPLIT_CHILD", "command_type:SPLIT"],
+      "decision_questions": [
+        "Confirm exact parent status after SPLIT (SUPERSEDED vs SPLIT vs ARCHIVED).",
+        "Confirm SPLIT partitioning contract for squash-merged 1-commit PRs (file-path scopes vs manual notes)."
+      ]
+    },
+    {
+      "review_id": "RQ-009",
+      "case_id": "EV-009",
+      "case_path": "cases/EV-009-user-manual-merge-composite.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["event_kind:COMPOSITE", "merge_origin:USER_MANUAL_MERGE", "membership_state:SUBSUMED_BY_COMPOSITE", "command_type:MANUAL_MERGE"],
+      "decision_questions": [
+        "Confirm whether subsumed members keep lifecycle_status='ACTIVE' (suppressed by membership_state) or transition to a distinct lifecycle status.",
+        "Confirm whether MANUAL_MERGE allows combining a PR_CENTERED Event with a DIRECT_COMMIT Event."
+      ]
+    },
+    {
+      "review_id": "RQ-010",
+      "case_id": "EV-010",
+      "case_path": "cases/EV-010-composite-no-double-counting.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["composite_search_roll_up:REVIEW_REQUIRED"],
+      "decision_questions": [
+        "Confirm search query matching only a member PR's text rolls up to the owning Composite Event exactly once.",
+        "Confirm direct GET behavior for a subsumed member Event ID (member + parent pointer vs redirect)."
+      ]
+    },
+    {
+      "review_id": "RQ-011",
+      "case_id": "EV-011",
+      "case_path": "cases/EV-011-user-exclude-event.json",
+      "scope": "MVP",
+      "priority": "P1",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["lifecycle_status:EXCLUDED", "command_type:EXCLUDE"],
+      "decision_questions": [
+        "Confirm whether EXCLUDE is reversible in MVP (RESTORE/INCLUDE) and whether excluding a Composite cascades to members."
+      ]
+    },
+    {
+      "review_id": "RQ-012",
+      "case_id": "EV-012",
+      "case_path": "cases/EV-012-user-dissolve-composite.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["lifecycle_status:DISSOLVED", "command_type:DISSOLVE"],
+      "decision_questions": [
+        "Confirm exact terminal status for dissolved Composite (DISSOLVED vs ARCHIVED).",
+        "Confirm Claim re-linking/detachment behavior when a Composite referenced by Claims is dissolved (cross-check CLAIM-QA)."
+      ]
+    },
+    {
+      "review_id": "RQ-013",
+      "case_id": "EV-013",
+      "case_path": "cases/EV-013-cannot-link-context-and-unknown.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["error_code:CANNOT_LINK", "hold_status:CLASSIFICATION_HELD"],
+      "decision_questions": [
+        "Confirm exact sub-conditions mapping to CANNOT_LINK when non-Event IDs (CONTEXT_ONLY ticket, UNKNOWN commit) are supplied to MANUAL_MERGE."
+      ]
+    },
+    {
+      "review_id": "RQ-014",
+      "case_id": "EV-014",
+      "case_path": "cases/EV-014-cannot-link-nested-and-excluded.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["error_code:CANNOT_LINK"],
+      "decision_questions": [
+        "Confirm flat 1-level Composite policy (rejecting nested Composite / already-subsumed member with CANNOT_LINK) vs allowing append to an existing Composite."
+      ]
+    },
+    {
+      "review_id": "RQ-015",
+      "case_id": "EV-015",
+      "case_path": "cases/EV-015-version-conflict-optimistic-lock.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["error_code:VERSION_CONFLICT"],
+      "decision_questions": [
+        "Confirm exact error_code (VERSION_CONFLICT vs STALE_VERSION), HTTP status (409 vs 412), and whether optimistic lock is per-Event version or per-Workspace version."
+      ]
+    },
+    {
+      "review_id": "RQ-016",
+      "case_id": "EV-016",
+      "case_path": "cases/EV-016-workspace-boundary-conflict.json",
+      "scope": "MVP",
+      "priority": "P0",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["error_code:WORKSPACE_CONFLICT", "od_010_resource_hiding:REVIEW_REQUIRED"],
+      "decision_questions": [
+        "Align with OD-010 resource-hiding decision: should cross-workspace commands return WORKSPACE_CONFLICT, CANNOT_LINK, or existence-hiding 403/404?"
+      ]
+    },
+    {
+      "review_id": "RQ-017",
+      "case_id": "EV-017",
+      "case_path": "cases/EV-017-post-mvp-b003-auto-change-discovery.json",
+      "scope": "POST_MVP",
+      "priority": "P2",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"],
+      "decision_questions": [
+        "Confirm whether POST_MVP fixtures should encode MVP non-ingestion (current draft) or target B-003 post-sync Event state behind a POST_MVP harness flag."
+      ]
+    },
+    {
+      "review_id": "RQ-018",
+      "case_id": "EV-018",
+      "case_path": "cases/EV-018-post-mvp-b003-late-association-recovery.json",
+      "scope": "POST_MVP",
+      "priority": "P2",
+      "status": "REVIEW_REQUIRED",
+      "provisional_tokens": ["hold_status:CLASSIFICATION_HELD", "hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"],
+      "decision_questions": [
+        "Confirm whether held UNKNOWN items are locked from user curation until B-003 recovers association.",
+        "Decide whether to add a second POST_MVP variant where late recovery confirms pr_association_status='NONE'."
+      ]
+    }
+  ]
+}

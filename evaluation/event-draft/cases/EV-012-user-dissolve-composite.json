@@ -1,0 +1,277 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-012",
+  "slug": "user-dissolve-composite",
+  "title": "User DISSOLVE command dissolves Composite Event and restores constituent member Events to top-level",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-CMD-DISSOLVE-01", "REQ-EV-COMP-01"],
+    "test_ids": ["T-001A-12"],
+    "scenario_tags": ["user_dissolve", "composite_lifecycle", "no_double_counting", "curation_command"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_012",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_012",
+        "workspace_id": "ws_syn_012",
+        "full_name": "acme-syn-lab/catalog-api",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_012",
+        "workspace_id": "ws_syn_012",
+        "repo_id": "repo_syn_012",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T11:40:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1201",
+        "repo_id": "repo_syn_012",
+        "number": 1201,
+        "title": "Add rate-limit token bucket middleware",
+        "body": "Introduces sliding window rate limiter.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "feat/rate-limit-mw",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-24T10:00:00Z",
+        "commit_ids": ["cmt_syn_1201a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1202",
+        "repo_id": "repo_syn_012",
+        "number": 1202,
+        "title": "Add rate-limit quota dashboard metrics",
+        "body": "Exports rate-limit rejection counters.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "feat/rate-limit-metrics",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-24T15:00:00Z",
+        "commit_ids": ["cmt_syn_1202a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1201a",
+        "repo_id": "repo_syn_012",
+        "sha": "1201a00000000000000000000000000000000001",
+        "message": "Implement sliding window limiter",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-24T09:00:00Z",
+        "branch_name": "feat/rate-limit-mw",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1201",
+        "changed_paths": ["src/rate_limit/limiter.py"]
+      },
+      {
+        "commit_id": "cmt_syn_1202a",
+        "repo_id": "repo_syn_012",
+        "sha": "1202a00000000000000000000000000000000002",
+        "message": "Expose quota rejection metrics",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-24T14:00:00Z",
+        "branch_name": "feat/rate-limit-metrics",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1202",
+        "changed_paths": ["src/rate_limit/metrics.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_012_comp",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_1201a", "cmt_syn_1202a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_012_m1", "ev_init_012_m2"],
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_012_m1",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1201",
+        "source_commit_ids": ["cmt_syn_1201a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      },
+      {
+        "event_id": "ev_init_012_m2",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1202",
+        "source_commit_ids": ["cmt_syn_1202a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_012_dissolve",
+      "command_type": "DISSOLVE",
+      "workspace_id": "ws_syn_012",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "target_event_ids": ["ev_init_012_comp"],
+      "target_versions": {
+        "ev_init_012_comp": 1
+      },
+      "payload": {
+        "reason": "Metrics PR belongs in a separate observability theme"
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_012_comp",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "DISSOLVED",
+        "version": 2,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "origin_command_id": "cmd_syn_012_dissolve",
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_1201a", "cmt_syn_1202a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_012_m1", "ev_init_012_m2"],
+        "parent_event_id": null,
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Dissolved rate-limit composite",
+        "review_required_tokens": ["lifecycle_status:DISSOLVED"]
+      },
+      {
+        "event_id": "ev_init_012_m1",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 3,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_012_dissolve",
+        "primary_pr_id": "pr_syn_1201",
+        "source_commit_ids": ["cmt_syn_1201a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add rate-limit token bucket middleware",
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_012_m2",
+        "workspace_id": "ws_syn_012",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 3,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_012_dissolve",
+        "primary_pr_id": "pr_syn_1202",
+        "source_commit_ids": ["cmt_syn_1202a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add rate-limit quota dashboard metrics",
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_012_dissolve",
+        "outcome": "ACCEPTED",
+        "error_code": null,
+        "state_mutated": true,
+        "resulting_event_ids": ["ev_init_012_m1", "ev_init_012_m2"],
+        "review_required_tokens": ["command_type:DISSOLVE"]
+      }
+    ],
+    "search_checks": [
+      {
+        "query": "rate-limit",
+        "expected_event_ids": ["ev_init_012_m1", "ev_init_012_m2"],
+        "expected_result_count": 2
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events[0].lifecycle_status",
+        "proposed_value": "DISSOLVED",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm exact terminal status for a dissolved Composite Event (DISSOLVED vs ARCHIVED) and whether Claims previously linked to the Composite require re-linking or detachment rules (cross-check with CLAIM-QA)."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Dissolving an active Composite transitions the Composite to DISSOLVED (removed from search and metrics) and restores both member PR Events to STANDALONE top-level Events (version 3). Total countable Events accurately transition from 1 to 2 with no double counting.",
+    "invariants_exercised": [
+      "DISSOLVE_RESTORES_CONSTITUENT_MEMBERS",
+      "DISSOLVED_COMPOSITE_NOT_COUNTED",
+      "NO_DOUBLE_COUNTING_POST_DISSOLVE"
+    ],
+    "assumptions_without_notion": [
+      "Assumes DISSOLVE bumps member versions from 2 to 3 and keeps dissolved Composite record as non-searchable audit tombstone."
+    ],
+    "reviewer_questions": [
+      "Does DISSOLVE require expected_version only on the Composite Event, or also on each member Event?",
+      "If DISSOLVE is issued on a non-Composite Event, should it return CANNOT_LINK or a dedicated INVALID_COMMAND_TARGET error?"
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-018",
+  "slug": "post-mvp-b003-late-association-recovery",
+  "title": "[POST_MVP / B-003] Late source association recovery resolves a previously UNKNOWN held commit",
+  "scope": "POST_MVP",
+  "backlog_ref": "B-003",
+  "post_mvp_reason": "Late source association recovery for commits initially held with pr_association_status='UNKNOWN' is deferred to B-003 (POST_MVP).",
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
+    "test_ids": ["T-001A-18"],
+    "scenario_tags": ["post_mvp", "b_003", "late_association_recovery", "unknown_association"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_018",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_018",
+        "workspace_id": "ws_syn_018",
+        "full_name": "acme-syn-lab/billing-engine",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_018",
+        "workspace_id": "ws_syn_018",
+        "repo_id": "repo_syn_018",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "PARTIAL_SUCCESS",
+        "completed_at": "2026-11-01T10:20:00Z"
+      }
+    ],
+    "pull_requests": [],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1801",
+        "repo_id": "repo_syn_018",
+        "sha": "1801000000000000000000000000000000000001",
+        "message": "Fix multi-currency tax rounding edge case",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-22T09:10:00Z",
+        "branch_name": "main",
+        "on_default_branch": true,
+        "pr_association_status": "UNKNOWN",
+        "associated_pr_id": null,
+        "changed_paths": ["src/billing/tax_rounding.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": [
+      {
+        "observation_id": "obs_syn_1801",
+        "observation_type": "LATE_ASSOCIATION_RECOVERY",
+        "observed_at": "2026-11-06T09:00:00Z",
+        "details": {
+          "target_commit_id": "cmt_syn_1801",
+          "recovered_pr_number": 1805,
+          "recovered_pr_title": "Fix multi-currency tax rounding edge case",
+          "recovered_association_status": "ASSOCIATED",
+          "backlog_ref": "B-003"
+        }
+      }
+    ]
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [],
+    "held_items": [
+      {
+        "held_id": "hold_exp_018_unknown",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_1801",
+        "hold_status": "CLASSIFICATION_HELD",
+        "hold_reason": "In MVP snapshot, cmt_syn_1801 has pr_association_status='UNKNOWN' and MUST remain held (never DIRECT_COMMIT / NO_PR).",
+        "interpreted_as_no_pr": false,
+        "review_required_tokens": ["hold_status:CLASSIFICATION_HELD"]
+      },
+      {
+        "held_id": "hold_exp_018_recovery",
+        "source_type": "OBSERVATION",
+        "source_id": "obs_syn_1801",
+        "hold_status": "DEFERRED_POST_MVP",
+        "hold_reason": "Late source association recovery linking cmt_syn_1801 to PR #1805 is deferred to B-003 (POST_MVP).",
+        "interpreted_as_no_pr": false,
+        "review_required_tokens": ["hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"]
+      }
+    ],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "multi-currency tax rounding",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 0,
+      "total_composite_events": 0,
+      "total_held_items": 2,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying obs_syn_1801 resolves cmt_syn_1801 from CLASSIFICATION_HELD to a PR_CENTERED Event for PR #1805 without ever having misclassified it as DIRECT_COMMIT.",
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.post_mvp_transition_note",
+        "proposed_value": "MVP holds UNKNOWN; B-003 recovers to PR_CENTERED",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether B-003 late association recovery must preserve user curation edits if a user manually acted on a held item, or whether held UNKNOWN items are locked from user curation until recovered (as modeled in EV-013)."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Demonstrates why EV-003 holds UNKNOWN commits instead of emitting DIRECT_COMMIT: late association recovery (B-003, POST_MVP) can later resolve cmt_syn_1801 cleanly into PR #1805 without creating false direct-commit Events or duplicate history.",
+    "invariants_exercised": [
+      "UNKNOWN_NEVER_INTERPRETED_AS_NO_PR",
+      "POST_MVP_B003_EXPLICITLY_TAGGED",
+      "LATE_ASSOCIATION_RECOVERY_BOUNDARY"
+    ],
+    "assumptions_without_notion": [
+      "Follows prompt instruction to tag late source association recovery as POST_MVP (B-003)."
+    ],
+    "reviewer_questions": [
+      "Should T-001A include a second POST_MVP variant where late association recovery confirms pr_association_status='NONE' and promotes the held commit to DIRECT_COMMIT?"
+    ]
+  }
+}

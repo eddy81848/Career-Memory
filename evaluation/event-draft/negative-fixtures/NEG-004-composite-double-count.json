@@ -1,0 +1,234 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "NEG-004",
+  "slug": "composite-double-count",
+  "title": "[NEGATIVE VARIANT] Composite members double-counted in search and metrics",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-COMP-01"],
+    "test_ids": ["T-001A-NEG-04"],
+    "scenario_tags": ["negative_variant", "composite_double_count_violation"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_neg4",
+        "name": "Synthetic Negative Workspace",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_neg4",
+        "workspace_id": "ws_syn_neg4",
+        "full_name": "acme-syn-lab/neg-service",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_neg4",
+        "workspace_id": "ws_syn_neg4",
+        "repo_id": "repo_syn_neg4",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_neg401",
+        "repo_id": "repo_syn_neg4",
+        "number": 401,
+        "title": "PR 1",
+        "body": "Body.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/p1",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T10:00:00Z",
+        "commit_ids": ["cmt_syn_neg401a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_neg402",
+        "repo_id": "repo_syn_neg4",
+        "number": 402,
+        "title": "PR 2",
+        "body": "Body.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/p2",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-21T10:00:00Z",
+        "commit_ids": ["cmt_syn_neg402a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_neg401a",
+        "repo_id": "repo_syn_neg4",
+        "sha": "9904000000000000000000000000000000000001",
+        "message": "Commit 1",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-20T09:00:00Z",
+        "branch_name": "feat/p1",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_neg401",
+        "changed_paths": ["src/a.py"]
+      },
+      {
+        "commit_id": "cmt_syn_neg402a",
+        "repo_id": "repo_syn_neg4",
+        "sha": "9904000000000000000000000000000000000002",
+        "message": "Commit 2",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-21T09:00:00Z",
+        "branch_name": "feat/p2",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_neg402",
+        "changed_paths": ["src/b.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_neg4_comp",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_neg401a", "cmt_syn_neg402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_neg4_m1", "ev_init_neg4_m2"],
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_neg4_m1",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_neg401",
+        "source_commit_ids": ["cmt_syn_neg401a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      },
+      {
+        "event_id": "ev_init_neg4_m2",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_neg402",
+        "source_commit_ids": ["cmt_syn_neg402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_neg4_comp",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_neg401a", "cmt_syn_neg402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_neg4_m1", "ev_init_neg4_m2"],
+        "parent_event_id": null,
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_neg4_m1",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_neg401",
+        "source_commit_ids": ["cmt_syn_neg401a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_neg4_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_neg4_m2",
+        "workspace_id": "ws_syn_neg4",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_neg402",
+        "source_commit_ids": ["cmt_syn_neg402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_neg4_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "PR 1",
+        "expected_event_ids": ["ev_init_neg4_comp", "ev_init_neg4_m1"],
+        "expected_result_count": 2
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_composite_events": 1,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": []
+  },
+  "rationale": {
+    "summary": "Intentionally broken fixture double-counting Composite member ev_init_neg4_m1.",
+    "invariants_exercised": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
+    "assumptions_without_notion": [],
+    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+  }
+}

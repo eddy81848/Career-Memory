@@ -1,0 +1,190 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "NEG-005",
+  "slug": "context-only-auto-merge",
+  "title": "[NEGATIVE VARIANT] Forbidden automatic multi-PR merge triggered by shared CONTEXT_ONLY ticket",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-CONTEXT-02"],
+    "test_ids": ["T-001A-NEG-05"],
+    "scenario_tags": ["negative_variant", "context_only_auto_merge_violation"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_neg5",
+        "name": "Synthetic Negative Workspace",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_neg5",
+        "workspace_id": "ws_syn_neg5",
+        "full_name": "acme-syn-lab/neg-service",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_neg5",
+        "workspace_id": "ws_syn_neg5",
+        "repo_id": "repo_syn_neg5",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_neg501",
+        "repo_id": "repo_syn_neg5",
+        "number": 501,
+        "title": "PR 1 refs SYN-505",
+        "body": "Refs SYN-505.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/s1",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T10:00:00Z",
+        "commit_ids": ["cmt_syn_neg501a"],
+        "referenced_ticket_ids": ["tkt_syn_neg505"]
+      },
+      {
+        "pr_id": "pr_syn_neg502",
+        "repo_id": "repo_syn_neg5",
+        "number": 502,
+        "title": "PR 2 refs SYN-505",
+        "body": "Refs SYN-505.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/s2",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T12:00:00Z",
+        "commit_ids": ["cmt_syn_neg502a"],
+        "referenced_ticket_ids": ["tkt_syn_neg505"]
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_neg501a",
+        "repo_id": "repo_syn_neg5",
+        "sha": "9905000000000000000000000000000000000001",
+        "message": "Commit 1",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-20T09:00:00Z",
+        "branch_name": "feat/s1",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_neg501",
+        "changed_paths": ["src/s1.py"]
+      },
+      {
+        "commit_id": "cmt_syn_neg502a",
+        "repo_id": "repo_syn_neg5",
+        "sha": "9905000000000000000000000000000000000002",
+        "message": "Commit 2",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-20T11:00:00Z",
+        "branch_name": "feat/s2",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_neg502",
+        "changed_paths": ["src/s2.py"]
+      }
+    ],
+    "issues_tickets": [
+      {
+        "ticket_id": "tkt_syn_neg505",
+        "repo_id": "repo_syn_neg5",
+        "external_key": "SYN-505",
+        "title": "Shared context ticket",
+        "relation_role": "CONTEXT_ONLY"
+      }
+    ],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_neg_005_bad_auto_comp",
+        "workspace_id": "ws_syn_neg5",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "AUTO_CONTEXT_LINK",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_neg501a", "cmt_syn_neg502a"],
+        "context_ticket_ids": ["tkt_syn_neg505"],
+        "member_event_ids": ["ev_neg_005_m1", "ev_neg_005_m2"],
+        "parent_event_id": null,
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_neg_005_m1",
+        "workspace_id": "ws_syn_neg5",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_neg501",
+        "source_commit_ids": ["cmt_syn_neg501a"],
+        "context_ticket_ids": ["tkt_syn_neg505"],
+        "member_event_ids": [],
+        "parent_event_id": "ev_neg_005_bad_auto_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_neg_005_m2",
+        "workspace_id": "ws_syn_neg5",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_neg502",
+        "source_commit_ids": ["cmt_syn_neg502a"],
+        "context_ticket_ids": ["tkt_syn_neg505"],
+        "member_event_ids": [],
+        "parent_event_id": "ev_neg_005_bad_auto_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_composite_events": 1,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": []
+  },
+  "rationale": {
+    "summary": "Intentionally broken fixture auto-merging two PRs through a shared CONTEXT_ONLY ticket without a MANUAL_MERGE command.",
+    "invariants_exercised": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
+    "assumptions_without_notion": [],
+    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+  }
+}

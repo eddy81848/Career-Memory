@@ -1,0 +1,246 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-011",
+  "slug": "user-exclude-event",
+  "title": "User EXCLUDE command hides noisy Event from active search and metrics while preserving provenance",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
+    "test_ids": ["T-001A-11"],
+    "scenario_tags": ["user_exclude", "curation_command", "metrics_filtering"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_011",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_011",
+        "workspace_id": "ws_syn_011",
+        "full_name": "acme-syn-lab/web-portal",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_011",
+        "workspace_id": "ws_syn_011",
+        "repo_id": "repo_syn_011",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T11:30:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1101",
+        "repo_id": "repo_syn_011",
+        "number": 1101,
+        "title": "Chore: bump lint-formatter from 1.2.0 to 1.2.1",
+        "body": "Automated synthetic dependency patch.",
+        "author_handle": "syn-bot-deps",
+        "head_branch": "chore/bump-lint-121",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-27T08:00:00Z",
+        "commit_ids": ["cmt_syn_1101a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1102",
+        "repo_id": "repo_syn_011",
+        "number": 1102,
+        "title": "Add keyboard navigation for timeline drawer",
+        "body": "Improves accessibility for event timeline drawer.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/timeline-a11y",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-27T15:00:00Z",
+        "commit_ids": ["cmt_syn_1102a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1101a",
+        "repo_id": "repo_syn_011",
+        "sha": "1101a00000000000000000000000000000000001",
+        "message": "Bump lint-formatter lockfile entry",
+        "author_handle": "syn-bot-deps",
+        "committed_at": "2026-10-27T07:55:00Z",
+        "branch_name": "chore/bump-lint-121",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1101",
+        "changed_paths": ["package-lock.synthetic.json"]
+      },
+      {
+        "commit_id": "cmt_syn_1102a",
+        "repo_id": "repo_syn_011",
+        "sha": "1102a00000000000000000000000000000000002",
+        "message": "Add arrow-key focus management to timeline drawer",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-27T14:30:00Z",
+        "branch_name": "feat/timeline-a11y",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1102",
+        "changed_paths": ["src/ui/TimelineDrawer.tsx"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_011_noise",
+        "workspace_id": "ws_syn_011",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1101",
+        "source_commit_ids": ["cmt_syn_1101a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_011_keep",
+        "workspace_id": "ws_syn_011",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1102",
+        "source_commit_ids": ["cmt_syn_1102a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_011_exclude",
+      "command_type": "EXCLUDE",
+      "workspace_id": "ws_syn_011",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "target_event_ids": ["ev_init_011_noise"],
+      "target_versions": {
+        "ev_init_011_noise": 1
+      },
+      "payload": {
+        "reason": "Automated lockfile bump not relevant to career narrative"
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_011_noise",
+        "workspace_id": "ws_syn_011",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "EXCLUDED",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_011_exclude",
+        "primary_pr_id": "pr_syn_1101",
+        "source_commit_ids": ["cmt_syn_1101a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Chore: bump lint-formatter from 1.2.0 to 1.2.1",
+        "review_required_tokens": ["lifecycle_status:EXCLUDED"]
+      },
+      {
+        "event_id": "ev_init_011_keep",
+        "workspace_id": "ws_syn_011",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1102",
+        "source_commit_ids": ["cmt_syn_1102a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add keyboard navigation for timeline drawer",
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_011_exclude",
+        "outcome": "ACCEPTED",
+        "error_code": null,
+        "state_mutated": true,
+        "resulting_event_ids": ["ev_init_011_noise"],
+        "review_required_tokens": ["command_type:EXCLUDE"]
+      }
+    ],
+    "search_checks": [
+      {
+        "query": "lint-formatter",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      },
+      {
+        "query": "timeline drawer",
+        "expected_event_ids": ["ev_init_011_keep"],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 1
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events[0].lifecycle_status",
+        "proposed_value": "EXCLUDED",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether EXCLUDE is reversible (RESTORE/INCLUDE command in MVP) and whether excluding a Composite Event excludes the Composite only or cascades to members."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "User excludes an irrelevant bot dependency bump PR. The Event transitions to EXCLUDED (version 2), disappears from default search and active counts, while the sibling Event remains active and source provenance stays intact.",
+    "invariants_exercised": [
+      "EXCLUDED_OMITTED_FROM_SEARCH_AND_METRICS",
+      "SOURCE_PROVENANCE_IMMUTABLE_ON_EXCLUDE"
+    ],
+    "assumptions_without_notion": [
+      "Assumes EXCLUDE does not delete underlying source records or Event history."
+    ],
+    "reviewer_questions": [
+      "Should default timeline filters support an explicit 'include_excluded=true' toggle, or is excluded visibility out of MVP scope?"
+    ]
+  }
+}

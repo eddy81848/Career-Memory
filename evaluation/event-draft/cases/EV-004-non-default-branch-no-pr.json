@@ -1,0 +1,114 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-004",
+  "slug": "non-default-branch-no-pr",
+  "title": "Commit on non-default branch without PR does not become a default-branch direct-commit Event",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-BRANCH-01"],
+    "test_ids": ["T-001A-04"],
+    "scenario_tags": ["non_default_branch", "branch_boundary", "no_pr"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_004",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_004",
+        "workspace_id": "ws_syn_004",
+        "full_name": "acme-syn-lab/search-indexer",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_004",
+        "workspace_id": "ws_syn_004",
+        "repo_id": "repo_syn_004",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:30:00Z"
+      }
+    ],
+    "pull_requests": [],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_401",
+        "repo_id": "repo_syn_004",
+        "sha": "4010000000000000000000000000000000000001",
+        "message": "WIP: prototype trigram shard balancer",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-23T16:00:00Z",
+        "branch_name": "exp/trigram-prototype",
+        "on_default_branch": false,
+        "pr_association_status": "NONE",
+        "associated_pr_id": null,
+        "changed_paths": ["src/indexer/trigram_proto.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [],
+    "held_items": [
+      {
+        "held_id": "hold_exp_004_1",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_401",
+        "hold_status": "NON_ELIGIBLE_BRANCH",
+        "hold_reason": "Commit is on non-default branch 'exp/trigram-prototype' with no associated PR; direct-commit Event creation applies only to default branch commits.",
+        "interpreted_as_no_pr": false,
+        "review_required_tokens": ["hold_status:NON_ELIGIBLE_BRANCH"]
+      }
+    ],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "trigram shard balancer",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 0,
+      "total_composite_events": 0,
+      "total_held_items": 1,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.held_items[0].hold_status",
+        "proposed_value": "NON_ELIGIBLE_BRANCH",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether Snapshot Import even ingests non-default branch orphan commits or filters them at import time; if ingested, confirm whether they are ignored silently or recorded as NON_ELIGIBLE_BRANCH."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Direct-commit Event eligibility is restricted to the repository default branch. Unmerged experimental branch commits without a PR must not be promoted into default-branch direct-commit Events.",
+    "invariants_exercised": [
+      "DIRECT_COMMIT_RESTRICTED_TO_DEFAULT_BRANCH"
+    ],
+    "assumptions_without_notion": [
+      "Assumes non-default branch commits without PRs are excluded/non-eligible in MVP; exact Snapshot Import ingestion filter is unconfirmed without Notion."
+    ],
+    "reviewer_questions": [
+      "Does Snapshot Import collect non-default branch commits at all, or only default-branch commits plus PR commits?"
+    ]
+  }
+}

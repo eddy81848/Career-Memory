@@ -1,0 +1,195 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-006",
+  "slug": "shared-ticket-no-auto-merge",
+  "title": "Two PRs referencing the same CONTEXT_ONLY ticket remain two distinct Events (no automatic multi-PR merge)",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
+    "test_ids": ["T-001A-06"],
+    "scenario_tags": ["context_only", "no_auto_multi_pr_merge", "multi_pr_separation", "mvp_core"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_006",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_006",
+        "workspace_id": "ws_syn_006",
+        "full_name": "acme-syn-lab/catalog-api",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_006",
+        "workspace_id": "ws_syn_006",
+        "repo_id": "repo_syn_006",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:50:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_601",
+        "repo_id": "repo_syn_006",
+        "number": 601,
+        "title": "Add SKU deprecation flags to catalog schema (SYN-202)",
+        "body": "Part 1 of catalog lifecycle cleanup. Refs SYN-202.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/syn-202-schema",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-25T10:00:00Z",
+        "commit_ids": ["cmt_syn_601a"],
+        "referenced_ticket_ids": ["tkt_syn_202"]
+      },
+      {
+        "pr_id": "pr_syn_602",
+        "repo_id": "repo_syn_006",
+        "number": 602,
+        "title": "Expose SKU deprecation filter on catalog endpoint (SYN-202)",
+        "body": "Part 2 of catalog lifecycle cleanup. Refs SYN-202.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/syn-202-api",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-25T14:00:00Z",
+        "commit_ids": ["cmt_syn_602a"],
+        "referenced_ticket_ids": ["tkt_syn_202"]
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_601a",
+        "repo_id": "repo_syn_006",
+        "sha": "601a000000000000000000000000000000000001",
+        "message": "Add deprecated_at logical field to catalog model",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-25T09:15:00Z",
+        "branch_name": "feat/syn-202-schema",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_601",
+        "changed_paths": ["src/catalog/model.py"]
+      },
+      {
+        "commit_id": "cmt_syn_602a",
+        "repo_id": "repo_syn_006",
+        "sha": "602a000000000000000000000000000000000002",
+        "message": "Filter deprecated SKUs in list handler",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-25T13:20:00Z",
+        "branch_name": "feat/syn-202-api",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_602",
+        "changed_paths": ["src/catalog/handlers.py"]
+      }
+    ],
+    "issues_tickets": [
+      {
+        "ticket_id": "tkt_syn_202",
+        "repo_id": "repo_syn_006",
+        "external_key": "SYN-202",
+        "title": "Support SKU deprecation across catalog model and API",
+        "relation_role": "CONTEXT_ONLY"
+      }
+    ],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_exp_006_1",
+        "workspace_id": "ws_syn_006",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_601",
+        "source_commit_ids": ["cmt_syn_601a"],
+        "context_ticket_ids": ["tkt_syn_202"],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add SKU deprecation flags to catalog schema (SYN-202)",
+        "review_required_tokens": ["merge_origin:NONE"]
+      },
+      {
+        "event_id": "ev_exp_006_2",
+        "workspace_id": "ws_syn_006",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_602",
+        "source_commit_ids": ["cmt_syn_602a"],
+        "context_ticket_ids": ["tkt_syn_202"],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Expose SKU deprecation filter on catalog endpoint (SYN-202)",
+        "review_required_tokens": ["merge_origin:NONE"]
+      }
+    ],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [
+      {
+        "query": "SKU deprecation",
+        "expected_event_ids": ["ev_exp_006_1", "ev_exp_006_2"],
+        "expected_result_count": 2
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events",
+        "proposed_value": "2 distinct STANDALONE PR_CENTERED Events",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm that MVP never suggests or auto-creates a Composite Event from shared ticket IDs, same author, or close merge timestamps (contrast with EV-009 user MANUAL_MERGE)."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Even when two PRs by the same author merge 4 hours apart and reference the exact same Issue/Ticket SYN-202, a CONTEXT_ONLY relation must NEVER trigger automatic multi-PR merging. Combining them requires an explicit user MANUAL_MERGE command (see EV-009).",
+    "invariants_exercised": [
+      "NO_CONTEXT_ONLY_AUTO_MERGE",
+      "NO_AUTOMATIC_MULTI_PR_MERGE",
+      "DISTINGUISH_AUTO_MERGE_FROM_USER_MANUAL_MERGE"
+    ],
+    "assumptions_without_notion": [
+      "Assumes shared ticket reference produces shared context_ticket_ids on both Events while preserving 2 independent Events."
+    ],
+    "reviewer_questions": [
+      "Should the Event Builder emit any non-binding UI merge hint for shared tickets, or emit strictly zero merge suggestions in MVP?"
+    ]
+  }
+}

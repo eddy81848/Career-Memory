@@ -1,0 +1,119 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "NEG-001",
+  "slug": "broken-id-ref",
+  "title": "[NEGATIVE VARIANT] Dangling PR and commit references in expected_proposal",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-LINT-NEG-01"],
+    "test_ids": ["T-001A-NEG-01"],
+    "scenario_tags": ["negative_variant", "broken_id_reference"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_neg1",
+        "name": "Synthetic Negative Workspace",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_neg1",
+        "workspace_id": "ws_syn_neg1",
+        "full_name": "acme-syn-lab/neg-service",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_neg1",
+        "workspace_id": "ws_syn_neg1",
+        "repo_id": "repo_syn_neg1",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T10:00:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_neg101",
+        "repo_id": "repo_syn_neg1",
+        "number": 101,
+        "title": "Valid synthetic PR",
+        "body": "Body.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/valid",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T14:30:00Z",
+        "commit_ids": ["cmt_syn_neg101a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_neg101a",
+        "repo_id": "repo_syn_neg1",
+        "sha": "9901000000000000000000000000000000000001",
+        "message": "Valid commit",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-20T12:00:00Z",
+        "branch_name": "feat/valid",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_neg101",
+        "changed_paths": ["src/valid.py"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_neg_001_1",
+        "workspace_id": "ws_syn_neg1",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_missing_999",
+        "source_commit_ids": ["cmt_syn_missing_999"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [],
+    "search_checks": [],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_composite_events": 0,
+      "total_held_items": 0,
+      "total_excluded_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": []
+  },
+  "rationale": {
+    "summary": "Intentionally broken negative fixture referencing nonexistent PR and commit IDs.",
+    "invariants_exercised": ["ID_REFERENCE_INTEGRITY"],
+    "assumptions_without_notion": [],
+    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+  }
+}

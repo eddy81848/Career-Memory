@@ -1,0 +1,422 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-014",
+  "slug": "cannot-link-nested-and-excluded",
+  "title": "CANNOT_LINK rejects nested Composite merging and merging an EXCLUDED Event",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "coverage": {
+    "requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
+    "test_ids": ["T-001A-14"],
+    "scenario_tags": ["cannot_link", "no_nested_composite", "excluded_not_linkable", "error_rejection"]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_014",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_014",
+        "workspace_id": "ws_syn_014",
+        "full_name": "acme-syn-lab/analytics-pipe",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_014",
+        "workspace_id": "ws_syn_014",
+        "repo_id": "repo_syn_014",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "completed_at": "2026-11-01T12:10:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1401",
+        "repo_id": "repo_syn_014",
+        "number": 1401,
+        "title": "Add parquet batch writer",
+        "body": "Writes analytics batches to parquet.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/parquet-writer",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T10:00:00Z",
+        "commit_ids": ["cmt_syn_1401a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1402",
+        "repo_id": "repo_syn_014",
+        "number": 1402,
+        "title": "Add parquet checksum validator",
+        "body": "Validates parquet batch checksums.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/parquet-checksum",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-21T10:00:00Z",
+        "commit_ids": ["cmt_syn_1402a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1403",
+        "repo_id": "repo_syn_014",
+        "number": 1403,
+        "title": "Add parquet schema registry check",
+        "body": "Checks schema compatibility before batch write.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/parquet-registry",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-22T10:00:00Z",
+        "commit_ids": ["cmt_syn_1403a"],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1404",
+        "repo_id": "repo_syn_014",
+        "number": 1404,
+        "title": "Chore: format markdown docs",
+        "body": "Formatting only.",
+        "author_handle": "syn-bot-fmt",
+        "head_branch": "chore/fmt-md",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-22T12:00:00Z",
+        "commit_ids": ["cmt_syn_1404a"],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1401a",
+        "repo_id": "repo_syn_014",
+        "sha": "1401a00000000000000000000000000000000001",
+        "message": "Implement parquet writer",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-20T09:00:00Z",
+        "branch_name": "feat/parquet-writer",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1401",
+        "changed_paths": ["src/pipe/writer.py"]
+      },
+      {
+        "commit_id": "cmt_syn_1402a",
+        "repo_id": "repo_syn_014",
+        "sha": "1402a00000000000000000000000000000000002",
+        "message": "Implement parquet checksum verifier",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-21T09:00:00Z",
+        "branch_name": "feat/parquet-checksum",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1402",
+        "changed_paths": ["src/pipe/checksum.py"]
+      },
+      {
+        "commit_id": "cmt_syn_1403a",
+        "repo_id": "repo_syn_014",
+        "sha": "1403a00000000000000000000000000000000003",
+        "message": "Add schema compatibility gate",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-22T09:00:00Z",
+        "branch_name": "feat/parquet-registry",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1403",
+        "changed_paths": ["src/pipe/schema_gate.py"]
+      },
+      {
+        "commit_id": "cmt_syn_1404a",
+        "repo_id": "repo_syn_014",
+        "sha": "1404a00000000000000000000000000000000004",
+        "message": "Normalize whitespace in README",
+        "author_handle": "syn-bot-fmt",
+        "committed_at": "2026-10-22T11:30:00Z",
+        "branch_name": "chore/fmt-md",
+        "on_default_branch": false,
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1404",
+        "changed_paths": ["docs/README.md"]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_014_comp",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_1401a", "cmt_syn_1402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_014_m1", "ev_init_014_m2"],
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_014_m1",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1401",
+        "source_commit_ids": ["cmt_syn_1401a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      },
+      {
+        "event_id": "ev_init_014_m2",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1402",
+        "source_commit_ids": ["cmt_syn_1402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      },
+      {
+        "event_id": "ev_init_014_solo",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1403",
+        "source_commit_ids": ["cmt_syn_1403a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_014_excl",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "EXCLUDED",
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1404",
+        "source_commit_ids": ["cmt_syn_1404a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_014_nested",
+      "command_type": "MANUAL_MERGE",
+      "workspace_id": "ws_syn_014",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 2,
+      "target_event_ids": ["ev_init_014_m1", "ev_init_014_solo"],
+      "target_versions": {
+        "ev_init_014_m1": 2,
+        "ev_init_014_solo": 1
+      },
+      "payload": {
+        "composite_title": "Invalid attempt to re-merge an already-subsumed Composite member"
+      }
+    },
+    {
+      "command_id": "cmd_syn_014_excluded",
+      "command_type": "MANUAL_MERGE",
+      "workspace_id": "ws_syn_014",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "target_event_ids": ["ev_init_014_solo", "ev_init_014_excl"],
+      "target_versions": {
+        "ev_init_014_solo": 1,
+        "ev_init_014_excl": 2
+      },
+      "payload": {
+        "composite_title": "Invalid attempt to merge an EXCLUDED Event"
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_014_comp",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "COMPOSITE",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "USER_MANUAL_MERGE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_1401a", "cmt_syn_1402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": ["ev_init_014_m1", "ev_init_014_m2"],
+        "parent_event_id": null,
+        "membership_state": "COMPOSITE_ROOT",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Parquet batch pipeline",
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_014_m1",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1401",
+        "source_commit_ids": ["cmt_syn_1401a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_014_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Add parquet batch writer",
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_014_m2",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1402",
+        "source_commit_ids": ["cmt_syn_1402a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": "ev_init_014_comp",
+        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Add parquet checksum validator",
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_014_solo",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "ACTIVE",
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1403",
+        "source_commit_ids": ["cmt_syn_1403a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add parquet schema registry check",
+        "review_required_tokens": []
+      },
+      {
+        "event_id": "ev_init_014_excl",
+        "workspace_id": "ws_syn_014",
+        "event_kind": "PR_CENTERED",
+        "lifecycle_status": "EXCLUDED",
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1404",
+        "source_commit_ids": ["cmt_syn_1404a"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_state": "STANDALONE",
+        "searchable_as_top_level": false,
+        "counted_in_metrics": false,
+        "title_hint": "Chore: format markdown docs",
+        "review_required_tokens": []
+      }
+    ],
+    "held_items": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_014_nested",
+        "outcome": "REJECTED",
+        "error_code": "CANNOT_LINK",
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "review_required_tokens": ["error_code:CANNOT_LINK"]
+      },
+      {
+        "command_id": "cmd_syn_014_excluded",
+        "outcome": "REJECTED",
+        "error_code": "CANNOT_LINK",
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "review_required_tokens": ["error_code:CANNOT_LINK"]
+      }
+    ],
+    "search_checks": [
+      {
+        "query": "parquet",
+        "expected_event_ids": ["ev_init_014_comp", "ev_init_014_solo"],
+        "expected_result_count": 2
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_composite_events": 1,
+      "total_held_items": 0,
+      "total_excluded_events": 1
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.command_results[0].error_code",
+        "proposed_value": "CANNOT_LINK",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether MVP forbids nested Composites (merging a Composite or an already-subsumed member) with CANNOT_LINK, or supports flattening into an existing Composite via a separate ADD_MEMBER command."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Prevents violating single-level Composite membership and prevents merging EXCLUDED Events. Both commands are rejected with CANNOT_LINK and leave all existing Events and versions intact.",
+    "invariants_exercised": [
+      "SINGLE_COMPOSITE_MEMBERSHIP_ONLY",
+      "EXCLUDED_EVENT_CANNOT_BE_LINKED",
+      "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+    ],
+    "assumptions_without_notion": [
+      "Assumes flat 1-level Composite hierarchy in MVP and that EXCLUDED Events must be restored before being linked."
+    ],
+    "reviewer_questions": [
+      "Confirm whether merging an existing COMPOSITE_ROOT with a STANDALONE Event is rejected with CANNOT_LINK or allowed by appending the standalone member to the composite."
+    ]
+  }
+}

@@ -126,7 +126,7 @@ export function ImportStatusPanel({
         </p>
       </div>
 
-      {/* Reload recovery polite announcement */}
+      {/* Reload recovery / 409 existing-run attachment polite announcement */}
       {recoveryNotice && (
         <div
           className="inline-alert inline-alert--info"
@@ -134,7 +134,12 @@ export function ImportStatusPanel({
           aria-live="polite"
           data-testid="reload-recovery-notice"
         >
-          <strong>새로고침 상태 복구:</strong> {recoveryNotice.message}
+          <strong>
+            {recoveryNotice.kind === "attached_existing_run"
+              ? "기존 실행 이동:"
+              : "새로고침 상태 복구:"}
+          </strong>{" "}
+          {recoveryNotice.message}
         </div>
       )}
 
@@ -171,7 +176,7 @@ export function ImportStatusPanel({
         </div>
       )}
 
-      {/* Unconfirmed transport/session/conflict fault */}
+      {/* Unconfirmed transport/session/conflict/empty-body fault */}
       {unconfirmedFault && (
         <div
           className="status-banner status-banner--danger"
@@ -185,7 +190,9 @@ export function ImportStatusPanel({
                 ? "세션 만료 — 요청 미확정"
                 : unconfirmedFault.kind === "network_error"
                   ? "네트워크 실패 — 서버 미확정"
-                  : "중복 충돌 — 요청 거절"}
+                  : unconfirmedFault.kind === "request_rejected"
+                    ? `요청 처리 불가${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""} — 일반 안내`
+                    : "중복 충돌 — 요청 거절"}
             </span>
           </div>
           <p className="status-banner__headline">{unconfirmedFault.title}</p>
@@ -206,7 +213,8 @@ export function ImportStatusPanel({
               </button>
             )}
             {(unconfirmedFault.kind === "network_error" ||
-              unconfirmedFault.kind === "duplicate_conflict") && (
+              unconfirmedFault.kind === "duplicate_conflict" ||
+              unconfirmedFault.kind === "request_rejected") && (
               <button
                 type="button"
                 className="btn btn--secondary btn--sm"
@@ -258,7 +266,9 @@ export function ImportStatusPanel({
                     {banner.badgeText}
                   </span>
                   <span className="mono run-id-chip">
-                    {activeRun.runId} · 시도 #{activeRun.attemptNumber}
+                    {activeRun.runId}
+                    {activeRun.planId ? ` · ${activeRun.planId}` : ""} · 시도 #
+                    {activeRun.attemptNumber}
                   </span>
                 </div>
                 <p className="status-banner__headline">{banner.headline}</p>
@@ -273,8 +283,37 @@ export function ImportStatusPanel({
             );
           })()}
 
+          {/* Explicit separation when historical import succeeded (import_ready=true)
+              but current downstream processing is BLOCKED_POLICY or BLOCKED_SOURCE */}
+          {activeRun.readiness.processingBlockedMessage && (
+            <div
+              className="status-banner status-banner--warning"
+              role="alert"
+              aria-live="assertive"
+              data-testid="processing-blocked-notice"
+            >
+              <div className="status-banner__top">
+                <span
+                  className="badge badge--warning"
+                  data-testid="processing-status-badge"
+                >
+                  현재 처리 차단 ({activeRun.readiness.processingStatus})
+                </span>
+                <span className="badge badge--success">
+                  가져온 이력: SUCCESS (import_ready=true)
+                </span>
+              </div>
+              <p className="status-banner__headline">
+                가져온 스냅샷 이력은 성공이나 현재 후속 처리가 차단되어 있습니다
+              </p>
+              <p className="status-banner__detail">
+                {activeRun.readiness.processingBlockedMessage}
+              </p>
+            </div>
+          )}
+
           {/* Explicit warning if import_ready is true while derived stages are not ready */}
-          {derivedLag && (
+          {derivedLag && !activeRun.readiness.processingBlockedMessage && (
             <div
               className="inline-alert inline-alert--warning"
               role="status"
@@ -288,12 +327,12 @@ export function ImportStatusPanel({
             </div>
           )}
 
-          {/* Two-Layer Readiness Card: import_ready vs Derived Stages */}
+          {/* Two-Layer Readiness Card: Historical Import (import_ready) vs Current Processing */}
           <div className="readiness-grid" data-testid="readiness-breakdown">
             <div className="subcard">
               <div className="subcard__header">
                 <h3 className="subcard__title">
-                  1단계: 원본 스냅샷 준비 (<code className="mono">import_ready</code>)
+                  1단계: 가져온 이력 / 스냅샷 준비 (<code className="mono">import_ready</code>)
                 </h3>
                 <span
                   className={`badge ${
@@ -317,6 +356,37 @@ export function ImportStatusPanel({
               <p className="subcard__body">
                 {activeRun.readiness.importReadySummary}
               </p>
+              {(activeRun.processedRange || activeRun.remainingRange) && (
+                <dl className="meta-list meta-list--compact">
+                  {activeRun.processedRange && (
+                    <div>
+                      <dt>처리된 범위</dt>
+                      <dd className="mono">{activeRun.processedRange}</dd>
+                    </div>
+                  )}
+                  {activeRun.remainingRange && (
+                    <div>
+                      <dt>남은 범위</dt>
+                      <dd className="mono">{activeRun.remainingRange}</dd>
+                    </div>
+                  )}
+                </dl>
+              )}
+              {activeRun.streams && activeRun.streams.length > 0 && (
+                <ul className="bullet-list" data-testid="stream-progress-list">
+                  {activeRun.streams.map((stream) => (
+                    <li key={`${stream.type}-${stream.status}`} className="mono">
+                      stream {stream.type}: {stream.status}
+                      {stream.lastCommittedPage !== undefined
+                        ? ` · page ${stream.lastCommittedPage}`
+                        : ""}
+                      {stream.unresolvedFailures !== undefined
+                        ? ` · unresolved ${stream.unresolvedFailures}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {activeRun.summary && (
                 <dl className="meta-list meta-list--compact">
                   <div>
@@ -335,18 +405,25 @@ export function ImportStatusPanel({
 
             <div className="subcard">
               <div className="subcard__header">
-                <h3 className="subcard__title">2단계: 파생 단계 준비 여부</h3>
+                <h3 className="subcard__title">2단계: 현재 후속 처리 상태</h3>
                 <span
                   className={`badge ${
                     activeRun.readiness.derivedAllReady
                       ? "badge--success"
-                      : "badge--warning"
+                      : activeRun.readiness.processingStatus === "BLOCKED_POLICY" ||
+                          activeRun.readiness.processingStatus === "BLOCKED_SOURCE"
+                        ? "badge--danger"
+                        : "badge--warning"
                   }`}
                   data-testid="derived-ready-badge"
                 >
                   {activeRun.readiness.derivedAllReady
                     ? "파생 단계 전체 준비 완료"
-                    : "파생 단계 미완료"}
+                    : activeRun.readiness.processingStatus === "BLOCKED_POLICY"
+                      ? "현재 처리 차단 (BLOCKED_POLICY)"
+                      : activeRun.readiness.processingStatus === "BLOCKED_SOURCE"
+                        ? "현재 처리 차단 (BLOCKED_SOURCE)"
+                        : "파생 단계 미완료"}
                 </span>
               </div>
 

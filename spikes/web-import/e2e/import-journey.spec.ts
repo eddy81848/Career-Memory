@@ -247,4 +247,54 @@ test.describe("Career Memory initial import UI prototype (browser E2E)", () => {
     );
     await expect(page.getByTestId("import-run-details")).toHaveCount(0);
   });
+
+  test("renders OpenAPI SUCCESS+BLOCKED_POLICY separately, attaches 409 existing_run_id, and handles bodyless 403/409/422 cleanly", async ({
+    page,
+  }) => {
+    // 1. SUCCESS + BLOCKED_POLICY: historical import_ready=true separated from current blocked state
+    await page
+      .getByLabel(/응답 시나리오/i)
+      .selectOption("success_blocked_policy");
+    await page.getByTestId("start-import-button").click();
+
+    await expect(page.getByTestId("processing-blocked-notice")).toBeVisible();
+    await expect(page.getByTestId("import-ready-badge")).toContainText(
+      "import_ready: true"
+    );
+    await expect(page.getByTestId("processing-status-badge")).toContainText(
+      "BLOCKED_POLICY"
+    );
+    await expect(page.getByTestId("retry-import-button")).toHaveCount(0);
+
+    // 2. 409 SYNC_ALREADY_RUNNING with existing_run_id -> navigates and completes
+    await page.getByRole("button", { name: "진행 결과 초기화" }).click();
+    await page
+      .getByLabel(/응답 시나리오/i)
+      .selectOption("conflict_existing_run");
+    await page.getByTestId("start-import-button").click();
+
+    await expect(page.getByTestId("reload-recovery-notice")).toContainText(
+      "synthetic-run-existing-1"
+    );
+    await expect(page.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-run-status",
+      "succeeded"
+    );
+
+    // 3. Bodyless 403, 409, 422 -> neutral generic guidance without crash
+    await page.getByRole("button", { name: "진행 결과 초기화" }).click();
+    await expect(page.getByTestId("import-run-details")).toHaveCount(0);
+    for (const [scenario, statusText] of [
+      ["empty_403", "HTTP 403"],
+      ["empty_409", "HTTP 409"],
+      ["empty_422", "HTTP 422"],
+    ] as const) {
+      await page.getByLabel(/응답 시나리오/i).selectOption(scenario);
+      await page.getByTestId("start-import-button").click();
+      await expect(page.getByTestId("unconfirmed-fault-banner")).toContainText(
+        statusText
+      );
+      await expect(page.getByTestId("import-run-details")).toHaveCount(0);
+    }
+  });
 });

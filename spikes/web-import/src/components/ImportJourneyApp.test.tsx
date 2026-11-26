@@ -275,7 +275,7 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       "한도 도달 — 제한됨"
     );
     expect(screen.getByTestId("limit-detail-box")).toHaveTextContent(
-      "MVP 최초 스냅샷 수집 상한 초과"
+      "SYNC_PARTIAL_WITH_LIMIT"
     );
     expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
   });
@@ -982,5 +982,252 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
       "import_ready: false (부분 수집 — 미준비)"
     );
+  });
+
+  it("separates historical SUCCESS (import_ready=true) from current BLOCKED_POLICY and BLOCKED_SOURCE in UI", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_blocked_policy",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-blocked-notice")).toBeInTheDocument();
+    });
+
+    // Historical import history is preserved as SUCCESS / import_ready=true
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: true (준비 완료)"
+    );
+    // Current processing blocked state is shown separately
+    expect(screen.getByTestId("processing-status-badge")).toHaveTextContent(
+      "BLOCKED_POLICY"
+    );
+    expect(screen.getByTestId("derived-ready-badge")).toHaveTextContent(
+      "현재 처리 차단 (BLOCKED_POLICY)"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+
+    // Also verify BLOCKED_SOURCE
+    await user.click(screen.getByRole("button", { name: "진행 결과 초기화" }));
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "success_blocked_source"
+    );
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-status-badge")).toHaveTextContent(
+        "BLOCKED_SOURCE"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: true (준비 완료)"
+    );
+    expect(screen.getByTestId("derived-ready-badge")).toHaveTextContent(
+      "현재 처리 차단 (BLOCKED_SOURCE)"
+    );
+  });
+
+  it("moves UI to existing run on 409 SYNC_ALREADY_RUNNING only when existing_run_id is provided", async () => {
+    const user = userEvent.setup();
+
+    // Case 1: 409 with existing_run_id -> navigates to synthetic-run-existing-1 and completes
+    const adapterWithId = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "conflict_existing_run",
+    });
+
+    const first = render(
+      <ImportJourneyApp
+        adapter={adapterWithId}
+        harness={adapterWithId}
+        pollIntervalMs={15}
+      />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+        "synthetic-run-existing-1"
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+      "synthetic-run-existing-1"
+    );
+    first.unmount();
+
+    // Case 2: 409 SYNC_ALREADY_RUNNING without existing_run_id -> stays without moving
+    const adapterWithoutId = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send() {
+          return {
+            status: 409,
+            rawBody: JSON.stringify({
+              error: { code: "SYNC_ALREADY_RUNNING" },
+            }),
+          };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp
+        adapter={adapterWithoutId}
+        harness={adapterWithoutId}
+        pollIntervalMs={15}
+      />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "SYNC_ALREADY_RUNNING"
+      );
+    });
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+  });
+
+  it("renders neutral generic guidance for bodyless 403, 409, and 422 without JSON parse errors", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "empty_403",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "HTTP 403"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "세부 사유를 특정할 수 없습니다"
+    );
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+
+    // Empty 409
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "empty_409"
+    );
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "HTTP 409"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "이유를 단정할 수 없습니다"
+    );
+
+    // Empty 422
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "empty_422"
+    );
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "HTTP 422"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "세부 원인은 응답에 포함되지 않았습니다"
+    );
+  });
+
+  it("reuses the exact same UUID Idempotency-Key when user resends after a lost submit response", async () => {
+    const user = userEvent.setup();
+    const capturedKeys: string[] = [];
+    let attempt = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            capturedKeys.push(req.headers["Idempotency-Key"]);
+            attempt += 1;
+            if (attempt === 1) {
+              throw new Error("LOST_SUBMIT_RESPONSE");
+            }
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                target_id: "synthetic-run-resend-1",
+                status_url: "/v1/sync-runs/synthetic-run-resend-1",
+              }),
+            };
+          }
+          return {
+            status: 200,
+            rawBody: JSON.stringify({
+              status: "SUCCESS",
+              plan_id: "synthetic-plan-resend-1",
+              import_ready: true,
+              processing_status: "COMPLETE",
+              source_drift: false,
+              retry: { allowed: false },
+            }),
+          };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "네트워크 실패 — 서버 미확정"
+      );
+    });
+
+    // Resend exact same submit -> must reuse the same UUID key and succeed
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    expect(capturedKeys).toHaveLength(2);
+    expect(capturedKeys[0]).toBe(capturedKeys[1]);
   });
 });

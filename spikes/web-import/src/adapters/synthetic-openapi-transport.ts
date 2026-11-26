@@ -1,0 +1,607 @@
+import type { PrototypeScenarioId } from "@/domain/view-models";
+import {
+  parseOptionalJsonBody,
+  UUID_V4_REGEX,
+  type ImportConflictDto,
+  type ImportStatusDto,
+  type InitialImportRequestDto,
+  type SyncRunAcceptedDto,
+  type SyntheticHttpRequest,
+  type SyntheticHttpResponse,
+  type SyntheticHttpTransport,
+} from "./synthetic-http-transport";
+
+/**
+ * In-memory synthetic HTTP responder matching OpenAPI 0.2.0-draft examples
+ * (CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59) for ONLY:
+ *   - POST /v1/sync-runs
+ *   - GET  /v1/sync-runs/{id}
+ *   - POST /v1/sync-runs/{id}/retry
+ *
+ * ZERO real network calls. Used locally by MockFixtureImportAdapter and tests.
+ */
+
+export interface SyntheticOpenApiState {
+  scenarioId: PrototypeScenarioId;
+  pollStep: number;
+  runSequence: number;
+  isRetryRecoveryFlow: boolean;
+  activeRunId: string | null;
+  activePlanId: string | null;
+  failNextPollWithNetworkError: boolean;
+}
+
+export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
+  private readonly getContext: () => {
+    isAuthenticated: boolean;
+    state: SyntheticOpenApiState;
+    onStateChange: (next: SyntheticOpenApiState) => void;
+    onGitHubPermissionRevoked?: () => void;
+  };
+
+  /** Recorded synthetic HTTP requests for test inspection */
+  public readonly requestLog: SyntheticHttpRequest[] = [];
+
+  private readonly createIdempotencyRecords = new Map<
+    string,
+    { fingerprint: string; accepted: SyncRunAcceptedDto }
+  >();
+  private readonly retryIdempotencyRecords = new Map<
+    string,
+    { runId: string; accepted: SyncRunAcceptedDto }
+  >();
+
+  constructor(
+    getContext: () => {
+      isAuthenticated: boolean;
+      state: SyntheticOpenApiState;
+      onStateChange: (next: SyntheticOpenApiState) => void;
+      onGitHubPermissionRevoked?: () => void;
+    }
+  ) {
+    this.getContext = getContext;
+  }
+
+  public clearIdempotencyLog(): void {
+    this.createIdempotencyRecords.clear();
+    this.retryIdempotencyRecords.clear();
+  }
+
+  private echoHeaders(request: SyntheticHttpRequest): Record<string, string> {
+    const reqId = request.headers["X-Request-ID"];
+    return reqId ? { "X-Request-ID": reqId } : {};
+  }
+
+  public async send(
+    request: SyntheticHttpRequest
+  ): Promise<SyntheticHttpResponse> {
+    this.requestLog.push({
+      ...request,
+      headers: { ...request.headers },
+    });
+
+    const ctx = this.getContext();
+    const headers = this.echoHeaders(request);
+
+    if (request.method === "POST" && request.path === "/v1/sync-runs") {
+      return this.handleCreateInitialImport(request, ctx, headers);
+    }
+
+    const retryMatch = request.path.match(/^\/v1\/sync-runs\/([^/?#]+)\/retry$/);
+    if (request.method === "POST" && retryMatch) {
+      const runId = decodeURIComponent(retryMatch[1]);
+      return this.handleRetry(request, runId, ctx, headers);
+    }
+
+    const getMatch = request.path.match(/^\/v1\/sync-runs\/([^/?#]+)$/);
+    if (request.method === "GET" && getMatch) {
+      const runId = decodeURIComponent(getMatch[1]);
+      return this.handleGetStatus(runId, ctx, headers);
+    }
+
+    return { status: 404, headers, rawBody: "" };
+  }
+
+  private handleCreateInitialImport(
+    request: SyntheticHttpRequest,
+    ctx: ReturnType<SyntheticOpenApiTransport["getContext"]>,
+    headers: Record<string, string>
+  ): SyntheticHttpResponse {
+    const { isAuthenticated, state, onStateChange } = ctx;
+
+    // Lost response simulation BEFORE server response arrives
+    if (state.scenarioId === "network_error_on_submit") {
+      throw new Error("SYNTHETIC_NETWORK_LOST_RESPONSE");
+    }
+
+    if (!isAuthenticated || state.scenarioId === "session_expired_on_submit") {
+      return { status: 401, headers, rawBody: "" };
+    }
+
+    // Empty-body review stub responses (no JSON body!)
+    if (state.scenarioId === "empty_403") {
+      return { status: 403, headers, rawBody: "" };
+    }
+    if (state.scenarioId === "empty_409") {
+      return { status: 409, headers, rawBody: "" };
+    }
+    if (state.scenarioId === "empty_422") {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    // Validate UUID Idempotency-Key & JSON body per OpenAPI 0.2.0-draft -> empty 422
+    const key = request.headers["Idempotency-Key"];
+    if (!key || !UUID_V4_REGEX.test(key)) {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    const parsedBody = parseOptionalJsonBody<InitialImportRequestDto>(
+      request.body
+    );
+    if (
+      parsedBody.empty ||
+      parsedBody.invalidJson ||
+      !parsedBody.value?.source_resource_id ||
+      parsedBody.value.mode !== "INITIAL_BACKFILL"
+    ) {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    const fingerprint = JSON.stringify({
+      source_resource_id: parsedBody.value.source_resource_id,
+      mode: parsedBody.value.mode,
+    });
+
+    const prior = this.createIdempotencyRecords.get(key);
+    if (prior) {
+      if (prior.fingerprint !== fingerprint) {
+        const conflict: ImportConflictDto = {
+          error: { code: "IDEMPOTENCY_CONFLICT" },
+        };
+        return {
+          status: 409,
+          headers: { ...headers, "Content-Type": "application/json" },
+          rawBody: JSON.stringify(conflict),
+        };
+      }
+      return {
+        status: 202,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(prior.accepted),
+      };
+    }
+
+    // 409 SYNC_ALREADY_RUNNING with existing_run_id (OpenAPI activeRun example)
+    if (state.scenarioId === "conflict_existing_run") {
+      const existingRunId = "synthetic-run-existing-1";
+      onStateChange({
+        ...state,
+        activeRunId: existingRunId,
+        activePlanId: "synthetic-plan-existing-1",
+        pollStep: 0,
+        isRetryRecoveryFlow: false,
+      });
+      const conflict: ImportConflictDto = {
+        error: {
+          code: "SYNC_ALREADY_RUNNING",
+          details: { existing_run_id: existingRunId },
+        },
+      };
+      return {
+        status: 409,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(conflict),
+      };
+    }
+
+    const nextSeq = state.runSequence + 1;
+    const targetId = `run_demo_${nextSeq}`;
+    const planId = `synthetic-plan-${nextSeq}`;
+    const accepted: SyncRunAcceptedDto = {
+      status: "PENDING",
+      target_type: "SYNC_RUN",
+      target_id: targetId,
+      status_url: `/v1/sync-runs/${targetId}`,
+      // Intentionally omit job_id (optional per OpenAPI 0.2.0-draft)
+    };
+
+    this.createIdempotencyRecords.set(key, { fingerprint, accepted });
+    onStateChange({
+      ...state,
+      runSequence: nextSeq,
+      pollStep: 0,
+      isRetryRecoveryFlow: false,
+      activeRunId: targetId,
+      activePlanId: planId,
+    });
+
+    return {
+      status: 202,
+      headers: { ...headers, "Content-Type": "application/json" },
+      rawBody: JSON.stringify(accepted),
+    };
+  }
+
+  private handleRetry(
+    request: SyntheticHttpRequest,
+    runId: string,
+    ctx: ReturnType<SyntheticOpenApiTransport["getContext"]>,
+    headers: Record<string, string>
+  ): SyntheticHttpResponse {
+    const { isAuthenticated, state, onStateChange } = ctx;
+
+    if (!isAuthenticated) {
+      return { status: 401, headers, rawBody: "" };
+    }
+
+    // Retry must be bodyless and include UUID Idempotency-Key
+    const key = request.headers["Idempotency-Key"];
+    if (
+      !key ||
+      !UUID_V4_REGEX.test(key) ||
+      (request.body !== undefined && request.body.length > 0)
+    ) {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    const prior = this.retryIdempotencyRecords.get(key);
+    if (prior) {
+      if (prior.runId !== runId) {
+        const conflict: ImportConflictDto = {
+          error: { code: "IDEMPOTENCY_CONFLICT" },
+        };
+        return {
+          status: 409,
+          headers: { ...headers, "Content-Type": "application/json" },
+          rawBody: JSON.stringify(conflict),
+        };
+      }
+      return {
+        status: 202,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(prior.accepted),
+      };
+    }
+
+    // OpenAPI 0.2.0-draft: retry returns the ORIGINAL run's target_id and status_url
+    const accepted: SyncRunAcceptedDto = {
+      status: "PENDING",
+      target_type: "SYNC_RUN",
+      target_id: runId,
+      status_url: `/v1/sync-runs/${encodeURIComponent(runId)}`,
+    };
+
+    this.retryIdempotencyRecords.set(key, { runId, accepted });
+    onStateChange({
+      ...state,
+      pollStep: 0,
+      isRetryRecoveryFlow: true,
+      activeRunId: runId,
+    });
+
+    return {
+      status: 202,
+      headers: { ...headers, "Content-Type": "application/json" },
+      rawBody: JSON.stringify(accepted),
+    };
+  }
+
+  private handleGetStatus(
+    runId: string,
+    ctx: ReturnType<SyntheticOpenApiTransport["getContext"]>,
+    headers: Record<string, string>
+  ): SyntheticHttpResponse {
+    const { isAuthenticated, state, onStateChange, onGitHubPermissionRevoked } =
+      ctx;
+
+    if (state.failNextPollWithNetworkError) {
+      onStateChange({
+        ...state,
+        failNextPollWithNetworkError: false,
+      });
+      throw new Error("SYNTHETIC_POLL_NETWORK_FAILURE");
+    }
+
+    if (!isAuthenticated) {
+      return { status: 401, headers, rawBody: "" };
+    }
+
+    const nextStep = state.pollStep + 1;
+    const planId = state.activePlanId ?? `synthetic-plan-${runId}`;
+    const observedAt = new Date().toISOString();
+
+    // Existing run attached via 409 SYNC_ALREADY_RUNNING -> RUNNING then SUCCESS
+    if (state.scenarioId === "conflict_existing_run") {
+      onStateChange({ ...state, pollStep: nextStep });
+      const dto: ImportStatusDto =
+        nextStep === 1
+          ? {
+              status: "RUNNING",
+              plan_id: planId,
+              import_ready: false,
+              processing_status: "NOT_STARTED",
+              observed_at: observedAt,
+              source_drift: false,
+              processed_range: "2025-09-23 through 2026-06-30",
+              remaining_range: "2026-07-01 through 2026-10-05",
+              retry: { allowed: false },
+            }
+          : {
+              status: "SUCCESS",
+              plan_id: planId,
+              import_ready: true,
+              processing_status: "COMPLETE",
+              observed_at: observedAt,
+              source_drift: false,
+              processed_range: "2025-09-23 through 2026-10-05",
+              retry: { allowed: false },
+            };
+      return {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(dto),
+      };
+    }
+
+    // Slow reload recovery stays RUNNING across 3 polls before SUCCESS
+    if (state.scenarioId === "running_slow_for_reload" && nextStep < 4) {
+      onStateChange({ ...state, pollStep: nextStep });
+      const dto: ImportStatusDto = {
+        status: "RUNNING",
+        plan_id: planId,
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        observed_at: observedAt,
+        source_drift: false,
+        processed_range: "2025-09-23 through 2026-05-01",
+        remaining_range: "2026-05-02 through 2026-10-05",
+        retry: { allowed: false },
+      };
+      return {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(dto),
+      };
+    }
+
+    // Normal full success & retry recovery pass through RUNNING then SUCCESS(COMPLETE)
+    if (
+      (state.scenarioId === "success_full" || state.isRetryRecoveryFlow) &&
+      nextStep === 1
+    ) {
+      onStateChange({ ...state, pollStep: nextStep });
+      const dto: ImportStatusDto = {
+        status: "RUNNING",
+        plan_id: planId,
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        observed_at: observedAt,
+        source_drift: false,
+        streams: [
+          { type: "PR", status: "RUNNING", last_committed_page: 4 },
+        ],
+        retry: { allowed: false },
+      };
+      return {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(dto),
+      };
+    }
+
+    onStateChange({ ...state, pollStep: nextStep });
+
+    if (state.isRetryRecoveryFlow) {
+      const dto: ImportStatusDto = {
+        status: "SUCCESS",
+        plan_id: planId,
+        import_ready: true,
+        processing_status: "COMPLETE",
+        observed_at: observedAt,
+        source_drift: false,
+        processed_range: "2025-09-23 through 2026-10-05",
+        retry: { allowed: false },
+      };
+      return {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(dto),
+      };
+    }
+
+    const dto = this.buildScenarioTerminalDto({
+      scenarioId: state.scenarioId,
+      planId,
+      observedAt,
+      onGitHubPermissionRevoked,
+    });
+
+    return {
+      status: 200,
+      headers: { ...headers, "Content-Type": "application/json" },
+      rawBody: JSON.stringify(dto),
+    };
+  }
+
+  private buildScenarioTerminalDto(params: {
+    scenarioId: PrototypeScenarioId;
+    planId: string;
+    observedAt: string;
+    onGitHubPermissionRevoked?: () => void;
+  }): ImportStatusDto {
+    const { scenarioId, planId, observedAt } = params;
+
+    switch (scenarioId) {
+      case "success_full":
+      case "running_slow_for_reload":
+      case "session_expired_on_submit":
+      case "network_error_on_submit":
+      case "conflict_existing_run":
+      case "empty_403":
+      case "empty_409":
+      case "empty_422":
+        return {
+          status: "SUCCESS",
+          plan_id: planId,
+          import_ready: true,
+          processing_status: "COMPLETE",
+          observed_at: observedAt,
+          source_drift: false,
+          processed_range: "2025-09-23 through 2026-10-05",
+          retry: { allowed: false },
+        };
+
+      case "success_import_ready_derived_pending":
+        return {
+          status: "SUCCESS",
+          plan_id: planId,
+          import_ready: true,
+          processing_status: "FAILED",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+
+      // OpenAPI example: policyChangedAfterSuccess
+      case "success_blocked_policy":
+        return {
+          status: "SUCCESS",
+          plan_id: planId,
+          import_ready: true,
+          processing_status: "BLOCKED_POLICY",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+
+      // OpenAPI example: SUCCESS + BLOCKED_SOURCE
+      case "success_blocked_source":
+        return {
+          status: "SUCCESS",
+          plan_id: planId,
+          import_ready: true,
+          processing_status: "BLOCKED_SOURCE",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+
+      // OpenAPI example: transientPartial
+      case "partial_retryable":
+        return {
+          status: "PARTIAL",
+          plan_id: planId,
+          failure_reason: "TRANSIENT_PROVIDER_ERROR",
+          streams: [
+            {
+              type: "PR",
+              status: "PARTIAL",
+              last_committed_page: 7,
+              unresolved_failures: 1,
+            },
+          ],
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          processed_range: "2025-09-23 through 2026-08-31",
+          remaining_range: "2026-09-01 through 2026-10-05",
+          retry: { allowed: true, from_safe_checkpoint: true },
+        };
+
+      // OpenAPI example: importPolicyBlocked
+      case "partial_non_retryable":
+        return {
+          status: "PARTIAL",
+          plan_id: planId,
+          failure_reason: "SOURCE_POLICY_BLOCKED",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+
+      // OpenAPI example: planDrift
+      case "partial_plan_drift":
+        return {
+          status: "PARTIAL",
+          plan_id: planId,
+          failure_reason: "PLAN_DRIFT",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: true,
+          retry: { allowed: false },
+        };
+
+      // Rate-limited transient partial retryable
+      case "limit_rate_limited":
+        return {
+          status: "PARTIAL",
+          plan_id: planId,
+          failure_reason: "TRANSIENT_PROVIDER_ERROR",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          processed_range: "2025-09-23 through 2026-06-30",
+          remaining_range: "2026-07-01 through 2026-10-05",
+          retry: { allowed: true, from_safe_checkpoint: true },
+        };
+
+      // OpenAPI example: itemLimit (PARTIAL_WITH_LIMIT -> import_ready=false, retry.allowed=false)
+      case "limit_cap_blocked":
+        return {
+          status: "PARTIAL_WITH_LIMIT",
+          plan_id: planId,
+          failure_reason: "SYNC_PARTIAL_WITH_LIMIT",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          processed_range: "2025-09-23 through 2026-08-31",
+          remaining_range: "2026-09-01 through 2026-10-05",
+          retry: { allowed: false },
+        };
+
+      // OpenAPI invariant: retry.allowed=true only for PARTIAL + TRANSIENT_PROVIDER_ERROR
+      case "error_retryable":
+        return {
+          status: "PARTIAL",
+          plan_id: planId,
+          failure_reason: "TRANSIENT_PROVIDER_ERROR",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: true, from_safe_checkpoint: true },
+        };
+
+      case "error_non_retryable":
+        return {
+          status: "FAILED",
+          plan_id: planId,
+          failure_reason: "MOCK_REPO_UNSUPPORTED_STRUCTURE",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+
+      case "permission_revoked":
+        params.onGitHubPermissionRevoked?.();
+        return {
+          status: "FAILED",
+          plan_id: planId,
+          failure_reason: "SOURCE_PERMISSION_REVOKED",
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          retry: { allowed: false },
+        };
+    }
+  }
+}

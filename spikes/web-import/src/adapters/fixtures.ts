@@ -117,44 +117,62 @@ export const PROTOTYPE_SCENARIOS: PrototypeScenarioMeta[] = [
   },
   {
     id: "success_import_ready_derived_pending",
-    label: "스냅샷만 준비 (import_ready=true, 파생 미완료)",
+    label: "스냅샷만 준비 (import_ready=true, 파생 실패)",
     shortDescription:
-      "import_ready는 준비되었지만 파생 단계 중 일부가 미완료/실패인 상태 구분",
+      "import_ready=true와 후속 처리 실패(processing_status=FAILED) 구분",
+  },
+  {
+    id: "success_blocked_policy",
+    label: "성공 이력 + 정책 차단 (SUCCESS + BLOCKED_POLICY)",
+    shortDescription:
+      "과거 가져오기 이력(import_ready=true)과 현재 정책 차단 상태를 분리 표시",
+  },
+  {
+    id: "success_blocked_source",
+    label: "성공 이력 + 원본 차단 (SUCCESS + BLOCKED_SOURCE)",
+    shortDescription:
+      "과거 가져오기 이력(import_ready=true)과 현재 원본 차단 상태를 분리 표시",
   },
   {
     id: "partial_retryable",
-    label: "부분 결과 (재시도 허용)",
+    label: "부분 결과 (PARTIAL · 재시도 허용)",
     shortDescription:
-      "일부 커밋/PR 누락 — 성공으로 표시하지 않음, 서버 retryPolicy.allowed=true",
+      "TRANSIENT_PROVIDER_ERROR + from_safe_checkpoint=true (import_ready=false)",
   },
   {
     id: "partial_non_retryable",
-    label: "부분 결과 (재시도 거부)",
+    label: "부분 결과 (PARTIAL · 재시도 거부)",
     shortDescription:
-      "일부 항목 누락 — 서버가 재시도를 허용하지 않아 재시도 버튼 미노출",
+      "SOURCE_POLICY_BLOCKED — retry.allowed=false로 재시도 버튼 미노출",
+  },
+  {
+    id: "partial_plan_drift",
+    label: "부분 결과 (PARTIAL · PLAN_DRIFT)",
+    shortDescription:
+      "source_drift=true — 동일 계획 재개 불가(retry.allowed=false)",
   },
   {
     id: "limit_rate_limited",
-    label: "한도 도달 — Rate Limit (재시도 허용)",
+    label: "부분 중단 — 일시적 제한 (재시도 허용)",
     shortDescription:
-      "GitHub 수집 한도 도달 — 성공으로 표시하지 않음, 재시도 허용 상태",
+      "TRANSIENT_PROVIDER_ERROR — 성공 아님, 안전한 체크포인트 재시도 허용",
   },
   {
     id: "limit_cap_blocked",
-    label: "한도 도달 — 초기 스냅샷 상한 초과 (재시도 거부)",
+    label: "한도 도달 — PARTIAL_WITH_LIMIT (재시도 거부)",
     shortDescription:
-      "MVP 일회성 수집 상한 도달 — 서버 정책상 재시도 버튼 비노출",
+      "200 PARTIAL_WITH_LIMIT — 성공 아님, import_ready=false, retry.allowed=false",
   },
   {
     id: "error_retryable",
-    label: "오류 (재시도 허용)",
-    shortDescription: "일시적 워커 오류 — 서버가 재시도 허용, 재시도 시 복구",
+    label: "일시적 오류 (재시도 허용)",
+    shortDescription: "안전한 체크포인트 기반 재시도 허용 — 재시도 시 동일 run으로 복구",
   },
   {
     id: "error_non_retryable",
-    label: "오류 (재시도 거부)",
+    label: "오류 — FAILED (재시도 거부)",
     shortDescription:
-      "영구적 검증 오류 — retryPolicy.allowed=false로 재시도 버튼 숨김",
+      "FAILED — import_ready=false, retry.allowed=false로 재시도 버튼 숨김",
   },
   {
     id: "permission_revoked",
@@ -164,15 +182,36 @@ export const PROTOTYPE_SCENARIOS: PrototypeScenarioMeta[] = [
   },
   {
     id: "session_expired_on_submit",
-    label: "세션 만료 (요청 시점)",
+    label: "세션 만료 (401 Unauthenticated)",
     shortDescription:
       "서비스 로그인 세션 만료 — 요청 미확정 안내 및 서비스 재로그인 유도",
   },
   {
     id: "network_error_on_submit",
-    label: "네트워크 실패 (요청 시점)",
+    label: "네트워크 실패 (응답 유실 — 동일 UUID 재사용)",
     shortDescription:
-      "서버 응답 미수신 — 작업 확정처럼 표시하지 않고 상태 확인 안내",
+      "서버 응답 미수신 — 미확정 표시, 같은 요청 재전송 시 동일 UUID 키 재사용",
+  },
+  {
+    id: "conflict_existing_run",
+    label: "409 충돌 — 기존 실행 ID 제공 (SYNC_ALREADY_RUNNING)",
+    shortDescription:
+      "409 details.existing_run_id가 제공된 경우 해당 실행 조회로 이동",
+  },
+  {
+    id: "empty_403",
+    label: "빈 본문 403 (일반 안내 · 원인 추측 금지)",
+    shortDescription: "JSON 파싱 오류 없이 중립적 403 일반 안내 표시",
+  },
+  {
+    id: "empty_409",
+    label: "빈 본문 409 (일반 안내 · 원인 추측 금지)",
+    shortDescription: "JSON 파싱 오류 없이 중립적 409 일반 안내 표시",
+  },
+  {
+    id: "empty_422",
+    label: "빈 본문 422 (일반 안내 · 원인 추측 금지)",
+    shortDescription: "JSON 파싱 오류 없이 중립적 422 일반 안내 표시",
   },
   {
     id: "running_slow_for_reload",

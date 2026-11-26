@@ -4,6 +4,7 @@ import type {
   ImportRunViewModel,
   PrototypeScenarioId,
   PublicRepositoryOption,
+  RecoveryNoticeViewModel,
   ServiceAuthViewModel,
   UnconfirmedFaultViewModel,
 } from "@/domain/view-models";
@@ -11,9 +12,9 @@ import type {
 /**
  * Transport-agnostic Service Adapter port.
  *
- * No HTTP paths, cookies, headers, or backend wire schemas are defined here.
- * Once the approved API contract is finalized, a real contract adapter will
- * implement `ImportServiceAdapter` and map contract DTOs -> UI view models.
+ * The 3 sync-run operations map OpenAPI 0.2.0-draft synthetic HTTP responses
+ * inside the adapter layer; auth/GitHub connection/repo list remain mock UI
+ * fixtures until their contracts are approved.
  */
 
 export type AdapterResult<T> =
@@ -35,11 +36,12 @@ export interface ConnectionSyncPayload {
 export interface RunSyncPayload {
   run: ImportRunViewModel;
   githubConnection?: GitHubConnectionViewModel;
+  recoveryNotice?: RecoveryNoticeViewModel | null;
 }
 
 export interface StartInitialImportInput {
   repoId: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
 }
 
 export interface ImportServiceAdapter {

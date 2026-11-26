@@ -63,7 +63,6 @@ export function ImportJourneyApp({
   const pollTimerRef = useRef<number | null>(null);
   const operationTokenRef = useRef(0);
   const activeRunIdRef = useRef<string | null>(null);
-  const requestNonceRef = useRef(0);
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -392,8 +391,6 @@ export function ImportJourneyApp({
 
     inFlightSubmitRef.current = true;
     const token = invalidateInFlightOperations();
-    requestNonceRef.current += 1;
-    const idempotencyKey = `ui_req_${state.selectedRepoId}_${requestNonceRef.current}`;
 
     dispatch({
       type: "SUBMIT_IMPORT_START",
@@ -404,7 +401,6 @@ export function ImportJourneyApp({
     try {
       const result = await adapter.startInitialImport({
         repoId: state.selectedRepoId,
-        idempotencyKey,
       });
 
       if (!isMountedRef.current || token !== operationTokenRef.current) {
@@ -417,7 +413,7 @@ export function ImportJourneyApp({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
           githubConnection: result.data.githubConnection,
-          recoveryNotice: null,
+          recoveryNotice: result.data.recoveryNotice ?? null,
         });
       } else {
         dispatch({
@@ -458,7 +454,7 @@ export function ImportJourneyApp({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
           githubConnection: result.data.githubConnection,
-          recoveryNotice: null,
+          recoveryNotice: result.data.recoveryNotice ?? null,
         });
       } else {
         dispatch({
@@ -481,6 +477,10 @@ export function ImportJourneyApp({
       return;
     }
     const token = invalidateInFlightOperations();
+    dispatch({
+      type: "MUTATION_START",
+      label: "이전 진행 결과를 초기화하고 있습니다...",
+    });
     const result = await adapter.resetActiveRun();
     if (!isMountedRef.current || token !== operationTokenRef.current) {
       return;

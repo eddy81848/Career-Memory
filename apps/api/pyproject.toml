@@ -12,6 +12,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "httpx2>=0.1.0",
+  "psycopg[binary]>=3.2,<4.0",
   "pytest>=8.3.0,<10.0.0",
 ]
 
@@ -25,3 +26,7 @@ packages = ["src/career_memory_api"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--strict-markers -m 'not postgres'"
+markers = [
+  "postgres: Ephemeral local PostgreSQL tests (opt-in via `-m postgres` or `-m ''`)",
+]

@@ -51,6 +51,18 @@ Expected response:
 
 ## Run Tests
 
+Default test run (runs the non-Docker boundary and scaffold suite without invoking Docker):
+
 ```bash
 uv run pytest
+```
+
+Opt-in ephemeral local PostgreSQL tests (requires a running **local** Docker engine; fails with an explicit reason instead of passing/skipping if Docker is missing or cannot be verified as local):
+
+```bash
+# Run only the ephemeral PostgreSQL tests
+uv run pytest -m postgres
+
+# Run the full suite (default tests + ephemeral PostgreSQL tests)
+uv run pytest -m ""
 ```

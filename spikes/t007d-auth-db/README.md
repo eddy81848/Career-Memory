@@ -72,29 +72,32 @@ Tested in `tests/test_db_isolation_and_fk.py::test_cross_workspace_fk_candidates
 
 ## 5. Auth / Session / Cookie / CSRF: Verified Locally vs. Design Candidates
 
+> **Non-Finalized API Error Contract Note**: HTTP status codes shown below (`401`/`403`/`404`) are **local synthetic spike observations only** and do not lock unapproved product API error status codes or error payloads.
+
 | Area | Verified Locally in T-007D | Design Candidate / Hosting-Required Only |
 | --- | --- | --- |
-| **JWT Claims & Signature** | RS256 signature, wrong key, tampered sig, `alg` confusion (`HS256`), wrong `iss`, wrong `aud`, expired `exp`, mixed-concern claims (`github_token`, `llm_plan`) all rejected (`401`) | Live Supabase `/.well-known/jwks.json` fetch, `kid` rotation, ECC/RSA prod config |
-| **Server-Side Authorization** | Current DB `workspace_memberships` checked on every request; body `workspace_id` spoof (`403`), JWT `workspace_id` claim spoof (`403`), live DB revocation (`revoked_at`) immediately blocks unexpired JWT (`403`), out-of-workspace IDs concealed as `404` | Production RBAC role matrix (`owner`/`member`/`viewer`) per endpoint |
-| **Browser → BFF → API Boundary** | `HttpOnly; SameSite=Lax` cookie set by BFF; raw Bearer JWT never returned in BFF responses; BFF attaches `Authorization: Bearer` only on server-to-API hop | Next.js App Router Middleware / RSC / Route Handler integration & token refresh concurrency |
-| **Cookies & CSRF** | Local `Origin` allowlist + session-bound `X-CSRF-Token` verified on `POST` (missing/bad Origin or token → `403`) | HTTPS `Secure` / `__Host-` cookie enforcement, real browser OAuth/PKCE redirect `SameSite` behavior, Cloud Run `X-Forwarded-Host` normalization |
-| **Logout / Revocation** | Synthetic BFF session deletion + optional synthetic denylist tested; **also proved** that without a backend denylist, an already-issued JWT remains valid until `exp` | Real Supabase `signOut({ scope: 'global' | 'local' })` refresh-token revocation & chosen short-TTL vs denylist policy |
+| **JWT Claims & Signature** | RS256 signature, wrong key, tampered sig, `alg` confusion (`HS256`), wrong `iss`, wrong `aud`, expired `exp`, mixed-concern claims (`github_token`, `llm_plan`) all rejected in local spike (`401`) | Live Supabase `/.well-known/jwks.json` fetch, `kid` rotation, ECC/RSA prod config, `anon`/`service_role` rejection |
+| **Server-Side Authorization** | Current DB `workspace_memberships` checked on every request; body `workspace_id` spoof, JWT `workspace_id` claim spoof, live DB revocation (`revoked_at`) immediately blocks unexpired JWT, out-of-workspace IDs concealed identically to missing IDs in local spike | Production RBAC role matrix (`owner`/`member`/`viewer`) per endpoint and approved API error contract |
+| **Browser → BFF → API Boundary** | `HttpOnly; SameSite=Lax` cookie set by synthetic BFF; raw Bearer JWT never returned in BFF responses; BFF attaches `Authorization: Bearer` only on server-to-API hop | Next.js App Router (Middleware / RSC / Route Handler) verification candidate & real Supabase login/PKCE callback |
+| **Cookies & CSRF** | Local `Origin` allowlist + session-bound `X-CSRF-Token` verified on `POST` in local spike | HTTPS `Secure` / `__Host-` cookie candidate enforcement, real browser OAuth/PKCE redirect `SameSite` behavior, Cloud Run `X-Forwarded-Host` normalization |
+| **Session Expiry & Logout / Revocation** | Expired synthetic JWT rejected; synthetic BFF session deletion + optional synthetic denylist tested; **also proved** that without a backend denylist, an already-issued JWT remains valid until `exp` | Real access/refresh expiration, concurrent-tab refresh rotation, real Supabase `signOut({ scope: 'global' | 'local' })` & chosen short-TTL vs denylist policy |
 
-See [HOSTED_VERIFICATION_RUNBOOK.md](./HOSTED_VERIFICATION_RUNBOOK.md) for the full staging/hosted verification procedures.
+See [HOSTED_VERIFICATION_RUNBOOK.md](./HOSTED_VERIFICATION_RUNBOOK.md) for the full OD-006 / OD-010 verification matrices, free-tier/cost guardrails, and hosted execution procedures.
 
 ---
 
 ## 6. Proposals for Orchestrator Review (Not Finalized Here)
 
-### OD-006 (DB Isolation, Roles & Pooling) — Recommended Candidate
-1. **Separate 3 DB roles**: CI-only `migrator` (owner, never in Cloud Run runtime), `api_app` (`NOBYPASSRLS`, read-only self active memberships + tenant CRUD), and `worker_app` (`NOBYPASSRLS`, no identity/membership access, narrow domain privileges).
-2. **Mandatory `ENABLE` + `FORCE ROW LEVEL SECURITY`** with fail-closed `auth_ctx.current_workspace_id()` on every tenant-bearing table, bound strictly via parameterized transaction-local `set_config(..., true)`.
+### OD-006 (DB Isolation, Roles, Pooling & Data API Boundary) — Verification Candidate
+1. **Separate 3 DB roles**: CI-only `migrator` (owner, Session `:5432` or Direct connection, never in Cloud Run runtime), `api_app` (`NOBYPASSRLS`, read-only self active memberships + tenant CRUD), and `worker_app` (`NOBYPASSRLS`, no identity/membership access, narrow domain privileges).
+2. **Mandatory `ENABLE` + `FORCE ROW LEVEL SECURITY`** with fail-closed `auth_ctx.current_workspace_id()` on every tenant-bearing table, bound strictly via transaction-local `set_config(..., true)`.
 3. **Mandatory Composite FK `(workspace_id, parent_id) -> parent(workspace_id, id)`** on all parent-child tenant tables (eliminates the PostgreSQL owner-RI cross-workspace vulnerability and UUID existence oracle).
-4. **Pooling**: Use Supavisor Transaction Mode (`:6543`, prepared statements disabled) for API/Worker runtime and Session/Direct mode for CI migrations only — **pending hosted verification in `HOSTED_VERIFICATION_RUNBOOK.md`**.
+4. **Pooling**: Use Supabase shared Transaction Pooler (`:6543`) with **`psycopg` `prepare_threshold=None`** (do **not** use `prepare_threshold=0`, which forces immediate query preparation in psycopg3) for API/Worker runtime, and Session/Direct mode for CI migrations only — **pending hosted verification in `HOSTED_VERIFICATION_RUNBOOK.md`**.
+5. **Data API Bypass Prevention**: Verify in hosted staging that browsers cannot bypass backend authorization via Supabase Data API (PostgREST `/rest/v1/*`) using `anon` or `authenticated` credentials.
 
-### OD-010 (Browser Session, BFF & CSRF Boundary) — Recommended Candidate
-1. **Web BFF / Server-Mediated Session (Next.js Server)**: Browser receives only an `HttpOnly; Secure; SameSite=Lax` (prod `__Host-`) session cookie; raw Supabase access/refresh tokens stay server-side and are forwarded as `Authorization: Bearer` only on the Server → Backend API hop.
-2. **Authoritative Backend Authorization**: Backend API verifies Supabase JWKS (`iss`, `aud`, `exp`, `alg`) and resolves current active `workspace_memberships` in DB on every request; never trusts client-supplied `workspace_id` or JWT workspace claims alone; conceals out-of-scope resource IDs as `404`.
-3. **CSRF Defense**: Enforce `Origin` allowlist + synchronizer `X-CSRF-Token` (or Fetch Metadata `Sec-Fetch-Site` + Origin) on all BFF state-changing routes.
-4. **Logout Policy**: Explicitly decide in OD-010 between short-lived access JWT + BFF cookie termination vs backend session denylist for immediate direct-API token revocation, and validate in hosted staging before locking.
-5. **Concern Separation**: Keep Supabase Auth login sessions strictly separate from GitHub ingestion credentials (OD-011) and LLM plan/billing entitlements.
+### OD-010 (Browser Session, Next.js Server Proxy & CSRF Boundary) — Verification Candidate
+1. **Next.js Server Proxy + `HttpOnly`/`Secure` Cookie (Candidate Under Verification)**: Browser holds only an `HttpOnly`/`Secure` (`SameSite=Lax`, prod `__Host-` candidate) session cookie; raw Supabase access/refresh tokens stay server-side and are forwarded as `Authorization: Bearer` only on the Server → Backend API hop.
+2. **Authoritative Backend Authorization**: Backend API verifies Supabase JWKS (`iss`, `aud`, `exp`, `alg`) and resolves current active `workspace_memberships` in DB on every request; never trusts client-supplied `workspace_id` or JWT workspace claims alone; exact error status/body format awaits separate API contract approval.
+3. **CSRF Defense**: Enforce `Origin` allowlist + synchronizer `X-CSRF-Token` (or Fetch Metadata + Origin) on state-changing BFF routes.
+4. **Session Expiry & Logout Policy**: Validate real access/refresh expiration, concurrent-tab refresh rotation, and direct-API reuse of pre-logout unexpired access JWTs (short TTL vs server-side revocation) in hosted staging before locking OD-010.
+5. **Concern Separation**: Keep Supabase Auth service login sessions strictly separate from GitHub repository ingestion grants (OD-011) and LLM plan/billing entitlements.

@@ -13,10 +13,14 @@ IMPORTANT BOUNDARY:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+import secrets
+from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
+import httpx
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -28,7 +32,7 @@ DISALLOWED_MIXED_CLAIMS = frozenset({"github_token", "github_installation_id", "
 
 
 class TokenVerificationError(Exception):
-    """Raised when synthetic JWT validation fails."""
+    """Raised when JWT validation fails."""
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -40,13 +44,15 @@ class TokenVerificationError(Exception):
 class VerifiedPrincipal:
     subject_id: UUID
     session_id: str
-    jti: str
+    jti: str | None
     issuer: str
     audience: str
 
 
-import secrets
-from typing import Literal
+class JwtVerifierProtocol(Protocol):
+    def verify_stateless(self, token: str) -> VerifiedPrincipal: ...
+
+    def verify(self, token: str) -> VerifiedPrincipal: ...
 
 
 class SessionCheckUnavailableError(Exception):
@@ -278,7 +284,195 @@ class StrictJwtVerifier:
     def verify(self, token: str) -> VerifiedPrincipal:
         principal = self.verify_stateless(token)
         if self._revocation_store is not None and self._revocation_store.is_revoked(
-            session_id=principal.session_id, jti=principal.jti
+            session_id=principal.session_id, jti=principal.jti or ""
         ):
             raise TokenVerificationError("SESSION_REVOKED", "Synthetic session/token has been revoked")
         return principal
+
+
+class FixedConfigJwksJwtVerifier:
+    """JWKS-backed JWT verifier using fixed configuration (local test harness candidate).
+
+    Security invariants:
+    - Allowed algorithms come strictly from fixed configuration (`allowed_algorithms`);
+      they are NEVER derived from the untrusted JWT header `alg`.
+    - JWKS endpoint comes strictly from fixed configuration (`jwks_url`); it is NEVER
+      derived from untrusted JWT claims/headers (`iss`, `jku`, `x5u`).
+    - Does NOT assume mock-only claims such as `jti` (real Supabase GoTrue user JWTs
+      omit `jti` while supplying `sub`, `iss`, `aud`, `exp`, `iat`, `session_id`, `role`).
+    - Local spike verification harness only; does NOT finalize the product's token policy.
+    """
+
+    def __init__(
+        self,
+        *,
+        jwks_url: str,
+        expected_issuer: str,
+        expected_audience: str,
+        allowed_algorithms: tuple[str, ...] = ("ES256",),
+        required_claims: tuple[str, ...] = ("sub", "iss", "aud", "exp", "iat", "session_id", "role"),
+        expected_role: str | None = "authenticated",
+        leeway_seconds: int = 0,
+        jwks_timeout_seconds: float = 5.0,
+    ) -> None:
+        normalized_algs = tuple(a.strip() for a in allowed_algorithms if a and a.strip())
+        if not normalized_algs or any(a.lower() == "none" for a in normalized_algs):
+            raise ValueError("allowed_algorithms must contain at least one explicit non-none algorithm")
+        self._jwks_url = jwks_url
+        self._expected_issuer = expected_issuer
+        self._expected_audience = expected_audience
+        self._allowed_algorithms = normalized_algs
+        self._required_claims = tuple(required_claims)
+        self._expected_role = expected_role
+        self._leeway_seconds = leeway_seconds
+        self._jwks_client = jwt.PyJWKClient(self._jwks_url, timeout=jwks_timeout_seconds)
+
+    def verify_stateless(self, token: str) -> VerifiedPrincipal:
+        """Verify JWT using fixed JWKS URL, fixed allowed algorithms, and fixed iss/aud."""
+        try:
+            header = jwt.get_unverified_header(token)
+        except jwt.PyJWTError as exc:
+            raise TokenVerificationError("INVALID_TOKEN_HEADER", "Malformed JWT header") from exc
+
+        token_alg = header.get("alg")
+        if token_alg not in self._allowed_algorithms:
+            raise TokenVerificationError(
+                "INVALID_ALGORITHM",
+                f"Token algorithm is not in fixed allowed_algorithms ({', '.join(self._allowed_algorithms)})",
+            )
+
+        try:
+            signing_key = self._jwks_client.get_signing_key_from_jwt(token)
+        except (jwt.PyJWKClientError, jwt.PyJWTError) as exc:
+            raise TokenVerificationError("INVALID_SIGNATURE", "Unable to resolve signing key from fixed JWKS") from exc
+
+        try:
+            claims = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=list(self._allowed_algorithms),
+                audience=self._expected_audience,
+                issuer=self._expected_issuer,
+                leeway=self._leeway_seconds,
+                options={
+                    "require": list(self._required_claims),
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_iss": True,
+                    "verify_aud": True,
+                },
+            )
+        except jwt.ExpiredSignatureError as exc:
+            raise TokenVerificationError("TOKEN_EXPIRED", "JWT has expired") from exc
+        except jwt.InvalidIssuerError as exc:
+            raise TokenVerificationError("INVALID_ISSUER", "JWT issuer mismatch") from exc
+        except jwt.InvalidAudienceError as exc:
+            raise TokenVerificationError("INVALID_AUDIENCE", "JWT audience mismatch") from exc
+        except jwt.InvalidSignatureError as exc:
+            raise TokenVerificationError("INVALID_SIGNATURE", "JWT signature verification failed") from exc
+        except jwt.MissingRequiredClaimError as exc:
+            raise TokenVerificationError("MISSING_REQUIRED_CLAIM", "JWT missing required claim") from exc
+        except jwt.PyJWTError as exc:
+            raise TokenVerificationError("INVALID_TOKEN", "JWT verification failed") from exc
+
+        mixed = DISALLOWED_MIXED_CLAIMS.intersection(claims.keys())
+        if mixed:
+            raise TokenVerificationError(
+                "MIXED_CONCERN_CLAIM",
+                f"Auth JWT must not carry non-auth claims: {sorted(mixed)}",
+            )
+
+        if self._expected_role is not None and claims.get("role") != self._expected_role:
+            raise TokenVerificationError("INVALID_ROLE", "JWT role mismatch")
+
+        try:
+            subject_uuid = UUID(str(claims["sub"]))
+        except ValueError as exc:
+            raise TokenVerificationError("INVALID_SUBJECT", "JWT sub must be a valid UUID") from exc
+
+        session_id = str(claims.get("session_id") or "").strip()
+        if not session_id:
+            raise TokenVerificationError("INVALID_SESSION_ID", "JWT session_id must be non-empty")
+
+        raw_jti = claims.get("jti")
+        aud_val = claims["aud"]
+        aud_str = aud_val if isinstance(aud_val, str) else ",".join(str(x) for x in aud_val)
+
+        return VerifiedPrincipal(
+            subject_id=subject_uuid,
+            session_id=session_id,
+            jti=str(raw_jti) if raw_jti is not None else None,
+            issuer=str(claims["iss"]),
+            audience=aud_str,
+        )
+
+    def verify(self, token: str) -> VerifiedPrincipal:
+        return self.verify_stateless(token)
+
+
+class GoTrueLiveSessionVerifier:
+    """Fail-closed live session liveness checker backed by GoTrue `GET /auth/v1/user`.
+
+    MUST execute strictly BEFORE opening any PostgreSQL transaction so upstream HTTP
+    latency never holds a DB transaction or pool connection open.
+    Never logs or includes raw access tokens or API keys in error messages.
+    """
+
+    def __init__(
+        self,
+        *,
+        api_url: str,
+        anon_key: str,
+        timeout_seconds: float = 3.0,
+        transport: httpx.BaseTransport | None = None,
+        on_before_request: Callable[[], None] | None = None,
+    ) -> None:
+        self._api_url = api_url.rstrip("/")
+        self._anon_key = anon_key
+        self._timeout_seconds = timeout_seconds
+        self._transport = transport
+        self._on_before_request = on_before_request
+
+    def check_live_session(
+        self,
+        *,
+        access_token: str,
+        principal: VerifiedPrincipal,
+    ) -> Literal["active", "terminated", "unknown"]:
+        if self._on_before_request is not None:
+            self._on_before_request()
+
+        try:
+            with httpx.Client(
+                base_url=self._api_url,
+                timeout=self._timeout_seconds,
+                transport=self._transport,
+            ) as client:
+                resp = client.get(
+                    "/auth/v1/user",
+                    headers={
+                        "apikey": self._anon_key,
+                        "Authorization": f"Bearer {access_token}",
+                    },
+                )
+        except (httpx.TimeoutException, httpx.HTTPError) as exc:
+            raise SessionCheckUnavailableError(
+                f"GoTrue /auth/v1/user session check unavailable ({type(exc).__name__})"
+            ) from exc
+
+        if resp.status_code == 200:
+            try:
+                body = resp.json()
+                live_subject = UUID(str(body.get("id")))
+            except Exception as exc:
+                raise SessionCheckUnavailableError("Malformed GoTrue /auth/v1/user response") from exc
+            if live_subject != principal.subject_id:
+                return "unknown"
+            return "active"
+
+        if resp.status_code in (401, 403):
+            return "terminated"
+
+        raise SessionCheckUnavailableError(
+            f"GoTrue /auth/v1/user returned unexpected status {resp.status_code}"
+        )

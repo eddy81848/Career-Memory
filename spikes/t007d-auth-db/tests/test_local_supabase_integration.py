@@ -15,190 +15,20 @@ PRECONDITIONS:
 
 from __future__ import annotations
 
-import json
-import shutil
-import subprocess
-import time
 from datetime import datetime, timezone
-from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import httpx
 import jwt
-import psycopg
-import pytest
-from psycopg.rows import dict_row
 
 from src.db import make_single_connection_pool, scoped_api_workspace_tx
-
-SPIKE_ROOT = Path(__file__).resolve().parents[1]
-SQL_DIR = SPIKE_ROOT / "sql"
-SUPABASE_WORKDIR = SPIKE_ROOT
+from tests.conftest import snapshot_domain_tables as _snapshot_domain_tables
 
 WS_A = UUID("11111111-1111-4111-8111-111111111111")
 USER_ALICE_A = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 PROJECT_A1 = UUID("a1000000-0000-4000-8000-000000000001")
 ARTIFACT_A1 = UUID("a1000000-0000-4000-8000-000000000101")
-
-
-def _docker_engine_ready() -> tuple[bool, str]:
-    if not shutil.which("docker"):
-        return False, "docker CLI not found"
-    proc = subprocess.run(
-        ["docker", "info", "--format", "{{.ServerVersion}}"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if proc.returncode != 0 or not proc.stdout.strip():
-        reason = (proc.stderr or proc.stdout or "unknown docker error").strip().splitlines()[-1]
-        return False, reason
-    return True, proc.stdout.strip()
-
-
-def _snapshot_domain_tables(db_url: str) -> dict[str, list[tuple]]:
-    """Capture both row counts and full column values for projects and artifacts."""
-    with psycopg.connect(db_url, row_factory=dict_row) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, workspace_id, name, created_by FROM app_t007d.projects ORDER BY id"
-            )
-            projects = [
-                (r["id"], r["workspace_id"], r["name"], r["created_by"])
-                for r in cur.fetchall()
-            ]
-            cur.execute(
-                "SELECT id, workspace_id, project_id, title, payload_note "
-                "FROM app_t007d.artifacts ORDER BY id"
-            )
-            artifacts = [
-                (r["id"], r["workspace_id"], r["project_id"], r["title"], r["payload_note"])
-                for r in cur.fetchall()
-            ]
-    return {"projects": projects, "artifacts": artifacts}
-
-
-def _wait_for_postgrest_canary(api_url: str, anon_key: str, timeout_seconds: float = 15.0) -> None:
-    deadline = time.monotonic() + timeout_seconds
-    last_status = None
-    with httpx.Client(base_url=api_url, timeout=5.0) as client:
-        while time.monotonic() < deadline:
-            resp = client.get(
-                "/rest/v1/t007d_postgrest_healthcheck?select=id,marker",
-                headers={"apikey": anon_key, "Authorization": f"Bearer {anon_key}"},
-            )
-            last_status = resp.status_code
-            if resp.status_code == 200 and resp.json() == [{"id": 1, "marker": "postgrest-alive"}]:
-                return
-            time.sleep(0.5)
-    raise AssertionError(
-        f"PostgREST positive-control canary did not return HTTP 200 within {timeout_seconds}s "
-        f"(last_status={last_status})"
-    )
-
-
-@pytest.fixture(scope="module")
-def local_supabase_stack():
-    """Start isolated ephemeral local Supabase instance and always clean up ONLY this project."""
-    ready, detail = _docker_engine_ready()
-    if not ready:
-        pytest.skip(f"BLOCKED (local Docker Engine unavailable): {detail}")
-    if not shutil.which("supabase"):
-        pytest.skip("BLOCKED: supabase CLI not installed")
-
-    start_cmd = [
-        "supabase",
-        "start",
-        "--workdir",
-        str(SUPABASE_WORKDIR),
-        "--exclude",
-        "studio,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,postgres-meta,mailpit",
-    ]
-    try:
-        subprocess.run(start_cmd, check=True, capture_output=True, text=True, timeout=300)
-        status_proc = subprocess.run(
-            ["supabase", "status", "--workdir", str(SUPABASE_WORKDIR), "-o", "json"],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        env_info = json.loads(status_proc.stdout)
-
-        db_url = env_info["DB_URL"]
-        api_url = env_info["API_URL"]
-        anon_key = env_info.get("ANON_KEY") or env_info["PUBLISHABLE_KEY"]
-
-        # Apply synthetic T-007D roles/schema/seed + PostgREST positive-control canary to this ephemeral DB only
-        with psycopg.connect(db_url, autocommit=True) as conn:
-            with conn.cursor() as cur:
-                # Supabase local Postgres uses a non-superuser `postgres` role with CREATEROLE.
-                # Under PG16+, creating schemas with AUTHORIZATION <role> or running SET ROLE <role>
-                # requires explicit membership in that role for the bootstrap admin (`current_user`).
-                cur.execute(
-                    """
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 't007d_migrator') THEN
-                            CREATE ROLE t007d_migrator
-                                LOGIN
-                                PASSWORD 'local_t007d_migrator_only'
-                                NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
-                        END IF;
-                        EXECUTE format('GRANT t007d_migrator TO %I', current_user);
-                    END
-                    $$;
-                    """
-                )
-                for sql_name in ("001_roles.sql", "002_schema_and_rls.sql", "003_seed_synthetic.sql"):
-                    cur.execute((SQL_DIR / sql_name).read_text(encoding="utf-8"))
-
-                # Ensure Supabase Data API roles cannot access domain schema/tables directly
-                cur.execute("REVOKE ALL ON SCHEMA app_t007d FROM anon, authenticated")
-                cur.execute("REVOKE ALL ON ALL TABLES IN SCHEMA app_t007d FROM anon, authenticated")
-                cur.execute("REVOKE ALL ON SCHEMA auth_ctx FROM anon, authenticated")
-
-                # Harmless public canary so we PROVE PostgREST is alive & validates both anon & user JWTs
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS public.t007d_postgrest_healthcheck (
-                        id int PRIMARY KEY,
-                        marker text NOT NULL
-                    )
-                    """
-                )
-                cur.execute(
-                    """
-                    INSERT INTO public.t007d_postgrest_healthcheck (id, marker)
-                    VALUES (1, 'postgrest-alive')
-                    ON CONFLICT (id) DO UPDATE SET marker = EXCLUDED.marker
-                    """
-                )
-                cur.execute("GRANT USAGE ON SCHEMA public TO anon, authenticated")
-                cur.execute("GRANT SELECT ON public.t007d_postgrest_healthcheck TO anon, authenticated")
-                cur.execute("NOTIFY pgrst, 'reload schema'")
-
-        # Verify BOTH GoTrue health AND PostgREST positive-control canary before running tests
-        with httpx.Client(timeout=10.0) as client:
-            auth_health = client.get(f"{api_url}/auth/v1/health", headers={"apikey": anon_key})
-            assert auth_health.status_code == 200, "GoTrue health check must pass before running tests"
-
-        _wait_for_postgrest_canary(api_url, anon_key)
-        env_info["_resolved_anon_key"] = anon_key
-        yield env_info
-    finally:
-        # Clean up ONLY this ephemeral project (`t007d-authdb-ephemeral`); never touch Docker Desktop or other projects.
-        subprocess.run(
-            ["supabase", "stop", "--workdir", str(SUPABASE_WORKDIR), "--no-backup"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        for runtime_dir in (SUPABASE_WORKDIR / "supabase" / ".branches", SUPABASE_WORKDIR / "supabase" / ".temp"):
-            if runtime_dir.exists():
-                shutil.rmtree(runtime_dir, ignore_errors=True)
 
 
 def test_local_supabase_od006_5_postgrest_blocks_anon_and_authenticated_domain_access(

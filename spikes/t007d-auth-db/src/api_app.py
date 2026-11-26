@@ -19,8 +19,9 @@ from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
 from .auth_tokens import (
+    GoTrueLiveSessionVerifier,
+    JwtVerifierProtocol,
     SessionCheckUnavailableError,
-    StrictJwtVerifier,
     SyntheticSessionLifecycleStore,
     TokenVerificationError,
     VerifiedPrincipal,
@@ -48,8 +49,9 @@ class SensitiveActionRequest(BaseModel):
 def create_api_app(
     *,
     api_pool: ConnectionPool,
-    verifier: StrictJwtVerifier,
+    verifier: JwtVerifierProtocol,
     session_lifecycle: SyntheticSessionLifecycleStore | None = None,
+    live_session_verifier: GoTrueLiveSessionVerifier | None = None,
 ) -> FastAPI:
     app = FastAPI(title="T-007D Synthetic Backend API")
 
@@ -76,6 +78,7 @@ def create_api_app(
     ) -> VerifiedPrincipal:
         """Fail-closed live session check for sensitive paths (approval/export/delete/source).
 
+        Runs strictly BEFORE any route handler opens a DB transaction (`scoped_api_workspace_tx`).
         Even if cryptographic JWT verification passes before `exp`, sensitive operations
         MUST be blocked when the current session is terminated OR cannot be confirmed.
         NOTE: HTTP status/detail codes here are spike-only observations, not finalized API contracts.
@@ -89,7 +92,32 @@ def create_api_app(
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
 
-        if session_lifecycle is None:
+        if live_session_verifier is not None:
+            try:
+                status = live_session_verifier.check_live_session(
+                    access_token=token,
+                    principal=principal,
+                )
+            except SessionCheckUnavailableError as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "SESSION_STATUS_UNAVAILABLE",
+                        "message": str(exc),
+                    },
+                ) from exc
+        elif session_lifecycle is not None:
+            try:
+                status = session_lifecycle.check_session_status(principal.session_id)
+            except SessionCheckUnavailableError as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "SESSION_STATUS_UNAVAILABLE",
+                        "message": str(exc),
+                    },
+                ) from exc
+        else:
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -97,17 +125,6 @@ def create_api_app(
                     "message": "Current session verifier is not configured (fail closed)",
                 },
             )
-
-        try:
-            status = session_lifecycle.check_session_status(principal.session_id)
-        except SessionCheckUnavailableError as exc:
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "code": "SESSION_STATUS_UNAVAILABLE",
-                    "message": str(exc),
-                },
-            ) from exc
 
         if status == "terminated":
             raise HTTPException(

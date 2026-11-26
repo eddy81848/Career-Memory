@@ -279,7 +279,7 @@ CREATE POLICY artifacts_trigger_api_isolation
 -- =============================================================================
 -- 7. Explicit Minimal GRANT Matrix
 -- =============================================================================
-REVOKE ALL ON ALL TABLES IN SCHEMA app_t007d FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA app_t007d FROM PUBLIC, t007d_data_api_anon, t007d_data_api_authenticated;
 
 -- t007d_api_app:
 --   * READ ONLY on workspaces and workspace_memberships (never modifies tenancy/identity tables)

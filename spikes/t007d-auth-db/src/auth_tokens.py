@@ -45,6 +45,83 @@ class VerifiedPrincipal:
     audience: str
 
 
+import secrets
+from typing import Literal
+
+
+class SessionCheckUnavailableError(Exception):
+    """Raised when live auth session status cannot be confirmed (must fail closed)."""
+
+
+class SessionTerminateError(Exception):
+    """Raised when upstream session termination fails (distinct from clean logout)."""
+
+
+@dataclass
+class SyntheticSessionLifecycleStore:
+    """In-memory synthetic auth session & refresh-token store for OD010-5 local verification.
+
+    Models:
+    - Active sessions (`session_id -> subject_id`)
+    - Refresh token issuance & rotation (`refresh_token -> session_id`)
+    - Session termination (`terminate_session`) which revokes refresh tokens
+    - Simulated upstream logout failure (`simulate_terminate_failure`)
+    - Simulated session-introspection outage (`simulate_status_unavailable`)
+    """
+
+    active_sessions: dict[str, UUID] = field(default_factory=dict)
+    terminated_sessions: set[str] = field(default_factory=set)
+    refresh_tokens: dict[str, str] = field(default_factory=dict)
+    simulate_terminate_failure: bool = False
+    simulate_status_unavailable: bool = False
+
+    def register_session(self, *, session_id: str, subject_id: UUID) -> str:
+        refresh_token = f"rt_synth_{secrets.token_urlsafe(24)}"
+        self.active_sessions[session_id] = subject_id
+        self.refresh_tokens[refresh_token] = session_id
+        return refresh_token
+
+    def terminate_session(self, session_id: str) -> None:
+        if self.simulate_terminate_failure:
+            raise SessionTerminateError("Synthetic auth session termination endpoint unavailable")
+        self.active_sessions.pop(session_id, None)
+        self.terminated_sessions.add(session_id)
+        stale = [rt for rt, sid in self.refresh_tokens.items() if sid == session_id]
+        for rt in stale:
+            self.refresh_tokens.pop(rt, None)
+
+    def refresh_access_token(
+        self,
+        *,
+        refresh_token: str,
+        authority: SyntheticJwtAuthority,
+        expires_in_seconds: int = 300,
+    ) -> tuple[str, str, str, str]:
+        session_id = self.refresh_tokens.get(refresh_token)
+        if not session_id or session_id not in self.active_sessions:
+            raise TokenVerificationError("REFRESH_REVOKED", "Refresh token is invalid or session terminated")
+        subject_id = self.active_sessions[session_id]
+        # Rotate refresh token
+        self.refresh_tokens.pop(refresh_token, None)
+        new_refresh = f"rt_synth_{secrets.token_urlsafe(24)}"
+        self.refresh_tokens[new_refresh] = session_id
+        new_jwt, sid, jti = authority.issue_token(
+            subject_id=subject_id,
+            session_id=session_id,
+            expires_in_seconds=expires_in_seconds,
+        )
+        return new_jwt, new_refresh, sid, jti
+
+    def check_session_status(self, session_id: str) -> Literal["active", "terminated", "unknown"]:
+        if self.simulate_status_unavailable:
+            raise SessionCheckUnavailableError("Synthetic auth session check service unavailable")
+        if session_id in self.terminated_sessions:
+            return "terminated"
+        if session_id in self.active_sessions:
+            return "active"
+        return "unknown"
+
+
 @dataclass
 class SyntheticRevocationStore:
     """In-memory synthetic revocation store (models server-side revocation only)."""
@@ -139,7 +216,8 @@ class StrictJwtVerifier:
         self._revocation_store = revocation_store
         self._leeway_seconds = leeway_seconds
 
-    def verify(self, token: str) -> VerifiedPrincipal:
+    def verify_stateless(self, token: str) -> VerifiedPrincipal:
+        """Verify cryptographic signature and standard claims WITHOUT checking session liveness."""
         try:
             header = jwt.get_unverified_header(token)
         except jwt.PyJWTError as exc:
@@ -189,17 +267,18 @@ class StrictJwtVerifier:
         except ValueError as exc:
             raise TokenVerificationError("INVALID_SUBJECT", "JWT sub must be a valid UUID") from exc
 
-        session_id = str(claims["session_id"])
-        jti = str(claims["jti"])
-        if self._revocation_store is not None and self._revocation_store.is_revoked(
-            session_id=session_id, jti=jti
-        ):
-            raise TokenVerificationError("SESSION_REVOKED", "Synthetic session/token has been revoked")
-
         return VerifiedPrincipal(
             subject_id=subject_uuid,
-            session_id=session_id,
-            jti=jti,
+            session_id=str(claims["session_id"]),
+            jti=str(claims["jti"]),
             issuer=str(claims["iss"]),
             audience=str(claims["aud"]),
         )
+
+    def verify(self, token: str) -> VerifiedPrincipal:
+        principal = self.verify_stateless(token)
+        if self._revocation_store is not None and self._revocation_store.is_revoked(
+            session_id=principal.session_id, jti=principal.jti
+        ):
+            raise TokenVerificationError("SESSION_REVOKED", "Synthetic session/token has been revoked")
+        return principal

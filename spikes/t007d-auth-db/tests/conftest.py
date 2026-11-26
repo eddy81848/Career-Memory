@@ -26,7 +26,12 @@ if str(SPIKE_ROOT) not in sys.path:
     sys.path.insert(0, str(SPIKE_ROOT))
 
 from src.api_app import create_api_app
-from src.auth_tokens import StrictJwtVerifier, SyntheticJwtAuthority, SyntheticRevocationStore
+from src.auth_tokens import (
+    StrictJwtVerifier,
+    SyntheticJwtAuthority,
+    SyntheticRevocationStore,
+    SyntheticSessionLifecycleStore,
+)
 from src.bff_app import create_bff_app
 from src.db import DbRolesConfig, make_single_connection_pool
 
@@ -182,6 +187,14 @@ def pg_cluster(tmp_path_factory: pytest.TempPathFactory) -> DbRolesConfig:
                 f"host=127.0.0.1 port={port} dbname={dbname} "
                 f"user=t007d_worker_app password=local_t007d_worker_only"
             ),
+            data_api_anon_dsn=(
+                f"host=127.0.0.1 port={port} dbname={dbname} "
+                f"user=t007d_data_api_anon password=local_t007d_anon_only"
+            ),
+            data_api_authenticated_dsn=(
+                f"host=127.0.0.1 port={port} dbname={dbname} "
+                f"user=t007d_data_api_authenticated password=local_t007d_authenticated_only"
+            ),
         )
     finally:
         subprocess.run(
@@ -250,6 +263,11 @@ def revocation_store() -> SyntheticRevocationStore:
 
 
 @pytest.fixture
+def session_lifecycle() -> SyntheticSessionLifecycleStore:
+    return SyntheticSessionLifecycleStore()
+
+
+@pytest.fixture
 def api_app(api_pool, jwt_authority, revocation_store):
     verifier = StrictJwtVerifier(
         public_pem=jwt_authority.public_pem,
@@ -273,6 +291,45 @@ def bff_app(api_app, jwt_authority, revocation_store):
         backend_client_factory=make_backend_client,
         jwt_authority=jwt_authority,
         revocation_store=revocation_store,
+        allowed_origin="http://localhost:3000",
+        cookie_secure=False,
+    )
+
+
+@pytest.fixture
+def lifecycle_verifier(jwt_authority) -> StrictJwtVerifier:
+    """Stateless JWT verifier (no revocation denylist) paired with live session checks on sensitive paths."""
+    return StrictJwtVerifier(
+        public_pem=jwt_authority.public_pem,
+        revocation_store=None,
+    )
+
+
+@pytest.fixture
+def lifecycle_api_app(api_pool, lifecycle_verifier, session_lifecycle):
+    return create_api_app(
+        api_pool=api_pool,
+        verifier=lifecycle_verifier,
+        session_lifecycle=session_lifecycle,
+    )
+
+
+@pytest.fixture
+def lifecycle_api_client(lifecycle_api_app):
+    with TestClient(lifecycle_api_app, base_url="http://api.local") as client:
+        yield client
+
+
+@pytest.fixture
+def lifecycle_bff_app(lifecycle_api_app, jwt_authority, session_lifecycle):
+    def make_backend_client() -> TestClient:
+        return TestClient(lifecycle_api_app, base_url="http://api.local")
+
+    return create_bff_app(
+        backend_client_factory=make_backend_client,
+        jwt_authority=jwt_authority,
+        revocation_store=None,
+        session_lifecycle=session_lifecycle,
         allowed_origin="http://localhost:3000",
         cookie_secure=False,
     )

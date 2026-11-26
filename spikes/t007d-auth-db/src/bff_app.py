@@ -28,7 +28,13 @@ import httpx
 from fastapi import Cookie, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from .auth_tokens import SyntheticJwtAuthority, SyntheticRevocationStore
+from .auth_tokens import (
+    SessionTerminateError,
+    SyntheticJwtAuthority,
+    SyntheticRevocationStore,
+    SyntheticSessionLifecycleStore,
+    TokenVerificationError,
+)
 
 SESSION_COOKIE_NAME = "cm_session"
 
@@ -41,6 +47,7 @@ class BffSessionRecord:
     backend_jwt: str
     auth_session_id: str
     jti: str
+    refresh_token: str | None = None
 
 
 class SyntheticLoginRequest(BaseModel):
@@ -57,6 +64,7 @@ def create_bff_app(
     backend_client_factory: Callable[[], httpx.Client],
     jwt_authority: SyntheticJwtAuthority,
     revocation_store: SyntheticRevocationStore | None = None,
+    session_lifecycle: SyntheticSessionLifecycleStore | None = None,
     allowed_origin: str = "http://localhost:3000",
     cookie_secure: bool = False,
 ) -> FastAPI:
@@ -87,10 +95,15 @@ def create_bff_app(
 
     @app.post("/bff/auth/synthetic-login")
     def synthetic_login(body: SyntheticLoginRequest, response: Response) -> dict:
-        """Establish a synthetic BFF cookie session. Never returns raw Bearer JWT to browser."""
+        """Establish a synthetic BFF cookie session. Never returns raw Bearer or refresh token to browser."""
         cookie_id = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(24)
         backend_jwt, auth_session_id, jti = jwt_authority.issue_token(subject_id=body.subject_id)
+        refresh_token = (
+            session_lifecycle.register_session(session_id=auth_session_id, subject_id=body.subject_id)
+            if session_lifecycle is not None
+            else None
+        )
 
         sessions[cookie_id] = BffSessionRecord(
             cookie_id=cookie_id,
@@ -99,6 +112,7 @@ def create_bff_app(
             backend_jwt=backend_jwt,
             auth_session_id=auth_session_id,
             jti=jti,
+            refresh_token=refresh_token,
         )
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
@@ -115,6 +129,36 @@ def create_bff_app(
             # Deliberately NO access_token / refresh_token returned to browser.
         }
 
+    @app.post("/bff/auth/refresh")
+    def synthetic_refresh(
+        request: Request,
+        cm_session: str | None = Cookie(default=None),
+        x_csrf_token: str | None = Header(default=None),
+    ) -> dict:
+        """Rotate backend JWT server-side using stored refresh token (denied once session terminates)."""
+        session = _require_session(cm_session)
+        _verify_csrf(request, session, x_csrf_token)
+        if session_lifecycle is None or not session.refresh_token:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "REFRESH_UNAVAILABLE", "message": "Refresh store not configured"},
+            )
+        try:
+            new_jwt, new_refresh, _sid, new_jti = session_lifecycle.refresh_access_token(
+                refresh_token=session.refresh_token,
+                authority=jwt_authority,
+            )
+        except TokenVerificationError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+
+        session.backend_jwt = new_jwt
+        session.refresh_token = new_refresh
+        session.jti = new_jti
+        return {"refreshed": True}
+
     @app.post("/bff/auth/logout")
     def synthetic_logout(
         request: Request,
@@ -126,6 +170,23 @@ def create_bff_app(
         session = _require_session(cm_session)
         _verify_csrf(request, session, x_csrf_token)
 
+        # Explicitly distinguish upstream session termination failure from clean logout.
+        upstream_terminated = False
+        if session_lifecycle is not None:
+            try:
+                session_lifecycle.terminate_session(session.auth_session_id)
+                upstream_terminated = True
+            except SessionTerminateError as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "code": "LOGOUT_UPSTREAM_FAILED",
+                        "logout_completed": False,
+                        "upstream_session_terminated": False,
+                        "message": str(exc),
+                    },
+                ) from exc
+
         sessions.pop(session.cookie_id, None)
         if propagate_revocation and revocation_store is not None:
             revocation_store.revoke_session(session.auth_session_id)
@@ -134,6 +195,7 @@ def create_bff_app(
         return {
             "logged_out": True,
             "bff_session_deleted": True,
+            "upstream_session_terminated": upstream_terminated,
             "synthetic_revocation_propagated": bool(propagate_revocation and revocation_store is not None),
         }
 
@@ -183,7 +245,7 @@ def create_bff_app(
             raise HTTPException(status_code=upstream.status_code, detail=upstream.json().get("detail"))
         return upstream.json()
 
-    # Test-only inspection helper to retrieve the server-stored JWT for proving
-    # stateless JWT caveat after logout when revocation store is disabled.
+    # Test-only inspection helper to retrieve server-stored session metadata for proving
+    # stateless JWT & refresh-token behavior after logout (raw values are never logged).
     app.state._debug_sessions = sessions
     return app

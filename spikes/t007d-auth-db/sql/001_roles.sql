@@ -40,6 +40,30 @@ BEGIN
             NOINHERIT
             NOBYPASSRLS;
     END IF;
+
+    -- Synthetic Data API (PostgREST-equivalent) DB roles used solely to test
+    -- DB-layer denial of direct domain table reads/writes (OD006-5 local DB layer).
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 't007d_data_api_anon') THEN
+        CREATE ROLE t007d_data_api_anon
+            LOGIN
+            PASSWORD 'local_t007d_anon_only'
+            NOSUPERUSER
+            NOCREATEDB
+            NOCREATEROLE
+            NOINHERIT
+            NOBYPASSRLS;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 't007d_data_api_authenticated') THEN
+        CREATE ROLE t007d_data_api_authenticated
+            LOGIN
+            PASSWORD 'local_t007d_authenticated_only'
+            NOSUPERUSER
+            NOCREATEDB
+            NOCREATEROLE
+            NOINHERIT
+            NOBYPASSRLS;
+    END IF;
 END
 $$;
 
@@ -50,8 +74,8 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 CREATE SCHEMA IF NOT EXISTS auth_ctx AUTHORIZATION t007d_migrator;
 CREATE SCHEMA IF NOT EXISTS app_t007d AUTHORIZATION t007d_migrator;
 
-REVOKE ALL ON SCHEMA auth_ctx FROM PUBLIC;
-REVOKE ALL ON SCHEMA app_t007d FROM PUBLIC;
+REVOKE ALL ON SCHEMA auth_ctx FROM PUBLIC, t007d_data_api_anon, t007d_data_api_authenticated;
+REVOKE ALL ON SCHEMA app_t007d FROM PUBLIC, t007d_data_api_anon, t007d_data_api_authenticated;
 
 GRANT USAGE ON SCHEMA auth_ctx TO t007d_api_app, t007d_worker_app;
 GRANT USAGE ON SCHEMA app_t007d TO t007d_api_app, t007d_worker_app;

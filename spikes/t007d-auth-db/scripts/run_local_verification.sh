@@ -15,4 +15,4 @@ trap 'rm -rf "$VENV_DIR"' EXIT
 "$VENV_DIR/bin/python" -m pip install --quiet -r "$SPIKE_DIR/requirements.txt"
 
 echo "Running T-007D local Auth/DB isolation verification suite..."
-"$VENV_DIR/bin/pytest" -v "$SPIKE_DIR/tests"
+"$VENV_DIR/bin/pytest" -v -rs "$SPIKE_DIR/tests"

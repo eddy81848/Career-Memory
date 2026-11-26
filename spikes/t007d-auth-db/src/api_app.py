@@ -18,7 +18,13 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
-from .auth_tokens import StrictJwtVerifier, TokenVerificationError, VerifiedPrincipal
+from .auth_tokens import (
+    SessionCheckUnavailableError,
+    StrictJwtVerifier,
+    SyntheticSessionLifecycleStore,
+    TokenVerificationError,
+    VerifiedPrincipal,
+)
 from .db import scoped_api_workspace_tx
 
 
@@ -35,20 +41,28 @@ class CreateArtifactRequest(BaseModel):
     workspace_id: UUID | None = None
 
 
+class SensitiveActionRequest(BaseModel):
+    target_id: str = "synthetic-target"
+
+
 def create_api_app(
     *,
     api_pool: ConnectionPool,
     verifier: StrictJwtVerifier,
+    session_lifecycle: SyntheticSessionLifecycleStore | None = None,
 ) -> FastAPI:
     app = FastAPI(title="T-007D Synthetic Backend API")
 
-    def require_principal(authorization: str | None = Header(default=None)) -> VerifiedPrincipal:
+    def _extract_bearer(authorization: str | None) -> str:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(
                 status_code=401,
                 detail={"code": "MISSING_BEARER", "message": "Authorization Bearer token required"},
             )
-        token = authorization.removeprefix("Bearer ").strip()
+        return authorization.removeprefix("Bearer ").strip()
+
+    def require_principal(authorization: str | None = Header(default=None)) -> VerifiedPrincipal:
+        token = _extract_bearer(authorization)
         try:
             return verifier.verify(token)
         except TokenVerificationError as exc:
@@ -56,6 +70,71 @@ def create_api_app(
                 status_code=401,
                 detail={"code": exc.code, "message": exc.message},
             ) from exc
+
+    def require_active_session_principal(
+        authorization: str | None = Header(default=None),
+    ) -> VerifiedPrincipal:
+        """Fail-closed live session check for sensitive paths (approval/export/delete/source).
+
+        Even if cryptographic JWT verification passes before `exp`, sensitive operations
+        MUST be blocked when the current session is terminated OR cannot be confirmed.
+        NOTE: HTTP status/detail codes here are spike-only observations, not finalized API contracts.
+        """
+        token = _extract_bearer(authorization)
+        try:
+            principal = verifier.verify_stateless(token)
+        except TokenVerificationError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+
+        if session_lifecycle is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "SESSION_STATUS_UNAVAILABLE",
+                    "message": "Current session verifier is not configured (fail closed)",
+                },
+            )
+
+        try:
+            status = session_lifecycle.check_session_status(principal.session_id)
+        except SessionCheckUnavailableError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "SESSION_STATUS_UNAVAILABLE",
+                    "message": str(exc),
+                },
+            ) from exc
+
+        if status == "terminated":
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "SESSION_TERMINATED",
+                    "message": "Session has been terminated; sensitive action blocked",
+                },
+            )
+        if status != "active":
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "SESSION_STATUS_UNKNOWN",
+                    "message": "Current session could not be confirmed active (fail closed)",
+                },
+            )
+        return principal
+
+    @app.get("/api/v1/health")
+    def health_check() -> dict:
+        with api_pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 AS ok")
+                row = cur.fetchone()
+                assert row is not None and row["ok"] == 1
+        return {"status": "ok", "db": "reachable"}
 
     @app.get("/api/v1/workspaces/{workspace_id}/projects")
     def list_projects(
@@ -334,5 +413,155 @@ def create_api_app(
             "project_id": str(row["project_id"]),
             "title": row["title"],
         }
+
+    # =========================================================================
+    # Sensitive Verification Paths (OD010-5 / OD010-6):
+    #   Approval, Export, Delete, Source Connect / Revoke
+    # Every path requires:
+    #   1) Valid JWT signature/claims
+    #   2) Confirmed ACTIVE live session (fail closed if terminated or unknown)
+    #   3) Current active DB workspace membership + transaction-local RLS
+    # =========================================================================
+
+    @app.post("/api/v1/workspaces/{workspace_id}/approvals")
+    def sensitive_approve(
+        workspace_id: UUID,
+        body: SensitiveActionRequest,
+        response: Response,
+        principal: VerifiedPrincipal = Depends(require_active_session_principal),
+    ) -> dict:
+        try:
+            with scoped_api_workspace_tx(
+                api_pool,
+                subject_id=principal.subject_id,
+                requested_workspace_id=workspace_id,
+            ) as (_conn, membership, pid):
+                response.headers["X-T007D-Backend-PID"] = str(pid)
+                return {
+                    "action": "approval",
+                    "workspace_id": str(membership["workspace_id"]),
+                    "target_id": body.target_id,
+                    "status": "approved",
+                }
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "WORKSPACE_FORBIDDEN", "message": str(exc)},
+            ) from exc
+
+    @app.post("/api/v1/workspaces/{workspace_id}/exports")
+    def sensitive_export(
+        workspace_id: UUID,
+        body: SensitiveActionRequest,
+        response: Response,
+        principal: VerifiedPrincipal = Depends(require_active_session_principal),
+    ) -> dict:
+        try:
+            with scoped_api_workspace_tx(
+                api_pool,
+                subject_id=principal.subject_id,
+                requested_workspace_id=workspace_id,
+            ) as (_conn, membership, pid):
+                response.headers["X-T007D-Backend-PID"] = str(pid)
+                return {
+                    "action": "export",
+                    "workspace_id": str(membership["workspace_id"]),
+                    "target_id": body.target_id,
+                    "status": "exported",
+                }
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "WORKSPACE_FORBIDDEN", "message": str(exc)},
+            ) from exc
+
+    @app.delete("/api/v1/workspaces/{workspace_id}/artifacts/{artifact_id}")
+    def sensitive_delete_artifact(
+        workspace_id: UUID,
+        artifact_id: UUID,
+        response: Response,
+        principal: VerifiedPrincipal = Depends(require_active_session_principal),
+    ) -> dict:
+        try:
+            with scoped_api_workspace_tx(
+                api_pool,
+                subject_id=principal.subject_id,
+                requested_workspace_id=workspace_id,
+            ) as (conn, membership, pid):
+                response.headers["X-T007D-Backend-PID"] = str(pid)
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM app_t007d.artifacts WHERE id = %s RETURNING id",
+                        (str(artifact_id),),
+                    )
+                    deleted = cur.fetchone()
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "WORKSPACE_FORBIDDEN", "message": str(exc)},
+            ) from exc
+
+        if deleted is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "RESOURCE_NOT_FOUND", "message": "Artifact not found"},
+            )
+        return {
+            "action": "delete",
+            "workspace_id": str(membership["workspace_id"]),
+            "deleted_id": str(deleted["id"]),
+        }
+
+    @app.post("/api/v1/workspaces/{workspace_id}/sources/connect")
+    def sensitive_source_connect(
+        workspace_id: UUID,
+        body: SensitiveActionRequest,
+        response: Response,
+        principal: VerifiedPrincipal = Depends(require_active_session_principal),
+    ) -> dict:
+        try:
+            with scoped_api_workspace_tx(
+                api_pool,
+                subject_id=principal.subject_id,
+                requested_workspace_id=workspace_id,
+            ) as (_conn, membership, pid):
+                response.headers["X-T007D-Backend-PID"] = str(pid)
+                return {
+                    "action": "source_connect",
+                    "workspace_id": str(membership["workspace_id"]),
+                    "target_id": body.target_id,
+                    "status": "connected",
+                }
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "WORKSPACE_FORBIDDEN", "message": str(exc)},
+            ) from exc
+
+    @app.post("/api/v1/workspaces/{workspace_id}/sources/revoke")
+    def sensitive_source_revoke(
+        workspace_id: UUID,
+        body: SensitiveActionRequest,
+        response: Response,
+        principal: VerifiedPrincipal = Depends(require_active_session_principal),
+    ) -> dict:
+        try:
+            with scoped_api_workspace_tx(
+                api_pool,
+                subject_id=principal.subject_id,
+                requested_workspace_id=workspace_id,
+            ) as (_conn, membership, pid):
+                response.headers["X-T007D-Backend-PID"] = str(pid)
+                return {
+                    "action": "source_revoke",
+                    "workspace_id": str(membership["workspace_id"]),
+                    "target_id": body.target_id,
+                    "status": "revoked",
+                }
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "WORKSPACE_FORBIDDEN", "message": str(exc)},
+            ) from exc
 
     return app

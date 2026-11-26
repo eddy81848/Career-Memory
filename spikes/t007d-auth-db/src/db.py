@@ -27,6 +27,8 @@ class DbRolesConfig:
     migrator_dsn: str
     api_dsn: str
     worker_dsn: str
+    data_api_anon_dsn: str = ""
+    data_api_authenticated_dsn: str = ""
 
 
 def make_single_connection_pool(dsn: str) -> ConnectionPool:

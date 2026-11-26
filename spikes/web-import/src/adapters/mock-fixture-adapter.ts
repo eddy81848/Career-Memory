@@ -518,13 +518,44 @@ export class MockFixtureImportAdapter
     input: StartInitialImportInput
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.startImportCallCount += 1;
+    const requestAuthScope = this.getCurrentAuthScope();
     await sleep(this.latencyMs);
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "요청 전송 중 로그아웃 또는 세션 변경이 발생하여 이전 요청의 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
 
     const repo = findRepo(input.repoId);
     const result = await this.syncRunClient.createInitialImport({
       repo,
-      authScope: this.getCurrentAuthScope(),
+      authScope: requestAuthScope,
     });
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "요청 전송 중 로그아웃 또는 세션 변경이 발생하여 이전 요청의 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
 
     if (!result.ok) {
       if (result.kind === "session_expired") {
@@ -565,13 +596,45 @@ export class MockFixtureImportAdapter
     runId: string
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.pollCallCount += 1;
+    const requestAuthScope = this.getCurrentAuthScope();
     await sleep(this.latencyMs);
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "조회 중 로그아웃 또는 세션 변경이 발생하여 이전 세션의 늦은 조회 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
 
     const current = this.state.latestRun;
     const repo = findRepo(current?.repositoryId ?? SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId);
     this.revokedDuringLastPoll = false;
 
     const result = await this.syncRunClient.getImportStatus({ runId, repo });
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "조회 중 로그아웃 또는 세션 변경이 발생하여 이전 세션의 늦은 조회 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
+
     if (!result.ok) {
       if (result.kind === "session_expired") {
         this.state = {
@@ -622,7 +685,23 @@ export class MockFixtureImportAdapter
     runId: string
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.retryImportCallCount += 1;
+    const requestAuthScope = this.getCurrentAuthScope();
     await sleep(this.latencyMs);
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "재시도 요청 중 로그아웃 또는 세션 변경이 발생하여 이전 요청의 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
 
     const current = this.state.latestRun;
     const repo = findRepo(current?.repositoryId ?? SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId);
@@ -631,8 +710,23 @@ export class MockFixtureImportAdapter
       runId,
       repo,
       previousRun: current,
-      authScope: this.getCurrentAuthScope(),
+      authScope: requestAuthScope,
     });
+
+    if (requestAuthScope !== this.getCurrentAuthScope()) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          title: "이전 세션의 늦은 응답 무시됨",
+          message:
+            "재시도 요청 중 로그아웃 또는 세션 변경이 발생하여 이전 요청의 응답을 반영하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+        },
+      };
+    }
 
     if (!result.ok) {
       if (result.kind === "session_expired") {

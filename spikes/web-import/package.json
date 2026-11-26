@@ -9,6 +9,7 @@
     "start": "next start --port 3100",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:contract-http": "vitest run --config vitest.contract-http.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },

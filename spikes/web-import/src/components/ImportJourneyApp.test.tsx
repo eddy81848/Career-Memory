@@ -1610,4 +1610,159 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(capturedKeys[1]).toBe(capturedKeys[0]);
     expect(getPaths).toEqual(["/v1/sync-runs/synthetic-run-real"]);
   });
+
+  it("ignores late 202 and late 401 from an old session after logout/session change without altering new session UI, stored run, or pending key", async () => {
+    const user = userEvent.setup();
+    window.sessionStorage.clear();
+
+    const lateGates: Array<() => void> = [];
+    const postKeys: Array<string | undefined> = [];
+    let callIndex = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            callIndex += 1;
+            const currentCall = callIndex;
+            postKeys.push(req.headers["Idempotency-Key"]);
+
+            if (currentCall === 1) {
+              // Session 1 create -> delayed 202
+              await new Promise<void>((resolve) => {
+                lateGates.push(resolve);
+              });
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_type: "SYNC_RUN",
+                  target_id: "synthetic-run-old-202",
+                  status_url: "/v1/sync-runs/synthetic-run-old-202",
+                }),
+              };
+            }
+
+            if (currentCall === 2) {
+              // Session 2 create -> immediate 502 so Session 2 holds a pending create key
+              return { status: 502, rawBody: "" };
+            }
+
+            if (currentCall === 3) {
+              // Session 2 resend -> delayed 401
+              await new Promise<void>((resolve) => {
+                lateGates.push(resolve);
+              });
+              return { status: 401, rawBody: "" };
+            }
+
+            // Session 3 create -> immediate 202
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_type: "SYNC_RUN",
+                target_id: "synthetic-run-session-3",
+                status_url: "/v1/sync-runs/synthetic-run-session-3",
+              }),
+            };
+          }
+
+          if (req.method === "GET" && req.path === "/v1/sync-runs/synthetic-run-session-3") {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-s3",
+                import_ready: true,
+                processing_status: "COMPLETE",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={20} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // Session 1 starts import (held in-flight)
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(lateGates).toHaveLength(1);
+    });
+
+    // Logout & re-login -> Session 2
+    await user.click(screen.getByRole("button", { name: "모의 로그아웃" }));
+    await user.click(screen.getByRole("button", { name: "모의 서비스 로그인" }));
+
+    // Session 2 submits -> gets 502 and keeps a pending create key
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "HTTP 502"
+      );
+    });
+
+    // Release Session 1's late 202
+    lateGates[0]();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    // Late 202 must NOT show synthetic-run-old-202, store it, or wipe Session 2's pending key
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    const afterLate202 = await adapter.bootstrapSession();
+    expect(afterLate202.ok && afterLate202.data.latestRun).toBeNull();
+    expect(
+      window.sessionStorage.getItem("career_memory_spike_web_import_v1") ?? ""
+    ).not.toContain("synthetic-run-old-202");
+
+    // Session 2 explicitly resends (must reuse Session 2's key, NOT wiped by late 202)
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(lateGates).toHaveLength(2);
+    });
+    expect(postKeys[2]).toBe(postKeys[1]);
+    expect(postKeys[1]).not.toBe(postKeys[0]);
+
+    // Logout & re-login -> Session 3 while Session 2's 401 is in flight
+    await user.click(screen.getByRole("button", { name: "모의 로그아웃" }));
+    await user.click(screen.getByRole("button", { name: "모의 서비스 로그인" }));
+
+    // Session 3 starts import and succeeds
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+      "synthetic-run-session-3"
+    );
+    expect(postKeys[3]).not.toBe(postKeys[1]);
+
+    // Release Session 2's late 401
+    lateGates[1]();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    // Session 3 must remain authenticated with synthetic-run-session-3 intact
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+      "synthetic-run-session-3"
+    );
+    const afterLate401 = await adapter.bootstrapSession();
+    expect(afterLate401.ok ? afterLate401.data.latestRun?.runId : null).toBe(
+      "synthetic-run-session-3"
+    );
+    window.sessionStorage.clear();
+  });
 });

@@ -58,7 +58,7 @@ export function ImportJourneyApp({
 
   // Lifecycle, concurrency, and stale-response guards
   const isMountedRef = useRef(true);
-  const inFlightSubmitRef = useRef(false);
+  const inFlightSubmitTokenRef = useRef<number | null>(null);
   const inFlightPollRef = useRef(false);
   const pollTimerRef = useRef<number | null>(null);
   const operationTokenRef = useRef(0);
@@ -73,6 +73,7 @@ export function ImportJourneyApp({
 
   const invalidateInFlightOperations = useCallback((): number => {
     clearPollTimer();
+    inFlightSubmitTokenRef.current = null;
     operationTokenRef.current += 1;
     return operationTokenRef.current;
   }, [clearPollTimer]);
@@ -374,7 +375,7 @@ export function ImportJourneyApp({
 
   const handleSubmitImport = async () => {
     // Guard 1: Synchronous in-flight or active-run lock blocks duplicate calls!
-    if (inFlightSubmitRef.current || isImportRequestLocked(state)) {
+    if (inFlightSubmitTokenRef.current !== null || isImportRequestLocked(state)) {
       dispatch({
         type: "DUPLICATE_ATTEMPT_BLOCKED",
         message:
@@ -389,8 +390,8 @@ export function ImportJourneyApp({
       return;
     }
 
-    inFlightSubmitRef.current = true;
     const token = invalidateInFlightOperations();
+    inFlightSubmitTokenRef.current = token;
 
     dispatch({
       type: "SUBMIT_IMPORT_START",
@@ -423,20 +424,22 @@ export function ImportJourneyApp({
         });
       }
     } finally {
-      inFlightSubmitRef.current = false;
+      if (inFlightSubmitTokenRef.current === token) {
+        inFlightSubmitTokenRef.current = null;
+      }
     }
   };
 
   const handleRetryImport = async () => {
-    if (inFlightSubmitRef.current || !state.activeRun) {
+    if (inFlightSubmitTokenRef.current !== null || !state.activeRun) {
       return;
     }
     if (!canExposeRetryAction(state)) {
       return;
     }
 
-    inFlightSubmitRef.current = true;
     const token = invalidateInFlightOperations();
+    inFlightSubmitTokenRef.current = token;
     const targetRunId = state.activeRun.runId;
     dispatch({
       type: "RETRY_IMPORT_START",
@@ -464,12 +467,14 @@ export function ImportJourneyApp({
         });
       }
     } finally {
-      inFlightSubmitRef.current = false;
+      if (inFlightSubmitTokenRef.current === token) {
+        inFlightSubmitTokenRef.current = null;
+      }
     }
   };
 
   const handleResetActiveRun = async () => {
-    if (inFlightSubmitRef.current || isImportRequestLocked(state)) {
+    if (inFlightSubmitTokenRef.current !== null || isImportRequestLocked(state)) {
       dispatch({
         type: "DUPLICATE_ATTEMPT_BLOCKED",
         message: "진행 중인 작업이 완료된 후 초기화할 수 있습니다.",

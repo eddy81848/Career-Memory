@@ -80,6 +80,7 @@ export class ContractSyncRunClient {
   >();
 
   private currentAuthScope: string;
+  private scopeGeneration = 0;
   private pendingCreateKey: PendingCreateKey | null = null;
   private pendingRetryKey: PendingRetryKey | null = null;
   private requestCounter = 0;
@@ -99,6 +100,7 @@ export class ContractSyncRunClient {
   public setAuthScope(authScope: string): void {
     if (authScope !== this.currentAuthScope) {
       this.currentAuthScope = authScope;
+      this.scopeGeneration += 1;
       this.clearPendingKeys();
     }
   }
@@ -403,6 +405,29 @@ export class ContractSyncRunClient {
     };
   }
 
+  private buildStaleSessionFault(): UnconfirmedFaultViewModel {
+    return {
+      kind: "uncertain_outcome",
+      title: "이전 세션의 늦은 응답 무시됨",
+      message:
+        "요청 전송 중 로그아웃 또는 세션 변경이 발생하여 이전 요청의 늦은 응답을 현재 세션에 반영하지 않았습니다.",
+      serverConfirmed: false,
+      actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
+    };
+  }
+
+  private clearPendingCreateKeyIfMatch(idempotencyKey: string): void {
+    if (this.pendingCreateKey?.idempotencyKey === idempotencyKey) {
+      this.pendingCreateKey = null;
+    }
+  }
+
+  private clearPendingRetryKeyIfMatch(idempotencyKey: string): void {
+    if (this.pendingRetryKey?.idempotencyKey === idempotencyKey) {
+      this.pendingRetryKey = null;
+    }
+  }
+
   /**
    * POST /v1/sync-runs
    */
@@ -410,6 +435,8 @@ export class ContractSyncRunClient {
     repo: PublicRepositoryOption;
     authScope?: string;
   }): Promise<AdapterResult<ContractRunSyncResult>> {
+    const startGeneration = this.scopeGeneration;
+    const startCurrentScope = this.currentAuthScope;
     const effectiveAuthScope = params.authScope ?? this.currentAuthScope;
     const sourceResourceId = params.repo.repoId;
     const bodyDto: InitialImportRequestDto = {
@@ -447,6 +474,16 @@ export class ContractSyncRunClient {
         body: requestFingerprint,
       });
     } catch {
+      if (
+        this.scopeGeneration !== startGeneration ||
+        this.currentAuthScope !== startCurrentScope
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: this.buildStaleSessionFault(),
+        };
+      }
       // Network/lost response: KEEP pendingCreateKey in memory so an explicit
       // user resend of the exact same request in the same auth scope reuses
       // the exact same UUID Idempotency-Key. Never auto-POST.
@@ -465,6 +502,19 @@ export class ContractSyncRunClient {
       };
     }
 
+    // If logout or session change occurred while in-flight, NEVER mutate the new
+    // session's pending keys, run map, or state!
+    if (
+      this.scopeGeneration !== startGeneration ||
+      this.currentAuthScope !== startCurrentScope
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleSessionFault(),
+      };
+    }
+
     if (response.status === 202) {
       const validated = this.validateAcceptedResponse(response.rawBody);
       if (!validated.ok) {
@@ -477,8 +527,8 @@ export class ContractSyncRunClient {
         };
       }
 
-      // Valid 202 confirmed -> clear pending key so subsequent distinct requests use a new UUID.
-      this.pendingCreateKey = null;
+      // Valid 202 confirmed -> clear only this request's pending key so subsequent distinct requests use a new UUID.
+      this.clearPendingCreateKeyIfMatch(idempotencyKey);
 
       const accepted = validated.accepted;
       const nowIso = this.nowProvider();
@@ -521,8 +571,8 @@ export class ContractSyncRunClient {
       };
     }
 
-    // Definitive non-5xx client/conflict response -> clear pending key.
-    this.pendingCreateKey = null;
+    // Definitive non-5xx client/conflict response -> clear only this request's pending key.
+    this.clearPendingCreateKeyIfMatch(idempotencyKey);
 
     if (response.status === 409) {
       return this.handleConflictResponse({
@@ -546,6 +596,8 @@ export class ContractSyncRunClient {
     runId: string;
     repo: PublicRepositoryOption;
   }): Promise<AdapterResult<ContractRunSyncResult>> {
+    const startGeneration = this.scopeGeneration;
+    const startCurrentScope = this.currentAuthScope;
     const statusUrl = this.getStatusUrl(params.runId);
 
     let response: SyntheticHttpResponse;
@@ -558,6 +610,16 @@ export class ContractSyncRunClient {
         },
       });
     } catch {
+      if (
+        this.scopeGeneration !== startGeneration ||
+        this.currentAuthScope !== startCurrentScope
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: this.buildStaleSessionFault(),
+        };
+      }
       // Never convert a poll failure into a new POST /v1/sync-runs!
       return {
         ok: false,
@@ -571,6 +633,17 @@ export class ContractSyncRunClient {
           actionGuidance:
             "새 가져오기를 다시 요청하지 말고 '상태 지금 다시 확인' 또는 '서버 상태 다시 확인'을 눌러 조회하세요.",
         },
+      };
+    }
+
+    if (
+      this.scopeGeneration !== startGeneration ||
+      this.currentAuthScope !== startCurrentScope
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleSessionFault(),
       };
     }
 
@@ -636,6 +709,8 @@ export class ContractSyncRunClient {
     previousRun?: ImportRunViewModel | null;
     authScope?: string;
   }): Promise<AdapterResult<ContractRunSyncResult>> {
+    const startGeneration = this.scopeGeneration;
+    const startCurrentScope = this.currentAuthScope;
     const effectiveAuthScope = params.authScope ?? this.currentAuthScope;
 
     // Different logical operation -> never keep unrelated create key
@@ -666,6 +741,16 @@ export class ContractSyncRunClient {
         // OpenAPI 0.2.0-draft: retry request MUST omit request body
       });
     } catch {
+      if (
+        this.scopeGeneration !== startGeneration ||
+        this.currentAuthScope !== startCurrentScope
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: this.buildStaleSessionFault(),
+        };
+      }
       // Network/lost response: KEEP pendingRetryKey in memory so an explicit
       // user resend of the exact same retry in the same auth scope reuses
       // the exact same UUID Idempotency-Key. Never auto-POST.
@@ -684,6 +769,19 @@ export class ContractSyncRunClient {
       };
     }
 
+    // If logout or session change occurred while in-flight, NEVER mutate the new
+    // session's pending keys, run map, or state!
+    if (
+      this.scopeGeneration !== startGeneration ||
+      this.currentAuthScope !== startCurrentScope
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleSessionFault(),
+      };
+    }
+
     if (response.status === 202) {
       const validated = this.validateAcceptedResponse(
         response.rawBody,
@@ -699,8 +797,8 @@ export class ContractSyncRunClient {
         };
       }
 
-      // Valid 202 for the original run confirmed -> clear pending key.
-      this.pendingRetryKey = null;
+      // Valid 202 for the original run confirmed -> clear only this request's pending key.
+      this.clearPendingRetryKeyIfMatch(idempotencyKey);
 
       const accepted = validated.accepted;
       const nowIso = this.nowProvider();
@@ -746,8 +844,8 @@ export class ContractSyncRunClient {
       };
     }
 
-    // Definitive non-5xx client/conflict response -> clear pending key.
-    this.pendingRetryKey = null;
+    // Definitive non-5xx client/conflict response -> clear only this request's pending key.
+    this.clearPendingRetryKeyIfMatch(idempotencyKey);
 
     if (response.status === 409) {
       return this.handleConflictResponse({

@@ -981,4 +981,121 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       window.sessionStorage.clear();
     });
   });
+
+  describe("WEB-05 late 202/401 isolation across logout and session changes", () => {
+    it("ignores late 202 and late 401 from an old session so they never overwrite the new session's pending key, stored run, or auth state", async () => {
+      window.sessionStorage.clear();
+
+      let resolveSession1Create!: (res: SyntheticHttpResponse) => void;
+      let resolveSession1Retry401!: (res: SyntheticHttpResponse) => void;
+      const recordedCreateKeys: string[] = [];
+      let callCount = 0;
+
+      const transport: SyntheticHttpTransport = {
+        send(req) {
+          callCount += 1;
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            recordedCreateKeys.push(req.headers["Idempotency-Key"]);
+            if (callCount === 1) {
+              // Session 1 in-flight create -> will resolve LATE with 202
+              return new Promise<SyntheticHttpResponse>((resolve) => {
+                resolveSession1Create = resolve;
+              });
+            }
+            if (callCount === 2) {
+              // Session 2 create -> returns 502 so Session 2 holds a pending Idempotency-Key
+              return Promise.resolve({ status: 502, rawBody: "" });
+            }
+            if (callCount === 3) {
+              // Session 2 explicit resend -> must STILL carry Session 2's pending key!
+              return Promise.resolve({
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: "synthetic-run-session-2",
+                  status_url: "/v1/sync-runs/synthetic-run-session-2",
+                }),
+              });
+            }
+          }
+          if (req.method === "POST" && req.path.endsWith("/retry")) {
+            return new Promise<SyntheticHttpResponse>((resolve) => {
+              resolveSession1Retry401 = resolve;
+            });
+          }
+          return Promise.resolve({ status: 404, rawBody: "" });
+        },
+      };
+
+      const adapter = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: false,
+        syncRunTransport: transport,
+      });
+
+      // Session 1 starts create (in-flight)
+      const session1CreatePromise = adapter.startInitialImport({
+        repoId: REPO_A.repoId,
+      });
+      await Promise.resolve();
+
+      // Session 1 signs out and Session 2 signs in while Session 1 create is still in flight
+      await adapter.signOutService();
+      await adapter.signInService();
+
+      // Session 2 starts create and receives 502 -> Session 2 now holds a pending key
+      const session2First = await adapter.startInitialImport({
+        repoId: REPO_A.repoId,
+      });
+      expect(session2First.ok).toBe(false);
+      expect(recordedCreateKeys).toHaveLength(2);
+      const session2PendingKey = recordedCreateKeys[1];
+      expect(session2PendingKey).not.toBe(recordedCreateKeys[0]);
+
+      // Now Session 1's LATE 202 arrives!
+      resolveSession1Create({
+        status: 202,
+        rawBody: JSON.stringify({
+          status: "PENDING",
+          target_id: "synthetic-run-session-1-late",
+          status_url: "/v1/sync-runs/synthetic-run-session-1-late",
+        }),
+      });
+      await session1CreatePromise;
+
+      // Session 2's stored snapshot MUST NOT contain Session 1's late run!
+      const bootAfterLate202 = await adapter.bootstrapSession();
+      expect(bootAfterLate202.ok).toBe(true);
+      if (bootAfterLate202.ok) {
+        expect(bootAfterLate202.data.latestRun).toBeNull();
+        expect(bootAfterLate202.data.serviceAuth.status).toBe("authenticated");
+      }
+
+      // Session 2 explicitly resends -> MUST STILL reuse Session 2's pending key!
+      const session2Resend = await adapter.startInitialImport({
+        repoId: REPO_A.repoId,
+      });
+      expect(session2Resend.ok).toBe(true);
+      expect(recordedCreateKeys).toHaveLength(3);
+      expect(recordedCreateKeys[2]).toBe(session2PendingKey);
+
+      // Now test late 401 from an old session on retry after logout + re-login
+      const oldRetryPromise = adapter.retryImportRun("synthetic-run-session-2");
+      await Promise.resolve();
+      await adapter.signOutService();
+      await adapter.signInService();
+
+      resolveSession1Retry401({ status: 401, rawBody: "" });
+      await oldRetryPromise;
+
+      // New session MUST still be authenticated (not expired by old session's late 401)!
+      const bootAfterLate401 = await adapter.bootstrapSession();
+      expect(bootAfterLate401.ok).toBe(true);
+      if (bootAfterLate401.ok) {
+        expect(bootAfterLate401.data.serviceAuth.status).toBe("authenticated");
+      }
+
+      window.sessionStorage.clear();
+    });
+  });
 });

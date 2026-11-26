@@ -1,0 +1,147 @@
+{
+  "schema_version": "0.1.0-draft",
+  "dataset_version": "0.1.0-draft",
+  "artifact_role": "EXPECTED_REFETCH_ORACLE_DRAFT",
+  "oracle_status": "DRAFT",
+  "frozen_for_golden": false,
+  "requires_human_review_task": "T-004B",
+  "expected_refetch_cases": [
+    {
+      "refetch_case_id": "REF-01",
+      "expected_verdict": "REFETCH_MATCHED",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm REF-01 ID alignment with Notion T-004A"
+      ],
+      "rationale": "Identical content hash and locator span confirm unchanged source; automatic background change polling and claim auto-refresh remain Post-MVP."
+    },
+    {
+      "refetch_case_id": "REF-02",
+      "expected_verdict": "CONTENT_CHANGED_LOCATOR_DRIFT",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP"
+      ],
+      "rationale": "Inserted header changes content hash and shifts offsets; marks locator drift/unverifiable-now without claiming the historical fact is false or auto-updating the claim."
+    },
+    {
+      "refetch_case_id": "REF-03",
+      "expected_verdict": "CURRENTLY_UNVERIFIABLE",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm user-facing status badge for HTTP 404/410/timeout"
+      ],
+      "rationale": "HTTP 404 means the source is currently unavailable/unverifiable; it MUST NOT be conflated with proving the past fact false."
+    },
+    {
+      "refetch_case_id": "REF-04",
+      "expected_verdict": "CURRENTLY_UNVERIFIABLE_PARTIAL",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm byte-limit truncation retry/error policy"
+      ],
+      "rationale": "Truncated HTTP 206 response omits the baseline locator range -> currently unverifiable, not falsified and not verified."
+    },
+    {
+      "refetch_case_id": "REF-05",
+      "expected_verdict": "REFETCH_POLICY_FAILED",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm exact permission/retention policy failure codes"
+      ],
+      "rationale": "HTTP 403 / revoked OAuth scope prevents verification now without falsifying historical facts."
+    },
+    {
+      "refetch_case_id": "REF-06",
+      "expected_verdict": "BLOCKED_UNSAFE_URL",
+      "expected_fetch_attempted": false,
+      "expected_unverifiable_now": true,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm full production SSRF/DNS-rebinding allowlist policy"
+      ],
+      "rationale": "Metadata IPs, loopback, private CIDR, embedded credentials, and non-HTTPS schemes must be rejected prior to any outbound request."
+    },
+    {
+      "refetch_case_id": "REF-07",
+      "expected_verdict": "CANARY_NON_PERSISTENCE_VERIFIED",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": true,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm Option C zero-raw-text boundary for logs, caches, and traces"
+      ],
+      "rationale": "Option C forbids persisting raw source text: clean persisted snapshot contains 0 canary tokens, while the negative leak fixture proves detector sensitivity."
+    },
+    {
+      "refetch_case_id": "REF-08",
+      "expected_verdict": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm Post-MVP handoff boundary for automatic upstream change detection and Claim auto-refresh"
+      ],
+      "rationale": "Even when a manual refetch succeeds on a newer revision, MVP must not silently auto-detect changes or overwrite the user's Claim."
+    }
+  ]
+}

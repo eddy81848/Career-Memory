@@ -1,0 +1,703 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.1.0.json",
+  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT)",
+  "description": "Draft structural schema for T-004A synthetic fixtures. Normalization, locator, and status enum conventions marked TEST_FIXTURE_ONLY are pending confirmation against Notion production specs (REVIEW_REQUIRED).",
+  "$defs": {
+    "Sha256Hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "Locator": {
+      "type": "object",
+      "required": [
+        "locator_id",
+        "locator_spec_version",
+        "normalization_policy",
+        "convention_scope",
+        "char_start",
+        "char_end",
+        "char_length",
+        "utf8_byte_start",
+        "utf8_byte_end",
+        "utf8_byte_length",
+        "utf16_start",
+        "utf16_end",
+        "line_start",
+        "line_end",
+        "span_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "locator_id": { "type": "string", "minLength": 5 },
+        "locator_spec_version": { "type": "string", "const": "fixture-locator-v0-draft" },
+        "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
+        "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
+        "char_start": { "type": "integer", "minimum": 0 },
+        "char_end": { "type": "integer", "minimum": 1 },
+        "char_length": { "type": "integer", "minimum": 1 },
+        "utf8_byte_start": { "type": "integer", "minimum": 0 },
+        "utf8_byte_end": { "type": "integer", "minimum": 1 },
+        "utf8_byte_length": { "type": "integer", "minimum": 1 },
+        "utf16_start": { "type": "integer", "minimum": 0 },
+        "utf16_end": { "type": "integer", "minimum": 1 },
+        "line_start": { "type": "integer", "minimum": 1 },
+        "line_end": { "type": "integer", "minimum": 1 },
+        "span_sha256": { "$ref": "#/$defs/Sha256Hash" }
+      }
+    },
+    "SourceRevision": {
+      "type": "object",
+      "required": [
+        "source_revision_id",
+        "scenario_ids",
+        "source_key",
+        "revision_seq",
+        "source_kind",
+        "synthetic_uri",
+        "language",
+        "author_label",
+        "author_identity_confidence",
+        "created_at",
+        "normalization_policy",
+        "content_sha256",
+        "char_length",
+        "utf8_byte_length",
+        "is_synthetic_fixture",
+        "deleted_by_user",
+        "raw_text_fixture_only"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "scenario_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(SCN|REF)-[0-9]{2}$" }
+        },
+        "source_key": { "type": "string", "minLength": 2 },
+        "revision_seq": { "type": "integer", "minimum": 1 },
+        "source_kind": {
+          "type": "string",
+          "enum": [
+            "SYNTHETIC_PR_SUMMARY",
+            "SYNTHETIC_MEETING_NOTE",
+            "SYNTHETIC_POSTMORTEM",
+            "SYNTHETIC_DESIGN_DOC",
+            "SYNTHETIC_RFC_PLAN",
+            "SYNTHETIC_RETRO_NOTE",
+            "SYNTHETIC_BENCHMARK_NOTE",
+            "SYNTHETIC_LAUNCH_UPDATE",
+            "SYNTHETIC_ISSUE_COMMENT"
+          ]
+        },
+        "synthetic_uri": { "type": "string", "pattern": "^https://synthetic\\.example\\.test/" },
+        "language": { "type": "string", "enum": ["en", "ko", "mixed"] },
+        "author_label": { "type": "string", "minLength": 1 },
+        "author_identity_confidence": {
+          "type": "string",
+          "enum": ["VERIFIED_OWNER", "TEAM_SHARED", "AMBIGUOUS"]
+        },
+        "created_at": { "type": "string", "minLength": 10 },
+        "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
+        "content_sha256": { "$ref": "#/$defs/Sha256Hash" },
+        "char_length": { "type": "integer", "minimum": 1 },
+        "utf8_byte_length": { "type": "integer", "minimum": 1 },
+        "is_synthetic_fixture": { "type": "boolean", "const": true },
+        "deleted_by_user": { "type": "boolean" },
+        "contains_canary": { "type": "boolean" },
+        "canary_token_id": { "type": ["string", "null"] },
+        "raw_text_fixture_only": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SourceRevisionsFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "artifact_role",
+        "normalization_policy",
+        "convention_scope",
+        "review_required_specs",
+        "source_revisions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "artifact_role": { "type": "string", "const": "SYNTHETIC_SOURCE_INPUT" },
+        "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
+        "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
+        "review_required_specs": { "type": "array", "items": { "type": "string" } },
+        "source_revisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SourceRevision" }
+        }
+      }
+    },
+    "ContentUnit": {
+      "type": "object",
+      "required": [
+        "content_unit_id",
+        "scenario_id",
+        "source_revision_id",
+        "unit_index",
+        "unit_type",
+        "locator",
+        "unit_sha256",
+        "persists_raw_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "content_unit_id": { "type": "string", "pattern": "^cu-" },
+        "scenario_id": { "type": "string", "pattern": "^(SCN|REF)-[0-9]{2}$" },
+        "source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "unit_index": { "type": "integer", "minimum": 0 },
+        "unit_type": {
+          "type": "string",
+          "enum": ["PARAGRAPH", "BULLET_ITEM", "SECTION_NOTE", "COMMENT_BLOCK"]
+        },
+        "locator": { "$ref": "#/$defs/Locator" },
+        "unit_sha256": { "$ref": "#/$defs/Sha256Hash" },
+        "persists_raw_text": { "type": "boolean", "const": false }
+      }
+    },
+    "Stage1ContentUnitsFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "stage_name",
+        "stage_responsibility",
+        "artifact_role",
+        "content_units"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "stage_name": { "type": "string", "const": "STAGE_1_CONTENT_UNIT_SEGMENTATION" },
+        "stage_responsibility": { "type": "string", "minLength": 10 },
+        "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "content_units": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContentUnit" }
+        }
+      }
+    },
+    "FactSupport": {
+      "type": "object",
+      "required": [
+        "fact_support_id",
+        "scenario_id",
+        "canonical_fact_id",
+        "source_revision_id",
+        "content_unit_id",
+        "support_role",
+        "locator",
+        "persists_raw_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fact_support_id": { "type": "string", "pattern": "^fs-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
+        "source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "content_unit_id": { "type": "string", "pattern": "^cu-" },
+        "support_role": { "type": "string", "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"] },
+        "locator": { "$ref": "#/$defs/Locator" },
+        "persists_raw_text": { "type": "boolean", "const": false }
+      }
+    },
+    "CanonicalFact": {
+      "type": "object",
+      "required": [
+        "canonical_fact_id",
+        "scenario_id",
+        "fact_text",
+        "fact_category",
+        "modality",
+        "environment_scope",
+        "attribution_scope",
+        "identity_status",
+        "deleted_by_user"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "fact_text": { "type": "string", "minLength": 5 },
+        "fact_category": {
+          "type": "string",
+          "enum": [
+            "ENGINEERING_DELIVERY",
+            "INCIDENT_RECORD",
+            "PLAN_OR_PROPOSAL",
+            "NEGATIVE_OUTCOME",
+            "BENCHMARK_RESULT",
+            "LAUNCH_EVENT",
+            "CORRECTION_NOTICE",
+            "PROJECT_CONTEXT"
+          ]
+        },
+        "modality": { "type": "string", "enum": ["COMPLETED", "PLANNED", "NEGATED", "OBSERVED_CORRELATION"] },
+        "environment_scope": { "type": "string", "enum": ["PRODUCTION", "STAGING_TEST", "UNSPECIFIED"] },
+        "attribution_scope": { "type": "string", "enum": ["INDIVIDUAL", "TEAM", "AMBIGUOUS"] },
+        "identity_status": { "type": "string", "enum": ["RESOLVED", "AMBIGUOUS"] },
+        "deleted_by_user": { "type": "boolean" }
+      }
+    },
+    "Stage2FactExtractionFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "stage_name",
+        "stage_responsibility",
+        "artifact_role",
+        "scenario_fact_counts",
+        "canonical_facts",
+        "fact_supports"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION" },
+        "stage_responsibility": { "type": "string", "minLength": 10 },
+        "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "scenario_fact_counts": { "type": "object" },
+        "canonical_facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CanonicalFact" }
+        },
+        "fact_supports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FactSupport" }
+        }
+      }
+    },
+    "ClaimAtomSupport": {
+      "type": "object",
+      "required": [
+        "claim_atom_support_id",
+        "scenario_id",
+        "claim_atom_id",
+        "canonical_fact_id",
+        "support_role",
+        "removed_by_user"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_atom_support_id": { "type": "string", "pattern": "^cas-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "claim_atom_id": { "type": "string", "pattern": "^atom-" },
+        "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
+        "support_role": { "type": "string", "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"] },
+        "removed_by_user": { "type": "boolean" }
+      }
+    },
+    "ClaimAtom": {
+      "type": "object",
+      "required": [
+        "claim_atom_id",
+        "scenario_id",
+        "claim_id",
+        "atom_text",
+        "atom_kind",
+        "user_edited",
+        "is_hard_negative"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_atom_id": { "type": "string", "pattern": "^atom-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "claim_id": { "type": "string", "pattern": "^claim-" },
+        "atom_text": { "type": "string", "minLength": 5 },
+        "atom_kind": {
+          "type": "string",
+          "enum": ["ACTION", "OUTCOME_METRIC", "SCOPE_ENVIRONMENT", "ATTRIBUTION", "TIMING"]
+        },
+        "user_edited": { "type": "boolean" },
+        "edit_severity": { "type": ["string", "null"], "enum": ["NONE", "MINOR_PARAPHRASE", "SUBSTANTIVE", null] },
+        "is_hard_negative": { "type": "boolean" },
+        "hard_negative_type": { "type": ["string", "null"] }
+      }
+    },
+    "Claim": {
+      "type": "object",
+      "required": [
+        "claim_id",
+        "scenario_id",
+        "claim_text",
+        "claim_atom_ids",
+        "user_edited",
+        "user_edit_history",
+        "derived_from_claim_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": { "type": "string", "pattern": "^claim-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "claim_text": { "type": "string", "minLength": 5 },
+        "claim_atom_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^atom-" }
+        },
+        "user_edited": { "type": "boolean" },
+        "user_edit_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["event_id", "action", "severity", "note"],
+            "additionalProperties": false,
+            "properties": {
+              "event_id": { "type": "string" },
+              "action": {
+                "type": "string",
+                "enum": ["EDIT_CLAIM_TEXT", "EDIT_ATOM_TEXT", "DELETE_SOURCE", "DELETE_FACT", "REMOVE_SUPPORT"]
+              },
+              "severity": { "type": "string", "enum": ["MINOR_PARAPHRASE", "SUBSTANTIVE", "CASCADE_DELETE"] },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "derived_from_claim_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Stage3ClaimAssemblyFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "stage_name",
+        "stage_responsibility",
+        "artifact_role",
+        "claims",
+        "claim_atoms",
+        "claim_atom_supports"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_ASSEMBLY" },
+        "stage_responsibility": { "type": "string", "minLength": 10 },
+        "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "claims": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Claim" }
+        },
+        "claim_atoms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClaimAtom" }
+        },
+        "claim_atom_supports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClaimAtomSupport" }
+        }
+      }
+    },
+    "RefetchSnapshot": {
+      "type": "object",
+      "required": [
+        "refetch_case_id",
+        "scenario_title",
+        "target_url",
+        "url_safety_precheck",
+        "fetch_attempted",
+        "http_status",
+        "stub_error_code",
+        "is_partial_response",
+        "returned_content_sha256",
+        "returned_body_fixture_only",
+        "canary_tokens"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "scenario_title": { "type": "string", "minLength": 5 },
+        "target_url": { "type": "string", "minLength": 5 },
+        "additional_unsafe_urls": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "url_safety_precheck": { "type": "string", "enum": ["ALLOWED", "BLOCKED_UNSAFE_URL"] },
+        "fetch_attempted": { "type": "boolean" },
+        "http_status": { "type": ["integer", "null"] },
+        "stub_error_code": { "type": ["string", "null"] },
+        "is_partial_response": { "type": "boolean" },
+        "returned_content_sha256": { "type": ["string", "null"] },
+        "returned_body_fixture_only": { "type": ["string", "null"] },
+        "canary_tokens": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "RefetchSnapshotsFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "artifact_role",
+        "refetch_snapshots"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "artifact_role": { "type": "string", "const": "SYNTHETIC_REFETCH_STUB_INPUT" },
+        "refetch_snapshots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RefetchSnapshot" }
+        }
+      }
+    },
+    "RefetchCheckRecord": {
+      "type": "object",
+      "required": [
+        "refetch_case_id",
+        "baseline_source_revision_id",
+        "baseline_locator",
+        "target_claim_id",
+        "stub_outcome",
+        "locator_recheck_matched",
+        "hash_recheck_matched",
+        "persisted_payload_snapshot",
+        "negative_leaky_payload_fixture",
+        "post_mvp_tags"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "baseline_source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "baseline_locator": { "$ref": "#/$defs/Locator" },
+        "target_claim_id": { "type": "string", "pattern": "^claim-" },
+        "stub_outcome": {
+          "type": "string",
+          "enum": [
+            "REFETCH_MATCHED",
+            "CONTENT_CHANGED_LOCATOR_DRIFT",
+            "SOURCE_UNAVAILABLE",
+            "PARTIAL_RESPONSE",
+            "POLICY_DENIED",
+            "BLOCKED_UNSAFE_URL",
+            "CANARY_PERSISTENCE_AUDIT_PASS",
+            "NEW_REVISION_DETECTED_NO_AUTO_MUTATION"
+          ]
+        },
+        "locator_recheck_matched": { "type": ["boolean", "null"] },
+        "hash_recheck_matched": { "type": ["boolean", "null"] },
+        "persisted_payload_snapshot": { "type": "object" },
+        "negative_leaky_payload_fixture": { "type": ["object", "null"] },
+        "post_mvp_tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Stage4RefetchChecksFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "stage_name",
+        "stage_responsibility",
+        "artifact_role",
+        "refetch_checks"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "stage_name": { "type": "string", "const": "STAGE_4_REFETCH_VERIFICATION" },
+        "stage_responsibility": { "type": "string", "minLength": 10 },
+        "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "refetch_checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RefetchCheckRecord" }
+        }
+      }
+    },
+    "OracleDraftFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "artifact_role",
+        "oracle_status",
+        "frozen_for_golden",
+        "requires_human_review_task",
+        "scenarios",
+        "expected_atoms",
+        "expected_claims"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_DRAFT" },
+        "oracle_status": { "type": "string", "const": "DRAFT" },
+        "frozen_for_golden": { "type": "boolean", "const": false },
+        "requires_human_review_task": { "type": "string", "const": "T-004B" },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "scenario_id",
+              "title",
+              "coverage_tags",
+              "expected_fact_count",
+              "expected_atom_count",
+              "oracle_status",
+              "review_required_items",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+              "title": { "type": "string" },
+              "coverage_tags": { "type": "array", "items": { "type": "string" } },
+              "expected_fact_count": { "type": "integer", "minimum": 0 },
+              "expected_atom_count": { "type": "integer", "minimum": 1 },
+              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "review_required_items": { "type": "array", "items": { "type": "string" } },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "expected_atoms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "claim_atom_id",
+              "scenario_id",
+              "claim_id",
+              "expected_atom_status",
+              "oracle_status",
+              "review_required",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "claim_atom_id": { "type": "string", "pattern": "^atom-" },
+              "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+              "claim_id": { "type": "string", "pattern": "^claim-" },
+              "expected_atom_status": {
+                "type": "string",
+                "enum": [
+                  "SUPPORTED_DIRECT",
+                  "SUPPORTED_DIRECT_WITH_CONTEXT",
+                  "CONTEXT_ONLY_UNSUPPORTED",
+                  "UNSUPPORTED",
+                  "CONTRADICTED",
+                  "IDENTITY_AMBIGUOUS",
+                  "INVALIDATED_BY_USER_EDIT",
+                  "INVALIDATED_BY_DELETION"
+                ]
+              },
+              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "review_required": { "type": "boolean" },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "expected_claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "claim_id",
+              "scenario_id",
+              "expected_claim_status",
+              "oracle_status",
+              "review_required",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "claim_id": { "type": "string", "pattern": "^claim-" },
+              "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+              "expected_claim_status": {
+                "type": "string",
+                "enum": [
+                  "SOURCE_VERIFIED",
+                  "PARTIALLY_SUPPORTED",
+                  "UNSUPPORTED",
+                  "CONFLICTING",
+                  "IDENTITY_AMBIGUOUS",
+                  "INVALIDATED_BY_USER_EDIT",
+                  "INVALIDATED_BY_DELETION"
+                ]
+              },
+              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "review_required": { "type": "boolean" },
+              "rationale": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "RefetchOracleDraftFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "artifact_role",
+        "oracle_status",
+        "frozen_for_golden",
+        "requires_human_review_task",
+        "expected_refetch_cases"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.1.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_DRAFT" },
+        "oracle_status": { "type": "string", "const": "DRAFT" },
+        "frozen_for_golden": { "type": "boolean", "const": false },
+        "requires_human_review_task": { "type": "string", "const": "T-004B" },
+        "expected_refetch_cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "refetch_case_id",
+              "expected_verdict",
+              "expected_fetch_attempted",
+              "expected_unverifiable_now",
+              "expected_historical_fact_falsified",
+              "expected_claim_auto_mutated",
+              "expected_canary_leaked_in_clean_snapshot",
+              "expected_canary_detected_in_negative_fixture",
+              "post_mvp_tags",
+              "oracle_status",
+              "review_required_items",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+              "expected_verdict": { "type": "string" },
+              "expected_fetch_attempted": { "type": "boolean" },
+              "expected_unverifiable_now": { "type": "boolean" },
+              "expected_historical_fact_falsified": { "type": "boolean" },
+              "expected_claim_auto_mutated": { "type": "boolean" },
+              "expected_canary_leaked_in_clean_snapshot": { "type": "boolean" },
+              "expected_canary_detected_in_negative_fixture": { "type": ["boolean", "null"] },
+              "post_mvp_tags": { "type": "array", "items": { "type": "string" } },
+              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "review_required_items": { "type": "array", "items": { "type": "string" } },
+              "rationale": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

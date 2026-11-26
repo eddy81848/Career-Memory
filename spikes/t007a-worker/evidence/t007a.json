@@ -1,0 +1,742 @@
+{
+  "cases": [
+    {
+      "case": "test_processes_happy_path_over_http",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_processes_worker_unreachable_then_recover_endpoint",
+      "phases": {
+        "after_wake_failure": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:ConnectError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "recover_call": {
+          "selected": 1,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "f57612a8-ca36-4592-a8e9-47ef765159de": "acknowledged"
+          }
+        },
+        "after_recovery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_happy_path",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "wake_observation": [
+          {
+            "job_visible_from_other_session": true,
+            "open_app_transactions": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "test_failure_before_commit_rolls_back_job_and_outbox[api.between_job_and_outbox]",
+      "phases": {
+        "after_fault": {
+          "jobs": {
+            "count": 0,
+            "by_status": {}
+          },
+          "outbox": {
+            "count": 0,
+            "by_status": {},
+            "dispatch_attempts": 0,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_retry": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_failure_before_commit_rolls_back_job_and_outbox[api.before_commit]",
+      "phases": {
+        "after_fault": {
+          "jobs": {
+            "count": 0,
+            "by_status": {}
+          },
+          "outbox": {
+            "count": 0,
+            "by_status": {},
+            "dispatch_attempts": 0,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_retry": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_wake_failure_then_bounded_recovery",
+      "phases": {
+        "after_wake_failure": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "recover_1": {
+          "selected": 1,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "f98d4265-84ef-44ec-a3e7-4c45ac71fdbf": "acknowledged"
+          }
+        },
+        "after_recovery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "recover_2": {
+          "selected": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
+      "case": "test_recovery_is_bounded_and_respects_grace",
+      "phases": {
+        "after_recover_limit_2": {
+          "jobs": {
+            "count": 5,
+            "by_status": {
+              "PENDING": 3,
+              "SUCCEEDED": 2
+            }
+          },
+          "outbox": {
+            "count": 5,
+            "by_status": {
+              "PENDING": 3,
+              "DONE": 2
+            },
+            "dispatch_attempts": 7,
+            "recovery_attempts": 2,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 2
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "SUCCEEDED": 2
+            }
+          }
+        },
+        "recover_rounds_until_empty": 3,
+        "after_drained": {
+          "jobs": {
+            "count": 5,
+            "by_status": {
+              "SUCCEEDED": 5
+            }
+          },
+          "outbox": {
+            "count": 5,
+            "by_status": {
+              "DONE": 5
+            },
+            "dispatch_attempts": 10,
+            "recovery_attempts": 5,
+            "last_errors": []
+          },
+          "results": {
+            "count": 5
+          },
+          "job_attempts": {
+            "count": 5,
+            "by_outcome": {
+              "SUCCEEDED": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_response_lost_then_same_input_redelivered",
+      "phases": {
+        "after_lost_response": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "after_redelivery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_response_lost_and_wake_failed_converge_by_retry_or_recovery",
+      "phases": {
+        "after_lost_response_and_wake": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_redelivery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_same_key_different_body_is_rejected",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:no_wake_configured"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        }
+      }
+    },
+    {
+      "case": "test_concurrent_duplicate_submissions_create_one_job",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "distinct_job_ids_returned": 1
+      }
+    },
+    {
+      "case": "test_concurrent_workers_claim_once",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_lease_expiry_duplicate_processing_stores_one_result",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "SUCCEEDED": 1,
+              "LEASE_LOST": 1
+            }
+          }
+        },
+        "stored_result_attempt": {
+          "attempt_no": 2,
+          "worker_id": "w-fast"
+        }
+      }
+    },
+    {
+      "case": "test_result_primary_key_is_backstop",
+      "phases": {
+        "second_insert": "UniqueViolation",
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_no_db_transaction_open_during_processing",
+      "phases": {
+        "during_processing": {
+          "open_app_transactions": 0,
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "RUNNING": 1
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_fault_injection_is_not_reachable_over_http",
+      "phases": {
+        "routes": {
+          "api": [
+            "/_prototype/t007a/jobs",
+            "/_prototype/t007a/jobs/{job_id}",
+            "/healthz"
+          ],
+          "worker": [
+            "/healthz",
+            "/internal/t007a/recover",
+            "/internal/t007a/wake"
+          ]
+        }
+      }
+    }
+  ],
+  "pg_source": "ephemeral initdb cluster (/opt/homebrew/opt/postgresql@18/bin), unix socket only, deleted after run",
+  "server_version": "18.3 (Homebrew)",
+  "generated_at": "2026-11-26T03:48:39+00:00",
+  "python": "3.14.3",
+  "psycopg": "3.3.9"
+}

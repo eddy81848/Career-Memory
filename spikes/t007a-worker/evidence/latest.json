@@ -10,6 +10,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -41,6 +47,12 @@
               "PENDING": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -62,10 +74,11 @@
         },
         "recover_call": {
           "selected": 1,
+          "reaped": 0,
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "f57612a8-ca36-4592-a8e9-47ef765159de": "acknowledged"
+            "355cfdce-30cc-4100-8678-2b080cc89130": "acknowledged"
           }
         },
         "after_recovery": {
@@ -74,6 +87,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -97,6 +116,513 @@
       }
     },
     {
+      "case": "test_last_attempt_worker_death_lease_expiry_converges_to_failed",
+      "phases": {
+        "recover_1": {
+          "selected": 0,
+          "reaped": 1,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {
+            "21c9baae-540d-416c-afda-6f1ed516b12d": "reaped_failed"
+          }
+        },
+        "after_recover_1": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "LEASE_LOST": 1
+            }
+          }
+        },
+        "recover_2": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
+      "case": "test_zombie_worker_late_write_after_final_attempt_reap_is_rejected",
+      "phases": {
+        "late_save_outcome": "LEASE_LOST",
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "LEASE_LOST": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_concurrent_recover_workers_do_not_double_reap_or_double_wake",
+      "phases": {
+        "relay_totals": {
+          "reaped": 2,
+          "selected": 2,
+          "woke": 2
+        },
+        "final": {
+          "jobs": {
+            "count": 4,
+            "by_status": {
+              "FAILED": 2,
+              "SUCCEEDED": 2
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED",
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 4,
+            "by_status": {
+              "DONE": 4
+            },
+            "dispatch_attempts": 6,
+            "recovery_attempts": 4,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 2
+          },
+          "job_attempts": {
+            "count": 4,
+            "by_outcome": {
+              "LEASE_LOST": 2,
+              "SUCCEEDED": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_duplicate_wake_deliveries_process_once",
+      "phases": {
+        "wake_processed_counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "fixture_calls": 1,
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_worker_response_lost_after_result_saved_converges_without_reexecution",
+      "phases": {
+        "after_worker_response_lost": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:http_500"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "recover_after_drop": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:http_500"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_transient_fixture_error_retries_within_budget_and_succeeds",
+      "phases": {
+        "after_attempt_1": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "retryable:TransientExternalError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "FAILED": 1
+            }
+          }
+        },
+        "after_attempt_2": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              2
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "retryable:TransientExternalError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "FAILED": 2
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              3
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 3,
+            "recovery_attempts": 2,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 3,
+            "by_outcome": {
+              "FAILED": 2,
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_transient_errors_exhausting_budget_converge_to_failed",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              3
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_EXHAUSTED:TransientExternalError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 3,
+            "recovery_attempts": 2,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 3,
+            "by_outcome": {
+              "FAILED": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_permanent_fixture_error_fails_immediately_without_retry",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "PERMANENT_FAILURE:PermanentExternalError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "FAILED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_ambiguous_external_timeout_quarantines_without_auto_retry[1]",
+      "phases": {
+        "after_timeout": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "REVIEW_REQUIRED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "AMBIGUOUS_EXTERNAL_TIMEOUT:AmbiguousExternalTimeoutError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "AMBIGUOUS_TIMEOUT": 1
+            }
+          }
+        },
+        "recover_after_quarantine": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
       "case": "test_happy_path",
       "phases": {
         "final": {
@@ -105,6 +631,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -141,6 +673,10 @@
             "count": 0,
             "by_status": {}
           },
+          "job_details": {
+            "attempt_counts": [],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 0,
             "by_status": {},
@@ -162,6 +698,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -192,6 +734,10 @@
             "count": 0,
             "by_status": {}
           },
+          "job_details": {
+            "attempt_counts": [],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 0,
             "by_status": {},
@@ -213,6 +759,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -245,6 +797,12 @@
               "PENDING": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -266,10 +824,11 @@
         },
         "recover_1": {
           "selected": 1,
+          "reaped": 0,
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "f98d4265-84ef-44ec-a3e7-4c45ac71fdbf": "acknowledged"
+            "10ab7fd1-804e-43f0-870b-321e7817afb0": "acknowledged"
           }
         },
         "after_recovery": {
@@ -278,6 +837,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -300,6 +865,7 @@
         },
         "recover_2": {
           "selected": 0,
+          "reaped": 0,
           "acknowledged": 0,
           "failed": 0,
           "jobs": {}
@@ -316,6 +882,16 @@
               "PENDING": 3,
               "SUCCEEDED": 2
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0,
+              0,
+              0,
+              1,
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 5,
@@ -346,6 +922,16 @@
             "by_status": {
               "SUCCEEDED": 5
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 5,
@@ -378,6 +964,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -403,6 +995,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -435,6 +1033,12 @@
               "PENDING": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -461,6 +1065,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -486,6 +1096,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -518,6 +1134,12 @@
               "PENDING": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -548,6 +1170,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -581,6 +1209,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -588,9 +1222,7 @@
             },
             "dispatch_attempts": 1,
             "recovery_attempts": 0,
-            "last_errors": [
-              "wake_failed:injected"
-            ]
+            "last_errors": []
           },
           "results": {
             "count": 1
@@ -614,6 +1246,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              2
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -621,9 +1259,7 @@
             },
             "dispatch_attempts": 1,
             "recovery_attempts": 0,
-            "last_errors": [
-              "wake_failed:injected"
-            ]
+            "last_errors": []
           },
           "results": {
             "count": 1
@@ -652,6 +1288,12 @@
             "by_status": {
               "SUCCEEDED": 1
             }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
           },
           "outbox": {
             "count": 1,
@@ -693,6 +1335,12 @@
               "SUCCEEDED": 1
             }
           },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
           "outbox": {
             "count": 1,
             "by_status": {
@@ -700,9 +1348,7 @@
             },
             "dispatch_attempts": 1,
             "recovery_attempts": 0,
-            "last_errors": [
-              "wake_failed:injected"
-            ]
+            "last_errors": []
           },
           "results": {
             "count": 1
@@ -736,7 +1382,7 @@
   ],
   "pg_source": "ephemeral initdb cluster (/opt/homebrew/opt/postgresql@18/bin), unix socket only, deleted after run",
   "server_version": "18.3 (Homebrew)",
-  "generated_at": "2026-11-26T03:48:39+00:00",
+  "generated_at": "2026-11-26T04:05:12+00:00",
   "python": "3.14.3",
   "psycopg": "3.3.9"
 }

@@ -141,7 +141,8 @@ def create_api(
         with connect(settings.database_url, APP_NAME) as conn:
             job = conn.execute(
                 """
-                SELECT id, status, attempt_count, max_attempts, created_at, finished_at
+                SELECT id, status, terminal_reason, attempt_count, max_attempts,
+                       created_at, finished_at
                   FROM jobs WHERE id = %s
                 """,
                 (job_id,),

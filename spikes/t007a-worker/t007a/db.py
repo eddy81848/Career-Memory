@@ -41,7 +41,7 @@ def apply_schema(dsn: str) -> None:
 def snapshot(dsn: str) -> dict:
     """Observable row counts/states used as test evidence."""
     with connect(dsn, "t007a-observer") as conn:
-        jobs = conn.execute("SELECT status, attempt_count FROM jobs").fetchall()
+        jobs = conn.execute("SELECT status, attempt_count, terminal_reason FROM jobs").fetchall()
         outbox = conn.execute(
             "SELECT status, dispatch_attempts, recovery_attempts, last_error FROM outbox"
         ).fetchall()
@@ -49,6 +49,12 @@ def snapshot(dsn: str) -> dict:
         attempts = conn.execute("SELECT outcome FROM job_attempts").fetchall()
     return {
         "jobs": {"count": len(jobs), "by_status": dict(Counter(r["status"] for r in jobs))},
+        "job_details": {
+            "attempt_counts": sorted(r["attempt_count"] for r in jobs),
+            "terminal_reasons": sorted(
+                r["terminal_reason"] for r in jobs if r["terminal_reason"]
+            ),
+        },
         "outbox": {
             "count": len(outbox),
             "by_status": dict(Counter(r["status"] for r in outbox)),

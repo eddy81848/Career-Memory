@@ -13,6 +13,7 @@ POINTS = frozenset(
         "api.before_commit",  # job+outbox inserted, not committed -> rollback
         "api.wake",  # committed; the wake call fails
         "api.response_lost",  # committed (+wake attempted); client never gets a response
+        "worker.response_lost_after_save",  # result saved + committed; wake HTTP response lost
     }
 )
 

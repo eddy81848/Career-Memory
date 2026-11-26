@@ -60,9 +60,15 @@ def dispatch(dsn: str, app_name: str, wake: Wake | None, job_id: UUID) -> str:
                 UPDATE outbox
                    SET dispatch_attempts = dispatch_attempts + 1,
                        status = CASE WHEN %(ok)s AND status = 'PENDING'
+                                          AND (last_error IS NULL OR last_error NOT LIKE 'retryable:%%')
                                      THEN 'DISPATCHED' ELSE status END,
                        dispatched_at = CASE WHEN %(ok)s THEN now() ELSE dispatched_at END,
-                       last_error = CASE WHEN %(ok)s THEN NULL ELSE %(err)s END
+                       last_error = CASE
+                           WHEN %(ok)s AND (last_error IS NULL OR last_error NOT LIKE 'retryable:%%')
+                               THEN NULL
+                           WHEN NOT %(ok)s THEN %(err)s
+                           ELSE last_error
+                       END
                  WHERE job_id = %(job)s
                 """,
                 {"ok": error is None, "err": error, "job": job_id},

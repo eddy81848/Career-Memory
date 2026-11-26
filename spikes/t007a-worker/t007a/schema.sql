@@ -11,7 +11,8 @@ CREATE TABLE jobs (
     request_hash     text        NOT NULL,
     payload          jsonb       NOT NULL,
     status           text        NOT NULL DEFAULT 'PENDING'
-                     CHECK (status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')),
+                     CHECK (status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'REVIEW_REQUIRED')),
+    terminal_reason  text,
     attempt_count    integer     NOT NULL DEFAULT 0,
     max_attempts     integer     NOT NULL DEFAULT 3,
     lease_owner      text,
@@ -55,7 +56,7 @@ CREATE TABLE job_attempts (
     worker_id   text        NOT NULL,
     lease_token uuid        NOT NULL,
     outcome     text        NOT NULL DEFAULT 'RUNNING'
-                CHECK (outcome IN ('RUNNING', 'SUCCEEDED', 'LEASE_LOST', 'FAILED')),
+                CHECK (outcome IN ('RUNNING', 'SUCCEEDED', 'LEASE_LOST', 'FAILED', 'EXPIRED', 'AMBIGUOUS_TIMEOUT')),
     error_class text,
     claimed_at  timestamptz NOT NULL DEFAULT now(),
     finished_at timestamptz,

@@ -78,7 +78,7 @@
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "9fc425dd-cbad-4d8e-a014-71035643bc34": "acknowledged"
+            "8a78ab38-bf23-4d99-bf31-99c6c6671993": "acknowledged"
           }
         },
         "after_recovery": {
@@ -2200,7 +2200,7 @@
               "intent_type": "IMPORT_READY",
               "plan_id": "plan-repo-alpha-v1",
               "attempt_no": 1,
-              "worker_id": "w-finalizer-7",
+              "worker_id": "w-finalizer-4",
               "total_items": 6
             }
           ],
@@ -2307,7 +2307,7 @@
           "acknowledged": 0,
           "failed": 0,
           "jobs": {
-            "5815e6bd-30f4-4840-8252-72fb6114f0ea": "reaped_failed"
+            "4d1cacc9-fd97-41cb-ba86-528a916ada05": "reaped_failed"
           }
         },
         "after_recover_1": {
@@ -2806,6 +2806,218 @@
       }
     },
     {
+      "case": "test_option_c_happy_path_refetches_outside_tx_on_approval_and_every_export",
+      "phases": {
+        "summary": {
+          "provider_fetches": 5,
+          "open_tx_during_each_fetch": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "approvals_count": 1,
+          "exports_count": 1,
+          "second_export_blocked_reason": "EVIDENCE_MISMATCH:HASH_MISMATCH"
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[hash_changed-EVIDENCE_MISMATCH-HASH_MISMATCH-OK]",
+      "phases": {
+        "result": {
+          "scenario": "hash_changed",
+          "approval_blocked": "EVIDENCE_MISMATCH:HASH_MISMATCH",
+          "export_blocked": "EVIDENCE_MISMATCH:HASH_MISMATCH",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[locator_missing-EVIDENCE_MISMATCH-LOCATOR_NOT_FOUND-OK]",
+      "phases": {
+        "result": {
+          "scenario": "locator_missing",
+          "approval_blocked": "EVIDENCE_MISMATCH:LOCATOR_NOT_FOUND",
+          "export_blocked": "EVIDENCE_MISMATCH:LOCATOR_NOT_FOUND",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_403-POLICY_OR_AUTH_BLOCKED-PROVIDER_403_FORBIDDEN-OK]",
+      "phases": {
+        "result": {
+          "scenario": "http_403",
+          "approval_blocked": "POLICY_OR_AUTH_BLOCKED:PROVIDER_403_FORBIDDEN",
+          "export_blocked": "POLICY_OR_AUTH_BLOCKED:PROVIDER_403_FORBIDDEN",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[policy_blocked-POLICY_OR_AUTH_BLOCKED-SOURCE_POLICY_BLOCKED-OK]",
+      "phases": {
+        "result": {
+          "scenario": "policy_blocked",
+          "approval_blocked": "POLICY_OR_AUTH_BLOCKED:SOURCE_POLICY_BLOCKED",
+          "export_blocked": "POLICY_OR_AUTH_BLOCKED:SOURCE_POLICY_BLOCKED",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_404-REFETCH_UNAVAILABLE-PROVIDER_404_UNCONFIRMED-UNVERIFIED_404]",
+      "phases": {
+        "result": {
+          "scenario": "http_404",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_404_UNCONFIRMED",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_404_UNCONFIRMED",
+          "reachability_after_fault": "UNVERIFIED_404",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": true
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_429-REFETCH_UNAVAILABLE-PROVIDER_429_RATE_LIMITED-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "http_429",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_429_RATE_LIMITED",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_429_RATE_LIMITED",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[timeout-REFETCH_UNAVAILABLE-PROVIDER_TIMEOUT-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "timeout",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_TIMEOUT",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_TIMEOUT",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[incomplete_payload-REFETCH_UNAVAILABLE-INCOMPLETE_PROVIDER_PAYLOAD-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "incomplete_payload",
+          "approval_blocked": "REFETCH_UNAVAILABLE:INCOMPLETE_PROVIDER_PAYLOAD",
+          "export_blocked": "REFETCH_UNAVAILABLE:INCOMPLETE_PROVIDER_PAYLOAD",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[APPROVAL-revoke_auth-POLICY_OR_AUTH_BLOCKED-SOURCE_AUTH_REVOKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "APPROVAL",
+          "mutation": "revoke_auth",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_AUTH_REVOKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[APPROVAL-edit_claim-STALE_STATE_CONFLICT-CLAIM_MODIFIED_DURING_VERIFY]",
+      "phases": {
+        "race_outcome": {
+          "gate": "APPROVAL",
+          "mutation": "edit_claim",
+          "passed": false,
+          "category": "STALE_STATE_CONFLICT",
+          "reason_code": "CLAIM_MODIFIED_DURING_VERIFY",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-revoke_auth-POLICY_OR_AUTH_BLOCKED-SOURCE_AUTH_REVOKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "revoke_auth",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_AUTH_REVOKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-block_policy-POLICY_OR_AUTH_BLOCKED-SOURCE_POLICY_BLOCKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "block_policy",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_POLICY_BLOCKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-edit_claim-STALE_STATE_CONFLICT-CLAIM_MODIFIED_DURING_VERIFY]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "edit_claim",
+          "passed": false,
+          "category": "STALE_STATE_CONFLICT",
+          "reason_code": "CLAIM_MODIFIED_DURING_VERIFY",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_raw_source_markers_never_persist_in_db_jobs_logs_caches_or_files",
+      "phases": {
+        "non_persistence_scan": {
+          "db_marker_hits": 0,
+          "log_marker_hits": 0,
+          "cache_audit_marker_hits": 0,
+          "file_marker_hits": 0,
+          "exports_published": 1
+        }
+      }
+    },
+    {
       "case": "test_happy_path",
       "phases": {
         "final": {
@@ -3011,7 +3223,7 @@
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "33e52433-dc47-423a-8dcb-962afa5836d8": "acknowledged"
+            "b4802466-63f1-436d-a1c0-45bec24054cc": "acknowledged"
           }
         },
         "after_recovery": {
@@ -3565,7 +3777,7 @@
   ],
   "pg_source": "ephemeral initdb cluster (/opt/homebrew/opt/postgresql@18/bin), unix socket only, deleted after run",
   "server_version": "18.3 (Homebrew)",
-  "generated_at": "2026-11-26T04:25:54+00:00",
+  "generated_at": "2026-11-26T04:34:53+00:00",
   "python": "3.14.3",
   "psycopg": "3.3.9"
 }

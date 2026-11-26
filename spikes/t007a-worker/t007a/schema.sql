@@ -129,3 +129,77 @@ CREATE TABLE import_ready_outbox (
     total_items integer     NOT NULL,
     created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- =============================================================================
+-- T-007E PROTOTYPE TABLES (Option C: live source re-fetch + hash/locator check
+-- at Approval and Export WITHOUT persisting raw source text).
+-- NOT the product operational schema, NOT B-004 completion.
+-- =============================================================================
+
+CREATE TABLE source_bindings (
+    source_id       uuid PRIMARY KEY,
+    repo_ref        text        NOT NULL UNIQUE,
+    auth_status     text        NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (auth_status IN ('ACTIVE', 'REVOKED')),
+    policy_status   text        NOT NULL DEFAULT 'ALLOWED'
+                    CHECK (policy_status IN ('ALLOWED', 'BLOCKED_POLICY')),
+    reachability    text        NOT NULL DEFAULT 'OK'
+                    CHECK (reachability IN ('OK', 'UNVERIFIED_404', 'UNAVAILABLE')),
+    binding_version integer     NOT NULL DEFAULT 1,
+    updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE career_claims (
+    claim_id          uuid PRIMARY KEY,
+    claim_text        text        NOT NULL,
+    status            text        NOT NULL DEFAULT 'DRAFT'
+                      CHECK (status IN ('DRAFT', 'APPROVED')),
+    claim_version     integer     NOT NULL DEFAULT 1,
+    approved_version  integer,
+    last_check_status text,
+    updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- Stores ONLY revision identifier, locator, and expected SHA-256 digest.
+-- Raw source text / code / diffs MUST NEVER be stored here.
+CREATE TABLE claim_evidence_refs (
+    ref_id        uuid PRIMARY KEY,
+    claim_id      uuid        NOT NULL REFERENCES career_claims (claim_id),
+    source_id     uuid        NOT NULL REFERENCES source_bindings (source_id),
+    revision_id   text        NOT NULL,
+    locator       text        NOT NULL,
+    expected_hash text        NOT NULL CHECK (length(expected_hash) = 64),
+    required      boolean     NOT NULL DEFAULT true,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE claim_approvals (
+    approval_id            uuid PRIMARY KEY,
+    claim_id               uuid        NOT NULL REFERENCES career_claims (claim_id),
+    claim_version          integer     NOT NULL,
+    verified_binding_state jsonb       NOT NULL,
+    created_at             timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (claim_id, claim_version)
+);
+
+CREATE TABLE claim_exports (
+    export_id      uuid PRIMARY KEY,
+    claim_id       uuid        NOT NULL REFERENCES career_claims (claim_id),
+    claim_version  integer     NOT NULL,
+    export_status  text        NOT NULL DEFAULT 'PUBLISHED'
+                   CHECK (export_status IN ('PUBLISHED')),
+    manifest       jsonb       NOT NULL,
+    published_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Audit log of blocked/passed verification attempts (status codes & hashes ONLY, never raw source).
+CREATE TABLE verification_events (
+    event_id      uuid PRIMARY KEY,
+    gate          text        NOT NULL CHECK (gate IN ('APPROVAL', 'EXPORT')),
+    claim_id      uuid        NOT NULL REFERENCES career_claims (claim_id),
+    claim_version integer     NOT NULL,
+    outcome       text        NOT NULL,
+    reason_code   text        NOT NULL,
+    observed_hash text,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);

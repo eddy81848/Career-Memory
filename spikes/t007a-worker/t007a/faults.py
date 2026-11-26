@@ -14,6 +14,9 @@ POINTS = frozenset(
         "api.wake",  # committed; the wake call fails
         "api.response_lost",  # committed (+wake attempted); client never gets a response
         "worker.response_lost_after_save",  # result saved + committed; wake HTTP response lost
+        "import.between_items_and_checkpoint",  # page items inserted, checkpoint not yet -> rollback
+        "import.before_page_commit",  # page items + checkpoint updated, before commit -> rollback
+        "import.after_page_commit",  # page items + checkpoint committed; ack/caller lost
     }
 )
 

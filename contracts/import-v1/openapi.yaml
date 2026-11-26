@@ -1,0 +1,334 @@
+openapi: 3.1.0
+info:
+  title: Career Memory Initial Import API
+  version: 0.1.0-draft
+  description: >
+    T-106 first-slice review candidate. Paths with an undecided response use a
+    response range or default without a payload schema. This file is for review
+    and local verification before approval for client generation.
+externalDocs:
+  description: MVP API Specification
+  url: https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa
+security:
+  - SupabaseAccessJWT: []
+paths:
+  /v1/source-accounts/github:
+    post:
+      operationId: connectGitHubSourceAccount
+      summary: Connect a GitHub collection account and check its scope
+      description: >
+        Authenticated Workspace operation. The collection grant is separate
+        from the service login. Connection initiation and callback wire
+        semantics depend on OD-011.
+      x-pending-decisions: [connection-wire, session-and-scope]
+      responses:
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        default:
+          description: Connection outcome status and payload await approval.
+  /v1/source-accounts:
+    get:
+      operationId: listSourceAccounts
+      summary: List connected source accounts in the authorized Workspace
+      x-pending-decisions: [source-records, session-and-scope]
+      responses:
+        "2XX":
+          description: Source account item schema and pagination applicability await approval.
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/source-resources:
+    post:
+      operationId: registerSourceResource
+      summary: Register a public GitHub repository in the allowlist
+      description: Access to the connection and public repository policy must be verified in the authorized Workspace.
+      x-pending-decisions: [source-records, session-and-scope, mutation-wire]
+      responses:
+        "2XX":
+          description: Registration response status and payload await approval.
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    get:
+      operationId: listSourceResources
+      summary: List repositories and their policy status in the authorized Workspace
+      x-pending-decisions: [source-records, session-and-scope]
+      responses:
+        "2XX":
+          description: Source resource item schema and pagination applicability await approval.
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/sync-runs:
+    post:
+      operationId: createInitialImport
+      summary: Request a one-time initial import plan
+      description: >
+        Check Workspace access and repository policy before starting or replaying.
+        The same request key and logical request refer to the same operation.
+        A distinct request while the repository has an active run yields
+        SYNC_ALREADY_RUNNING and identifies the existing run. A successful
+        repository cannot start another automatic import. A replacement plan
+        requires explicit abandonment of the unfinished run before creation.
+      x-pending-decisions: [session-and-scope, mutation-wire, conflict-wire, status-wire]
+      x-documented-domain-codes: [SYNC_ALREADY_RUNNING, IDEMPOTENCY_CONFLICT]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InitialImportRequest" }
+            example:
+              source_resource_id: synthetic-repo
+              mode: INITIAL_BACKFILL
+              backfill_from: "2025-09-23"
+              limits:
+                max_objects: 5000
+      responses:
+        "202":
+          description: Asynchronous work accepted with a sync run identifier.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/RequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncRunJob" }
+              example:
+                job_id: synthetic-job-1
+                status: PENDING
+                target_type: SYNC_RUN
+                target_id: synthetic-run-1
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/sync-runs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SyncRunID"
+    get:
+      operationId: getInitialImportStatus
+      summary: Read run status, checkpoint progress, limits, and retry eligibility
+      description: >
+        Check Workspace and resource authorization before returning status.
+        Keep the historical import result separate from the derived processing
+        status, which is computed from jobs and current resource policy.
+      x-pending-decisions: [session-and-scope, status-wire]
+      x-documented-domain-codes: [SYNC_PARTIAL, SYNC_PARTIAL_WITH_LIMIT, IMPORT_SOURCE_DRIFT]
+      parameters:
+        - $ref: "#/components/parameters/RequestID"
+      responses:
+        "2XX":
+          description: Import and derived processing status. Exact success status awaits approval.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/RequestID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportStatus" }
+              examples:
+                transientPartial:
+                  value:
+                    status: PARTIAL
+                    plan_id: synthetic-plan-1
+                    failure_reason: TRANSIENT_PROVIDER_ERROR
+                    streams:
+                      - type: PR
+                        status: PARTIAL
+                        last_committed_page: 7
+                        unresolved_failures: 1
+                    import_ready: false
+                    processing_status: NOT_STARTED
+                    observed_at: "2026-10-05T09:00:00Z"
+                    source_drift: false
+                    processed_range: "2025-09-23 through 2026-08-31"
+                    remaining_range: "2026-09-01 through 2026-10-05"
+                    retry: { allowed: true, from_safe_checkpoint: true }
+                itemLimit:
+                  value:
+                    status: PARTIAL_WITH_LIMIT
+                    plan_id: synthetic-plan-2
+                    import_ready: false
+                    processing_status: NOT_STARTED
+                    processed_range: "2025-09-23 through 2026-08-31"
+                    remaining_range: "2026-09-01 through 2026-10-05"
+                    retry: { allowed: false }
+                planDrift:
+                  value:
+                    status: PARTIAL
+                    plan_id: synthetic-plan-3
+                    failure_reason: PLAN_DRIFT
+                    source_drift: true
+                    import_ready: false
+                    processing_status: NOT_STARTED
+                    retry: { allowed: false }
+                policyChangedAfterSuccess:
+                  value:
+                    status: SUCCESS
+                    plan_id: synthetic-plan-4
+                    import_ready: true
+                    processing_status: BLOCKED_POLICY
+                    retry: { allowed: false }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/sync-runs/{id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/SyncRunID"
+    post:
+      operationId: retryInitialImport
+      summary: Resume the same run from its safe checkpoint
+      description: >
+        A retry preserves the run and its plan. Temporary provider failures may
+        allow resume. Plan drift, structurally incomplete required data, policy
+        blocks, and exhausted plan limits require a new plan.
+      x-pending-decisions: [session-and-scope, mutation-wire, conflict-wire]
+      parameters:
+        - $ref: "#/components/parameters/RequestID"
+      responses:
+        "2XX":
+          description: Retry accepted. Exact status, body and job identity semantics await approval.
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+components:
+  securitySchemes:
+    SupabaseAccessJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Backend bearer input as documented. The server validates the access
+        JWT and checks current Workspace membership, role, and resource access.
+        Browser session transport, rotation, revocation, and CSRF are OD-010.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: Stable creation request key. Whether omission is accepted awaits approval.
+      schema: { type: string, format: uuid }
+      example: 00000000-0000-4000-8000-000000000001
+    RequestID:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional client request identifier echoed by the API.
+      schema: { type: string }
+      example: synthetic-request-1
+    SyncRunID:
+      name: id
+      in: path
+      required: true
+      description: Sync run identifier. An identifier alone conveys no access.
+      schema: { type: string }
+      example: synthetic-run-1
+  headers:
+    RequestID:
+      description: Echo of the optional X-Request-ID.
+      schema: { type: string }
+      example: synthetic-request-1
+  responses:
+    Unauthenticated:
+      description: Authentication failed. Route-specific error payload is pending.
+    Forbidden:
+      description: >
+        Insufficient current Workspace membership or role. Concealment of an
+        inaccessible object and its exact error mapping await approval.
+    PartialLimitErrorExample:
+      description: Common error envelope example from the API spec. This example does not assign an HTTP status.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+          example:
+            error:
+              code: SYNC_PARTIAL_WITH_LIMIT
+              message: The configured item budget was reached.
+              retryable: false
+              request_id: synthetic-request-1
+              details:
+                processed: 5000
+                remaining_range: "2026-09-01 through 2026-10-05"
+  schemas:
+    InitialImportRequest:
+      type: object
+      required: [source_resource_id]
+      properties:
+        source_resource_id:
+          type: string
+          description: Identifier of the allowed public repository in the authorized Workspace.
+        mode:
+          const: INITIAL_BACKFILL
+          description: Only initial backfill is supported. Omission semantics await approval.
+        backfill_from:
+          type: string
+          format: date
+          description: Requested inclusive start date in the plan. Omission behavior awaits approval.
+        limits:
+          type: object
+          description: Requested item limits. Defaulting and validation bounds await approval.
+          properties:
+            max_objects: { type: integer }
+    SyncRunJob:
+      type: object
+      required: [target_id]
+      description: Documented asynchronous job shape for a sync run. Requiredness beyond the run identifier awaits approval.
+      properties:
+        job_id: { type: string }
+        status: { type: string }
+        target_type: { const: SYNC_RUN }
+        target_id: { type: string }
+        status_url:
+          type: string
+          description: Relative Career Memory path for status polling.
+    ImportState:
+      type: string
+      enum: [PENDING, RUNNING, SUCCESS, PARTIAL, PARTIAL_WITH_LIMIT, FAILED, CANCELED]
+    ProcessingStatus:
+      type: string
+      enum: [NOT_STARTED, RUNNING, BLOCKED_POLICY, BLOCKED_SOURCE, FAILED, COMPLETE]
+    ImportStatus:
+      type: object
+      required: [status, import_ready, processing_status, retry]
+      properties:
+        status: { $ref: "#/components/schemas/ImportState" }
+        plan_id:
+          type: string
+          description: Identifier of the immutable plan.
+        failure_reason:
+          description: Run failure reason when applicable. Full reason vocabulary and nullability await approval.
+        streams:
+          type: array
+          items: { $ref: "#/components/schemas/StreamProgress" }
+        import_ready:
+          type: boolean
+          description: The final import succeeded and committed its single IMPORT_READY intent.
+        processing_status:
+          $ref: "#/components/schemas/ProcessingStatus"
+        observed_at:
+          type: string
+          format: date-time
+          description: Source observation time when available. Stage-specific presence awaits approval.
+        source_drift: { type: boolean }
+        processed_range:
+          description: Scope already processed. Wire range representation awaits approval.
+        remaining_range:
+          description: Scope remaining or omitted. Wire range representation awaits approval.
+        retry:
+          type: object
+          required: [allowed]
+          properties:
+            allowed: { type: boolean }
+            from_safe_checkpoint: { type: boolean }
+    StreamProgress:
+      type: object
+      description: Per-stream progress. Field presence and stream/status vocabularies await approval.
+      properties:
+        type: { type: string }
+        status: { type: string }
+        last_committed_page: { type: integer }
+        unresolved_failures: { type: integer }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      description: Common documented error shape. Per-route field presence and status mapping await approval.
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable: { type: boolean }
+            request_id: { type: string }
+            details: { type: object }

@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: Career Memory Initial Import API
-  version: 0.1.0-draft
+  version: 0.2.0-draft
   description: >
-    T-106 first-slice review candidate. Paths with an undecided response use a
-    response range or default without a payload schema. This file is for review
-    and local verification before approval for client generation.
+    T-106 WEB review candidate for import acceptance, status polling, and retry.
+    Paths with an undecided response use a response range or default without a
+    payload schema. Product contract approval is pending.
 externalDocs:
   description: MVP API Specification
   url: https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa
@@ -64,11 +64,11 @@ paths:
         Check Workspace access and repository policy before starting or replaying.
         The same request key and logical request refer to the same operation.
         A distinct request while the repository has an active run yields
-        SYNC_ALREADY_RUNNING and identifies the existing run. A successful
-        repository cannot start another automatic import. A replacement plan
-        requires explicit abandonment of the unfinished run before creation.
-      x-pending-decisions: [session-and-scope, mutation-wire, conflict-wire, status-wire]
-      x-documented-domain-codes: [SYNC_ALREADY_RUNNING, IDEMPOTENCY_CONFLICT]
+        SYNC_ALREADY_RUNNING. Include the existing run ID only if the caller
+        can currently read that run. After a successful import, the repository
+        rejects further automatic imports. A replacement plan requires
+        explicit abandonment of the unfinished run before creation.
+      x-pending-decisions: [session-and-scope, import-defaults, worker-job-identity]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/RequestID"
@@ -84,20 +84,12 @@ paths:
               limits:
                 max_objects: 5000
       responses:
-        "202":
-          description: Asynchronous work accepted with a sync run identifier.
-          headers:
-            X-Request-ID: { $ref: "#/components/headers/RequestID" }
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/SyncRunJob" }
-              example:
-                job_id: synthetic-job-1
-                status: PENDING
-                target_type: SYNC_RUN
-                target_id: synthetic-run-1
+        "202": { $ref: "#/components/responses/SyncRunAccepted" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          $ref: "#/components/responses/InitialImportConflict"
+        "422": { $ref: "#/components/responses/InvalidMutationRequest" }
   /v1/sync-runs/{id}:
     parameters:
       - $ref: "#/components/parameters/SyncRunID"
@@ -108,13 +100,13 @@ paths:
         Check Workspace and resource authorization before returning status.
         Keep the historical import result separate from the derived processing
         status, which is computed from jobs and current resource policy.
-      x-pending-decisions: [session-and-scope, status-wire]
+      x-pending-decisions: [session-and-scope, status-vocabularies]
       x-documented-domain-codes: [SYNC_PARTIAL, SYNC_PARTIAL_WITH_LIMIT, IMPORT_SOURCE_DRIFT]
       parameters:
         - $ref: "#/components/parameters/RequestID"
       responses:
-        "2XX":
-          description: Import and derived processing status. Exact success status awaits approval.
+        "200":
+          description: Import and derived processing status, including PARTIAL and PARTIAL_WITH_LIMIT.
           headers:
             X-Request-ID: { $ref: "#/components/headers/RequestID" }
           content:
@@ -142,6 +134,8 @@ paths:
                   value:
                     status: PARTIAL_WITH_LIMIT
                     plan_id: synthetic-plan-2
+                    failure_reason: SYNC_PARTIAL_WITH_LIMIT
+                    source_drift: false
                     import_ready: false
                     processing_status: NOT_STARTED
                     processed_range: "2025-09-23 through 2026-08-31"
@@ -160,8 +154,18 @@ paths:
                   value:
                     status: SUCCESS
                     plan_id: synthetic-plan-4
+                    source_drift: false
                     import_ready: true
                     processing_status: BLOCKED_POLICY
+                    retry: { allowed: false }
+                importPolicyBlocked:
+                  value:
+                    status: PARTIAL
+                    plan_id: synthetic-plan-5
+                    failure_reason: SOURCE_POLICY_BLOCKED
+                    source_drift: false
+                    import_ready: false
+                    processing_status: NOT_STARTED
                     retry: { allowed: false }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -172,17 +176,22 @@ paths:
       operationId: retryInitialImport
       summary: Resume the same run from its safe checkpoint
       description: >
-        A retry preserves the run and its plan. Temporary provider failures may
-        allow resume. Plan drift, structurally incomplete required data, policy
-        blocks, and exhausted plan limits require a new plan.
-      x-pending-decisions: [session-and-scope, mutation-wire, conflict-wire]
+        Send a bodyless request. The caller must have current access on each
+        attempt, including a replay. Retry preserves the run and its plan.
+        A temporary provider failure with a safe checkpoint can be resumed.
+        Plan drift, structurally incomplete required data, policy blocks, and
+        exhausted plan limits require a new plan.
+      x-pending-decisions: [session-and-scope, worker-job-identity]
       parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/RequestID"
       responses:
-        "2XX":
-          description: Retry accepted. Exact status, body and job identity semantics await approval.
+        "202": { $ref: "#/components/responses/SyncRunAccepted" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          $ref: "#/components/responses/RetryConflict"
+        "422": { $ref: "#/components/responses/InvalidMutationRequest" }
 components:
   securitySchemes:
     SupabaseAccessJWT:
@@ -197,7 +206,8 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      description: Stable creation request key. Whether omission is accepted awaits approval.
+      required: true
+      description: Stable request key for the same operation and logical request.
       schema: { type: string, format: uuid }
       example: 00000000-0000-4000-8000-000000000001
     RequestID:
@@ -226,31 +236,53 @@ components:
       description: >
         Insufficient current Workspace membership or role. Concealment of an
         inaccessible object and its exact error mapping await approval.
-    PartialLimitErrorExample:
-      description: Common error envelope example from the API spec. This example does not assign an HTTP status.
+    SyncRunAccepted:
+      description: Accepted for processing. For retry, target_id and status_url point to the original run.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/RequestID" }
       content:
         application/json:
-          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
-          example:
-            error:
-              code: SYNC_PARTIAL_WITH_LIMIT
-              message: The configured item budget was reached.
-              retryable: false
-              request_id: synthetic-request-1
-              details:
-                processed: 5000
-                remaining_range: "2026-09-01 through 2026-10-05"
+          schema: { $ref: "#/components/schemas/SyncRunAccepted" }
+    InitialImportConflict:
+      description: >
+        The request key identifies a different request, or the repository already
+        has an active run. A rejected restart after success or a plan awaiting
+        abandonment has an empty body in the local review stub.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ImportConflict" }
+          examples:
+            activeRun:
+              value:
+                error:
+                  code: SYNC_ALREADY_RUNNING
+                  details:
+                    existing_run_id: synthetic-run-1
+            idempotency:
+              value:
+                error:
+                  code: IDEMPOTENCY_CONFLICT
+    RetryConflict:
+      description: >
+        The request key identifies a different request, or the run is active.
+        When the run cannot be resumed from a safe checkpoint, the local review
+        stub returns an empty body. Read the run status for retry eligibility.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ImportConflict" }
+    InvalidMutationRequest:
+      description: Missing or invalid Idempotency-Key, or an invalid request body. The review stub returns an empty body.
   schemas:
     InitialImportRequest:
       type: object
-      required: [source_resource_id]
+      required: [source_resource_id, mode]
       properties:
         source_resource_id:
           type: string
           description: Identifier of the allowed public repository in the authorized Workspace.
         mode:
           const: INITIAL_BACKFILL
-          description: Only initial backfill is supported. Omission semantics await approval.
+          description: Explicit mode for the one-time initial import.
         backfill_from:
           type: string
           format: date
@@ -260,18 +292,22 @@ components:
           description: Requested item limits. Defaulting and validation bounds await approval.
           properties:
             max_objects: { type: integer }
-    SyncRunJob:
+    SyncRunAccepted:
       type: object
-      required: [target_id]
-      description: Documented asynchronous job shape for a sync run. Requiredness beyond the run identifier awaits approval.
+      required: [target_id, status_url]
       properties:
-        job_id: { type: string }
-        status: { type: string }
+        job_id:
+          type: string
+          description: Optional Worker identifier. WEB polls by target_id and status_url independently of this field.
+        status: { const: PENDING }
         target_type: { const: SYNC_RUN }
-        target_id: { type: string }
+        target_id:
+          type: string
+          description: Sync run identifier. Retry returns the original run identifier.
         status_url:
           type: string
-          description: Relative Career Memory path for status polling.
+          pattern: '^/v1/sync-runs/[^/?#]+$'
+          description: Relative status polling path for the returned target_id.
     ImportState:
       type: string
       enum: [PENDING, RUNNING, SUCCESS, PARTIAL, PARTIAL_WITH_LIMIT, FAILED, CANCELED]
@@ -280,14 +316,16 @@ components:
       enum: [NOT_STARTED, RUNNING, BLOCKED_POLICY, BLOCKED_SOURCE, FAILED, COMPLETE]
     ImportStatus:
       type: object
-      required: [status, import_ready, processing_status, retry]
+      required: [status, plan_id, import_ready, processing_status, source_drift, retry]
+      description: Optional fields are omitted when unavailable or inapplicable.
       properties:
         status: { $ref: "#/components/schemas/ImportState" }
         plan_id:
           type: string
           description: Identifier of the immutable plan.
         failure_reason:
-          description: Run failure reason when applicable. Full reason vocabulary and nullability await approval.
+          type: string
+          description: Present for PARTIAL, PARTIAL_WITH_LIMIT, and FAILED. The full reason vocabulary awaits review.
         streams:
           type: array
           items: { $ref: "#/components/schemas/StreamProgress" }
@@ -299,36 +337,104 @@ components:
         observed_at:
           type: string
           format: date-time
-          description: Source observation time when available. Stage-specific presence awaits approval.
-        source_drift: { type: boolean }
+          description: Source observation time when available.
+        source_drift:
+          type: boolean
+          description: True for PARTIAL with PLAN_DRIFT.
         processed_range:
-          description: Scope already processed. Wire range representation awaits approval.
+          type: string
+          description: Display summary of completed scope, when available.
         remaining_range:
-          description: Scope remaining or omitted. Wire range representation awaits approval.
+          type: string
+          description: Display summary of remaining scope. Required for PARTIAL_WITH_LIMIT.
         retry:
           type: object
           required: [allowed]
           properties:
             allowed: { type: boolean }
-            from_safe_checkpoint: { type: boolean }
+            from_safe_checkpoint:
+              const: true
+              description: Present only when retry.allowed is true.
+          if:
+            properties:
+              allowed: { const: true }
+          then:
+            required: [from_safe_checkpoint]
+          else:
+            not: { required: [from_safe_checkpoint] }
+      allOf:
+        - if:
+            properties:
+              status: { const: SUCCESS }
+          then:
+            properties:
+              import_ready: { const: true }
+          else:
+            properties:
+              import_ready: { const: false }
+              processing_status: { const: NOT_STARTED }
+        - if:
+            properties:
+              status: { enum: [PARTIAL, PARTIAL_WITH_LIMIT, FAILED] }
+          then:
+            required: [failure_reason]
+          else:
+            not: { required: [failure_reason] }
+        - if:
+            properties:
+              status: { const: PARTIAL_WITH_LIMIT }
+          then:
+            required: [remaining_range]
+        - if:
+            required: [failure_reason]
+            properties:
+              failure_reason: { const: PLAN_DRIFT }
+          then:
+            properties:
+              status: { const: PARTIAL }
+              source_drift: { const: true }
+          else:
+            properties:
+              source_drift: { const: false }
+        - if:
+            properties:
+              retry:
+                properties:
+                  allowed: { const: true }
+          then:
+            required: [failure_reason]
+            properties:
+              status: { const: PARTIAL }
+              failure_reason: { const: TRANSIENT_PROVIDER_ERROR }
+              source_drift: { const: false }
     StreamProgress:
       type: object
-      description: Per-stream progress. Field presence and stream/status vocabularies await approval.
+      required: [type, status]
+      description: Progress of a known stream. Unknown counts are omitted. Stream/status vocabularies await review.
       properties:
         type: { type: string }
         status: { type: string }
-        last_committed_page: { type: integer }
-        unresolved_failures: { type: integer }
-    ErrorEnvelope:
+        last_committed_page: { type: integer, minimum: 0 }
+        unresolved_failures: { type: integer, minimum: 0 }
+    ImportConflict:
       type: object
       required: [error]
-      description: Common documented error shape. Per-route field presence and status mapping await approval.
       properties:
         error:
           type: object
+          required: [code]
           properties:
-            code: { type: string }
-            message: { type: string }
-            retryable: { type: boolean }
-            request_id: { type: string }
-            details: { type: object }
+            code:
+              enum: [IDEMPOTENCY_CONFLICT, SYNC_ALREADY_RUNNING]
+            details:
+              type: object
+              required: [existing_run_id]
+              properties:
+                existing_run_id:
+                  type: string
+                  description: Present only if the caller can currently read the active run.
+          if:
+            properties:
+              code: { const: IDEMPOTENCY_CONFLICT }
+          then:
+            not: { required: [details] }

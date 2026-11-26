@@ -1,4 +1,4 @@
-"""In-process FastAPI fixture for the documented initial-import behavior."""
+"""In-process FastAPI fixture for the initial-import WEB review contract."""
 
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,45 +13,34 @@ INITIAL_REQUEST = validator_for({"$ref": "#/components/schemas/InitialImportRequ
 REQUEST_KEY = validator_for(CONTRACT["components"]["parameters"]["IdempotencyKey"]["schema"])
 ACTIVE_STATES = {"PENDING", "RUNNING"}
 
-# Fixture transport only. These statuses and payload keys do not define the API.
-FIXTURE_HTTP = {
-    "invalid-request": 422,
-    "unauthenticated-fixture": 401,
-    "resource-unavailable": 404,
-    "SYNC_ALREADY_RUNNING": 409,
-    "IDEMPOTENCY_CONFLICT": 409,
-    "already-imported": 409,
-    "new-plan-required": 409,
-    "retry-disallowed": 409,
-}
-
 
 @dataclass(frozen=True)
 class FixtureActor:
     workspace_id: str
     allowed_resources: frozenset[str]
+    unreadable_runs: frozenset[str] = frozenset()
 
 
 @dataclass
 class Run:
     id: str
-    job_id: str
     source_resource_id: str
     status: dict
 
     def receipt(self):
         return {
-            "job_id": self.job_id,
             "status": "PENDING",
             "target_type": "SYNC_RUN",
             "target_id": self.id,
+            "status_url": f"/v1/sync-runs/{self.id}",
         }
 
 
 class FixtureRejection(Exception):
-    def __init__(self, outcome, existing_run_id=None):
-        super().__init__(outcome)
-        self.outcome = outcome
+    def __init__(self, status_code, code=None, existing_run_id=None):
+        super().__init__(code or status_code)
+        self.status_code = status_code
+        self.code = code
         self.existing_run_id = existing_run_id
 
 
@@ -72,141 +61,145 @@ class FixtureStore:
     def require_resource(self, actor, source_resource_id):
         scope = (actor.workspace_id, source_resource_id)
         if scope not in self.resources or source_resource_id not in actor.allowed_resources:
-            raise FixtureRejection("resource-unavailable")
+            raise FixtureRejection(403)
         return scope
 
     def find_run(self, actor, run_id):
         run = self.runs.get((actor.workspace_id, run_id))
-        if run is None:
-            raise FixtureRejection("resource-unavailable")
+        if run is None or run_id in actor.unreadable_runs:
+            raise FixtureRejection(403)
         self.require_resource(actor, run.source_resource_id)
         return run
 
-    def replay(self, workspace_id, operation, key, fingerprint):
-        if key is None:
-            return None
-        previous = self.replays.get((workspace_id, operation, key))
+    def replay(self, actor, operation, key, request):
+        previous = self.replays.get((actor.workspace_id, operation, key))
         if previous is None:
             return None
-        previous_fingerprint, run = previous
-        if previous_fingerprint != fingerprint:
-            raise FixtureRejection("IDEMPOTENCY_CONFLICT")
-        return run
+        previous_request, run_id = previous
+        if previous_request != request:
+            raise FixtureRejection(409, "IDEMPOTENCY_CONFLICT")
+        return self.find_run(actor, run_id)
 
-    def record_replay(self, workspace_id, operation, key, fingerprint, run):
-        if key is not None:
-            self.replays[workspace_id, operation, key] = (fingerprint, run)
+    def record_replay(self, actor, operation, key, request, run):
+        self.replays[actor.workspace_id, operation, key] = (request, run.id)
 
     def create(self, actor, key, payload):
         source_resource_id = payload["source_resource_id"]
         scope = self.require_resource(actor, source_resource_id)
-        fingerprint = (
-            source_resource_id,
-            payload["mode"],
-            payload.get("backfill_from"),
-            payload.get("limits", {}).get("max_objects"),
-        )
-        replayed = self.replay(actor.workspace_id, "create", key, fingerprint)
+        replayed = self.replay(actor, "create", key, payload)
         if replayed is not None:
             return replayed.receipt()
 
         existing = self.run_for_resource.get(scope)
         if existing is not None:
-            state = existing.status["status"]
-            if state in ACTIVE_STATES:
-                raise FixtureRejection("SYNC_ALREADY_RUNNING", existing.id)
-            if state == "SUCCESS":
-                raise FixtureRejection("already-imported")
-            raise FixtureRejection("new-plan-required")
+            if existing.status["status"] in ACTIVE_STATES:
+                # The repository scope is already checked. The run has its own read gate.
+                readable_id = None if existing.id in actor.unreadable_runs else existing.id
+                raise FixtureRejection(409, "SYNC_ALREADY_RUNNING", readable_id)
+            raise FixtureRejection(409)
 
         ordinal = len(self.runs) + 1
         run = Run(
             id=f"synthetic-run-{ordinal}",
-            job_id=f"synthetic-job-{ordinal}",
             source_resource_id=source_resource_id,
             status={
                 "status": "PENDING",
                 "plan_id": f"synthetic-plan-{ordinal}",
                 "import_ready": False,
                 "processing_status": "NOT_STARTED",
+                "source_drift": False,
                 "retry": {"allowed": False},
             },
         )
         self.runs[actor.workspace_id, run.id] = run
         self.run_for_resource[scope] = run
-        self.record_replay(actor.workspace_id, "create", key, fingerprint, run)
+        self.record_replay(actor, "create", key, payload, run)
         return run.receipt()
 
     def retry(self, actor, run_id, key):
         run = self.find_run(actor, run_id)
-        if self.replay(actor.workspace_id, "retry", key, run.id) is not None:
-            return
+        replayed = self.replay(actor, "retry", key, run_id)
+        if replayed is not None:
+            return replayed.receipt()
 
         status = run.status
+        if status["status"] in ACTIVE_STATES:
+            raise FixtureRejection(409, "SYNC_ALREADY_RUNNING", run.id)
         if (
             status["status"] != "PARTIAL"
             or status.get("failure_reason") != "TRANSIENT_PROVIDER_ERROR"
-            or status.get("source_drift", False)
+            or status["source_drift"]
             or not status["retry"]["allowed"]
             or not status["retry"].get("from_safe_checkpoint")
         ):
-            raise FixtureRejection("retry-disallowed")
+            raise FixtureRejection(409)
 
         # Keep the plan, committed page and range progress for the same run.
         status.update(status="PENDING", retry={"allowed": False})
         status.pop("failure_reason")
-        self.record_replay(actor.workspace_id, "retry", key, run.id, run)
+        self.record_replay(actor, "retry", key, run_id, run)
+        return run.receipt()
 
 
 def read_fixture_key(request):
     key = request.headers.get("Idempotency-Key")
-    if key is not None and not REQUEST_KEY.is_valid(key):
-        raise FixtureRejection("invalid-request")
+    if not REQUEST_KEY.is_valid(key):
+        raise FixtureRejection(422)
     return key
 
 
 def create_app(store, actor=None):
-    # Only the calling test can supply the actor. No app instance or live
-    # authentication entry point is provided for serving this fixture.
+    # Only the calling test can supply the actor. There is no live app entry point.
     app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
 
     def require_actor():
         if actor is None:
-            raise FixtureRejection("unauthenticated-fixture")
+            raise FixtureRejection(401)
         return actor
+
+    @app.middleware("http")
+    async def echo_request_id(request, call_next):
+        response = await call_next(request)
+        request_id = request.headers.get("X-Request-ID")
+        if request_id is not None:
+            response.headers["X-Request-ID"] = request_id
+        return response
 
     @app.exception_handler(FixtureRejection)
     async def handle_rejection(_request, error):
-        body = {"fixture_outcome": error.outcome}
+        if error.code is None:
+            return Response(status_code=error.status_code)
+        body = {"code": error.code}
         if error.existing_run_id is not None:
-            body["fixture_existing_run_id"] = error.existing_run_id
-        return JSONResponse(body, status_code=FIXTURE_HTTP[error.outcome])
+            body["details"] = {"existing_run_id": error.existing_run_id}
+        return JSONResponse({"error": body}, status_code=error.status_code)
 
     @app.post("/v1/sync-runs", status_code=202)
     async def create_import(request: Request):
         current_actor = require_actor()
+        key = read_fixture_key(request)
         try:
             payload = await request.json()
         except ValueError:
-            raise FixtureRejection("invalid-request") from None
-        if not INITIAL_REQUEST.is_valid(payload) or "mode" not in payload:
-            raise FixtureRejection("invalid-request")
-        key = read_fixture_key(request)
+            raise FixtureRejection(422) from None
+        if not INITIAL_REQUEST.is_valid(payload):
+            raise FixtureRejection(422)
         with store.lock:
             return store.create(current_actor, key, payload)
 
-    @app.get("/v1/sync-runs/{id}")
+    @app.get("/v1/sync-runs/{id}", status_code=200)
     def import_status(id: str):
         current_actor = require_actor()
         with store.lock:
             return deepcopy(store.find_run(current_actor, id).status)
 
-    @app.post("/v1/sync-runs/{id}/retry")
-    def retry_import(id: str, request: Request):
+    @app.post("/v1/sync-runs/{id}/retry", status_code=202)
+    async def retry_import(id: str, request: Request):
         current_actor = require_actor()
         key = read_fixture_key(request)
+        if await request.body():
+            raise FixtureRejection(422)
         with store.lock:
-            store.retry(current_actor, id, key)
-        return Response(status_code=204)
+            return store.retry(current_actor, id, key)
 
     return app

@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from threading import Lock
 
 from fastapi import FastAPI, Request, Response
@@ -12,6 +13,8 @@ from contract import CONTRACT, validator_for
 INITIAL_REQUEST = validator_for({"$ref": "#/components/schemas/InitialImportRequest"})
 REQUEST_KEY = validator_for(CONTRACT["components"]["parameters"]["IdempotencyKey"]["schema"])
 ACTIVE_STATES = {"PENDING", "RUNNING"}
+RECEIPT_RETENTION = timedelta(hours=24)
+READ_CACHE_CONTROL = "private, no-store"
 
 
 @dataclass(frozen=True)
@@ -26,14 +29,21 @@ class Run:
     id: str
     source_resource_id: str
     status: dict
+    finished_at: datetime | None = None
+    abandoned: bool = False
+
+    def polling_target(self):
+        return {"target_id": self.id, "status_url": f"/v1/sync-runs/{self.id}"}
 
     def receipt(self):
-        return {
-            "status": "PENDING",
-            "target_type": "SYNC_RUN",
-            "target_id": self.id,
-            "status_url": f"/v1/sync-runs/{self.id}",
-        }
+        return {"status": "PENDING", "target_type": "SYNC_RUN", **self.polling_target()}
+
+
+@dataclass(frozen=True)
+class ReplayEntry:
+    request: dict | str
+    run_id: str
+    expires_at: datetime
 
 
 class FixtureRejection(Exception):
@@ -45,8 +55,9 @@ class FixtureRejection(Exception):
 
 
 class FixtureStore:
-    def __init__(self, resources):
+    def __init__(self, resources, *, clock=lambda: datetime.now(UTC)):
         self.resources = set(resources)
+        self.clock = clock
         self.runs = {}
         self.run_for_resource = {}
         self.replays = {}
@@ -56,7 +67,25 @@ class FixtureStore:
         """Set a synthetic provider/job outcome directly from a test."""
         with self.lock:
             run = self.runs[workspace_id, run_id]
+            if run.abandoned:
+                raise ValueError("Cannot add a provider observation to an abandoned plan")
+            if observation["status"] in ACTIVE_STATES:
+                run.finished_at = None
+            elif run.finished_at is None:
+                run.finished_at = self.clock()
             run.status = {**deepcopy(observation), "plan_id": run.status["plan_id"]}
+
+    def abandon_plan(self, actor, run_id):
+        """Simulate a separately confirmed abandonment. No HTTP route exposes it."""
+        with self.lock:
+            run = self.find_run(actor, run_id)
+            scope = (actor.workspace_id, run.source_resource_id)
+            if self.run_for_resource[scope] is not run or run.status["status"] in (
+                ACTIVE_STATES | {"SUCCESS"}
+            ):
+                raise FixtureRejection(409)
+            run.abandoned = True
+            run.status["retry"] = {"allowed": False}
 
     def require_resource(self, actor, source_resource_id):
         scope = (actor.workspace_id, source_resource_id)
@@ -71,17 +100,43 @@ class FixtureStore:
         self.require_resource(actor, run.source_resource_id)
         return run
 
+    def recover(self, actor, source_resource_id):
+        self.require_resource(actor, source_resource_id)
+        visible_runs = [
+            run
+            for (workspace_id, run_id), run in self.runs.items()
+            if workspace_id == actor.workspace_id
+            and run.source_resource_id == source_resource_id
+            and run_id not in actor.unreadable_runs
+        ]
+        selected = next(
+            (run for run in visible_runs if run.status["status"] in ACTIVE_STATES), None
+        )
+        if selected is None:
+            # In an exact timestamp tie, the most recently created run wins.
+            selected = max(reversed(visible_runs), key=lambda run: run.finished_at, default=None)
+
+        if selected is None:
+            return {"items": []}
+        return {
+            "items": [{**selected.polling_target(), "import_status": deepcopy(selected.status)}],
+        }
+
     def replay(self, actor, operation, key, request):
         previous = self.replays.get((actor.workspace_id, operation, key))
         if previous is None:
             return None
-        previous_request, run_id = previous
-        if previous_request != request:
+        run = self.find_run(actor, previous.run_id)
+        if self.clock() >= previous.expires_at:
+            raise FixtureRejection(409, "IDEMPOTENCY_KEY_EXPIRED")
+        if previous.request != request:
             raise FixtureRejection(409, "IDEMPOTENCY_CONFLICT")
-        return self.find_run(actor, run_id)
+        return run
 
     def record_replay(self, actor, operation, key, request, run):
-        self.replays[actor.workspace_id, operation, key] = (request, run.id)
+        self.replays[actor.workspace_id, operation, key] = ReplayEntry(
+            request, run.id, self.clock() + RECEIPT_RETENTION
+        )
 
     def create(self, actor, key, payload):
         source_resource_id = payload["source_resource_id"]
@@ -91,7 +146,7 @@ class FixtureStore:
             return replayed.receipt()
 
         existing = self.run_for_resource.get(scope)
-        if existing is not None:
+        if existing is not None and not existing.abandoned:
             if existing.status["status"] in ACTIVE_STATES:
                 # The repository scope is already checked. The run has its own read gate.
                 readable_id = None if existing.id in actor.unreadable_runs else existing.id
@@ -126,7 +181,8 @@ class FixtureStore:
         if status["status"] in ACTIVE_STATES:
             raise FixtureRejection(409, "SYNC_ALREADY_RUNNING", run.id)
         if (
-            status["status"] != "PARTIAL"
+            run.abandoned
+            or status["status"] != "PARTIAL"
             or status.get("failure_reason") != "TRANSIENT_PROVIDER_ERROR"
             or status["source_drift"]
             or not status["retry"]["allowed"]
@@ -137,6 +193,7 @@ class FixtureStore:
         # Keep the plan, committed page and range progress for the same run.
         status.update(status="PENDING", retry={"allowed": False})
         status.pop("failure_reason")
+        run.finished_at = None
         self.record_replay(actor, "retry", key, run_id, run)
         return run.receipt()
 
@@ -187,11 +244,24 @@ def create_app(store, actor=None):
         with store.lock:
             return store.create(current_actor, key, payload)
 
+    @app.get("/v1/sync-runs", status_code=200)
+    def recover_import(request: Request, response: Response):
+        current_actor = require_actor()
+        source_resource_id = request.query_params.get("source_resource_id")
+        if not source_resource_id or request.query_params.get("limit", "1") != "1":
+            raise FixtureRejection(422)
+        with store.lock:
+            result = store.recover(current_actor, source_resource_id)
+        response.headers["Cache-Control"] = READ_CACHE_CONTROL
+        return result
+
     @app.get("/v1/sync-runs/{id}", status_code=200)
-    def import_status(id: str):
+    def import_status(id: str, response: Response):
         current_actor = require_actor()
         with store.lock:
-            return deepcopy(store.find_run(current_actor, id).status)
+            result = deepcopy(store.find_run(current_actor, id).status)
+        response.headers["Cache-Control"] = READ_CACHE_CONTROL
+        return result
 
     @app.post("/v1/sync-runs/{id}/retry", status_code=202)
     async def retry_import(id: str, request: Request):

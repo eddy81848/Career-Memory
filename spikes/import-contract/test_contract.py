@@ -1,8 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from threading import Barrier
 from unittest import TestCase
+from unittest.mock import patch
 
+from fastapi import Response
 from fastapi.testclient import TestClient
+from httpx import ReadError
 from openapi_spec_validator import OpenAPIV31SpecValidator
 
 from contract import CONTRACT, validator_for
@@ -41,7 +46,10 @@ def resolve_reference(reference):
 
 
 def response_definition(method, path, status_code):
-    definition = CONTRACT["paths"][path][method]["responses"][str(status_code)]
+    responses = CONTRACT["paths"][path][method]["responses"]
+    definition = responses.get(str(status_code))
+    if definition is None:
+        definition = responses[f"{status_code // 100}XX"]
     if "$ref" in definition:
         return resolve_reference(definition["$ref"])
     return definition
@@ -88,6 +96,7 @@ class OpenAPIContractTests(TestCase):
                 ("post", "/v1/source-resources"),
                 ("get", "/v1/source-resources"),
                 ("post", CREATE_PATH),
+                ("get", CREATE_PATH),
                 ("get", STATUS_PATH),
                 ("post", RETRY_PATH),
             },
@@ -142,15 +151,18 @@ class OpenAPIContractTests(TestCase):
             with self.subTest(case=label):
                 self.assertFalse(validator.is_valid(value))
 
+
 class ImportFixtureTests(TestCase):
     def setUp(self):
+        self.now = datetime(2026, 10, 5, 9, tzinfo=UTC)
         self.store = FixtureStore(
             {
                 ("workspace-a", "synthetic-repo"),
                 ("workspace-a", "second-repo"),
                 ("workspace-a", "denied-repo"),
                 ("workspace-b", "other-repo"),
-            }
+            },
+            clock=lambda: self.now,
         )
         self.actor = FixtureActor(
             "workspace-a", frozenset({"synthetic-repo", "second-repo", "other-repo"})
@@ -193,8 +205,31 @@ class ImportFixtureTests(TestCase):
         return run_id
 
     def get_status(self, run_id):
-        response = self.client.get(STATUS_PATH.format(id=run_id))
-        return self.assert_response(response, "get", STATUS_PATH, 200)
+        return self.read_status(STATUS_PATH.format(id=run_id))
+
+    def read_status(self, status_url):
+        response = self.client.get(status_url)
+        status = self.assert_response(response, "get", STATUS_PATH, 200)
+        self.assertEqual(response.headers["Cache-Control"], "private, no-store")
+        return status
+
+    def recover(self, source_resource_id="synthetic-repo", *, client=None):
+        before = deepcopy((self.store.runs, self.store.run_for_resource, self.store.replays))
+        response = (client or self.client).get(
+            CREATE_PATH, params={"source_resource_id": source_resource_id, "limit": "1"}
+        )
+        self.assertEqual(
+            (self.store.runs, self.store.run_for_resource, self.store.replays), before
+        )
+        return response
+
+    def recovered_items(self, **kwargs):
+        response = self.recover(**kwargs)
+        result = self.assert_response(response, "get", CREATE_PATH, 200)
+        self.assertEqual(response.headers["Cache-Control"], "private, no-store")
+        for item in result["items"]:
+            self.assertEqual(item["status_url"], STATUS_PATH.format(id=item["target_id"]))
+        return result["items"]
 
     def use_observation(self, run_id, name):
         self.store.observe(self.actor.workspace_id, run_id, STATUS["examples"][name]["value"])
@@ -418,3 +453,194 @@ class ImportFixtureTests(TestCase):
         for body in (without_mode, {**valid, "mode": "INCREMENTAL"}, {**valid, "backfill_from": "2025-02-30"}):
             with self.subTest(body=body):
                 self.assert_response(self.create_import(body=body), "post", CREATE_PATH, 422, empty=True)
+
+    def test_recovers_lost_acceptance_without_a_key_in_a_new_client(self):
+        app = create_app(self.store, self.actor)
+
+        @app.middleware("http")
+        async def drop_accepted_response(request, call_next):
+            response = await call_next(request)
+            self.assertEqual(response.status_code, 202)
+            raise ReadError("Synthetic connection dropped after acceptance")
+
+        with TestClient(app) as disconnected:
+            with self.assertRaises(ReadError):
+                self.create_import(client=disconnected)
+
+        with TestClient(create_app(self.store, self.actor)) as reconnected:
+            item, = self.recovered_items(client=reconnected)
+        self.assertEqual(len(self.store.runs), 1)
+        self.assertEqual(item["import_status"]["status"], "PENDING")
+        self.assertEqual(self.read_status(item["status_url"]), item["import_status"])
+        # An explicit resend with the original key is still a replay.
+        self.assertEqual(
+            self.assert_receipt(self.create_import()), (item["target_id"], item["status_url"])
+        )
+
+    def test_retry_502_leaves_acceptance_unconfirmed_until_read_or_explicit_replay(self):
+        run_id = self.open_run()
+        self.use_observation(run_id, "transientPartial")
+        app = create_app(self.store, self.actor)
+
+        @app.middleware("http")
+        async def replace_accepted_response(request, call_next):
+            response = await call_next(request)
+            self.assertEqual(response.status_code, 202)
+            return Response(status_code=502)
+
+        with TestClient(app) as gateway:
+            response = self.retry_import(run_id, client=gateway)
+            self.assert_response(response, "post", RETRY_PATH, 502, empty=True)
+
+        item, = self.recovered_items()
+        self.assertEqual(item["target_id"], run_id)
+        self.assertEqual(item["import_status"]["status"], "PENDING")
+        self.assertEqual(item["import_status"]["streams"][0]["last_committed_page"], 7)
+        self.assertEqual(
+            self.assert_receipt(self.retry_import(run_id), RETRY_PATH),
+            (run_id, item["status_url"]),
+        )
+
+    def test_recovers_a_terminal_run_and_reads_policy_changes_on_reentry(self):
+        run_id = self.open_run()
+        success = {
+            **STATUS["examples"]["policyChangedAfterSuccess"]["value"],
+            "processing_status": "COMPLETE",
+        }
+        self.store.observe(self.actor.workspace_id, run_id, success)
+        first, = self.recovered_items()
+        self.assertEqual(first["target_id"], run_id)
+        self.assertEqual(first["import_status"]["processing_status"], "COMPLETE")
+        finished_at = self.store.runs[self.actor.workspace_id, run_id].finished_at
+
+        self.now += timedelta(hours=1)
+        self.use_observation(run_id, "policyChangedAfterSuccess")
+        refreshed = self.read_status(first["status_url"])
+        self.assertEqual(refreshed["status"], "SUCCESS")
+        self.assertTrue(refreshed["import_ready"])
+        self.assertEqual(refreshed["processing_status"], "BLOCKED_POLICY")
+        self.assertFalse(refreshed["retry"]["allowed"])
+        latest, = self.recovered_items()
+        self.assertEqual(latest["import_status"], refreshed)
+        self.assertEqual(self.store.runs[self.actor.workspace_id, run_id].finished_at, finished_at)
+
+    def test_recovery_prioritizes_a_readable_active_run_then_latest_terminal(self):
+        first = self.open_run()
+        self.use_observation(first, "transientPartial")
+        self.store.abandon_plan(self.actor, first)
+        second = self.open_run(key=OTHER_KEY)
+
+        active, = self.recovered_items()
+        self.assertEqual(active["target_id"], second)
+        self.assertEqual(active["import_status"]["status"], "PENDING")
+        restricted = FixtureActor(
+            self.actor.workspace_id, self.actor.allowed_resources, frozenset({second})
+        )
+        restricted_client = TestClient(create_app(self.store, restricted))
+        visible, = self.recovered_items(client=restricted_client)
+        self.assertEqual(visible["target_id"], first)
+        self.assertEqual(visible["import_status"]["retry"], {"allowed": False})
+
+        # A same-time terminal transition is broken by newest creation.
+        self.use_observation(second, "itemLimit")
+        latest, = self.recovered_items()
+        self.assertEqual(latest["target_id"], second)
+        self.assertEqual(latest["import_status"]["status"], "PARTIAL_WITH_LIMIT")
+        visible_terminal, = self.recovered_items(client=restricted_client)
+        self.assertEqual(visible_terminal["target_id"], first)
+
+    def test_recovery_empty_response_hides_unreadable_run_existence(self):
+        run_id = self.open_run()
+        restricted = FixtureActor(
+            self.actor.workspace_id, self.actor.allowed_resources, frozenset({run_id})
+        )
+        client = TestClient(create_app(self.store, restricted))
+        self.assertEqual(self.recovered_items(client=client), [])
+        self.assertEqual(self.recovered_items(source_resource_id="second-repo"), [])
+        default_limit = self.client.get(CREATE_PATH, params={"source_resource_id": "second-repo"})
+        self.assertEqual(self.assert_response(default_limit, "get", CREATE_PATH, 200), {"items": []})
+
+    def test_recovery_denies_revoked_unknown_and_foreign_repositories_equally(self):
+        run_id = self.open_run()
+        other_actor = FixtureActor("workspace-b", frozenset({"other-repo"}))
+        other_client = TestClient(create_app(self.store, other_actor))
+        foreign_request = {**REQUEST["example"], "source_resource_id": "other-repo"}
+        self.open_run(client=other_client, body=foreign_request)
+        revoked = TestClient(create_app(self.store, FixtureActor("workspace-a", frozenset())))
+        for response in (
+            self.recover(client=revoked),
+            self.recover(source_resource_id="unknown-repo"),
+            self.recover(source_resource_id="other-repo"),
+            self.recover(source_resource_id="denied-repo"),
+        ):
+            self.assert_response(response, "get", CREATE_PATH, 403, empty=True)
+        self.assert_response(
+            revoked.get(STATUS_PATH.format(id=run_id)), "get", STATUS_PATH, 403, empty=True
+        )
+        anonymous = TestClient(create_app(self.store))
+        self.assert_response(self.recover(client=anonymous), "get", CREATE_PATH, 401, empty=True)
+
+    def test_read_paths_leave_state_unchanged_and_never_submit_work(self):
+        run_id = self.open_run()
+        self.use_observation(run_id, "transientPartial")
+        before = deepcopy((self.store.runs, self.store.run_for_resource, self.store.replays))
+        with patch.object(self.store, "create", wraps=self.store.create) as create:
+            with patch.object(self.store, "retry", wraps=self.store.retry) as retry:
+                recovered, = self.recovered_items()
+                self.assertEqual(recovered["import_status"], self.read_status(recovered["status_url"]))
+        create.assert_not_called()
+        retry.assert_not_called()
+        self.assertEqual(
+            (self.store.runs, self.store.run_for_resource, self.store.replays), before
+        )
+
+    def test_recovery_rejects_missing_repository_or_unsupported_limit(self):
+        for params in ({}, {"source_resource_id": ""}, {"source_resource_id": "synthetic-repo", "limit": "2"}):
+            with self.subTest(params=params):
+                response = self.client.get(CREATE_PATH, params=params)
+                self.assert_response(response, "get", CREATE_PATH, 422, empty=True)
+
+    def test_new_plan_requires_explicit_abandonment_and_fresh_key(self):
+        first = self.open_run()
+        original_plan = self.get_status(first)["plan_id"]
+        self.use_observation(first, "transientPartial")
+        self.assertTrue(self.get_status(first)["retry"]["allowed"])
+        replacement = {**REQUEST["example"], "backfill_from": "2026-01-01"}
+        self.assert_response(
+            self.create_import(key=OTHER_KEY, body=replacement), "post", CREATE_PATH, 409, empty=True
+        )
+
+        self.store.abandon_plan(self.actor, first)
+        self.assertEqual(self.get_status(first)["retry"], {"allowed": False})
+        self.assert_response(self.retry_import(first), "post", RETRY_PATH, 409, empty=True)
+        self.assert_conflict(
+            self.create_import(key=KEY, body=replacement), "IDEMPOTENCY_CONFLICT"
+        )
+        self.assertEqual(self.open_run(), first)
+        second = self.open_run(key=OTHER_KEY, body=replacement)
+        self.assertNotEqual(second, first)
+        self.assertNotEqual(self.get_status(second)["plan_id"], original_plan)
+
+    def test_receipt_expires_at_24_hours_without_extending_on_replay(self):
+        accepted = self.assert_receipt(self.create_import())
+        run_id, _ = accepted
+        self.use_observation(run_id, "transientPartial")
+        self.assertEqual(self.assert_receipt(self.retry_import(run_id, key=KEY), RETRY_PATH), accepted)
+        self.use_observation(run_id, "transientPartial")
+        self.store.abandon_plan(self.actor, run_id)
+
+        self.now += timedelta(hours=24) - timedelta(seconds=1)
+        self.assertEqual(self.assert_receipt(self.create_import()), accepted)
+        self.assertEqual(self.assert_receipt(self.retry_import(run_id, key=KEY), RETRY_PATH), accepted)
+
+        self.now += timedelta(seconds=1)
+        self.assert_conflict(self.create_import(), "IDEMPOTENCY_KEY_EXPIRED")
+        self.assert_conflict(
+            self.retry_import(run_id, key=KEY), "IDEMPOTENCY_KEY_EXPIRED", path=RETRY_PATH
+        )
+        revoked = TestClient(create_app(self.store, FixtureActor("workspace-a", frozenset())))
+        self.assert_response(self.create_import(client=revoked), "post", CREATE_PATH, 403, empty=True)
+        self.assertEqual(len(self.store.runs), 1)
+        recovered, = self.recovered_items()
+        self.assertEqual(recovered["target_id"], run_id)
+        self.assertEqual(recovered["import_status"]["retry"], {"allowed": False})

@@ -1,10 +1,14 @@
-import type { BootstrapPayload } from "@/domain/state-machine";
+import {
+  buildRecoveryNotice,
+  type BootstrapPayload,
+} from "@/domain/state-machine";
 import type {
   GitHubConnectionViewModel,
   ImportRunViewModel,
   PrototypeScenarioId,
   PublicRepositoryOption,
   ServiceAuthViewModel,
+  UnconfirmedFaultViewModel,
 } from "@/domain/view-models";
 import { ContractSyncRunClient } from "./contract-sync-run-client";
 import {
@@ -21,6 +25,8 @@ import type {
   ConnectionSyncPayload,
   ImportServiceAdapter,
   PrototypeHarnessControls,
+  RecoverRepositoryRunInput,
+  RecoverRepositoryRunPayload,
   RunSyncPayload,
   StartInitialImportInput,
 } from "./import-service-adapter";
@@ -35,10 +41,12 @@ import {
  *
  * - Login, GitHub collection connection, and repository list remain local mock
  *   UI fixtures (untouched, no real network/OAuth/cookies).
- * - ONLY the 3 sync-run paths (`POST /v1/sync-runs`, `GET <status_url>`,
+ * - ONLY the 4 sync-run paths (`POST /v1/sync-runs`,
+ *   `GET /v1/sync-runs?source_resource_id=...&limit=1`, `GET <status_url>`,
  *   `POST /v1/sync-runs/{id}/retry`) execute through `ContractSyncRunClient`
- *   over an in-memory `SyntheticHttpTransport` matching OpenAPI 0.2.0-draft
- *   (CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59).
+ *   matching OpenAPI 0.3.0-draft (CONTRACT commit
+ *   1d754a5bc33cf166d92b1c1ce8568031859ff0a4).
+ * - Pending Idempotency-Keys are NEVER persisted in browser storage.
  */
 
 const PROTOTYPE_STORAGE_KEY = "career_memory_spike_web_import_v1";
@@ -46,7 +54,10 @@ const PROTOTYPE_STORAGE_KEY = "career_memory_spike_web_import_v1";
 interface PersistedPrototypeSnapshot {
   serviceAuth: ServiceAuthViewModel;
   githubConnection: GitHubConnectionViewModel;
+  sessionId: string;
+  selectedRepoId: string | null;
   latestRun: ImportRunViewModel | null;
+  latestRunSessionId: string | null;
   scenarioId: PrototypeScenarioId;
   pollStep: number;
   runSequence: number;
@@ -65,7 +76,7 @@ export interface MockFixtureAdapterOptions {
   initialGitHubStatus?: "connected" | "disconnected" | "permission_revoked";
   /** Initial service auth status. */
   initialAuthStatus?: "authenticated" | "signed_out" | "session_expired";
-  /** Optional custom synthetic HTTP transport for the 3 sync-run paths. */
+  /** Optional custom synthetic HTTP transport for the 4 sync-run paths. */
   syncRunTransport?: SyntheticHttpTransport;
   /** Optional deterministic UUID generator for contract adapter tests. */
   idempotencyKeyGenerator?: () => string;
@@ -145,6 +156,8 @@ export class MockFixtureImportAdapter
   private failNextPollWithNetworkError = false;
   private revokedDuringLastPoll = false;
   private authScopeVersion = 1;
+  private sessionSequence = 1;
+  private selectionGeneration = 0;
 
   private readonly defaultOpenApiTransport: SyntheticOpenApiTransport;
   public readonly syncRunClient: ContractSyncRunClient;
@@ -153,6 +166,7 @@ export class MockFixtureImportAdapter
   public startImportCallCount = 0;
   public retryImportCallCount = 0;
   public pollCallCount = 0;
+  public recoveryLookupCallCount = 0;
 
   constructor(options: MockFixtureAdapterOptions = {}) {
     this.latencyMs = options.latencyMs ?? 180;
@@ -179,7 +193,10 @@ export class MockFixtureImportAdapter
       this.state = {
         serviceAuth: { ...initialAuth },
         githubConnection: { ...initialGitHub },
+        sessionId: "session_1",
+        selectedRepoId: SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId,
         latestRun: null,
+        latestRunSessionId: null,
         scenarioId: options.initialScenario ?? "success_full",
         pollStep: 0,
         runSequence: 100,
@@ -231,12 +248,35 @@ export class MockFixtureImportAdapter
   private getCurrentAuthScope(): string {
     const userId = this.state.serviceAuth.account?.syntheticUserId ?? "anonymous";
     const ghRef = this.state.githubConnection.connectionRef ?? "none";
-    return `${this.state.serviceAuth.status}:${userId}:${this.state.githubConnection.status}:${ghRef}:epoch-${this.authScopeVersion}`;
+    return `${this.state.sessionId}:${this.state.serviceAuth.status}:${userId}:${this.state.githubConnection.status}:${ghRef}:epoch-${this.authScopeVersion}`;
   }
 
   private advanceAuthScope(): void {
     this.authScopeVersion += 1;
     this.syncRunClient.setAuthScope(this.getCurrentAuthScope());
+  }
+
+  private nextSessionId(): string {
+    this.sessionSequence += 1;
+    return `session_${this.sessionSequence}_${Date.now()}`;
+  }
+
+  public selectRepository(repoId: string): void {
+    if (this.state.selectedRepoId === repoId) {
+      return;
+    }
+    this.selectionGeneration += 1;
+    const keepRun =
+      this.state.latestRun && this.state.latestRun.repositoryId === repoId
+        ? this.state.latestRun
+        : null;
+    this.state = {
+      ...this.state,
+      selectedRepoId: repoId,
+      latestRun: keepRun,
+      latestRunSessionId: keepRun ? this.state.latestRunSessionId : null,
+    };
+    this.persistSnapshot();
   }
 
   public getRecordedHttpRequests() {
@@ -267,7 +307,33 @@ export class MockFixtureImportAdapter
       if (!raw) {
         return null;
       }
-      return JSON.parse(raw) as PersistedPrototypeSnapshot;
+      const parsed = JSON.parse(raw) as Partial<PersistedPrototypeSnapshot>;
+      if (!parsed.serviceAuth || !parsed.githubConnection || !parsed.scenarioId) {
+        return null;
+      }
+      const sessionId = parsed.sessionId ?? "session_1";
+      const latestRun = parsed.latestRun ?? null;
+      return {
+        serviceAuth: parsed.serviceAuth,
+        githubConnection: parsed.githubConnection,
+        sessionId,
+        selectedRepoId:
+          parsed.selectedRepoId ??
+          latestRun?.repositoryId ??
+          SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId,
+        latestRun,
+        latestRunSessionId:
+          parsed.latestRunSessionId !== undefined
+            ? parsed.latestRunSessionId
+            : latestRun
+              ? sessionId
+              : null,
+        scenarioId: parsed.scenarioId,
+        pollStep: parsed.pollStep ?? 0,
+        runSequence: parsed.runSequence ?? 100,
+        isRetryRecoveryFlow: parsed.isRetryRecoveryFlow ?? false,
+        activePlanId: parsed.activePlanId ?? null,
+      };
     } catch {
       return null;
     }
@@ -318,10 +384,68 @@ export class MockFixtureImportAdapter
     }
   }
 
+  private findMatchingKnownRun(
+    repoId: string,
+    requestedRunId?: string | null
+  ): ImportRunViewModel | null {
+    const candidate = this.state.latestRun;
+    if (!candidate) {
+      return null;
+    }
+    if (
+      candidate.repositoryId !== repoId ||
+      this.state.latestRunSessionId !== this.state.sessionId
+    ) {
+      return null;
+    }
+    if (requestedRunId && candidate.runId !== requestedRunId) {
+      return null;
+    }
+    return candidate;
+  }
+
+  private isStaleLookup(params: {
+    authScope: string;
+    selectionGen: number;
+    repoId: string;
+  }): boolean {
+    return (
+      params.authScope !== this.getCurrentAuthScope() ||
+      params.selectionGen !== this.selectionGeneration ||
+      this.state.selectedRepoId !== params.repoId
+    );
+  }
+
+  private buildStaleLookupFault(): UnconfirmedFaultViewModel {
+    return {
+      kind: "uncertain_outcome",
+      title: "이전 세션 또는 저장소의 늦은 조회 응답 무시됨",
+      message:
+        "조회 중 저장소 또는 세션이 변경되어 이전 조회 응답을 현재 화면에 반영하지 않았습니다.",
+      serverConfirmed: false,
+      actionGuidance: "현재 선택한 저장소와 세션에서 필요한 작업을 진행해 주세요.",
+    };
+  }
+
   public async bootstrapSession(options?: {
     simulateReload?: boolean;
+    selectedRepoId?: string | null;
   }): Promise<AdapterResult<BootstrapPayload>> {
+    const startAuthScope = this.getCurrentAuthScope();
+    const startSelectionGen = this.selectionGeneration;
     await sleep(this.latencyMs);
+
+    if (
+      startAuthScope !== this.getCurrentAuthScope() ||
+      startSelectionGen !== this.selectionGeneration
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleLookupFault(),
+      };
+    }
+
     const reloaded = this.readPersistedSnapshot();
     const hadPersistedRun = Boolean(reloaded?.latestRun || this.state.latestRun);
     if (reloaded) {
@@ -332,29 +456,334 @@ export class MockFixtureImportAdapter
           findRepo(reloaded.latestRun.repositoryId)
         );
       }
+      this.syncRunClient.setAuthScope(this.getCurrentAuthScope());
     }
+
+    const repositories = this.getAvailableRepositories();
+    const targetRepoId =
+      options?.selectedRepoId &&
+      repositories.some((repo) => repo.repoId === options.selectedRepoId)
+        ? options.selectedRepoId
+        : this.state.selectedRepoId &&
+            repositories.some((repo) => repo.repoId === this.state.selectedRepoId)
+          ? this.state.selectedRepoId
+          : repositories[0]?.repoId ?? null;
+
+    if (targetRepoId && this.state.selectedRepoId !== targetRepoId) {
+      this.state = {
+        ...this.state,
+        selectedRepoId: targetRepoId,
+      };
+    }
+
+    let recoveryLookupMode: "detail_get" | "recovery_get" | null = null;
+    let recoveryFault: UnconfirmedFaultViewModel | null = null;
+
+    if (
+      this.state.serviceAuth.status === "authenticated" &&
+      this.state.githubConnection.status === "connected" &&
+      targetRepoId
+    ) {
+      const lookupAuthScope = this.getCurrentAuthScope();
+      const lookupSelectionGen = this.selectionGeneration;
+      const repo = findRepo(targetRepoId);
+      const matchingRun = this.findMatchingKnownRun(targetRepoId);
+
+      this.revokedDuringLastPoll = false;
+      if (matchingRun) {
+        recoveryLookupMode = "detail_get";
+        this.syncRunClient.registerKnownRun(matchingRun, repo);
+        const detailResult = await this.syncRunClient.getImportStatus({
+          runId: matchingRun.runId,
+          repo,
+        });
+
+        if (
+          this.isStaleLookup({
+            authScope: lookupAuthScope,
+            selectionGen: lookupSelectionGen,
+            repoId: targetRepoId,
+          })
+        ) {
+          return {
+            ok: false,
+            kind: "uncertain_outcome",
+            fault: this.buildStaleLookupFault(),
+          };
+        }
+
+        if (detailResult.ok) {
+          let nextRun = detailResult.data.run;
+          let nextGitHub = this.state.githubConnection;
+          if (this.revokedDuringLastPoll) {
+            nextGitHub = { ...SYNTHETIC_REVOKED_GITHUB };
+            nextRun = buildPermissionRevokedRun(nextRun);
+          }
+          this.state = {
+            ...this.state,
+            latestRun: nextRun,
+            latestRunSessionId: this.state.sessionId,
+            githubConnection: nextGitHub,
+          };
+          if (this.revokedDuringLastPoll) {
+            this.advanceAuthScope();
+          }
+        } else {
+          if (detailResult.kind === "session_expired") {
+            this.state = {
+              ...this.state,
+              serviceAuth: {
+                ...SYNTHETIC_EXPIRED_AUTH,
+                lastCheckedAt: nowIso(),
+              },
+              latestRun: null,
+              latestRunSessionId: null,
+            };
+            this.advanceAuthScope();
+          }
+          recoveryFault = detailResult.fault;
+        }
+      } else {
+        recoveryLookupMode = "recovery_get";
+        this.recoveryLookupCallCount += 1;
+        const recoveryResult =
+          await this.syncRunClient.recoverLatestRunForRepository({ repo });
+
+        if (
+          this.isStaleLookup({
+            authScope: lookupAuthScope,
+            selectionGen: lookupSelectionGen,
+            repoId: targetRepoId,
+          })
+        ) {
+          return {
+            ok: false,
+            kind: "uncertain_outcome",
+            fault: this.buildStaleLookupFault(),
+          };
+        }
+
+        if (recoveryResult.ok) {
+          const recoveredRun = recoveryResult.data.run;
+          this.state = {
+            ...this.state,
+            latestRun: recoveredRun,
+            latestRunSessionId: recoveredRun ? this.state.sessionId : null,
+          };
+        } else {
+          if (recoveryResult.kind === "session_expired") {
+            this.state = {
+              ...this.state,
+              serviceAuth: {
+                ...SYNTHETIC_EXPIRED_AUTH,
+                lastCheckedAt: nowIso(),
+              },
+              latestRun: null,
+              latestRunSessionId: null,
+            };
+            this.advanceAuthScope();
+          }
+          recoveryFault = recoveryResult.fault;
+        }
+      }
+    }
+
     this.persistSnapshot();
 
+    const checkedAt = nowIso();
     return {
       ok: true,
       data: {
-        serviceAuth: { ...this.state.serviceAuth, lastCheckedAt: nowIso() },
+        serviceAuth: { ...this.state.serviceAuth, lastCheckedAt: checkedAt },
         githubConnection: { ...this.state.githubConnection },
         repositories: this.getAvailableRepositories(),
+        selectedRepoId: this.state.selectedRepoId,
         latestRun: this.state.latestRun
           ? structuredClone(this.state.latestRun)
           : null,
         scenarioId: this.state.scenarioId,
         recoveredFromReload: Boolean(options?.simulateReload || hadPersistedRun),
-        checkedAt: nowIso(),
+        recoveryLookupMode,
+        recoveryFault,
+        checkedAt,
+      },
+    };
+  }
+
+  public async recoverRepositoryRun(
+    input: RecoverRepositoryRunInput
+  ): Promise<AdapterResult<RecoverRepositoryRunPayload>> {
+    const requestAuthScope = this.getCurrentAuthScope();
+    const requestSelectionGen = this.selectionGeneration;
+    const targetRepoId = input.repoId;
+    await sleep(this.latencyMs);
+
+    if (
+      this.isStaleLookup({
+        authScope: requestAuthScope,
+        selectionGen: requestSelectionGen,
+        repoId: targetRepoId,
+      })
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleLookupFault(),
+      };
+    }
+
+    const repo = findRepo(targetRepoId);
+    const matchingRun = this.findMatchingKnownRun(
+      targetRepoId,
+      input.knownRunId ?? null
+    );
+    this.revokedDuringLastPoll = false;
+
+    if (matchingRun) {
+      this.syncRunClient.registerKnownRun(matchingRun, repo);
+      const detailResult = await this.syncRunClient.getImportStatus({
+        runId: matchingRun.runId,
+        repo,
+      });
+
+      if (
+        this.isStaleLookup({
+          authScope: requestAuthScope,
+          selectionGen: requestSelectionGen,
+          repoId: targetRepoId,
+        })
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: this.buildStaleLookupFault(),
+        };
+      }
+
+      if (!detailResult.ok) {
+        if (detailResult.kind === "session_expired") {
+          this.state = {
+            ...this.state,
+            serviceAuth: {
+              ...SYNTHETIC_EXPIRED_AUTH,
+              lastCheckedAt: nowIso(),
+            },
+          };
+          this.advanceAuthScope();
+          this.persistSnapshot();
+          return {
+            ...detailResult,
+            serviceAuth: { ...this.state.serviceAuth },
+          };
+        }
+        return detailResult;
+      }
+
+      let nextRun = detailResult.data.run;
+      let nextGitHub = this.state.githubConnection;
+      if (this.revokedDuringLastPoll) {
+        nextGitHub = { ...SYNTHETIC_REVOKED_GITHUB };
+        nextRun = buildPermissionRevokedRun(nextRun);
+      }
+
+      this.state = {
+        ...this.state,
+        latestRun: nextRun,
+        latestRunSessionId: this.state.sessionId,
+        githubConnection: nextGitHub,
+      };
+      if (this.revokedDuringLastPoll) {
+        this.advanceAuthScope();
+      }
+      this.persistSnapshot();
+
+      const checkedAt = nowIso();
+      return {
+        ok: true,
+        data: {
+          run: structuredClone(nextRun),
+          lookupMode: "detail_get",
+          githubConnection: { ...nextGitHub },
+          recoveryNotice: buildRecoveryNotice({
+            run: nextRun,
+            lookupMode: "detail_get",
+            checkedAt,
+          }),
+          checkedAt,
+        },
+      };
+    }
+
+    this.recoveryLookupCallCount += 1;
+    const recoveryResult =
+      await this.syncRunClient.recoverLatestRunForRepository({ repo });
+
+    if (
+      this.isStaleLookup({
+        authScope: requestAuthScope,
+        selectionGen: requestSelectionGen,
+        repoId: targetRepoId,
+      })
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleLookupFault(),
+      };
+    }
+
+    if (!recoveryResult.ok) {
+      if (recoveryResult.kind === "session_expired") {
+        this.state = {
+          ...this.state,
+          serviceAuth: {
+            ...SYNTHETIC_EXPIRED_AUTH,
+            lastCheckedAt: nowIso(),
+          },
+        };
+        this.advanceAuthScope();
+        this.persistSnapshot();
+        return {
+          ...recoveryResult,
+          serviceAuth: { ...this.state.serviceAuth },
+        };
+      }
+      return recoveryResult;
+    }
+
+    const recoveredRun = recoveryResult.data.run;
+    this.state = {
+      ...this.state,
+      latestRun: recoveredRun,
+      latestRunSessionId: recoveredRun ? this.state.sessionId : null,
+    };
+    this.persistSnapshot();
+
+    const checkedAt = nowIso();
+    return {
+      ok: true,
+      data: {
+        run: recoveredRun ? structuredClone(recoveredRun) : null,
+        lookupMode: "recovery_get",
+        githubConnection: { ...this.state.githubConnection },
+        recoveryNotice: buildRecoveryNotice({
+          run: recoveredRun,
+          lookupMode: "recovery_get",
+          checkedAt,
+        }),
+        checkedAt,
       },
     };
   }
 
   public async signInService(): Promise<AdapterResult<ConnectionSyncPayload>> {
     await sleep(this.latencyMs);
+    const nextSession = this.nextSessionId();
     this.state = {
       ...this.state,
+      sessionId: nextSession,
+      latestRun: null,
+      latestRunSessionId: null,
       serviceAuth: {
         ...SYNTHETIC_AUTHENTICATED_AUTH,
         lastCheckedAt: nowIso(),
@@ -369,14 +798,19 @@ export class MockFixtureImportAdapter
         serviceAuth: { ...this.state.serviceAuth },
         githubConnection: { ...this.state.githubConnection },
         repositories: this.getAvailableRepositories(),
+        latestRun: null,
       },
     };
   }
 
   public async signOutService(): Promise<AdapterResult<ConnectionSyncPayload>> {
     await sleep(this.latencyMs);
+    const nextSession = this.nextSessionId();
     this.state = {
       ...this.state,
+      sessionId: nextSession,
+      latestRun: null,
+      latestRunSessionId: null,
       serviceAuth: {
         ...SYNTHETIC_SIGNED_OUT_AUTH,
         lastCheckedAt: nowIso(),
@@ -391,6 +825,7 @@ export class MockFixtureImportAdapter
         serviceAuth: { ...this.state.serviceAuth },
         githubConnection: { ...this.state.githubConnection },
         repositories: [],
+        latestRun: null,
       },
     };
   }
@@ -519,9 +954,13 @@ export class MockFixtureImportAdapter
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.startImportCallCount += 1;
     const requestAuthScope = this.getCurrentAuthScope();
+    const requestSelectionGen = this.selectionGeneration;
     await sleep(this.latencyMs);
 
-    if (requestAuthScope !== this.getCurrentAuthScope()) {
+    if (
+      requestAuthScope !== this.getCurrentAuthScope() ||
+      requestSelectionGen !== this.selectionGeneration
+    ) {
       return {
         ok: false,
         kind: "uncertain_outcome",
@@ -537,6 +976,16 @@ export class MockFixtureImportAdapter
     }
 
     const repo = findRepo(input.repoId);
+    // Persist only the selected repository (NEVER any Idempotency-Key) so that
+    // a reload after a dropped 202 response knows which repository to recover.
+    if (this.state.selectedRepoId !== repo.repoId) {
+      this.state = {
+        ...this.state,
+        selectedRepoId: repo.repoId,
+      };
+    }
+    this.persistSnapshot();
+
     const result = await this.syncRunClient.createInitialImport({
       repo,
       authScope: requestAuthScope,
@@ -578,7 +1027,9 @@ export class MockFixtureImportAdapter
 
     this.state = {
       ...this.state,
+      selectedRepoId: result.data.run.repositoryId,
       latestRun: result.data.run,
+      latestRunSessionId: this.state.sessionId,
     };
     this.persistSnapshot();
 
@@ -597,41 +1048,44 @@ export class MockFixtureImportAdapter
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.pollCallCount += 1;
     const requestAuthScope = this.getCurrentAuthScope();
+    const requestSelectionGen = this.selectionGeneration;
+    const current = this.state.latestRun;
+    const targetRepoId =
+      current?.repositoryId ??
+      this.state.selectedRepoId ??
+      SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId;
     await sleep(this.latencyMs);
 
-    if (requestAuthScope !== this.getCurrentAuthScope()) {
+    if (
+      this.isStaleLookup({
+        authScope: requestAuthScope,
+        selectionGen: requestSelectionGen,
+        repoId: targetRepoId,
+      })
+    ) {
       return {
         ok: false,
         kind: "uncertain_outcome",
-        fault: {
-          kind: "uncertain_outcome",
-          title: "이전 세션의 늦은 응답 무시됨",
-          message:
-            "조회 중 로그아웃 또는 세션 변경이 발생하여 이전 세션의 늦은 조회 응답을 반영하지 않았습니다.",
-          serverConfirmed: false,
-          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
-        },
+        fault: this.buildStaleLookupFault(),
       };
     }
 
-    const current = this.state.latestRun;
-    const repo = findRepo(current?.repositoryId ?? SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId);
+    const repo = findRepo(targetRepoId);
     this.revokedDuringLastPoll = false;
 
     const result = await this.syncRunClient.getImportStatus({ runId, repo });
 
-    if (requestAuthScope !== this.getCurrentAuthScope()) {
+    if (
+      this.isStaleLookup({
+        authScope: requestAuthScope,
+        selectionGen: requestSelectionGen,
+        repoId: targetRepoId,
+      })
+    ) {
       return {
         ok: false,
         kind: "uncertain_outcome",
-        fault: {
-          kind: "uncertain_outcome",
-          title: "이전 세션의 늦은 응답 무시됨",
-          message:
-            "조회 중 로그아웃 또는 세션 변경이 발생하여 이전 세션의 늦은 조회 응답을 반영하지 않았습니다.",
-          serverConfirmed: false,
-          actionGuidance: "현재 세션 상태에서 필요한 작업을 진행해 주세요.",
-        },
+        fault: this.buildStaleLookupFault(),
       };
     }
 
@@ -665,6 +1119,7 @@ export class MockFixtureImportAdapter
     this.state = {
       ...this.state,
       latestRun: nextRun,
+      latestRunSessionId: this.state.sessionId,
       githubConnection: nextGitHub,
     };
     if (this.revokedDuringLastPoll) {
@@ -704,7 +1159,11 @@ export class MockFixtureImportAdapter
     }
 
     const current = this.state.latestRun;
-    const repo = findRepo(current?.repositoryId ?? SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId);
+    const repo = findRepo(
+      current?.repositoryId ??
+        this.state.selectedRepoId ??
+        SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId
+    );
 
     const result = await this.syncRunClient.retryInitialImport({
       runId,
@@ -749,7 +1208,9 @@ export class MockFixtureImportAdapter
 
     this.state = {
       ...this.state,
+      selectedRepoId: result.data.run.repositoryId,
       latestRun: result.data.run,
+      latestRunSessionId: this.state.sessionId,
     };
     this.persistSnapshot();
 
@@ -770,6 +1231,7 @@ export class MockFixtureImportAdapter
     this.state = {
       ...this.state,
       latestRun: null,
+      latestRunSessionId: null,
       pollStep: 0,
       isRetryRecoveryFlow: false,
       activePlanId: null,

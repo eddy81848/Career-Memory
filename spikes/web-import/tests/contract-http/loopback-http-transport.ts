@@ -5,11 +5,12 @@ import type {
 } from "@/adapters/synthetic-http-transport";
 
 /**
- * Test-only real loopback HTTP transport for WEB-05.
+ * Test-only real loopback HTTP transport for WEB-05 / WEB-06.
  *
- * Connects ONLY the 3 OpenAPI 0.2.0-draft sync-run paths to a local 127.0.0.1
+ * Connects ONLY the 4 OpenAPI 0.3.0-draft sync-run paths to a local 127.0.0.1
  * FastAPI stub launched from CONTRACT's `create_app` + `FixtureActor`:
  *   - POST /v1/sync-runs
+ *   - GET  /v1/sync-runs?source_resource_id=...&limit=1
  *   - GET  /v1/sync-runs/{id}
  *   - POST /v1/sync-runs/{id}/retry
  *
@@ -18,11 +19,15 @@ import type {
  */
 
 const ALLOWED_CREATE_PATH = /^\/v1\/sync-runs$/;
+const ALLOWED_RECOVER_PATH = /^\/v1\/sync-runs\?[^#]+$/;
 const ALLOWED_STATUS_PATH = /^\/v1\/sync-runs\/[^/?#]+$/;
 const ALLOWED_RETRY_PATH = /^\/v1\/sync-runs\/[^/?#]+\/retry$/;
 
 function assertAllowedSyncRunRequest(request: SyntheticHttpRequest): void {
   if (request.method === "POST" && ALLOWED_CREATE_PATH.test(request.path)) {
+    return;
+  }
+  if (request.method === "GET" && ALLOWED_RECOVER_PATH.test(request.path)) {
     return;
   }
   if (request.method === "GET" && ALLOWED_STATUS_PATH.test(request.path)) {
@@ -45,9 +50,18 @@ export type LoopbackResponseHook = (
   ctx: LoopbackResponseHookContext
 ) => Promise<SyntheticHttpResponse> | SyntheticHttpResponse;
 
+export type LoopbackRequestPredicate = (
+  request: SyntheticHttpRequest
+) => boolean;
+
+interface QueuedHook {
+  predicate?: LoopbackRequestPredicate;
+  hook: LoopbackResponseHook;
+}
+
 export class LoopbackContractHttpTransport implements SyntheticHttpTransport {
   private readonly baseUrl: string;
-  private readonly afterResponseHooks: LoopbackResponseHook[] = [];
+  private readonly afterResponseHooks: QueuedHook[] = [];
   public readonly sentRequests: SyntheticHttpRequest[] = [];
 
   constructor(baseUrl: string) {
@@ -64,8 +78,24 @@ export class LoopbackContractHttpTransport implements SyntheticHttpTransport {
    * processed the HTTP request and returned a response (e.g., to simulate
    * response loss or delayed delivery after stub acceptance).
    */
-  public queueAfterResponseHook(hook: LoopbackResponseHook): void {
-    this.afterResponseHooks.push(hook);
+  public queueAfterResponseHook(
+    hook: LoopbackResponseHook,
+    predicate?: LoopbackRequestPredicate
+  ): void {
+    this.afterResponseHooks.push({ predicate, hook });
+  }
+
+  private popMatchingHook(
+    request: SyntheticHttpRequest
+  ): LoopbackResponseHook | null {
+    const idx = this.afterResponseHooks.findIndex(
+      (entry) => !entry.predicate || entry.predicate(request)
+    );
+    if (idx === -1) {
+      return null;
+    }
+    const [matched] = this.afterResponseHooks.splice(idx, 1);
+    return matched.hook;
   }
 
   public async send(
@@ -96,7 +126,7 @@ export class LoopbackContractHttpTransport implements SyntheticHttpTransport {
       rawBody,
     };
 
-    const hook = this.afterResponseHooks.shift();
+    const hook = this.popMatchingHook(request);
     if (hook) {
       return hook({ request, response: httpResponse });
     }

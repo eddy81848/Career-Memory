@@ -993,8 +993,14 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
 
       const transport: SyntheticHttpTransport = {
         send(req) {
-          callCount += 1;
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return Promise.resolve({
+              status: 200,
+              rawBody: JSON.stringify({ items: [] }),
+            });
+          }
           if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            callCount += 1;
             recordedCreateKeys.push(req.headers["Idempotency-Key"]);
             if (callCount === 1) {
               // Session 1 in-flight create -> will resolve LATE with 202
@@ -1096,6 +1102,321 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       }
 
       window.sessionStorage.clear();
+    });
+  });
+
+  describe("WEB-06 recovery lookup, IDEMPOTENCY_KEY_EXPIRED, and repo/session stale guards", () => {
+    it("recovers active and terminal runs via GET /v1/sync-runs?source_resource_id=...&limit=1 and handles empty items without auto-POST", async () => {
+      const requests: SyntheticHttpRequest[] = [];
+      let call = 0;
+      const client = new ContractSyncRunClient({
+        transport: {
+          async send(req) {
+            requests.push(req);
+            call += 1;
+            if (call === 1) {
+              return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+            }
+            if (call === 2) {
+              return {
+                status: 200,
+                rawBody: JSON.stringify({
+                  items: [
+                    {
+                      target_id: "synthetic-run-active-06",
+                      status_url: "/v1/sync-runs/synthetic-run-active-06",
+                      import_status: {
+                        status: "RUNNING",
+                        plan_id: "synthetic-plan-06",
+                        import_ready: false,
+                        processing_status: "NOT_STARTED",
+                        source_drift: false,
+                        retry: { allowed: false },
+                      },
+                    },
+                  ],
+                }),
+              };
+            }
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-06",
+                import_ready: true,
+                processing_status: "BLOCKED_POLICY",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          },
+        },
+      });
+
+      // 1. Empty items -> clean null, zero POST
+      const emptyRes = await client.recoverLatestRunForRepository({ repo: REPO_A });
+      expect(emptyRes.ok).toBe(true);
+      if (emptyRes.ok) {
+        expect(emptyRes.data.run).toBeNull();
+      }
+      expect(requests[0].method).toBe("GET");
+      expect(requests[0].path).toBe(
+        `/v1/sync-runs?source_resource_id=${encodeURIComponent(REPO_A.repoId)}&limit=1`
+      );
+      expect(requests[0].body).toBeUndefined();
+
+      // 2. Active run recovered -> target_id/status_url validated & registered
+      const activeRes = await client.recoverLatestRunForRepository({ repo: REPO_A });
+      expect(activeRes.ok).toBe(true);
+      if (activeRes.ok) {
+        expect(activeRes.data.run?.runId).toBe("synthetic-run-active-06");
+        expect(activeRes.data.run?.status).toBe("running");
+      }
+
+      // 3. Subsequent detail GET uses the validated status_url
+      const detailRes = await client.getImportStatus({
+        runId: "synthetic-run-active-06",
+        repo: REPO_A,
+      });
+      expect(detailRes.ok).toBe(true);
+      if (detailRes.ok) {
+        expect(detailRes.data.run.status).toBe("succeeded");
+        expect(detailRes.data.run.readiness.processingStatus).toBe("BLOCKED_POLICY");
+      }
+      expect(requests[2].path).toBe("/v1/sync-runs/synthetic-run-active-06");
+      expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
+    });
+
+    it("rejects mismatched target_id/status_url, empty 403, and 5xx on recovery GET without auto-POST", async () => {
+      const requests: SyntheticHttpRequest[] = [];
+      const responses: SyntheticHttpResponse[] = [
+        {
+          status: 200,
+          rawBody: JSON.stringify({
+            items: [
+              {
+                target_id: "synthetic-run-a",
+                status_url: "/v1/sync-runs/synthetic-run-different",
+                import_status: {
+                  status: "RUNNING",
+                  plan_id: "synthetic-plan-a",
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  source_drift: false,
+                  retry: { allowed: false },
+                },
+              },
+            ],
+          }),
+        },
+        { status: 403, rawBody: "" },
+        { status: 502, rawBody: "" },
+      ];
+
+      const client = new ContractSyncRunClient({
+        transport: {
+          async send(req) {
+            requests.push(req);
+            return responses.shift() ?? { status: 500, rawBody: "" };
+          },
+        },
+      });
+
+      const mismatch = await client.recoverLatestRunForRepository({ repo: REPO_A });
+      expect(mismatch.ok).toBe(false);
+      if (!mismatch.ok) {
+        expect(mismatch.kind).toBe("uncertain_outcome");
+        expect(mismatch.fault.title).toContain("불일치");
+      }
+
+      const empty403 = await client.recoverLatestRunForRepository({ repo: REPO_A });
+      expect(empty403.ok).toBe(false);
+      if (!empty403.ok) {
+        expect(empty403.kind).toBe("request_rejected");
+        expect(empty403.fault.httpStatus).toBe(403);
+      }
+
+      const err502 = await client.recoverLatestRunForRepository({ repo: REPO_A });
+      expect(err502.ok).toBe(false);
+      if (!err502.ok) {
+        expect(err502.kind).toBe("uncertain_outcome");
+        expect(err502.fault.httpStatus).toBe(502);
+      }
+
+      expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
+    });
+
+    it("handles 409 IDEMPOTENCY_KEY_EXPIRED on create and bodyless retry without auto-POST or silently issuing a new key", async () => {
+      const createKeys: string[] = [];
+      const retryKeys: string[] = [];
+
+      const client = new ContractSyncRunClient({
+        transport: {
+          async send(req) {
+            if (req.method === "POST" && req.path === "/v1/sync-runs") {
+              createKeys.push(req.headers["Idempotency-Key"]);
+              if (createKeys.length === 1) {
+                return { status: 502, rawBody: "" };
+              }
+              if (createKeys.length === 2) {
+                return {
+                  status: 409,
+                  rawBody: JSON.stringify({
+                    error: { code: "IDEMPOTENCY_KEY_EXPIRED" },
+                  }),
+                };
+              }
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: "synthetic-run-fresh",
+                  status_url: "/v1/sync-runs/synthetic-run-fresh",
+                }),
+              };
+            }
+            if (req.method === "POST" && req.path === "/v1/sync-runs/run-exp-1/retry") {
+              retryKeys.push(req.headers["Idempotency-Key"]);
+              if (retryKeys.length === 1) {
+                return { status: 502, rawBody: "" };
+              }
+              if (retryKeys.length === 2) {
+                return {
+                  status: 409,
+                  rawBody: JSON.stringify({
+                    error: { code: "IDEMPOTENCY_KEY_EXPIRED" },
+                  }),
+                };
+              }
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: "run-exp-1",
+                  status_url: "/v1/sync-runs/run-exp-1",
+                }),
+              };
+            }
+            return { status: 404, rawBody: "" };
+          },
+        },
+      });
+
+      // 1. Create gets 502 -> retains pending key
+      const firstCreate = await client.createInitialImport({
+        repo: REPO_A,
+        authScope: "scope-exp",
+      });
+      expect(firstCreate.ok).toBe(false);
+
+      // 2. Explicit resend gets 409 IDEMPOTENCY_KEY_EXPIRED -> clears expired key, NO auto-POST
+      const expiredCreate = await client.createInitialImport({
+        repo: REPO_A,
+        authScope: "scope-exp",
+      });
+      expect(expiredCreate.ok).toBe(false);
+      if (!expiredCreate.ok) {
+        expect(expiredCreate.kind).toBe("uncertain_outcome");
+        expect(expiredCreate.fault.httpStatus).toBe(409);
+        expect(expiredCreate.fault.title).toContain("만료");
+      }
+      expect(createKeys).toHaveLength(2);
+      expect(createKeys[1]).toBe(createKeys[0]);
+
+      // 3. Only if user explicitly requests again later does it issue a fresh UUID key (never auto)
+      const explicitFreshCreate = await client.createInitialImport({
+        repo: REPO_A,
+        authScope: "scope-exp",
+      });
+      expect(explicitFreshCreate.ok).toBe(true);
+      expect(createKeys).toHaveLength(3);
+      expect(createKeys[2]).not.toBe(createKeys[0]);
+
+      // 4. Bodyless retry gets 502 then 409 IDEMPOTENCY_KEY_EXPIRED -> clears key, NO auto-POST
+      const firstRetry = await client.retryInitialImport({
+        runId: "run-exp-1",
+        repo: REPO_A,
+        previousRun: null,
+        authScope: "scope-exp",
+      });
+      expect(firstRetry.ok).toBe(false);
+
+      const expiredRetry = await client.retryInitialImport({
+        runId: "run-exp-1",
+        repo: REPO_A,
+        previousRun: null,
+        authScope: "scope-exp",
+      });
+      expect(expiredRetry.ok).toBe(false);
+      if (!expiredRetry.ok) {
+        expect(expiredRetry.kind).toBe("uncertain_outcome");
+        expect(expiredRetry.fault.httpStatus).toBe(409);
+      }
+      expect(retryKeys).toHaveLength(2);
+      expect(retryKeys[1]).toBe(retryKeys[0]);
+
+      // Explicit later retry issues fresh key (expired key was cleared)
+      const explicitFreshRetry = await client.retryInitialImport({
+        runId: "run-exp-1",
+        repo: REPO_A,
+        previousRun: null,
+        authScope: "scope-exp",
+      });
+      expect(explicitFreshRetry.ok).toBe(true);
+      expect(retryKeys).toHaveLength(3);
+      expect(retryKeys[2]).not.toBe(retryKeys[0]);
+    });
+
+    it("discards late recovery GET responses after repository switch or session change", async () => {
+      let resolveSlowGet!: (res: SyntheticHttpResponse) => void;
+      const adapter = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: true,
+        syncRunTransport: {
+          send(req) {
+            if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+              return new Promise<SyntheticHttpResponse>((resolve) => {
+                resolveSlowGet = resolve;
+              });
+            }
+            return Promise.resolve({ status: 404, rawBody: "" });
+          },
+        },
+      });
+
+      const lookupPromise = adapter.recoverRepositoryRun({
+        repoId: REPO_A.repoId,
+      });
+      await Promise.resolve();
+
+      // Switch repository while REPO_A recovery GET is still in flight
+      adapter.selectRepository(REPO_B.repoId);
+
+      resolveSlowGet({
+        status: 200,
+        rawBody: JSON.stringify({
+          items: [
+            {
+              target_id: "synthetic-run-stale-repo-a",
+              status_url: "/v1/sync-runs/synthetic-run-stale-repo-a",
+              import_status: {
+                status: "RUNNING",
+                plan_id: "synthetic-plan-stale",
+                import_ready: false,
+                processing_status: "NOT_STARTED",
+                source_drift: false,
+                retry: { allowed: false },
+              },
+            },
+          ],
+        }),
+      });
+
+      const result = await lookupPromise;
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.kind).toBe("uncertain_outcome");
+      }
     });
   });
 });

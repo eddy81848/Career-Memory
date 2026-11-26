@@ -63,6 +63,7 @@ export function ImportJourneyApp({
   const pollTimerRef = useRef<number | null>(null);
   const operationTokenRef = useRef(0);
   const activeRunIdRef = useRef<string | null>(null);
+  const selectedRepoIdRef = useRef<string | null>(null);
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -90,12 +91,25 @@ export function ImportJourneyApp({
   const runBootstrap = useCallback(
     async (simulateReload = false) => {
       const token = invalidateInFlightOperations();
+      const requestedRepoId = selectedRepoIdRef.current;
       dispatch({ type: "BOOTSTRAP_START" });
-      const result = await adapter.bootstrapSession({ simulateReload });
+      const result = await adapter.bootstrapSession({
+        simulateReload,
+        selectedRepoId: requestedRepoId,
+      });
       if (!isMountedRef.current || token !== operationTokenRef.current) {
         return;
       }
       if (result.ok) {
+        const resolvedRepoId =
+          result.data.latestRun?.repositoryId ??
+          (result.data.selectedRepoId &&
+          result.data.repositories.some(
+            (repo) => repo.repoId === result.data.selectedRepoId
+          )
+            ? result.data.selectedRepoId
+            : result.data.repositories[0]?.repoId ?? null);
+        selectedRepoIdRef.current = resolvedRepoId;
         activeRunIdRef.current = result.data.latestRun?.runId ?? null;
         dispatch({ type: "BOOTSTRAP_SUCCESS", payload: result.data });
       } else {
@@ -120,6 +134,7 @@ export function ImportJourneyApp({
       inFlightPollRef.current = true;
 
       const token = operationTokenRef.current;
+      const requestedRepoId = selectedRepoIdRef.current;
       if (showRefreshingBanner) {
         dispatch({
           type: "REFRESH_STATUS_START",
@@ -130,11 +145,13 @@ export function ImportJourneyApp({
       try {
         const result = await adapter.pollImportRun(runId);
 
-        // Discard late/stale responses after unmount, run switch, reset, or auth/connection change.
+        // Discard late/stale responses after unmount, run switch, repo switch, reset, or auth/connection change.
         if (
           !isMountedRef.current ||
           token !== operationTokenRef.current ||
-          activeRunIdRef.current !== runId
+          activeRunIdRef.current !== runId ||
+          (requestedRepoId !== null &&
+            selectedRepoIdRef.current !== requestedRepoId)
         ) {
           return;
         }
@@ -143,11 +160,16 @@ export function ImportJourneyApp({
           const updatedRun = result.data.run;
           const updatedGitHubStatus = result.data.githubConnection?.status;
 
-          // Double-check runId consistency against current active run.
-          if (activeRunIdRef.current !== updatedRun.runId) {
+          // Double-check runId and repository consistency against current selection.
+          if (
+            activeRunIdRef.current !== updatedRun.runId ||
+            (selectedRepoIdRef.current !== null &&
+              selectedRepoIdRef.current !== updatedRun.repositoryId)
+          ) {
             return;
           }
 
+          selectedRepoIdRef.current = updatedRun.repositoryId;
           dispatch({
             type: "RUN_UPDATED_FROM_SERVER",
             run: updatedRun,
@@ -222,6 +244,76 @@ export function ImportJourneyApp({
     dispatch({ type: "SET_SCENARIO", scenarioId });
   };
 
+  const handleSelectRepo = (repoId: string) => {
+    if (isImportRequestLocked(state)) {
+      dispatch({ type: "SELECT_REPO", repoId });
+      return;
+    }
+    if (selectedRepoIdRef.current !== repoId) {
+      invalidateInFlightOperations();
+      selectedRepoIdRef.current = repoId;
+      adapter.selectRepository?.(repoId);
+      if (state.activeRun && state.activeRun.repositoryId !== repoId) {
+        activeRunIdRef.current = null;
+      }
+    }
+    dispatch({ type: "SELECT_REPO", repoId });
+  };
+
+  const handleRecoverStatus = useCallback(async () => {
+    const targetRepoId = selectedRepoIdRef.current ?? state.selectedRepoId;
+    if (!targetRepoId || !adapter.recoverRepositoryRun) {
+      await runBootstrap(true);
+      return;
+    }
+
+    const knownRunId =
+      state.activeRun && state.activeRun.repositoryId === targetRepoId
+        ? state.activeRun.runId
+        : null;
+
+    const token = invalidateInFlightOperations();
+    dispatch({
+      type: "REFRESH_STATUS_START",
+      label: knownRunId
+        ? `서버에서 실행(${knownRunId})의 최신 상태를 상세 조회하고 있습니다.`
+        : "선택한 저장소의 최근 실행 상태를 서버에서 복구 조회하고 있습니다.",
+    });
+
+    const result = await adapter.recoverRepositoryRun({
+      repoId: targetRepoId,
+      knownRunId,
+    });
+
+    // Discard late lookup responses after unmount, repo switch, or session change.
+    if (
+      !isMountedRef.current ||
+      token !== operationTokenRef.current ||
+      selectedRepoIdRef.current !== targetRepoId
+    ) {
+      return;
+    }
+
+    if (result.ok) {
+      activeRunIdRef.current = result.data.run?.runId ?? null;
+      if (result.data.run) {
+        selectedRepoIdRef.current = result.data.run.repositoryId;
+      }
+      dispatch({
+        type: "RECOVERY_LOOKUP_SYNCED",
+        run: result.data.run,
+        githubConnection: result.data.githubConnection,
+        recoveryNotice: result.data.recoveryNotice,
+      });
+    } else {
+      dispatch({
+        type: "UNCONFIRMED_FAULT",
+        fault: result.fault,
+        serviceAuth: result.serviceAuth,
+      });
+    }
+  }, [adapter, invalidateInFlightOperations, runBootstrap, state.activeRun, state.selectedRepoId]);
+
   const handleSignInService = async () => {
     const token = invalidateInFlightOperations();
     dispatch({
@@ -236,6 +328,13 @@ export function ImportJourneyApp({
       if (result.data.latestRun !== undefined) {
         activeRunIdRef.current = result.data.latestRun?.runId ?? null;
       }
+      selectedRepoIdRef.current =
+        selectedRepoIdRef.current &&
+        result.data.repositories.some(
+          (repo) => repo.repoId === selectedRepoIdRef.current
+        )
+          ? selectedRepoIdRef.current
+          : result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -264,11 +363,16 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
+      if (result.data.latestRun !== undefined) {
+        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
+      }
+      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
+        latestRun: result.data.latestRun,
         clearFault: true,
       });
     } else {
@@ -288,6 +392,7 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
+      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -311,6 +416,13 @@ export function ImportJourneyApp({
       if (result.data.latestRun !== undefined) {
         activeRunIdRef.current = result.data.latestRun?.runId ?? null;
       }
+      selectedRepoIdRef.current =
+        selectedRepoIdRef.current &&
+        result.data.repositories.some(
+          (repo) => repo.repoId === selectedRepoIdRef.current
+        )
+          ? selectedRepoIdRef.current
+          : result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -339,6 +451,7 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
+      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -363,6 +476,7 @@ export function ImportJourneyApp({
       if (result.data.latestRun !== undefined) {
         activeRunIdRef.current = result.data.latestRun?.runId ?? null;
       }
+      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -410,6 +524,7 @@ export function ImportJourneyApp({
 
       if (result.ok) {
         activeRunIdRef.current = result.data.run.runId;
+        selectedRepoIdRef.current = result.data.run.repositoryId;
         dispatch({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
@@ -453,6 +568,7 @@ export function ImportJourneyApp({
       }
       if (result.ok) {
         activeRunIdRef.current = result.data.run.runId;
+        selectedRepoIdRef.current = result.data.run.repositoryId;
         dispatch({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
@@ -578,7 +694,7 @@ export function ImportJourneyApp({
           isRunActive={state.activeRun?.status === "running"}
           canSubmit={canSubmitInitialImport(state)}
           duplicateGuardNotice={state.duplicateGuardNotice}
-          onSelectRepo={(repoId) => dispatch({ type: "SELECT_REPO", repoId })}
+          onSelectRepo={handleSelectRepo}
           onSubmitImport={() => void handleSubmitImport()}
         />
 
@@ -590,7 +706,8 @@ export function ImportJourneyApp({
             }
           }}
           onRetryImport={() => void handleRetryImport()}
-          onReconcileAfterFault={() => void runBootstrap(true)}
+          onReconcileAfterFault={() => void handleRecoverStatus()}
+          onCheckRepositoryStatus={() => void handleRecoverStatus()}
           onReconnectGitHub={() => void handleConnectGitHub()}
           onReAuthenticateService={() => void handleSignInService()}
         />

@@ -1542,6 +1542,12 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       disableBrowserStorage: true,
       syncRunTransport: {
         async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({ items: [] }),
+            };
+          }
           if (req.method === "POST" && req.path === "/v1/sync-runs") {
             capturedKeys.push(req.headers["Idempotency-Key"]);
             if (capturedKeys.length === 1) {
@@ -1764,5 +1770,163 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       "synthetic-run-session-3"
     );
     window.sessionStorage.clear();
+  });
+
+  it("discards a late recovery GET response when the user switches repository while lookup is in flight", async () => {
+    const user = userEvent.setup();
+    let releaseRepoALookup: (() => void) | null = null;
+    let recoveryCall = 0;
+    const postCalls: string[] = [];
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST") {
+            postCalls.push(req.path);
+          }
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            recoveryCall += 1;
+            if (recoveryCall === 1) {
+              // Initial mount empty
+              return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+            }
+            // Explicit check on Repo A -> slow response
+            await new Promise<void>((resolve) => {
+              releaseRepoALookup = resolve;
+            });
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                items: [
+                  {
+                    target_id: "synthetic-run-repo-a-stale",
+                    status_url: "/v1/sync-runs/synthetic-run-repo-a-stale",
+                    import_status: {
+                      status: "RUNNING",
+                      plan_id: "synthetic-plan-stale",
+                      import_ready: false,
+                      processing_status: "NOT_STARTED",
+                      source_drift: false,
+                      retry: { allowed: false },
+                    },
+                  },
+                ],
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    const repoBRadio = await screen.findByRole("radio", {
+      name: /design-tokens-kit/i,
+    });
+    await user.click(screen.getByTestId("check-repository-status-button"));
+
+    await waitFor(() => {
+      expect(releaseRepoALookup).not.toBeNull();
+    });
+
+    // Switch to Repo B while Repo A's recovery GET is still in flight
+    await user.click(repoBRadio);
+    expect(repoBRadio).toBeChecked();
+
+    // Release Repo A's late response -> MUST be discarded!
+    releaseRepoALookup!();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(repoBRadio).toBeChecked();
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(postCalls).toHaveLength(0);
+  });
+
+  it("refreshes a terminal SUCCESS run via detail GET to reflect post-SUCCESS BLOCKED_POLICY without restarting auto-polling", async () => {
+    const user = userEvent.setup();
+    const detailGetPaths: string[] = [];
+    let detailCalls = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                items: [
+                  {
+                    target_id: "synthetic-run-term-06",
+                    status_url: "/v1/sync-runs/synthetic-run-term-06",
+                    import_status: {
+                      status: "SUCCESS",
+                      plan_id: "synthetic-plan-term-06",
+                      import_ready: true,
+                      processing_status: "COMPLETE",
+                      source_drift: false,
+                      retry: { allowed: false },
+                    },
+                  },
+                ],
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === "/v1/sync-runs/synthetic-run-term-06") {
+            detailCalls += 1;
+            detailGetPaths.push(req.path);
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-term-06",
+                import_ready: true,
+                processing_status: "BLOCKED_POLICY",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+      "이전 이력일 수 있으므로"
+    );
+
+    // Terminal run recovered -> NO automatic detail polling should happen
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(detailCalls).toBe(0);
+
+    // Manual detail re-lookup reflects post-SUCCESS BLOCKED_POLICY
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-blocked-notice")).toHaveTextContent(
+        "BLOCKED_POLICY"
+      );
+    });
+    expect(detailGetPaths).toEqual(["/v1/sync-runs/synthetic-run-term-06"]);
+
+    // Still terminal -> NO automatic polling restarts after manual refresh
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(detailCalls).toBe(1);
   });
 });

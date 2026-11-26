@@ -16,6 +16,7 @@ interface ImportStatusPanelProps {
   onManualRefresh: () => void;
   onRetryImport: () => void;
   onReconcileAfterFault: () => void;
+  onCheckRepositoryStatus?: () => void;
   onReconnectGitHub: () => void;
   onReAuthenticateService: () => void;
 }
@@ -90,6 +91,7 @@ export function ImportStatusPanel({
   onManualRefresh,
   onRetryImport,
   onReconcileAfterFault,
+  onCheckRepositoryStatus,
   onReconnectGitHub,
   onReAuthenticateService,
 }: ImportStatusPanelProps) {
@@ -252,6 +254,22 @@ export function ImportStatusPanel({
             위에서 공개 저장소 1곳을 선택한 뒤 &ldquo;최초 가져오기 요청&rdquo;을
             실행하면 서버 응답 기반 상태가 여기에 표시됩니다.
           </p>
+          {onCheckRepositoryStatus &&
+            state.serviceAuth.status === "authenticated" &&
+            state.githubConnection.status === "connected" &&
+            state.selectedRepoId && (
+              <div className="action-row">
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  data-testid="check-repository-status-button"
+                  onClick={onCheckRepositoryStatus}
+                  disabled={isBusy}
+                >
+                  서버 상태 확인
+                </button>
+              </div>
+            )}
         </div>
       )}
 
@@ -542,16 +560,19 @@ export function ImportStatusPanel({
             </div>
 
             <div className="action-row">
-              {activeRun.status === "running" && (
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  onClick={onManualRefresh}
-                  disabled={isBusy}
-                >
-                  상태 지금 다시 확인
-                </button>
-              )}
+              {state.serviceAuth.status === "authenticated" &&
+                state.githubConnection.status === "connected" &&
+                activeRun.status !== "permission_revoked" && (
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    data-testid="manual-refresh-status-button"
+                    onClick={onManualRefresh}
+                    disabled={isBusy}
+                  >
+                    상태 지금 다시 확인
+                  </button>
+                )}
 
               {showRetryButton && (
                 <button

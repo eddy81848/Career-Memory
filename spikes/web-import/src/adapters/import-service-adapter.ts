@@ -44,10 +44,26 @@ export interface StartInitialImportInput {
   idempotencyKey?: string;
 }
 
+export interface RecoverRepositoryRunInput {
+  repoId: string;
+  knownRunId?: string | null;
+}
+
+export interface RecoverRepositoryRunPayload {
+  run: ImportRunViewModel | null;
+  lookupMode: "detail_get" | "recovery_get";
+  githubConnection?: GitHubConnectionViewModel;
+  recoveryNotice: RecoveryNoticeViewModel;
+  checkedAt: string;
+}
+
 export interface ImportServiceAdapter {
   bootstrapSession(options?: {
     simulateReload?: boolean;
+    selectedRepoId?: string | null;
   }): Promise<AdapterResult<BootstrapPayload>>;
+
+  selectRepository?(repoId: string): void;
 
   signInService(): Promise<AdapterResult<ConnectionSyncPayload>>;
   signOutService(): Promise<AdapterResult<ConnectionSyncPayload>>;
@@ -60,6 +76,10 @@ export interface ImportServiceAdapter {
   ): Promise<AdapterResult<RunSyncPayload>>;
 
   pollImportRun(runId: string): Promise<AdapterResult<RunSyncPayload>>;
+
+  recoverRepositoryRun?(
+    input: RecoverRepositoryRunInput
+  ): Promise<AdapterResult<RecoverRepositoryRunPayload>>;
 
   retryImportRun(runId: string): Promise<AdapterResult<RunSyncPayload>>;
 

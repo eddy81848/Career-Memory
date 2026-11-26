@@ -9,24 +9,26 @@ import {
   buildAcceptedPendingRunViewModel,
   doesStatusUrlMatchTargetId,
   generateUuidV4,
+  isValidImportStatusDto,
   mapImportStatusDtoToViewModel,
   parseOptionalJsonBody,
   type ImportConflictDto,
   type ImportStatusDto,
   type InitialImportRequestDto,
+  type RecoveredSyncRunsDto,
   type SyncRunAcceptedDto,
   type SyntheticHttpResponse,
   type SyntheticHttpTransport,
 } from "./synthetic-http-transport";
 
 /**
- * OpenAPI 0.2.0-draft (CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59)
- * client for ONLY the 3 sync-run endpoints:
+ * OpenAPI 0.3.0-draft (CONTRACT commit 1d754a5bc33cf166d92b1c1ce8568031859ff0a4)
+ * client for ONLY the 4 sync-run endpoints:
  *   - POST /v1/sync-runs
+ *   - GET  /v1/sync-runs?source_resource_id=...&limit=1
  *   - GET  <status_url> (/v1/sync-runs/{id})
  *   - POST /v1/sync-runs/{id}/retry
  *
- * Uses SyntheticHttpTransport (in-memory synthetic HTTP only; no real network).
  * Pending Idempotency-Keys are kept strictly in memory (never persisted across
  * reloads) and scoped to (authScope, request kind, target/payload).
  */
@@ -34,6 +36,10 @@ import {
 export interface ContractRunSyncResult {
   run: ImportRunViewModel;
   recoveryNotice?: RecoveryNoticeViewModel | null;
+}
+
+export interface ContractRecoveryLookupResult {
+  run: ImportRunViewModel | null;
 }
 
 interface PendingCreateKey {
@@ -349,6 +355,26 @@ export class ContractSyncRunClient {
       };
     }
 
+    if (code === "IDEMPOTENCY_KEY_EXPIRED") {
+      // Never auto-POST or automatically generate a replacement key;
+      // the original request outcome is uncertain after key retention expiry, so
+      // direct the user back to read-only server status lookup.
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          httpStatus: 409,
+          title: "요청 키 보존 기간 만료 (IDEMPOTENCY_KEY_EXPIRED)",
+          message:
+            "이전 요청의 Idempotency-Key 보존 기간이 만료되어 재확인할 수 없습니다. 새 키를 자동으로 발급해 다시 전송하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance:
+            "먼저 '서버 상태 다시 확인'으로 현재 저장소 또는 실행의 최신 상태를 조회해 주세요.",
+        },
+      };
+    }
+
     if (code === "SYNC_ALREADY_RUNNING") {
       const existingRunId = details?.existing_run_id;
       // Navigate to the existing run ONLY when a valid existing_run_id is explicitly provided!
@@ -649,7 +675,11 @@ export class ContractSyncRunClient {
 
     if (response.status === 200) {
       const parsed = parseOptionalJsonBody<ImportStatusDto>(response.rawBody);
-      if (parsed.empty || parsed.invalidJson || !parsed.value) {
+      if (
+        parsed.empty ||
+        parsed.invalidJson ||
+        !isValidImportStatusDto(parsed.value)
+      ) {
         return {
           ok: false,
           kind: "request_rejected",
@@ -670,6 +700,191 @@ export class ContractSyncRunClient {
         repo: meta.repo,
         attemptNumber: meta.attemptNumber,
         startedAt: meta.startedAt,
+        nowIso: this.nowProvider(),
+      });
+
+      return { ok: true, data: { run } };
+    }
+
+    if (isServerErrorStatus(response.status)) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildUncertainServerErrorFault(response.status, "poll"),
+      };
+    }
+
+    if (response.status === 401) {
+      this.clearPendingKeys();
+      return {
+        ok: false,
+        kind: "session_expired",
+        fault: this.buildSessionExpiredFault(),
+      };
+    }
+
+    return {
+      ok: false,
+      kind: "request_rejected",
+      fault: this.buildNeutralHttpFault(response.status),
+    };
+  }
+
+  /**
+   * GET /v1/sync-runs?source_resource_id=...&limit=1
+   * Read-only recovery lookup when no run ID is available for the current session
+   * and repository. Validates target_id / status_url agreement and never enqueues
+   * or auto-POSTs on empty lists, 403, or 5xx.
+   */
+  public async recoverLatestRunForRepository(params: {
+    repo: PublicRepositoryOption;
+  }): Promise<AdapterResult<ContractRecoveryLookupResult>> {
+    const startGeneration = this.scopeGeneration;
+    const startCurrentScope = this.currentAuthScope;
+    const path = `/v1/sync-runs?source_resource_id=${encodeURIComponent(
+      params.repo.repoId
+    )}&limit=1`;
+
+    let response: SyntheticHttpResponse;
+    try {
+      response = await this.transport.send({
+        method: "GET",
+        path,
+        headers: {
+          "X-Request-ID": this.nextRequestId(),
+        },
+      });
+    } catch {
+      if (
+        this.scopeGeneration !== startGeneration ||
+        this.currentAuthScope !== startCurrentScope
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: this.buildStaleSessionFault(),
+        };
+      }
+      return {
+        ok: false,
+        kind: "network_error",
+        fault: {
+          kind: "network_error",
+          title: "복구 상태 조회 중 네트워크 실패",
+          message:
+            "저장소의 최근 가져오기 이력을 서버에서 조회하지 못했습니다. 이전 요청의 실패를 확정하지 않으며, 새 가져오기 요청은 자동으로 보내지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance:
+            "새 가져오기를 자동으로 재전송하지 않았습니다. 잠시 후 '서버 상태 다시 확인'을 눌러 조회해 주세요.",
+        },
+      };
+    }
+
+    if (
+      this.scopeGeneration !== startGeneration ||
+      this.currentAuthScope !== startCurrentScope
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleSessionFault(),
+      };
+    }
+
+    if (response.status === 200) {
+      const parsed = parseOptionalJsonBody<RecoveredSyncRunsDto>(response.rawBody);
+      if (
+        parsed.empty ||
+        parsed.invalidJson ||
+        !parsed.value ||
+        typeof parsed.value !== "object" ||
+        Array.isArray(parsed.value) ||
+        !Array.isArray(parsed.value.items) ||
+        parsed.value.items.length > 1
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: {
+            kind: "uncertain_outcome",
+            httpStatus: 200,
+            title: "복구 조회 응답 검증 불가 — 상태 미확정 (HTTP 200)",
+            message:
+              "복구 조회 응답 형식이 계약과 일치하지 않아 상태를 확인할 수 없습니다. 새 가져오기 요청은 보내지 않았습니다.",
+            serverConfirmed: false,
+            actionGuidance:
+              "자동 재요청을 수행하지 않았습니다. 잠시 후 서버 상태를 다시 확인해 주세요.",
+          },
+        };
+      }
+
+      if (parsed.value.items.length === 0) {
+        return { ok: true, data: { run: null } };
+      }
+
+      const item = parsed.value.items[0];
+      if (
+        !item ||
+        typeof item !== "object" ||
+        typeof item.target_id !== "string" ||
+        item.target_id.trim().length === 0 ||
+        typeof item.status_url !== "string" ||
+        item.status_url.trim().length === 0 ||
+        !isValidImportStatusDto(item.import_status)
+      ) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: {
+            kind: "uncertain_outcome",
+            httpStatus: 200,
+            title: "복구 조회 응답 필수 필드 누락 — 상태 미확정 (HTTP 200)",
+            message:
+              "복구 조회 항목에 필수 필드(target_id, status_url, import_status)가 누락되어 상태를 검증할 수 없습니다. 해당 경로로 조회하지 않았습니다.",
+            serverConfirmed: false,
+            actionGuidance:
+              "다른 실행으로 이동하지 않았습니다. 잠시 후 서버 상태를 다시 확인해 주세요.",
+          },
+        };
+      }
+
+      if (!doesStatusUrlMatchTargetId(item.status_url, item.target_id)) {
+        return {
+          ok: false,
+          kind: "uncertain_outcome",
+          fault: {
+            kind: "uncertain_outcome",
+            httpStatus: 200,
+            title: "복구 조회 응답 경로 불일치 — 상태 미확정 (HTTP 200)",
+            message:
+              "복구 조회 응답의 status_url이 target_id와 같은 실행을 가리키지 않아 검증에 실패했습니다. 해당 경로로 상태 조회를 이어가지 않았습니다.",
+            serverConfirmed: false,
+            actionGuidance:
+              "불일치 경로로 조회하거나 새 가져오기를 자동 전송하지 않았습니다. 서버 상태를 다시 확인해 주세요.",
+          },
+        };
+      }
+
+      this.statusUrlByRunId.set(item.target_id, item.status_url);
+      const existingMeta = this.runMetadata.get(item.target_id);
+      const startedAt =
+        existingMeta?.startedAt ??
+        item.import_status.observed_at ??
+        this.nowProvider();
+      const attemptNumber = existingMeta?.attemptNumber ?? 1;
+      this.runMetadata.set(item.target_id, {
+        repo: params.repo,
+        attemptNumber,
+        startedAt,
+      });
+
+      const run = mapImportStatusDtoToViewModel({
+        runId: item.target_id,
+        statusUrl: item.status_url,
+        dto: item.import_status,
+        repo: params.repo,
+        attemptNumber,
+        startedAt,
         nowIso: this.nowProvider(),
       });
 

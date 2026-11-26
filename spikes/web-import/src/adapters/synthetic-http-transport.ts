@@ -86,11 +86,82 @@ export interface ImportStatusDto {
 
 export interface ImportConflictDto {
   error: {
-    code: "IDEMPOTENCY_CONFLICT" | "SYNC_ALREADY_RUNNING";
+    code:
+      | "IDEMPOTENCY_CONFLICT"
+      | "SYNC_ALREADY_RUNNING"
+      | "IDEMPOTENCY_KEY_EXPIRED";
     details?: {
       existing_run_id?: string;
     };
   };
+}
+
+export interface RecoveredSyncRunItemDto {
+  target_id: string;
+  status_url: string;
+  import_status: ImportStatusDto;
+}
+
+export interface RecoveredSyncRunsDto {
+  items: RecoveredSyncRunItemDto[];
+}
+
+const VALID_IMPORT_STATES = new Set<string>([
+  "PENDING",
+  "RUNNING",
+  "SUCCESS",
+  "PARTIAL",
+  "PARTIAL_WITH_LIMIT",
+  "FAILED",
+  "CANCELED",
+]);
+
+const VALID_PROCESSING_STATUSES = new Set<string>([
+  "NOT_STARTED",
+  "RUNNING",
+  "BLOCKED_POLICY",
+  "BLOCKED_SOURCE",
+  "FAILED",
+  "COMPLETE",
+]);
+
+export function isValidImportStatusDto(
+  value: unknown
+): value is ImportStatusDto {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.status !== "string" ||
+    !VALID_IMPORT_STATES.has(candidate.status)
+  ) {
+    return false;
+  }
+  if (typeof candidate.plan_id !== "string" || candidate.plan_id.trim().length === 0) {
+    return false;
+  }
+  if (typeof candidate.import_ready !== "boolean") {
+    return false;
+  }
+  if (
+    typeof candidate.processing_status !== "string" ||
+    !VALID_PROCESSING_STATUSES.has(candidate.processing_status)
+  ) {
+    return false;
+  }
+  if (typeof candidate.source_drift !== "boolean") {
+    return false;
+  }
+  if (
+    !candidate.retry ||
+    typeof candidate.retry !== "object" ||
+    Array.isArray(candidate.retry) ||
+    typeof (candidate.retry as Record<string, unknown>).allowed !== "boolean"
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export const UUID_V4_REGEX =

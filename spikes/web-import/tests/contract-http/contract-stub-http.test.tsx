@@ -13,13 +13,13 @@ import { ImportJourneyApp } from "@/components/ImportJourneyApp";
 import { LoopbackContractHttpTransport } from "./loopback-http-transport";
 
 /**
- * WEB-05 REAL LOCAL LOOPBACK HTTP INTEGRATION TESTS.
+ * WEB-05 / WEB-06 REAL LOCAL LOOPBACK HTTP INTEGRATION TESTS.
  *
  * Launches CONTRACT's actual FastAPI stub (`create_app` + `FixtureActor` from
- * commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59, read-only) on 127.0.0.1 and
- * connects ONLY the 3 OpenAPI sync-run endpoints through WEB's existing HTTP
- * adapter boundary (`SyntheticHttpTransport` -> `ContractSyncRunClient` ->
- * `MockFixtureImportAdapter` -> `ImportJourneyApp`).
+ * commit 1d754a5bc33cf166d92b1c1ce8568031859ff0a4, OpenAPI 0.3.0-draft, read-only)
+ * on 127.0.0.1 and connects ONLY the 4 OpenAPI sync-run endpoints through WEB's
+ * existing HTTP adapter boundary (`SyntheticHttpTransport` -> `ContractSyncRunClient`
+ * -> `MockFixtureImportAdapter` -> `ImportJourneyApp`).
  *
  * Strictly test-only. Never reads synthetic identity from browser headers.
  * Always terminates the stub server in afterAll.
@@ -38,10 +38,13 @@ interface StubActorSpec {
 interface StubRequestLogEntry {
   method: string;
   path: string;
+  query_string?: string;
+  full_path?: string;
   idempotency_key: string | null;
   request_id: string | null;
   body_length: number;
   status: number | null;
+  injected?: boolean;
 }
 
 interface StubStateSnapshot {
@@ -51,6 +54,7 @@ interface StubStateSnapshot {
   retry_replay_count: number;
   runs: Record<string, Record<string, unknown>>;
   request_log: StubRequestLogEntry[];
+  clock_offset_seconds?: number;
 }
 
 let stubProcess: ChildProcessWithoutNullStreams | null = null;
@@ -209,6 +213,46 @@ async function setStubActor(actor: StubActorSpec | null): Promise<void> {
   }
 }
 
+async function advanceStubClock(params: {
+  hours?: number;
+  seconds?: number;
+}): Promise<void> {
+  const res = await fetch(`${controlUrl}/__control/advance-clock`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      hours: params.hours ?? 0,
+      seconds: params.seconds ?? 0,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`control advance-clock failed: ${res.status}`);
+  }
+}
+
+async function queueStubHttpResponse(params: {
+  status: number;
+  body?: string;
+  contentType?: string;
+  method?: string;
+  pathPrefix?: string;
+}): Promise<void> {
+  const res = await fetch(`${controlUrl}/__control/queue-http-response`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      status: params.status,
+      body: params.body ?? "",
+      content_type: params.contentType ?? null,
+      method: params.method ?? null,
+      path_prefix: params.pathPrefix ?? null,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`control queue-http-response failed: ${res.status}`);
+  }
+}
+
 async function observeRun(params: {
   runId: string;
   example?: string;
@@ -354,10 +398,12 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     const stubState = await getStubState();
     expect(stubState.run_count).toBe(1);
     expect(stubState.create_replay_count).toBe(1);
-    expect(stubState.request_log[0].method).toBe("POST");
-    expect(stubState.request_log[0].path).toBe("/v1/sync-runs");
-    expect(stubState.request_log[0].status).toBe(202);
-    expect(stubState.request_log[0].idempotency_key).toMatch(UUID_V4_REGEX);
+    const postCreate = stubState.request_log.find(
+      (entry) => entry.method === "POST" && entry.path === "/v1/sync-runs"
+    );
+    expect(postCreate).toBeDefined();
+    expect(postCreate?.status).toBe(202);
+    expect(postCreate?.idempotency_key).toMatch(UUID_V4_REGEX);
     expect(
       stubState.request_log.some(
         (entry) =>
@@ -568,11 +614,6 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
 
   it("navigates on 409 SYNC_ALREADY_RUNNING only when stub provides existing_run_id, and stays put when unreadable", async () => {
     await resetStub();
-    const seeded = await seedExistingRun({
-      repoId: REPO_1.repoId,
-      key: "00000000-0000-4000-8000-000000000101",
-    });
-    expect(seeded.target_id).toBe("synthetic-run-1");
 
     const user = userEvent.setup();
     const transport1 = new LoopbackContractHttpTransport(contractUrl);
@@ -587,6 +628,14 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     );
 
     await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // Seed concurrent active run AFTER initial mount -> submit hits 409 SYNC_ALREADY_RUNNING with existing_run_id
+    const seeded = await seedExistingRun({
+      repoId: REPO_1.repoId,
+      key: "00000000-0000-4000-8000-000000000101",
+    });
+    expect(seeded.target_id).toBe("synthetic-run-1");
+
     await user.click(screen.getByTestId("start-import-button"));
 
     await waitFor(() => {
@@ -599,7 +648,8 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     );
     firstRender.unmount();
 
-    // Now switch stub actor so existing run is unreadable -> 409 SYNC_ALREADY_RUNNING WITHOUT existing_run_id
+    // Now switch stub actor so existing run is unreadable -> recovery GET returns empty [],
+    // and submit returns 409 SYNC_ALREADY_RUNNING WITHOUT existing_run_id
     await setStubActor({
       workspace_id: WORKSPACE_ID,
       allowed_resources: [REPO_1.repoId, REPO_2.repoId],
@@ -626,8 +676,12 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       );
     });
     expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    // Mount did recovery GET (/v1/sync-runs?...) which returned empty [];
+    // MUST NEVER attempt detail GET /v1/sync-runs/synthetic-run-1 after 409 without existing_run_id!
     expect(
-      transport2.sentRequests.some((req) => req.method === "GET")
+      transport2.sentRequests.some(
+        (req) => req.method === "GET" && req.path.startsWith("/v1/sync-runs/")
+      )
     ).toBe(false);
   });
 
@@ -722,10 +776,13 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     let droppedStubStatus: number | null = null;
 
     // Stub ACTUALLY receives POST /v1/sync-runs and returns 202, then test drops the response!
-    transport.queueAfterResponseHook(({ response }) => {
-      droppedStubStatus = response.status;
-      throw new Error("TEST_DROPPED_CREATE_RESPONSE_AFTER_STUB_ACCEPTED");
-    });
+    transport.queueAfterResponseHook(
+      ({ response }) => {
+        droppedStubStatus = response.status;
+        throw new Error("TEST_DROPPED_CREATE_RESPONSE_AFTER_STUB_ACCEPTED");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
 
     const adapter = new MockFixtureImportAdapter({
       latencyMs: 0,
@@ -877,11 +934,14 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     let capturedLate202Status: number | null = null;
 
     // Delay Session 1's real 202 response from the FastAPI stub in-flight
-    transport.queueAfterResponseHook(async ({ response }) => {
-      capturedLate202Status = response.status;
-      await holdSession1Late202.promise;
-      return response;
-    });
+    transport.queueAfterResponseHook(
+      async ({ response }) => {
+        capturedLate202Status = response.status;
+        await holdSession1Late202.promise;
+        return response;
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
 
     const adapter = new MockFixtureImportAdapter({
       latencyMs: 0,
@@ -915,10 +975,13 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     await user.click(
       screen.getByRole("radio", { name: /seoyeon-lab-demo\/design-tokens-kit/i })
     );
-    transport.queueAfterResponseHook(({ response }) => {
-      expect(response.status).toBe(202);
-      throw new Error("SESSION_2_DROPPED_RESPONSE");
-    });
+    transport.queueAfterResponseHook(
+      ({ response }) => {
+        expect(response.status).toBe(202);
+        throw new Error("SESSION_2_DROPPED_RESPONSE");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
 
     await user.click(screen.getByTestId("start-import-button"));
     await waitFor(() => {
@@ -963,16 +1026,10 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     window.sessionStorage.clear();
 
     // --- Part B: Late real 401 from Session 1 ---
-    await resetStub({ actor: null });
+    await resetStub();
     const transportB = new LoopbackContractHttpTransport(contractUrl);
     const holdSession1Late401 = createDeferred<void>();
     let capturedLate401Status: number | null = null;
-
-    transportB.queueAfterResponseHook(async ({ response }) => {
-      capturedLate401Status = response.status;
-      await holdSession1Late401.promise;
-      return response;
-    });
 
     const adapterB = new MockFixtureImportAdapter({
       latencyMs: 0,
@@ -985,6 +1042,18 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     );
 
     await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // Expire stub session right before Session 1 submits (after initial mount finishes)
+    await setStubActor(null);
+    transportB.queueAfterResponseHook(
+      async ({ response }) => {
+        capturedLate401Status = response.status;
+        await holdSession1Late401.promise;
+        return response;
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
+
     await user.click(screen.getByTestId("start-import-button"));
     await waitFor(() => {
       expect(capturedLate401Status).toBe(401);
@@ -1005,10 +1074,13 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     );
 
     // Session 2 submits and drops response after stub accepts -> holds Session 2's pending key
-    transportB.queueAfterResponseHook(({ response }) => {
-      expect(response.status).toBe(202);
-      throw new Error("SESSION_2_DROPPED_FOR_401_TEST");
-    });
+    transportB.queueAfterResponseHook(
+      ({ response }) => {
+        expect(response.status).toBe(202);
+        throw new Error("SESSION_2_DROPPED_FOR_401_TEST");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
     await user.click(screen.getByTestId("start-import-button"));
     await waitFor(() => {
       expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
@@ -1051,5 +1123,789 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     expect(createsB[2].idempotency_key).toBe(createsB[1].idempotency_key);
     expect(stateAfterPartB.run_count).toBe(1);
     expect(stateAfterPartB.create_replay_count).toBe(1);
+  });
+});
+
+describe("WEB-06 real 127.0.0.1 FastAPI contract stub recovery & edge cases (OpenAPI 0.3.0-draft)", () => {
+  it("recovers an ACTIVE run after reload when create was accepted on server but client reloaded before receiving 202, continuing detail GET polling without auto-POST", async () => {
+    await resetStub();
+    window.sessionStorage.clear();
+    const user = userEvent.setup();
+
+    // Tab 1: submit POST /v1/sync-runs -> stub accepts (202, synthetic-run-1), response is lost before WEB receives it
+    const transportBeforeReload = new LoopbackContractHttpTransport(contractUrl);
+    let droppedStatus: number | null = null;
+    transportBeforeReload.queueAfterResponseHook(
+      ({ response }) => {
+        droppedStatus = response.status;
+        throw new Error("CLIENT_RELOADED_BEFORE_CREATE_RESPONSE");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
+
+    const adapterBeforeReload = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportBeforeReload,
+    });
+
+    const tab1 = render(
+      <ImportJourneyApp
+        adapter={adapterBeforeReload}
+        harness={adapterBeforeReload}
+        pollIntervalMs={25}
+      />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(droppedStatus).toBe(202);
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toBeInTheDocument();
+    });
+
+    // Confirm neither runId nor any Idempotency-Key was persisted across reload
+    const persistedBeforeReload = window.sessionStorage.getItem(
+      "career_memory_spike_web_import_v1"
+    );
+    expect(persistedBeforeReload ?? "").not.toContain("synthetic-run-1");
+    const firstPostKey = transportBeforeReload.sentRequests.find(
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    )?.headers["Idempotency-Key"];
+    expect(firstPostKey).toMatch(UUID_V4_REGEX);
+    expect(persistedBeforeReload ?? "").not.toContain(firstPostKey!);
+
+    // Simulate full browser reload: unmount Tab 1 and create brand-new transport + adapter
+    tab1.unmount();
+
+    const transportAfterReload = new LoopbackContractHttpTransport(contractUrl);
+    const adapterAfterReload = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportAfterReload,
+    });
+
+    render(
+      <ImportJourneyApp
+        adapter={adapterAfterReload}
+        harness={adapterAfterReload}
+        pollIntervalMs={25}
+      />
+    );
+
+    // Reload has no runId -> MUST recover via GET /v1/sync-runs?source_resource_id=...&limit=1
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+      "synthetic-run-1"
+    );
+    // Must NOT claim the lost request succeeded — explicitly notes run may be historical
+    expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+      "이전 이력일 수 있으므로"
+    );
+
+    expect(transportAfterReload.sentRequests[0].method).toBe("GET");
+    expect(transportAfterReload.sentRequests[0].path).toBe(
+      `/v1/sync-runs?source_resource_id=${encodeURIComponent(REPO_1.repoId)}&limit=1`
+    );
+
+    // Active run continues polling via detail GET -> transitions to SUCCESS when stub observes it
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "SUCCESS",
+        import_ready: true,
+        processing_status: "COMPLETE",
+        source_drift: false,
+        retry: { allowed: false },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    const stubState = await getStubState();
+    const allCreatePosts = stubState.request_log.filter(
+      (entry) => entry.method === "POST" && entry.path === "/v1/sync-runs"
+    );
+    // Strictly ZERO auto-POST on reload
+    expect(allCreatePosts).toHaveLength(1);
+    expect(stubState.run_count).toBe(1);
+    expect(
+      stubState.request_log.some(
+        (entry) =>
+          entry.method === "GET" &&
+          entry.path === "/v1/sync-runs" &&
+          entry.query_string === `source_resource_id=${REPO_1.repoId}&limit=1` &&
+          entry.status === 200
+      )
+    ).toBe(true);
+    expect(
+      stubState.request_log.some(
+        (entry) =>
+          entry.method === "GET" &&
+          entry.path === "/v1/sync-runs/synthetic-run-1" &&
+          entry.status === 200
+      )
+    ).toBe(true);
+  });
+
+  it("recovers already TERMINAL runs (SUCCESS and PARTIAL_WITH_LIMIT) after lost-response reload, shows historical caveat, and stops automatic polling", async () => {
+    // --- Sub-case A: SUCCESS completed before reload ---
+    await resetStub();
+    window.sessionStorage.clear();
+    const user = userEvent.setup();
+
+    const transport1 = new LoopbackContractHttpTransport(contractUrl);
+    transport1.queueAfterResponseHook(
+      () => {
+        throw new Error("LOST_CREATE_RESPONSE_BEFORE_TERMINAL_RELOAD");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
+
+    const adapter1 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transport1,
+    });
+    const tab1 = render(
+      <ImportJourneyApp adapter={adapter1} harness={adapter1} pollIntervalMs={25} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toBeInTheDocument();
+    });
+    tab1.unmount();
+
+    // Server finishes run as SUCCESS BEFORE reload
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "SUCCESS",
+        import_ready: true,
+        processing_status: "COMPLETE",
+        source_drift: false,
+        retry: { allowed: false },
+      },
+    });
+
+    const transportReloadSuccess = new LoopbackContractHttpTransport(contractUrl);
+    const adapterReloadSuccess = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportReloadSuccess,
+    });
+    const tab2 = render(
+      <ImportJourneyApp
+        adapter={adapterReloadSuccess}
+        harness={adapterReloadSuccess}
+        pollIntervalMs={25}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+      "이전 이력일 수 있으므로"
+    );
+    expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+      "자동 폴링은 종료했습니다"
+    );
+
+    // Wait > 4 poll intervals -> ZERO automatic detail GETs and ZERO auto-POSTs!
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(
+      transportReloadSuccess.sentRequests.filter(
+        (req) => req.method === "GET" && req.path.startsWith("/v1/sync-runs/")
+      )
+    ).toHaveLength(0);
+    expect(
+      transportReloadSuccess.sentRequests.filter((req) => req.method === "POST")
+    ).toHaveLength(0);
+    tab2.unmount();
+
+    // --- Sub-case B: PARTIAL_WITH_LIMIT completed before reload on REPO_2 ---
+    await resetStub();
+    window.sessionStorage.clear();
+
+    const transportLimit1 = new LoopbackContractHttpTransport(contractUrl);
+    transportLimit1.queueAfterResponseHook(
+      () => {
+        throw new Error("LOST_CREATE_RESPONSE_LIMIT_RELOAD");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
+    const adapterLimit1 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportLimit1,
+    });
+    const tabLimit1 = render(
+      <ImportJourneyApp
+        adapter={adapterLimit1}
+        harness={adapterLimit1}
+        pollIntervalMs={25}
+      />
+    );
+
+    const repo2Radio = await screen.findByRole("radio", {
+      name: /design-tokens-kit/i,
+    });
+    await user.click(repo2Radio);
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toBeInTheDocument();
+    });
+    tabLimit1.unmount();
+
+    await observeRun({ runId: "synthetic-run-1", example: "itemLimit" });
+
+    const transportLimitReload = new LoopbackContractHttpTransport(contractUrl);
+    const adapterLimitReload = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportLimitReload,
+    });
+    render(
+      <ImportJourneyApp
+        adapter={adapterLimitReload}
+        harness={adapterLimitReload}
+        pollIntervalMs={25}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "limit_reached"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: false"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+      "이전 이력일 수 있으므로"
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(transportLimitReload.sentRequests).toHaveLength(1);
+    expect(transportLimitReload.sentRequests[0].path).toBe(
+      `/v1/sync-runs?source_resource_id=${encodeURIComponent(REPO_2.repoId)}&limit=1`
+    );
+  });
+
+  it("uses detail GET (not list GET) when run ID is known for current session+repo and reflects post-SUCCESS BLOCKED_POLICY without restarting auto-polling", async () => {
+    await resetStub();
+    window.sessionStorage.clear();
+    const user = userEvent.setup();
+
+    const transport1 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter1 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transport1,
+    });
+
+    const tab1 = render(
+      <ImportJourneyApp adapter={adapter1} harness={adapter1} pollIntervalMs={25} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    // Complete as SUCCESS + COMPLETE
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "SUCCESS",
+        import_ready: true,
+        processing_status: "COMPLETE",
+        source_drift: false,
+        retry: { allowed: false },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(
+      screen.queryByTestId("processing-blocked-notice")
+    ).not.toBeInTheDocument();
+
+    // Policy changes AFTER SUCCESS -> BLOCKED_POLICY
+    await observeRun({
+      runId: "synthetic-run-1",
+      example: "policyChangedAfterSuccess",
+    });
+
+    // 1. Manual detail re-lookup on same tab reflects BLOCKED_POLICY via detail GET
+    const requestsBeforeManual = transport1.sentRequests.length;
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-blocked-notice")).toHaveTextContent(
+        "BLOCKED_POLICY"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: true (준비 완료)"
+    );
+    const manualRequests = transport1.sentRequests.slice(requestsBeforeManual);
+    expect(manualRequests).toHaveLength(1);
+    expect(manualRequests[0].method).toBe("GET");
+    expect(manualRequests[0].path).toBe("/v1/sync-runs/synthetic-run-1");
+
+    // No auto-polling restarts after terminal detail GET
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(transport1.sentRequests.length).toBe(requestsBeforeManual + 1);
+
+    // 2. Reload with known (session, repo) runId -> uses DETAIL GET (NOT list GET)
+    tab1.unmount();
+
+    const transportReload = new LoopbackContractHttpTransport(contractUrl);
+    const adapterReload = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportReload,
+    });
+
+    render(
+      <ImportJourneyApp
+        adapter={adapterReload}
+        harness={adapterReload}
+        pollIntervalMs={25}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-blocked-notice")).toHaveTextContent(
+        "BLOCKED_POLICY"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: true (준비 완료)"
+    );
+
+    // Must have called detail GET /v1/sync-runs/synthetic-run-1 and NOT list GET /v1/sync-runs?...
+    expect(transportReload.sentRequests).toHaveLength(1);
+    expect(transportReload.sentRequests[0].method).toBe("GET");
+    expect(transportReload.sentRequests[0].path).toBe(
+      "/v1/sync-runs/synthetic-run-1"
+    );
+
+    // Still terminal -> zero automatic polling after reload detail GET
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(transportReload.sentRequests).toHaveLength(1);
+  });
+
+  it("never auto-POSTs or silently issues a new key on empty list, empty 403, 5xx, or 409 IDEMPOTENCY_KEY_EXPIRED (create & retry) over real 127.0.0.1 HTTP", async () => {
+    const user = userEvent.setup();
+
+    // --- 1. Empty list, empty 403 (unauthorized repo), and real 502 on recovery GET ---
+    await resetStub({
+      resources: [
+        [WORKSPACE_ID, REPO_1.repoId],
+        [WORKSPACE_ID, REPO_2.repoId],
+      ],
+      actor: {
+        workspace_id: WORKSPACE_ID,
+        allowed_resources: [REPO_1.repoId], // REPO_2 -> real empty 403
+      },
+    });
+    window.sessionStorage.clear();
+
+    const transport1 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter1 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport1,
+    });
+    const mount1 = render(
+      <ImportJourneyApp adapter={adapter1} harness={adapter1} pollIntervalMs={25} />
+    );
+
+    // Empty list on mount + explicit check -> idle state, zero POST
+    await screen.findByTestId("check-repository-status-button");
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("reload-recovery-notice")).toHaveTextContent(
+        "빈 조회만으로 실패를 확정하지 않으며"
+      );
+    });
+
+    // Empty 403 on unauthorized REPO_2 recovery GET -> neutral banner, zero POST
+    await user.click(screen.getByRole("radio", { name: /design-tokens-kit/i }));
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "request_rejected"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "HTTP 403"
+    );
+
+    // Real 502 over 127.0.0.1 on REPO_1 recovery GET -> uncertain_outcome, zero POST
+    await user.click(screen.getByRole("radio", { name: /ledger-engine/i }));
+    await queueStubHttpResponse({
+      status: 502,
+      body: "",
+      method: "GET",
+      pathPrefix: "/v1/sync-runs?",
+    });
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "uncertain_outcome"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "HTTP 502"
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const stateAfterReadErrors = await getStubState();
+    expect(
+      stateAfterReadErrors.request_log.filter((entry) => entry.method === "POST")
+    ).toHaveLength(0);
+    mount1.unmount();
+
+    // --- 2. Real 409 IDEMPOTENCY_KEY_EXPIRED on create (after 25h clock advance) & bodyless retry ---
+    await resetStub();
+    window.sessionStorage.clear();
+
+    const transport2 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter2 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport2,
+    });
+    render(
+      <ImportJourneyApp adapter={adapter2} harness={adapter2} pollIntervalMs={25} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // Create accepted by stub, response dropped -> WEB retains pending Idempotency-Key
+    transport2.queueAfterResponseHook(
+      ({ response }) => {
+        expect(response.status).toBe(202);
+        throw new Error("DROP_CREATE_BEFORE_EXPIRY");
+      },
+      (req) => req.method === "POST" && req.path === "/v1/sync-runs"
+    );
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "network_error"
+      );
+    });
+
+    // Advance CONTRACT FixtureStore clock by 25 hours (> 24h RECEIPT_RETENTION)
+    await advanceStubClock({ hours: 25 });
+
+    // Explicit resend sends the SAME key -> stub replies real 409 IDEMPOTENCY_KEY_EXPIRED
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "IDEMPOTENCY_KEY_EXPIRED"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+      "data-fault-kind",
+      "uncertain_outcome"
+    );
+
+    // Wait and confirm ZERO automatic POST and ZERO silent replacement key!
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const stateAfterCreateExpiry = await getStubState();
+    const createPosts = stateAfterCreateExpiry.request_log.filter(
+      (entry) => entry.method === "POST" && entry.path === "/v1/sync-runs"
+    );
+    expect(createPosts).toHaveLength(2);
+    expect(createPosts[0].status).toBe(202);
+    expect(createPosts[1].status).toBe(409);
+    expect(createPosts[1].idempotency_key).toBe(createPosts[0].idempotency_key);
+    expect(stateAfterCreateExpiry.run_count).toBe(1);
+
+    // User clicks "서버 상태 다시 확인" -> recovers synthetic-run-1 via read-only GET!
+    await user.click(
+      screen.getByRole("button", { name: "서버 상태 다시 확인" })
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    // Transition to retryable transientPartial -> test real 409 IDEMPOTENCY_KEY_EXPIRED on bodyless retry!
+    await observeRun({ runId: "synthetic-run-1", example: "transientPartial" });
+    await waitFor(() => {
+      expect(screen.getByTestId("retry-import-button")).toBeEnabled();
+    });
+
+    transport2.queueAfterResponseHook(
+      ({ response }) => {
+        expect(response.status).toBe(202);
+        throw new Error("DROP_RETRY_BEFORE_EXPIRY");
+      },
+      (req) =>
+        req.method === "POST" &&
+        req.path === "/v1/sync-runs/synthetic-run-1/retry"
+    );
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "network_error"
+      );
+    });
+
+    await advanceStubClock({ hours: 25 });
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "IDEMPOTENCY_KEY_EXPIRED"
+      );
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const stateAfterRetryExpiry = await getStubState();
+    const retryPosts = stateAfterRetryExpiry.request_log.filter(
+      (entry) =>
+        entry.method === "POST" &&
+        entry.path === "/v1/sync-runs/synthetic-run-1/retry"
+    );
+    expect(retryPosts).toHaveLength(2);
+    expect(retryPosts[0].status).toBe(202);
+    expect(retryPosts[1].status).toBe(409);
+    expect(retryPosts[1].body_length).toBe(0);
+    expect(retryPosts[1].idempotency_key).toBe(retryPosts[0].idempotency_key);
+    expect(stateAfterRetryExpiry.retry_replay_count).toBe(1);
+  });
+
+  it("rejects mismatched target_id/status_url in recovery GET response without polling mismatched path or auto-POSTing", async () => {
+    await resetStub();
+    await seedExistingRun({
+      repoId: REPO_1.repoId,
+      key: "00000000-0000-4000-8000-000000000601",
+    });
+
+    const transport = new LoopbackContractHttpTransport(contractUrl);
+    transport.queueAfterResponseHook(
+      ({ response }) => {
+        expect(response.status).toBe(200);
+        const parsed = JSON.parse(response.rawBody ?? "") as {
+          items: Array<{
+            target_id: string;
+            status_url: string;
+            import_status: Record<string, unknown>;
+          }>;
+        };
+        parsed.items[0].status_url = "/v1/sync-runs/synthetic-run-mismatch";
+        return {
+          ...response,
+          rawBody: JSON.stringify(parsed),
+        };
+      },
+      (req) => req.method === "GET" && req.path.startsWith("/v1/sync-runs?")
+    );
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport,
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={25} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "불일치"
+      );
+    });
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(
+      transport.sentRequests.some((req) =>
+        req.path.includes("synthetic-run-mismatch")
+      )
+    ).toBe(false);
+    expect(
+      transport.sentRequests.filter((req) => req.method === "POST")
+    ).toHaveLength(0);
+  });
+
+  it("discards late real 127.0.0.1 recovery GET responses arriving after repository switch or session change", async () => {
+    const user = userEvent.setup();
+
+    // --- Part A: Repository switch (REPO_1 -> REPO_2) while REPO_1 recovery GET is in flight ---
+    await resetStub();
+    window.sessionStorage.clear();
+
+    const transportRepo = new LoopbackContractHttpTransport(contractUrl);
+    const adapterRepo = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transportRepo,
+    });
+
+    const repoMount = render(
+      <ImportJourneyApp
+        adapter={adapterRepo}
+        harness={adapterRepo}
+        pollIntervalMs={25}
+      />
+    );
+
+    const repo2Radio = await screen.findByRole("radio", {
+      name: /design-tokens-kit/i,
+    });
+
+    // Seed an active run on REPO_1 after initial mount, then trigger a slow recovery GET for REPO_1
+    await seedExistingRun({
+      repoId: REPO_1.repoId,
+      key: "00000000-0000-4000-8000-000000000602",
+    });
+
+    const holdRepo1Lookup = createDeferred<void>();
+    let repo1LookupReachedStub = false;
+    transportRepo.queueAfterResponseHook(
+      async ({ response }) => {
+        expect(response.status).toBe(200);
+        repo1LookupReachedStub = true;
+        await holdRepo1Lookup.promise;
+        return response;
+      },
+      (req) =>
+        req.method === "GET" &&
+        req.path ===
+          `/v1/sync-runs?source_resource_id=${encodeURIComponent(REPO_1.repoId)}&limit=1`
+    );
+
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(repo1LookupReachedStub).toBe(true);
+    });
+
+    // Switch to REPO_2 while REPO_1 lookup is still in flight
+    await user.click(repo2Radio);
+    expect(repo2Radio).toBeChecked();
+
+    // Release REPO_1's late real 200 recovery response -> MUST be discarded!
+    holdRepo1Lookup.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(repo2Radio).toBeChecked();
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(
+      transportRepo.sentRequests.some(
+        (req) =>
+          req.method === "GET" && req.path === "/v1/sync-runs/synthetic-run-1"
+      )
+    ).toBe(false);
+    expect(
+      transportRepo.sentRequests.filter((req) => req.method === "POST")
+    ).toHaveLength(0);
+    repoMount.unmount();
+
+    // --- Part B: Session change (logout -> re-login) while Session 1 recovery GET is in flight ---
+    await resetStub();
+    window.sessionStorage.clear();
+
+    const transportSession = new LoopbackContractHttpTransport(contractUrl);
+    const adapterSession = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: false,
+      syncRunTransport: transportSession,
+    });
+
+    render(
+      <ImportJourneyApp
+        adapter={adapterSession}
+        harness={adapterSession}
+        pollIntervalMs={25}
+      />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await seedExistingRun({
+      repoId: REPO_1.repoId,
+      key: "00000000-0000-4000-8000-000000000603",
+    });
+
+    const holdSession1Lookup = createDeferred<void>();
+    let session1LookupReachedStub = false;
+    transportSession.queueAfterResponseHook(
+      async ({ response }) => {
+        expect(response.status).toBe(200);
+        session1LookupReachedStub = true;
+        await holdSession1Lookup.promise;
+        return response;
+      },
+      (req) => req.method === "GET" && req.path.startsWith("/v1/sync-runs?")
+    );
+
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(session1LookupReachedStub).toBe(true);
+    });
+
+    // Logout and sign in as Session 2 while Session 1's lookup is in flight
+    await user.click(screen.getByRole("button", { name: "모의 로그아웃" }));
+    expect(await screen.findByTestId("service-auth-badge")).toHaveTextContent(
+      "로그아웃"
+    );
+    await user.click(screen.getByRole("button", { name: "모의 서비스 로그인" }));
+    expect(await screen.findByTestId("service-auth-badge")).toHaveTextContent(
+      "로그인 활성"
+    );
+
+    // Release Session 1's late real 200 recovery response -> MUST be discarded!
+    holdSession1Lookup.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    const persisted = window.sessionStorage.getItem(
+      "career_memory_spike_web_import_v1"
+    );
+    expect(persisted ?? "").not.toContain("synthetic-run-1");
+    expect(
+      transportSession.sentRequests.some(
+        (req) =>
+          req.method === "GET" && req.path === "/v1/sync-runs/synthetic-run-1"
+      )
+    ).toBe(false);
+    expect(
+      transportSession.sentRequests.filter((req) => req.method === "POST")
+    ).toHaveLength(0);
   });
 });

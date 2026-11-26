@@ -87,6 +87,13 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       return this.handleCreateInitialImport(request, ctx, headers);
     }
 
+    if (
+      request.method === "GET" &&
+      (request.path === "/v1/sync-runs" || request.path.startsWith("/v1/sync-runs?"))
+    ) {
+      return this.handleRecoverRuns(request, ctx, headers);
+    }
+
     const retryMatch = request.path.match(/^\/v1\/sync-runs\/([^/?#]+)\/retry$/);
     if (request.method === "POST" && retryMatch) {
       const runId = decodeURIComponent(retryMatch[1]);
@@ -100,6 +107,36 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     }
 
     return { status: 404, headers, rawBody: "" };
+  }
+
+  private handleRecoverRuns(
+    request: SyntheticHttpRequest,
+    ctx: ReturnType<SyntheticOpenApiTransport["getContext"]>,
+    headers: Record<string, string>
+  ): SyntheticHttpResponse {
+    if (!ctx.isAuthenticated) {
+      return { status: 401, headers, rawBody: "" };
+    }
+
+    const queryIndex = request.path.indexOf("?");
+    const params = new URLSearchParams(
+      queryIndex >= 0 ? request.path.slice(queryIndex + 1) : ""
+    );
+    const sourceResourceId = params.get("source_resource_id");
+    const limit = params.get("limit") ?? "1";
+    if (!sourceResourceId || sourceResourceId.trim().length === 0 || limit !== "1") {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    return {
+      status: 200,
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        "Cache-Control": "private, no-store",
+      },
+      rawBody: JSON.stringify({ items: [] }),
+    };
   }
 
   private handleCreateInitialImport(

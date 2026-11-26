@@ -1,6 +1,7 @@
 """Test-only local HTTP runner for CONTRACT's FastAPI stub on 127.0.0.1.
 
-Strictly read-only against CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59:
+Strictly read-only against CONTRACT commit 1d754a5bc33cf166d92b1c1ce8568031859ff0a4
+(OpenAPI 0.3.0-draft):
 - Imports `FixtureActor`, `FixtureStore`, and `create_app` directly from CONTRACT's
   `spikes/import-contract/stub.py`.
 - Binds ONLY to 127.0.0.1 on OS-assigned ephemeral ports.
@@ -13,6 +14,7 @@ Strictly read-only against CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4ad
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 import json
 import os
 import signal
@@ -58,24 +60,50 @@ def build_actor(actor_spec: dict[str, Any] | None) -> FixtureActor | None:
 
 class HarnessState:
     def __init__(self) -> None:
-        self.store = FixtureStore(set())
+        self.clock_offset = timedelta(0)
+        self.store = FixtureStore(set(), clock=self.now)
         self.actor: FixtureActor | None = None
         self.app = create_app(self.store, self.actor)
         self.request_log: list[dict[str, Any]] = []
+        self.queued_http_responses: list[dict[str, Any]] = []
+
+    def now(self) -> datetime:
+        return datetime.now(UTC) + self.clock_offset
 
     def reset(
         self,
         resources: list[list[str]],
         actor_spec: dict[str, Any] | None,
     ) -> None:
-        self.store = FixtureStore({(ws, res) for ws, res in resources})
+        self.clock_offset = timedelta(0)
+        self.store = FixtureStore(
+            {(ws, res) for ws, res in resources},
+            clock=self.now,
+        )
         self.actor = build_actor(actor_spec)
         self.app = create_app(self.store, self.actor)
         self.request_log = []
+        self.queued_http_responses = []
 
     def set_actor(self, actor_spec: dict[str, Any] | None) -> None:
         self.actor = build_actor(actor_spec)
         self.app = create_app(self.store, self.actor)
+
+    def advance_clock(self, *, hours: float = 0.0, seconds: float = 0.0) -> None:
+        self.clock_offset += timedelta(hours=hours, seconds=seconds)
+
+    def pop_matching_queued_response(
+        self, method: str, full_path: str
+    ) -> dict[str, Any] | None:
+        for idx, spec in enumerate(self.queued_http_responses):
+            expected_method = spec.get("method")
+            expected_prefix = spec.get("path_prefix")
+            if expected_method and expected_method != method:
+                continue
+            if expected_prefix and not full_path.startswith(expected_prefix):
+                continue
+            return self.queued_http_responses.pop(idx)
+        return None
 
 
 state = HarnessState()
@@ -84,25 +112,79 @@ state = HarnessState()
 async def contract_asgi_proxy(scope, receive, send):
     """Forwards HTTP traffic directly to CONTRACT's untouched `create_app` instance.
 
-    Records method/path/Idempotency-Key/body_length/status in memory for test
-    assertions. Does NOT inspect or forward any synthetic identity headers.
+    Records method/path/query_string/Idempotency-Key/body_length/status in memory
+    for test assertions. Does NOT inspect or forward any synthetic identity headers.
     """
     if scope["type"] != "http":
         await state.app(scope, receive, send)
         return
 
+    query_string = scope.get("query_string", b"").decode("latin1")
+    full_path = f"{scope['path']}?{query_string}" if query_string else scope["path"]
+    headers_map = {
+        k.decode("latin1").lower(): v.decode("latin1")
+        for k, v in scope.get("headers", [])
+    }
+
+    queued = state.pop_matching_queued_response(scope["method"], full_path)
+    if queued is not None:
+        # Drain request body cleanly before replying with injected HTTP error
+        body_len = 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.request":
+                body_len += len(message.get("body", b""))
+                if not message.get("more_body", False):
+                    break
+            else:
+                break
+
+        raw_body = str(queued.get("body", "")).encode("utf-8")
+        response_headers: list[tuple[bytes, bytes]] = []
+        if queued.get("content_type"):
+            response_headers.append(
+                (b"content-type", str(queued["content_type"]).encode("latin1"))
+            )
+        response_headers.append((b"content-length", str(len(raw_body)).encode("latin1")))
+        status_code = int(queued["status"])
+
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status_code,
+                "headers": response_headers,
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": raw_body,
+                "more_body": False,
+            }
+        )
+        state.request_log.append(
+            {
+                "method": scope["method"],
+                "path": scope["path"],
+                "query_string": query_string,
+                "full_path": full_path,
+                "idempotency_key": headers_map.get("idempotency-key"),
+                "request_id": headers_map.get("x-request-id"),
+                "body_length": body_len,
+                "status": status_code,
+                "injected": True,
+            }
+        )
+        return
+
     body_chunks: list[bytes] = []
-    body_complete = False
 
     async def recording_receive():
-        nonlocal body_complete
         message = await receive()
         if message["type"] == "http.request":
             body = message.get("body", b"")
             if body:
                 body_chunks.append(body)
-            if not message.get("more_body", False):
-                body_complete = True
         return message
 
     status_code_holder: dict[str, int | None] = {"status": None}
@@ -114,18 +196,17 @@ async def contract_asgi_proxy(scope, receive, send):
 
     await state.app(scope, recording_receive, recording_send)
 
-    headers_map = {
-        k.decode("latin1").lower(): v.decode("latin1")
-        for k, v in scope.get("headers", [])
-    }
     state.request_log.append(
         {
             "method": scope["method"],
             "path": scope["path"],
+            "query_string": query_string,
+            "full_path": full_path,
             "idempotency_key": headers_map.get("idempotency-key"),
             "request_id": headers_map.get("x-request-id"),
             "body_length": sum(len(chunk) for chunk in body_chunks),
             "status": status_code_holder["status"],
+            "injected": False,
         }
     )
 
@@ -147,6 +228,31 @@ async def control_reset(request: Request):
 async def control_set_actor(request: Request):
     body = await request.json()
     state.set_actor(body.get("actor"))
+    return {"ok": True}
+
+
+@control_app.post("/__control/advance-clock")
+async def control_advance_clock(request: Request):
+    body = await request.json()
+    state.advance_clock(
+        hours=float(body.get("hours", 0.0)),
+        seconds=float(body.get("seconds", 0.0)),
+    )
+    return {"ok": True, "now": state.now().isoformat()}
+
+
+@control_app.post("/__control/queue-http-response")
+async def control_queue_http_response(request: Request):
+    body = await request.json()
+    state.queued_http_responses.append(
+        {
+            "status": int(body["status"]),
+            "body": body.get("body", ""),
+            "content_type": body.get("content_type"),
+            "method": body.get("method"),
+            "path_prefix": body.get("path_prefix"),
+        }
+    )
     return {"ok": True}
 
 
@@ -198,6 +304,7 @@ def control_state():
             "retry_replay_count": len(retry_replays),
             "runs": runs_snapshot,
             "request_log": list(state.request_log),
+            "clock_offset_seconds": state.clock_offset.total_seconds(),
         }
 
 

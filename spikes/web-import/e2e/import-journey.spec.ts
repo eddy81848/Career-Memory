@@ -154,6 +154,9 @@ test.describe("Career Memory initial import UI prototype (browser E2E)", () => {
     await expect(page.getByTestId("run-status-badge")).toHaveText(
       "부분 결과 — 전체 성공 아님"
     );
+    await expect(page.getByTestId("import-ready-badge")).toContainText(
+      "import_ready: false"
+    );
     await expect(page.getByTestId("retry-import-button")).toHaveCount(0);
 
     await maybeCapture(page, "02_partial_non_retryable.png");
@@ -184,6 +187,9 @@ test.describe("Career Memory initial import UI prototype (browser E2E)", () => {
     await expect(page.getByTestId("run-status-banner")).toHaveAttribute(
       "data-run-status",
       "limit_reached"
+    );
+    await expect(page.getByTestId("import-ready-badge")).toContainText(
+      "import_ready: false"
     );
     await expect(page.getByTestId("retry-import-button")).toHaveCount(0);
   });

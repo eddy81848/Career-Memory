@@ -315,10 +315,10 @@ function buildTerminalRunForScenario(params: {
           progressMessage:
             "일부 스냅샷만 수집된 부분 결과입니다. 누락 항목이 있어 전체 성공으로 간주하지 않습니다.",
           readiness: {
-            importReady: true,
+            importReady: false,
             importReadyState: "partial",
             importReadySummary:
-              "부분 스냅샷만 저장됨 (import_ready=true이나 누락 존재 — 전체 성공 아님)",
+              "부분 스냅샷만 수집됨 (PARTIAL -> import_ready=false, 전체 성공 아님)",
             derivedAllReady: false,
             derivedStages: [
               {
@@ -437,10 +437,10 @@ function buildTerminalRunForScenario(params: {
           progressMessage:
             "MVP 일회성 최초 가져오기 최대 수집 상한에 도달하여 더 이상 수집할 수 없습니다.",
           readiness: {
-            importReady: true,
+            importReady: false,
             importReadyState: "partial",
             importReadySummary:
-              "상한선(최대 200 커밋)까지만 절단 저장됨 — 전체 이력 성공 아님",
+              "상한선(최대 200 커밋)에 의해 절단 수집됨 (PARTIAL_WITH_LIMIT -> import_ready=false)",
             derivedAllReady: false,
             derivedStages: [
               {

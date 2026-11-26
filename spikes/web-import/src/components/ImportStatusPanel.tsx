@@ -308,10 +308,10 @@ export function ImportStatusPanel({
                   data-testid="import-ready-badge"
                 >
                   {activeRun.readiness.importReady
-                    ? activeRun.readiness.importReadyState === "partial"
-                      ? "import_ready: true (부분)"
-                      : "import_ready: true (준비 완료)"
-                    : "import_ready: false (미준비)"}
+                    ? "import_ready: true (준비 완료)"
+                    : activeRun.readiness.importReadyState === "partial"
+                      ? "import_ready: false (부분 수집 — 미준비)"
+                      : "import_ready: false (미준비)"}
                 </span>
               </div>
               <p className="subcard__body">

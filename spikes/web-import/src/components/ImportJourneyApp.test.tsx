@@ -498,4 +498,489 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       "seoyeon-lab-demo/design-tokens-kit"
     );
   });
+
+  it("keeps polling and eventually succeeds when server returns identical runId, status, and updatedAt multiple times", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_full",
+    });
+
+    const FIXED_TIMESTAMP = "2026-11-26T12:00:00.000Z";
+    let identicalPollCalls = 0;
+
+    const originalStart = adapter.startInitialImport.bind(adapter);
+    let frozenRunningRun: RunSyncPayload["run"] | null = null;
+
+    adapter.startInitialImport = async (input: StartInitialImportInput) => {
+      const res = await originalStart(input);
+      if (res.ok) {
+        frozenRunningRun = {
+          ...res.data.run,
+          startedAt: FIXED_TIMESTAMP,
+          updatedAt: FIXED_TIMESTAMP,
+        };
+        return {
+          ok: true,
+          data: {
+            ...res.data,
+            run: structuredClone(frozenRunningRun),
+          },
+        };
+      }
+      return res;
+    };
+
+    adapter.pollImportRun = async () => {
+      identicalPollCalls += 1;
+      // Return identical runId, status="running", and updatedAt twice in a row
+      if (identicalPollCalls <= 2 && frozenRunningRun) {
+        return {
+          ok: true,
+          data: {
+            run: structuredClone(frozenRunningRun),
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        data: {
+          run: {
+            ...frozenRunningRun!,
+            status: "succeeded",
+            updatedAt: "2026-11-26T12:00:05.000Z",
+            progressMessage: "동일 응답 반복 후 최종 완료",
+            readiness: {
+              importReady: true,
+              importReadyState: "ready",
+              importReadySummary: "원본 스냅샷 완료",
+              derivedAllReady: true,
+              derivedStages: [
+                {
+                  key: "event_normalization",
+                  label: "작업 이벤트 정규화",
+                  status: "ready",
+                  detail: "완료",
+                },
+                {
+                  key: "timeline_indexing",
+                  label: "타임라인 준비",
+                  status: "ready",
+                  detail: "완료",
+                },
+              ],
+            },
+          },
+        },
+      };
+    };
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+          "data-run-status",
+          "succeeded"
+        );
+      },
+      { timeout: 600 }
+    );
+
+    expect(identicalPollCalls).toBe(3);
+  });
+
+  it("enforces strictly single-flight polling even when timer elapses and manual refresh is clicked", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+
+    let activePolls = 0;
+    let maxConcurrentPolls = 0;
+    let totalPolls = 0;
+    const firstPollGate = createControlledDeferred<void>();
+    const originalPoll = adapter.pollImportRun.bind(adapter);
+
+    adapter.pollImportRun = async (runId: string) => {
+      totalPolls += 1;
+      activePolls += 1;
+      maxConcurrentPolls = Math.max(maxConcurrentPolls, activePolls);
+      try {
+        if (totalPolls === 1) {
+          await firstPollGate.promise;
+        }
+        return await originalPoll(runId);
+      } finally {
+        activePolls -= 1;
+      }
+    };
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(totalPolls).toBe(1);
+    });
+
+    // While poll #1 is still in flight, click manual refresh and wait past pollIntervalMs
+    await user.click(screen.getByRole("button", { name: "상태 지금 다시 확인" }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(totalPolls).toBe(1);
+    expect(maxConcurrentPolls).toBe(1);
+
+    // Release poll #1 and allow run to complete cleanly
+    firstPollGate.resolve();
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(maxConcurrentPolls).toBe(1);
+
+    // Verify polling stops completely after terminal state
+    const callsAtTerminal = totalPolls;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(totalPolls).toBe(callsAtTerminal);
+  });
+
+  it("stops polling immediately on session expiration, permission revocation, and screen unmount", async () => {
+    const user = userEvent.setup();
+
+    // Case A: Session expiration stops polling
+    const adapterSession = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+    const sessionRender = render(
+      <ImportJourneyApp
+        adapter={adapterSession}
+        harness={adapterSession}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "세션 만료 시뮬레이션" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("service-auth-badge")).toHaveTextContent(
+        "세션 만료"
+      );
+    });
+    const pollsAfterSessionExpired = adapterSession.pollCallCount;
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    expect(adapterSession.pollCallCount).toBe(pollsAfterSessionExpired);
+    sessionRender.unmount();
+
+    // Case B: Permission revocation stops polling
+    const adapterRevoked = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+    const revokedRender = render(
+      <ImportJourneyApp
+        adapter={adapterRevoked}
+        harness={adapterRevoked}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "권한 상실 시뮬레이션" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("github-connection-badge")).toHaveTextContent(
+        "권한 상실"
+      );
+    });
+    const pollsAfterRevoked = adapterRevoked.pollCallCount;
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    expect(adapterRevoked.pollCallCount).toBe(pollsAfterRevoked);
+    revokedRender.unmount();
+
+    // Case C: Screen unmount cancels pending polling timer
+    const adapterUnmount = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+    const unmountRender = render(
+      <ImportJourneyApp
+        adapter={adapterUnmount}
+        harness={adapterUnmount}
+        pollIntervalMs={25}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+    const pollsBeforeUnmount = adapterUnmount.pollCallCount;
+    unmountRender.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(adapterUnmount.pollCallCount).toBe(pollsBeforeUnmount);
+  });
+
+  it("ignores a late poll response from a previous run so it never overwrites the current run", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+
+    const stalePollGate = createControlledDeferred<void>();
+    let staleRunIdCaptured: string | null = null;
+    const originalBootstrap = adapter.bootstrapSession.bind(adapter);
+
+    adapter.pollImportRun = async (runId: string) => {
+      staleRunIdCaptured = runId;
+      await stalePollGate.promise;
+      // Late response from the old run arrives with failed status
+      return {
+        ok: true,
+        data: {
+          run: {
+            runId,
+            repositoryId: "repo_demo_ledger_01",
+            repositoryFullName: "seoyeon-lab-demo/ledger-engine",
+            status: "failed",
+            attemptNumber: 1,
+            startedAt: "2026-11-26T12:00:00.000Z",
+            updatedAt: "2026-11-26T12:00:02.000Z",
+            progressMessage: "이전 작업의 늦은 실패 응답",
+            readiness: {
+              importReady: false,
+              importReadyState: "failed",
+              importReadySummary: "실패",
+              derivedAllReady: false,
+              derivedStages: [],
+            },
+            retryPolicy: {
+              allowed: false,
+              reason: "실패",
+              nextAllowedAt: null,
+            },
+            summary: null,
+            partialDetail: null,
+            limitDetail: null,
+            error: {
+              code: "MOCK_STALE_LATE_FAILURE",
+              title: "늦게 도착한 이전 작업 오류",
+              message: "현재 화면을 덮어쓰면 안 됩니다.",
+              actionGuidance: "무시되어야 함",
+            },
+          },
+        },
+      };
+    };
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(staleRunIdCaptured).not.toBeNull();
+    });
+
+    // While run_demo_101 poll is still pending, reload recovery returns a newer succeeded run
+    adapter.bootstrapSession = async (options) => {
+      const base = await originalBootstrap(options);
+      if (!base.ok) return base;
+      return {
+        ok: true,
+        data: {
+          ...base.data,
+          latestRun: {
+            runId: "run_demo_202",
+            repositoryId: "repo_demo_ledger_01",
+            repositoryFullName: "seoyeon-lab-demo/ledger-engine",
+            status: "succeeded",
+            attemptNumber: 2,
+            startedAt: "2026-11-26T12:01:00.000Z",
+            updatedAt: "2026-11-26T12:01:10.000Z",
+            progressMessage: "최신 작업 완료",
+            readiness: {
+              importReady: true,
+              importReadyState: "ready",
+              importReadySummary: "원본 스냅샷 완료",
+              derivedAllReady: true,
+              derivedStages: [
+                {
+                  key: "event_normalization",
+                  label: "작업 이벤트 정규화",
+                  status: "ready",
+                  detail: "완료",
+                },
+                {
+                  key: "timeline_indexing",
+                  label: "타임라인 준비",
+                  status: "ready",
+                  detail: "완료",
+                },
+              ],
+            },
+            retryPolicy: {
+              allowed: false,
+              reason: "이미 완료",
+              nextAllowedAt: null,
+            },
+            summary: {
+              commitsCaptured: 142,
+              pullRequestsCaptured: 28,
+              capturedAt: "2026-11-26T12:01:10.000Z",
+            },
+            partialDetail: null,
+            limitDetail: null,
+            error: null,
+          },
+        },
+      };
+    };
+
+    await user.click(screen.getByRole("button", { name: "새로고침 복구 확인" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "run_demo_202"
+      );
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    // Now release the late poll response from run_demo_101
+    stalePollGate.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    // Current run_demo_202 succeeded screen must remain intact!
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+      "run_demo_202"
+    );
+    expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-run-status",
+      "succeeded"
+    );
+    expect(screen.queryByTestId("error-detail-box")).not.toBeInTheDocument();
+  });
+
+  it("does not automatically start a new import when status polling fails with a network error", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "running_slow_for_reload",
+    });
+
+    render(
+      <ImportJourneyApp
+        adapter={adapter}
+        harness={adapter}
+        pollIntervalMs={5_000}
+      />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Inject network error on status poll
+    await user.click(
+      screen.getByRole("button", { name: "다음 조회 네트워크 오류 주입" })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "상태 조회 중 네트워크 실패"
+      );
+    });
+
+    // Wait briefly and assert NO automatic new import request was created
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(adapter.startImportCallCount).toBe(1);
+  });
+
+  it("marks import_ready=false for both PARTIAL and PARTIAL_WITH_LIMIT outcomes", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "partial_non_retryable",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={20} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "partial"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: false (부분 수집 — 미준비)"
+    );
+
+    await user.click(screen.getByRole("button", { name: "진행 결과 초기화" }));
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "limit_cap_blocked"
+    );
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "limit_reached"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: false (부분 수집 — 미준비)"
+    );
+  });
 });

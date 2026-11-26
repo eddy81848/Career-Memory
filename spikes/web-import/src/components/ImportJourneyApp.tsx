@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useReducer, useRef } from "react";
+import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type {
   ImportServiceAdapter,
   PrototypeHarnessControls,
@@ -52,22 +52,57 @@ export function ImportJourneyApp({
     createInitialImportJourneyState
   );
 
-  // Synchronous locks to prevent rapid double-click / double-Enter races
+  // Monotonic poll tick incremented after each completed "running" poll so
+  // the next poll is always scheduled even when runId/status/updatedAt are unchanged.
+  const [pollCycle, setPollCycle] = useState(0);
+
+  // Lifecycle, concurrency, and stale-response guards
+  const isMountedRef = useRef(true);
   const inFlightSubmitRef = useRef(false);
   const inFlightPollRef = useRef(false);
+  const pollTimerRef = useRef<number | null>(null);
+  const operationTokenRef = useRef(0);
+  const activeRunIdRef = useRef<string | null>(null);
   const requestNonceRef = useRef(0);
+
+  const clearPollTimer = useCallback(() => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  const invalidateInFlightOperations = useCallback((): number => {
+    clearPollTimer();
+    operationTokenRef.current += 1;
+    return operationTokenRef.current;
+  }, [clearPollTimer]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      operationTokenRef.current += 1;
+      clearPollTimer();
+    };
+  }, [clearPollTimer]);
 
   const runBootstrap = useCallback(
     async (simulateReload = false) => {
+      const token = invalidateInFlightOperations();
       dispatch({ type: "BOOTSTRAP_START" });
       const result = await adapter.bootstrapSession({ simulateReload });
+      if (!isMountedRef.current || token !== operationTokenRef.current) {
+        return;
+      }
       if (result.ok) {
+        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
         dispatch({ type: "BOOTSTRAP_SUCCESS", payload: result.data });
       } else {
         dispatch({ type: "BOOTSTRAP_NETWORK_ERROR", fault: result.fault });
       }
     },
-    [adapter]
+    [adapter, invalidateInFlightOperations]
   );
 
   useEffect(() => {
@@ -76,25 +111,61 @@ export function ImportJourneyApp({
 
   const pollOnce = useCallback(
     async (runId: string, showRefreshingBanner: boolean) => {
+      // Strictly allow only one status poll in flight at a time.
       if (inFlightPollRef.current) {
         return;
       }
+      // Cancel any pending scheduled timer before starting (e.g. manual refresh).
+      clearPollTimer();
       inFlightPollRef.current = true;
+
+      const token = operationTokenRef.current;
       if (showRefreshingBanner) {
         dispatch({
           type: "REFRESH_STATUS_START",
           label: `서버에서 작업(${runId}) 최신 상태를 확인하고 있습니다.`,
         });
       }
+
       try {
         const result = await adapter.pollImportRun(runId);
+
+        // Discard late/stale responses after unmount, run switch, reset, or auth/connection change.
+        if (
+          !isMountedRef.current ||
+          token !== operationTokenRef.current ||
+          activeRunIdRef.current !== runId
+        ) {
+          return;
+        }
+
         if (result.ok) {
+          const updatedRun = result.data.run;
+          const updatedGitHubStatus = result.data.githubConnection?.status;
+
+          // Double-check runId consistency against current active run.
+          if (activeRunIdRef.current !== updatedRun.runId) {
+            return;
+          }
+
           dispatch({
             type: "RUN_UPDATED_FROM_SERVER",
-            run: result.data.run,
+            run: updatedRun,
             githubConnection: result.data.githubConnection,
           });
+
+          // Schedule next poll even if runId/status/updatedAt did not change,
+          // unless the run reached a non-running state or GitHub permission was revoked.
+          if (
+            updatedRun.status === "running" &&
+            updatedGitHubStatus !== "permission_revoked" &&
+            updatedGitHubStatus !== "disconnected"
+          ) {
+            setPollCycle((cycle) => cycle + 1);
+          }
         } else {
+          // Never auto-convert a poll error into a new import request; stop polling
+          // and surface the unconfirmed fault for explicit user recovery.
           dispatch({
             type: "UNCONFIRMED_FAULT",
             fault: result.fault,
@@ -105,14 +176,19 @@ export function ImportJourneyApp({
         inFlightPollRef.current = false;
       }
     },
-    [adapter]
+    [adapter, clearPollTimer]
   );
 
-  // Auto-poll when a run is actively running and there is no active unconfirmed fault
+  // Schedule the next single-flight status poll while actively running.
+  // Stops immediately on terminal state, session expiration, permission revocation,
+  // unconfirmed fault, or screen unmount.
   useEffect(() => {
+    clearPollTimer();
+
     if (
       state.phase !== "ready" ||
       state.serviceAuth.status !== "authenticated" ||
+      state.githubConnection.status !== "connected" ||
       state.activeRun?.status !== "running" ||
       state.unconfirmedFault !== null
     ) {
@@ -120,22 +196,25 @@ export function ImportJourneyApp({
     }
 
     const activeRunId = state.activeRun.runId;
-    const timer = window.setTimeout(() => {
+    pollTimerRef.current = window.setTimeout(() => {
+      pollTimerRef.current = null;
       void pollOnce(activeRunId, false);
     }, pollIntervalMs);
 
     return () => {
-      window.clearTimeout(timer);
+      clearPollTimer();
     };
   }, [
     state.phase,
     state.serviceAuth.status,
+    state.githubConnection.status,
     state.activeRun?.runId,
     state.activeRun?.status,
-    state.activeRun?.updatedAt,
     state.unconfirmedFault,
+    pollCycle,
     pollIntervalMs,
     pollOnce,
+    clearPollTimer,
   ]);
 
   const handleScenarioChange = (scenarioId: PrototypeScenarioId) => {
@@ -144,12 +223,19 @@ export function ImportJourneyApp({
   };
 
   const handleSignInService = async () => {
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 로그인 응답을 기다리고 있습니다...",
     });
     const result = await adapter.signInService();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
+      if (result.data.latestRun !== undefined) {
+        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
+      }
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -168,11 +254,15 @@ export function ImportJourneyApp({
   };
 
   const handleSignOutService = async () => {
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 로그아웃 상태를 반영하는 중입니다...",
     });
     const result = await adapter.signOutService();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
@@ -188,11 +278,15 @@ export function ImportJourneyApp({
 
   const handleSimulateSessionExpired = async () => {
     if (!harness) return;
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 세션 만료 상태를 반영하는 중입니다...",
     });
     const result = await harness.simulateSessionExpired();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
@@ -204,12 +298,19 @@ export function ImportJourneyApp({
   };
 
   const handleConnectGitHub = async () => {
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 연결 응답을 기다리고 있습니다...",
     });
     const result = await adapter.connectGitHub();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
+      if (result.data.latestRun !== undefined) {
+        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
+      }
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -228,11 +329,15 @@ export function ImportJourneyApp({
   };
 
   const handleDisconnectGitHub = async () => {
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 연결 해제 상태를 반영하는 중입니다...",
     });
     const result = await adapter.disconnectGitHub();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
@@ -245,12 +350,19 @@ export function ImportJourneyApp({
 
   const handleSimulateGitHubRevoked = async () => {
     if (!harness) return;
+    const token = invalidateInFlightOperations();
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 권한 상실 상태를 반영하는 중입니다...",
     });
     const result = await harness.simulateGitHubPermissionRevoked();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
+      if (result.data.latestRun !== undefined) {
+        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
+      }
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
@@ -279,6 +391,7 @@ export function ImportJourneyApp({
     }
 
     inFlightSubmitRef.current = true;
+    const token = invalidateInFlightOperations();
     requestNonceRef.current += 1;
     const idempotencyKey = `ui_req_${state.selectedRepoId}_${requestNonceRef.current}`;
 
@@ -294,7 +407,12 @@ export function ImportJourneyApp({
         idempotencyKey,
       });
 
+      if (!isMountedRef.current || token !== operationTokenRef.current) {
+        return;
+      }
+
       if (result.ok) {
+        activeRunIdRef.current = result.data.run.runId;
         dispatch({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
@@ -322,6 +440,7 @@ export function ImportJourneyApp({
     }
 
     inFlightSubmitRef.current = true;
+    const token = invalidateInFlightOperations();
     const targetRunId = state.activeRun.runId;
     dispatch({
       type: "RETRY_IMPORT_START",
@@ -330,7 +449,11 @@ export function ImportJourneyApp({
 
     try {
       const result = await adapter.retryImportRun(targetRunId);
+      if (!isMountedRef.current || token !== operationTokenRef.current) {
+        return;
+      }
       if (result.ok) {
+        activeRunIdRef.current = result.data.run.runId;
         dispatch({
           type: "RUN_UPDATED_FROM_SERVER",
           run: result.data.run,
@@ -357,8 +480,13 @@ export function ImportJourneyApp({
       });
       return;
     }
+    const token = invalidateInFlightOperations();
     const result = await adapter.resetActiveRun();
+    if (!isMountedRef.current || token !== operationTokenRef.current) {
+      return;
+    }
     if (result.ok) {
+      activeRunIdRef.current = null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,

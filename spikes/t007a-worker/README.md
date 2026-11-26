@@ -19,7 +19,9 @@ Cloud Run 방식 결정(OD-012), 비동기 실행·복구·재시도(`T-007A`, `
 | [tests/test_t007c.py](tests/test_t007c.py) | `T-007C` 9개 만료 수거·재시도·격리 테스트 |
 | [tests/test_t007b_import.py](tests/test_t007b_import.py) | `T-007B` 8개 페이지/체크포인트·늦은 쓰기·실제 `SIGKILL`·`IMPORT_READY` 경쟁 테스트 |
 | [tests/test_t007e_option_c.py](tests/test_t007e_option_c.py) | `T-007E` 15개 방안 C 승인/Export 재검증·실패 분류·TOCTOU 경쟁·원문 비영속(`0`건 검출) 테스트 |
-| [evidence/t007a.json](evidence/t007a.json), [evidence/t007c.json](evidence/t007c.json), [evidence/t007b.json](evidence/t007b.json), [evidence/latest.json](evidence/latest.json) | 단계별 보존된 실행 증거(`16` → `25` → `33` → 최신 `48`건; 합성 원문 표식 미포함) |
+| [tests/test_r05_containers.py](tests/test_r05_containers.py) | `RUNTIME-05` 기존 [Dockerfile](Dockerfile) 단일 이미지 빌드 후 API·Worker 컨테이너 분리 기동, 정상 수렴 및 Worker 컨테이너 일시 중단·재기동·복구 검증 (`t007a-r05-*` 전용 리소스 자동 정리) |
+| [T007F_HOSTED_EXPERIMENT_PLAN.md](T007F_HOSTED_EXPERIMENT_PLAN.md) | `T-007F` 최소 호스팅 실험 설계(권한·cold start·timeout/종료 재개·Supabase Pooler), Cloudflare Proxy vs Tunnel 비교, 무료 범위 안전 게이트(**현재 `NO-GO`**) |
+| [evidence/t007a.json](evidence/t007a.json), [evidence/t007c.json](evidence/t007c.json), [evidence/t007b.json](evidence/t007b.json), [evidence/t007e.json](evidence/t007e.json), [evidence/latest.json](evidence/latest.json) | 단계별 보존된 실행 증거(`16` → `25` → `33` → `48` → 컨테이너 포함 최신 `49`건) |
 
 ## 로컬 재현
 
@@ -27,7 +29,7 @@ Cloud Run 방식 결정(OD-012), 비동기 실행·복구·재시도(`T-007A`, `
 cd spikes/t007a-worker
 uv venv .venv && uv pip install -p .venv -r requirements.txt
 
-# 실제 로컬 일회성 PostgreSQL 전체 테스트 (기존 33건 + T-007E 15건 = 총 48건)
+# 실제 로컬 일회성 PostgreSQL + 로컬 Docker 컨테이너 전체 테스트 (총 49건)
 unset T007A_TEST_DSN T007A_DATABASE_URL
 .venv/bin/python -m pytest -v -p no:warnings
 ```
@@ -54,4 +56,4 @@ unset T007A_TEST_DSN T007A_DATABASE_URL
 
 - **제품 전체 경로 및 `B-004` 미완료**: 본 검증은 로컬 합성 Provider 기반 런타임 스파이크이며, 실제 GitHub API 연동·렌더러·감사 정책·UI/API 계약을 포함한 제품 전체 경로 검증이나 `B-004` 완료가 아닙니다.
 - **제품 `Idempotency-Key` 범위·보존 기간 (`T-105` / `T-106` 승인 대기)**, **외부 부작용 송신 직후 프로세스 종료 위험 및 `REVIEW_REQUIRED` 수동 해제**는 별도 후속 항목으로 유지합니다.
-- **호스팅 환경(Cloud Run + Supabase PostgreSQL) 미실행 항목**: 호스팅된 **Supabase PostgreSQL** 실제 연결 및 Supavisor pooler, `T-007D` RLS 역할 결합, Cloud Run IAM/OIDC, cold start, timeout/`SIGTERM`, Docker 빌드·기동, 비용·승인 검증은 **실행하지 않았습니다(미검증)**.
+- **호스팅 환경(Cloud Run + Supabase PostgreSQL) 미실행 항목 (`NO-GO` 유지)**: 로컬 Docker 단일 이미지 API/Worker 기동·중단·복구(`tests/test_r05_containers.py`)까지만 확인했으며, Artifact Registry 업로드, 호스팅된 **Supabase PostgreSQL** 실제 연결 및 Supavisor pooler(`:6543`), `T-007D` RLS 역할 결합, Cloud Run IAM/OIDC, scale-to-zero cold start, 호출자 timeout/`SIGTERM`, 계정별 잔여 무료 한도·배포 승인은 **실행하지 않았습니다(미검증, [T007F_HOSTED_EXPERIMENT_PLAN.md](T007F_HOSTED_EXPERIMENT_PLAN.md) 기준 `NO-GO`)**.

@@ -78,7 +78,7 @@
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "8a78ab38-bf23-4d99-bf31-99c6c6671993": "acknowledged"
+            "21100c21-dac3-43b2-9a67-7855dd855e06": "acknowledged"
           }
         },
         "after_recovery": {
@@ -112,6 +112,110 @@
               "SUCCEEDED": 1
             }
           }
+        }
+      }
+    },
+    {
+      "case": "test_dockerfile_single_image_api_and_worker_happy_and_stop_recover",
+      "phases": {
+        "container_happy_path": {
+          "jobs": [
+            {
+              "id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            }
+          ],
+          "results_count": 1,
+          "attempts_count": 1
+        },
+        "during_worker_container_stopped": {
+          "jobs": [
+            {
+              "id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            },
+            {
+              "id": "5db02ccc-fc09-4bf5-b0eb-8a353a75bbe9",
+              "status": "PENDING",
+              "attempts": 0
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            },
+            {
+              "job_id": "5db02ccc-fc09-4bf5-b0eb-8a353a75bbe9",
+              "status": "PENDING",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": "wake_failed:ConnectError"
+            }
+          ],
+          "results_count": 1,
+          "attempts_count": 1
+        },
+        "container_recover_response": {
+          "selected": 1,
+          "reaped": 0,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "5db02ccc-fc09-4bf5-b0eb-8a353a75bbe9": "acknowledged"
+          }
+        },
+        "after_worker_container_restarted_and_recovered": {
+          "jobs": [
+            {
+              "id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            },
+            {
+              "id": "5db02ccc-fc09-4bf5-b0eb-8a353a75bbe9",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "c2b449bd-fc2a-4627-ab81-045028c53eda",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            },
+            {
+              "job_id": "5db02ccc-fc09-4bf5-b0eb-8a353a75bbe9",
+              "status": "DONE",
+              "dispatch_attempts": 2,
+              "recovery_attempts": 1,
+              "last_error": null
+            }
+          ],
+          "results_count": 2,
+          "attempts_count": 2
+        },
+        "docker_cleanup_verified": {
+          "remaining_run_containers": 0,
+          "remaining_run_networks": 0,
+          "remaining_run_images": 0,
+          "remaining_r05_volumes": 0
         }
       }
     },
@@ -2200,7 +2304,7 @@
               "intent_type": "IMPORT_READY",
               "plan_id": "plan-repo-alpha-v1",
               "attempt_no": 1,
-              "worker_id": "w-finalizer-4",
+              "worker_id": "w-finalizer-7",
               "total_items": 6
             }
           ],
@@ -2307,7 +2411,7 @@
           "acknowledged": 0,
           "failed": 0,
           "jobs": {
-            "4d1cacc9-fd97-41cb-ba86-528a916ada05": "reaped_failed"
+            "b943d69b-a2bb-476d-8317-faf5326b9962": "reaped_failed"
           }
         },
         "after_recover_1": {
@@ -3223,7 +3327,7 @@
           "acknowledged": 1,
           "failed": 0,
           "jobs": {
-            "b4802466-63f1-436d-a1c0-45bec24054cc": "acknowledged"
+            "25aedeb1-c885-4df2-9dec-7a038655db56": "acknowledged"
           }
         },
         "after_recovery": {
@@ -3777,7 +3881,7 @@
   ],
   "pg_source": "ephemeral initdb cluster (/opt/homebrew/opt/postgresql@18/bin), unix socket only, deleted after run",
   "server_version": "18.3 (Homebrew)",
-  "generated_at": "2026-11-26T04:34:53+00:00",
+  "generated_at": "2026-11-26T04:47:06+00:00",
   "python": "3.14.3",
   "psycopg": "3.3.9"
 }

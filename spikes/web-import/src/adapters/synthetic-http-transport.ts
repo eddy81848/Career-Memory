@@ -130,8 +130,46 @@ export function parseOptionalJsonBody<T>(
   }
 }
 
+export function extractRunIdFromRelativeStatusUrl(
+  statusUrl: string
+): string | null {
+  if (typeof statusUrl !== "string") {
+    return null;
+  }
+  const match = statusUrl.match(/^\/v1\/sync-runs\/([^/?#]+)$/);
+  if (!match) {
+    return null;
+  }
+  try {
+    const decoded = decodeURIComponent(match[1]);
+    if (
+      decoded.trim().length === 0 ||
+      decoded === "." ||
+      decoded === ".." ||
+      decoded.includes("/") ||
+      decoded.includes("\\")
+    ) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function isValidRelativeStatusUrl(statusUrl: string): boolean {
-  return /^\/v1\/sync-runs\/[^/?#]+$/.test(statusUrl);
+  return extractRunIdFromRelativeStatusUrl(statusUrl) !== null;
+}
+
+export function doesStatusUrlMatchTargetId(
+  statusUrl: string,
+  targetId: string
+): boolean {
+  if (typeof targetId !== "string" || targetId.trim().length === 0) {
+    return false;
+  }
+  const extractedRunId = extractRunIdFromRelativeStatusUrl(statusUrl);
+  return extractedRunId !== null && extractedRunId === targetId;
 }
 
 function mapStreams(streams?: StreamProgressDto[]): StreamProgressViewModel[] | undefined {

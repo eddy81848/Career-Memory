@@ -1,3 +1,4 @@
+import { MockFixtureImportAdapter } from "./mock-fixture-adapter";
 import { describe, expect, it } from "vitest";
 import { ContractSyncRunClient } from "./contract-sync-run-client";
 import { SYNTHETIC_PUBLIC_REPOSITORIES } from "./fixtures";
@@ -455,5 +456,529 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].method).toBe("GET");
     expect(requests.some((r) => r.method === "POST")).toBe(false);
+  });
+
+  describe("WEB-04 uncertain outcome Idempotency-Key preservation", () => {
+    it("preserves Idempotency-Key on explicit create resend after 502 when server already accepted the first request", async () => {
+      let acceptedKey: string | null = null;
+      const acceptedRunId = "synthetic-run-committed-before-502";
+      const { transport, requests } = createScriptedTransport([
+        // 1st POST: server commits the run under this key, but gateway returns 502
+        (req) => {
+          acceptedKey = req.headers["Idempotency-Key"];
+          return {
+            status: 502,
+            rawBody: "Bad Gateway",
+          };
+        },
+        // 2nd explicit POST: server replays 202 ONLY if the exact same key is resent
+        (req) => {
+          if (req.headers["Idempotency-Key"] === acceptedKey) {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_type: "SYNC_RUN",
+                target_id: acceptedRunId,
+                status_url: `/v1/sync-runs/${acceptedRunId}`,
+              }),
+            };
+          }
+          return {
+            status: 409,
+            rawBody: JSON.stringify({
+              error: { code: "SYNC_ALREADY_RUNNING" },
+            }),
+          };
+        },
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.createInitialImport({ repo: REPO_A });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(502);
+        expect(first.fault.serverConfirmed).toBe(false);
+      }
+      // No automatic second POST
+      expect(requests).toHaveLength(1);
+
+      const second = await client.createInitialImport({ repo: REPO_A });
+      expect(requests).toHaveLength(2);
+      expect(requests[0].headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(second.ok).toBe(true);
+      if (second.ok) {
+        expect(second.data.run.runId).toBe(acceptedRunId);
+        expect(second.data.run.status).toBe("running");
+      }
+    });
+
+    it("preserves Idempotency-Key on explicit create resend after 202 missing required fields (server already accepted)", async () => {
+      let acceptedKey: string | null = null;
+      const acceptedRunId = "synthetic-run-damaged-202";
+      const { transport, requests } = createScriptedTransport([
+        // 1st POST: server committed run, but 202 response body is missing status_url
+        (req) => {
+          acceptedKey = req.headers["Idempotency-Key"];
+          return {
+            status: 202,
+            rawBody: JSON.stringify({
+              status: "PENDING",
+              target_id: acceptedRunId,
+              // status_url intentionally missing
+            }),
+          };
+        },
+        // 2nd POST: still missing target_id -> still unverifiable, must keep key
+        (req) => {
+          expect(req.headers["Idempotency-Key"]).toBe(acceptedKey);
+          return {
+            status: 202,
+            rawBody: JSON.stringify({
+              status: "PENDING",
+              status_url: `/v1/sync-runs/${acceptedRunId}`,
+              // target_id intentionally missing
+            }),
+          };
+        },
+        // 3rd POST: server replays complete 202 for the same key
+        (req) => {
+          if (req.headers["Idempotency-Key"] === acceptedKey) {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: acceptedRunId,
+                status_url: `/v1/sync-runs/${acceptedRunId}`,
+              }),
+            };
+          }
+          return { status: 409, rawBody: "" };
+        },
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.createInitialImport({ repo: REPO_A });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(202);
+        expect(first.fault.serverConfirmed).toBe(false);
+      }
+      expect(requests).toHaveLength(1);
+
+      const second = await client.createInitialImport({ repo: REPO_A });
+      expect(second.ok).toBe(false);
+      if (!second.ok) {
+        expect(second.kind).toBe("uncertain_outcome");
+        expect(second.fault.httpStatus).toBe(202);
+        expect(second.fault.serverConfirmed).toBe(false);
+      }
+      expect(requests).toHaveLength(2);
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+
+      const third = await client.createInitialImport({ repo: REPO_A });
+      expect(requests).toHaveLength(3);
+      expect(requests[2].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(third.ok).toBe(true);
+      if (third.ok) {
+        expect(third.data.run.runId).toBe(acceptedRunId);
+      }
+    });
+
+    it("preserves Idempotency-Key on explicit bodyless retry resend after 502 when server already accepted the retry", async () => {
+      const originalRunId = "synthetic-run-retry-502";
+      let acceptedRetryKey: string | null = null;
+      const { transport, requests } = createScriptedTransport([
+        // 1st bodyless retry: server accepted retry, gateway returned 502
+        (req) => {
+          acceptedRetryKey = req.headers["Idempotency-Key"];
+          return {
+            status: 502,
+            rawBody: "",
+          };
+        },
+        // 2nd explicit bodyless retry: replays 202 ONLY for the same Idempotency-Key
+        (req) => {
+          if (req.headers["Idempotency-Key"] === acceptedRetryKey) {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_type: "SYNC_RUN",
+                target_id: originalRunId,
+                status_url: `/v1/sync-runs/${originalRunId}`,
+              }),
+            };
+          }
+          return {
+            status: 409,
+            rawBody: JSON.stringify({
+              error: { code: "SYNC_ALREADY_RUNNING" },
+            }),
+          };
+        },
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(502);
+        expect(first.fault.serverConfirmed).toBe(false);
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0].body).toBeUndefined();
+
+      const second = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(requests).toHaveLength(2);
+      expect(requests[1].body).toBeUndefined();
+      expect(requests[0].headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(second.ok).toBe(true);
+      if (second.ok) {
+        expect(second.data.run.runId).toBe(originalRunId);
+      }
+    });
+
+    it("preserves Idempotency-Key on explicit bodyless retry resend after 202 missing required fields", async () => {
+      const originalRunId = "synthetic-run-retry-bad-202";
+      let acceptedRetryKey: string | null = null;
+      const { transport, requests } = createScriptedTransport([
+        // 1st bodyless retry: server committed retry, 202 body missing status_url
+        (req) => {
+          acceptedRetryKey = req.headers["Idempotency-Key"];
+          return {
+            status: 202,
+            rawBody: JSON.stringify({
+              status: "PENDING",
+              target_id: originalRunId,
+            }),
+          };
+        },
+        // 2nd explicit bodyless retry: server replays full 202 on matching key
+        (req) => {
+          if (req.headers["Idempotency-Key"] === acceptedRetryKey) {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: originalRunId,
+                status_url: `/v1/sync-runs/${originalRunId}`,
+              }),
+            };
+          }
+          return { status: 409, rawBody: "" };
+        },
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(202);
+        expect(first.fault.serverConfirmed).toBe(false);
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0].body).toBeUndefined();
+
+      const second = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(requests).toHaveLength(2);
+      expect(requests[1].body).toBeUndefined();
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(second.ok).toBe(true);
+      if (second.ok) {
+        expect(second.data.run.runId).toBe(originalRunId);
+      }
+    });
+
+    it("never reuses Idempotency-Key across different auth scopes, different targets, or different operations", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // 0: create REPO_A in scope-1 -> 502
+        () => ({ status: 502, rawBody: "" }),
+        // 1: create REPO_A in scope-2 (different auth scope) -> 502
+        () => ({ status: 502, rawBody: "" }),
+        // 2: create REPO_B in scope-2 (different target) -> 502
+        () => ({ status: 502, rawBody: "" }),
+        // 3: retry run-1 in scope-2 (different operation) -> 502
+        () => ({ status: 502, rawBody: "" }),
+        // 4: retry run-2 in scope-2 (different retry target) -> 502
+        () => ({ status: 502, rawBody: "" }),
+        // 5: retry run-2 in scope-3 (different auth scope) -> 401 (clears keys)
+        () => ({ status: 401, rawBody: "" }),
+        // 6: retry run-2 in scope-3 again after 401 -> 202
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            target_id: "run-2",
+            status_url: "/v1/sync-runs/run-2",
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({
+        transport,
+        initialAuthScope: "scope-1",
+      });
+
+      await client.createInitialImport({ repo: REPO_A });
+      client.setAuthScope("scope-2");
+      await client.createInitialImport({ repo: REPO_A });
+      await client.createInitialImport({ repo: REPO_B });
+      await client.retryInitialImport({ runId: "run-1", repo: REPO_A });
+      await client.retryInitialImport({ runId: "run-2", repo: REPO_A });
+      await client.retryInitialImport({
+        runId: "run-2",
+        repo: REPO_A,
+        authScope: "scope-3",
+      });
+      await client.retryInitialImport({
+        runId: "run-2",
+        repo: REPO_A,
+        authScope: "scope-3",
+      });
+
+      expect(requests).toHaveLength(7);
+      const uniqueKeys = new Set(
+        requests.map((r) => r.headers["Idempotency-Key"])
+      );
+      expect(uniqueKeys.size).toBe(7);
+      for (const req of requests) {
+        expect(req.headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
+      }
+    });
+
+    it("rejects create 202 when status_url does not point to target_id, never polls mismatched path, and keeps Idempotency-Key", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // 1st POST: status_url points to a different run than target_id
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "synthetic-run-A",
+            status_url: "/v1/sync-runs/synthetic-run-B",
+          }),
+        }),
+        // 2nd POST: non-relative/query status_url -> still rejected
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "synthetic-run-A",
+            status_url: "/v1/sync-runs/synthetic-run-A?evil=1",
+          }),
+        }),
+        // 3rd POST: valid matching 202
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "synthetic-run-A",
+            status_url: "/v1/sync-runs/synthetic-run-A",
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.createInitialImport({ repo: REPO_A });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(202);
+        expect(first.fault.serverConfirmed).toBe(false);
+      }
+      // Must NOT have polled /v1/sync-runs/synthetic-run-B or stored it
+      expect(requests).toHaveLength(1);
+      expect(requests.some((r) => r.method === "GET")).toBe(false);
+      expect(client.getStatusUrl("synthetic-run-A")).toBe(
+        "/v1/sync-runs/synthetic-run-A"
+      );
+
+      const second = await client.createInitialImport({ repo: REPO_A });
+      expect(second.ok).toBe(false);
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+
+      const third = await client.createInitialImport({ repo: REPO_A });
+      expect(third.ok).toBe(true);
+      expect(requests[2].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      if (third.ok) {
+        expect(third.data.run.runId).toBe("synthetic-run-A");
+        expect(third.data.run.statusUrl).toBe("/v1/sync-runs/synthetic-run-A");
+      }
+    });
+
+    it("rejects retry 202 when target_id differs from original run or status_url mismatches, never navigates or polls wrong run, and keeps Idempotency-Key", async () => {
+      const originalRunId = "synthetic-run-orig";
+      const { transport, requests } = createScriptedTransport([
+        // 1st retry: target_id points to a DIFFERENT run
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "synthetic-run-other",
+            status_url: "/v1/sync-runs/synthetic-run-other",
+          }),
+        }),
+        // 2nd retry: target_id matches original, but status_url points to different run
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: originalRunId,
+            status_url: "/v1/sync-runs/synthetic-run-other",
+          }),
+        }),
+        // 3rd retry: valid 202 for original run
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: originalRunId,
+            status_url: `/v1/sync-runs/${originalRunId}`,
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const first = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(first.ok).toBe(false);
+      if (!first.ok) {
+        expect(first.kind).toBe("uncertain_outcome");
+        expect(first.fault.httpStatus).toBe(202);
+        expect(first.fault.serverConfirmed).toBe(false);
+        expect(first.fault.message).toContain("다른 실행으로 이동하지 않았으며");
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests.some((r) => r.method === "GET")).toBe(false);
+
+      const second = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(second.ok).toBe(false);
+      expect(requests).toHaveLength(2);
+      expect(requests[1].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(client.getStatusUrl(originalRunId)).toBe(
+        `/v1/sync-runs/${originalRunId}`
+      );
+
+      const third = await client.retryInitialImport({
+        runId: originalRunId,
+        repo: REPO_A,
+      });
+      expect(third.ok).toBe(true);
+      expect(requests[2].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      if (third.ok) {
+        expect(third.data.run.runId).toBe(originalRunId);
+      }
+    });
+
+    it("never converts GET 5xx poll failure into a new POST /v1/sync-runs request", async () => {
+      const { transport, requests } = createScriptedTransport([
+        () => ({ status: 502, rawBody: "Bad Gateway" }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+      const res = await client.getImportStatus({
+        runId: "synthetic-run-poll-502",
+        repo: REPO_A,
+      });
+
+      expect(res.ok).toBe(false);
+      if (!res.ok) {
+        expect(res.kind).toBe("uncertain_outcome");
+        expect(res.fault.httpStatus).toBe(502);
+        expect(res.fault.serverConfirmed).toBe(false);
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0].method).toBe("GET");
+      expect(requests.some((r) => r.method === "POST")).toBe(false);
+    });
+
+    it("does NOT persist pending Idempotency-Key across reload (fresh adapter instance over shared sessionStorage)", async () => {
+      window.sessionStorage.clear();
+      const observedKeys: string[] = [];
+
+      const transport: SyntheticHttpTransport = {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            observedKeys.push(req.headers["Idempotency-Key"]);
+          }
+          return { status: 502, rawBody: "" };
+        },
+      };
+
+      const beforeReload = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: false,
+        syncRunTransport: transport,
+      });
+
+      const res1 = await beforeReload.startInitialImport({ repoId: REPO_A.repoId });
+      expect(res1.ok).toBe(false);
+      expect(observedKeys).toHaveLength(1);
+
+      // Verify persisted prototype snapshot does NOT contain the pending key
+      const persistedRaw = window.sessionStorage.getItem(
+        "career_memory_spike_web_import_v1"
+      );
+      expect(persistedRaw ?? "").not.toContain(observedKeys[0]);
+
+      // Simulate browser reload with a brand new adapter instance reading the same sessionStorage
+      const afterReload = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: false,
+        syncRunTransport: transport,
+      });
+
+      const res2 = await afterReload.startInitialImport({ repoId: REPO_A.repoId });
+      expect(res2.ok).toBe(false);
+      expect(observedKeys).toHaveLength(2);
+      expect(observedKeys[1]).not.toBe(observedKeys[0]);
+      window.sessionStorage.clear();
+    });
   });
 });

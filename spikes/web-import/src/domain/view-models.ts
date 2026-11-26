@@ -184,6 +184,7 @@ export interface UnconfirmedFaultViewModel {
   kind:
     | "session_expired"
     | "network_error"
+    | "uncertain_outcome"
     | "duplicate_conflict"
     | "request_rejected";
   httpStatus?: number;

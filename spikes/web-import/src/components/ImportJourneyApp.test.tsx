@@ -1230,4 +1230,384 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(capturedKeys).toHaveLength(2);
     expect(capturedKeys[0]).toBe(capturedKeys[1]);
   });
+
+  it("shows 502 on create as uncertain_outcome without auto-POST and reuses Idempotency-Key on explicit resend (server already accepted)", async () => {
+    const user = userEvent.setup();
+    const capturedKeys: string[] = [];
+    let acceptedKey: string | null = null;
+    const committedRunId = "synthetic-run-ui-502-replay";
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            const key = req.headers["Idempotency-Key"];
+            capturedKeys.push(key);
+            if (!acceptedKey) {
+              acceptedKey = key;
+              return { status: 502, rawBody: "Bad Gateway" };
+            }
+            if (key === acceptedKey) {
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: committedRunId,
+                  status_url: `/v1/sync-runs/${committedRunId}`,
+                }),
+              };
+            }
+            return {
+              status: 409,
+              rawBody: JSON.stringify({
+                error: { code: "SYNC_ALREADY_RUNNING" },
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === `/v1/sync-runs/${committedRunId}`) {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-ui-502",
+                import_ready: true,
+                processing_status: "COMPLETE",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "uncertain_outcome"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "처리 여부 미확정 (HTTP 502)"
+    );
+    // Must NOT display as success or confirmed failure
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+
+    // Wait briefly and verify zero automatic POST occurred
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(capturedKeys).toHaveLength(1);
+
+    // Explicit user resend reuses exact same Idempotency-Key and replays 202 -> succeeds
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(capturedKeys).toHaveLength(2);
+    expect(capturedKeys[1]).toBe(capturedKeys[0]);
+  });
+
+  it("handles bodyless retry 502 and mismatched retry 202 without moving runs or auto-POSTing, then succeeds on explicit resend with same key", async () => {
+    const user = userEvent.setup();
+    const originalRunId = "synthetic-run-ui-retry-guard";
+    const retryKeys: string[] = [];
+    const retryBodies: Array<string | undefined> = [];
+    const getPaths: string[] = [];
+    let retryAttempt = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: originalRunId,
+                status_url: `/v1/sync-runs/${originalRunId}`,
+              }),
+            };
+          }
+          if (req.method === "POST" && req.path === `/v1/sync-runs/${originalRunId}/retry`) {
+            retryKeys.push(req.headers["Idempotency-Key"]);
+            retryBodies.push(req.body);
+            retryAttempt += 1;
+            if (retryAttempt === 1) {
+              return { status: 502, rawBody: "" };
+            }
+            if (retryAttempt === 2) {
+              // Mismatched target_id pointing to a different run!
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: "synthetic-run-hijack-999",
+                  status_url: "/v1/sync-runs/synthetic-run-hijack-999",
+                }),
+              };
+            }
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: originalRunId,
+                status_url: `/v1/sync-runs/${originalRunId}`,
+              }),
+            };
+          }
+          if (req.method === "GET") {
+            getPaths.push(req.path);
+            if (retryAttempt < 3) {
+              return {
+                status: 200,
+                rawBody: JSON.stringify({
+                  status: "PARTIAL",
+                  plan_id: "synthetic-plan-retry-guard",
+                  failure_reason: "UPSTREAM_TEMP_ERROR",
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  source_drift: false,
+                  retry: { allowed: true, from_safe_checkpoint: true },
+                }),
+              };
+            }
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-retry-guard",
+                import_ready: true,
+                processing_status: "COMPLETE",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "partial"
+      );
+    });
+
+    // 1st explicit bodyless retry -> 502 uncertain_outcome, stays on originalRunId
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "처리 여부 미확정 (HTTP 502)"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(originalRunId);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(retryKeys).toHaveLength(1);
+
+    // 2nd explicit bodyless retry -> mismatched 202 (other run), must NOT navigate or poll other run
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "처리 여부 미확정 (HTTP 202)"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveTextContent(originalRunId);
+    expect(screen.getByTestId("run-status-banner")).not.toHaveTextContent(
+      "synthetic-run-hijack-999"
+    );
+    expect(getPaths).not.toContain("/v1/sync-runs/synthetic-run-hijack-999");
+
+    // 3rd explicit bodyless retry -> valid 202 for originalRunId -> succeeds
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    expect(retryKeys).toHaveLength(3);
+    expect(retryKeys[1]).toBe(retryKeys[0]);
+    expect(retryKeys[2]).toBe(retryKeys[0]);
+    expect(retryBodies).toEqual([undefined, undefined, undefined]);
+    expect(getPaths).not.toContain("/v1/sync-runs/synthetic-run-hijack-999");
+  });
+
+  it("rotates Idempotency-Key after auth scope change (sign out and re-login) following a 502", async () => {
+    const user = userEvent.setup();
+    const capturedKeys: string[] = [];
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            capturedKeys.push(req.headers["Idempotency-Key"]);
+            if (capturedKeys.length === 1) {
+              return { status: 502, rawBody: "" };
+            }
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: "synthetic-run-new-session",
+                status_url: "/v1/sync-runs/synthetic-run-new-session",
+              }),
+            };
+          }
+          return {
+            status: 200,
+            rawBody: JSON.stringify({
+              status: "SUCCESS",
+              plan_id: "synthetic-plan-new-session",
+              import_ready: true,
+              processing_status: "COMPLETE",
+              source_drift: false,
+              retry: { allowed: false },
+            }),
+          };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "uncertain_outcome"
+      );
+    });
+
+    // Change auth scope: sign out then sign back in
+    await user.click(screen.getByRole("button", { name: "모의 로그아웃" }));
+    expect(await screen.findByTestId("service-auth-badge")).toHaveTextContent(
+      "로그아웃"
+    );
+    await user.click(screen.getByRole("button", { name: "모의 서비스 로그인" }));
+    expect(await screen.findByTestId("service-auth-badge")).toHaveTextContent(
+      "로그인 활성"
+    );
+
+    // Resend in the NEW auth scope -> MUST NOT reuse the old session's key
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    expect(capturedKeys).toHaveLength(2);
+    expect(capturedKeys[1]).not.toBe(capturedKeys[0]);
+  });
+
+  it("blocks polling mismatched status_url on create 202 in UI and recovers on explicit resend with same key", async () => {
+    const user = userEvent.setup();
+    const capturedKeys: string[] = [];
+    const getPaths: string[] = [];
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            capturedKeys.push(req.headers["Idempotency-Key"]);
+            if (capturedKeys.length === 1) {
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: "synthetic-run-real",
+                  status_url: "/v1/sync-runs/synthetic-run-wrong",
+                }),
+              };
+            }
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: "synthetic-run-real",
+                status_url: "/v1/sync-runs/synthetic-run-real",
+              }),
+            };
+          }
+          if (req.method === "GET") {
+            getPaths.push(req.path);
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                plan_id: "synthetic-plan-real",
+                import_ready: true,
+                processing_status: "COMPLETE",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "접수 응답 경로 불일치"
+      );
+    });
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(getPaths).toHaveLength(0);
+
+    // Explicit resend reuses same key and polls ONLY the matching status_url
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+
+    expect(capturedKeys).toHaveLength(2);
+    expect(capturedKeys[1]).toBe(capturedKeys[0]);
+    expect(getPaths).toEqual(["/v1/sync-runs/synthetic-run-real"]);
+  });
 });

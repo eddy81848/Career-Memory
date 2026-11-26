@@ -7,8 +7,8 @@ import type {
 import type { AdapterResult } from "./import-service-adapter";
 import {
   buildAcceptedPendingRunViewModel,
+  doesStatusUrlMatchTargetId,
   generateUuidV4,
-  isValidRelativeStatusUrl,
   mapImportStatusDtoToViewModel,
   parseOptionalJsonBody,
   type ImportConflictDto,
@@ -27,6 +27,8 @@ import {
  *   - POST /v1/sync-runs/{id}/retry
  *
  * Uses SyntheticHttpTransport (in-memory synthetic HTTP only; no real network).
+ * Pending Idempotency-Keys are kept strictly in memory (never persisted across
+ * reloads) and scoped to (authScope, request kind, target/payload).
  */
 
 export interface ContractRunSyncResult {
@@ -35,13 +37,35 @@ export interface ContractRunSyncResult {
 }
 
 interface PendingCreateKey {
-  sourceResourceId: string;
+  authScope: string;
+  requestFingerprint: string;
   idempotencyKey: string;
 }
 
 interface PendingRetryKey {
+  authScope: string;
   runId: string;
   idempotencyKey: string;
+}
+
+type UnverifiableAcceptedReason =
+  | "missing_required_fields"
+  | "status_url_mismatch"
+  | "retry_target_mismatch";
+
+function isServerErrorStatus(status: number): boolean {
+  return status >= 500 && status <= 599;
+}
+
+function isSafeRunId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value !== "." &&
+    value !== ".." &&
+    !value.includes("/") &&
+    !value.includes("\\")
+  );
 }
 
 export class ContractSyncRunClient {
@@ -55,6 +79,7 @@ export class ContractSyncRunClient {
     { repo: PublicRepositoryOption; attemptNumber: number; startedAt: string }
   >();
 
+  private currentAuthScope: string;
   private pendingCreateKey: PendingCreateKey | null = null;
   private pendingRetryKey: PendingRetryKey | null = null;
   private requestCounter = 0;
@@ -63,10 +88,19 @@ export class ContractSyncRunClient {
     transport: SyntheticHttpTransport;
     keyGenerator?: () => string;
     nowProvider?: () => string;
+    initialAuthScope?: string;
   }) {
     this.transport = options.transport;
     this.keyGenerator = options.keyGenerator ?? generateUuidV4;
     this.nowProvider = options.nowProvider ?? (() => new Date().toISOString());
+    this.currentAuthScope = options.initialAuthScope ?? "default";
+  }
+
+  public setAuthScope(authScope: string): void {
+    if (authScope !== this.currentAuthScope) {
+      this.currentAuthScope = authScope;
+      this.clearPendingKeys();
+    }
   }
 
   public registerKnownRun(
@@ -74,7 +108,7 @@ export class ContractSyncRunClient {
     repo: PublicRepositoryOption
   ): void {
     const statusUrl =
-      run.statusUrl && isValidRelativeStatusUrl(run.statusUrl)
+      run.statusUrl && doesStatusUrlMatchTargetId(run.statusUrl, run.runId)
         ? run.statusUrl
         : `/v1/sync-runs/${encodeURIComponent(run.runId)}`;
     this.statusUrlByRunId.set(run.runId, statusUrl);
@@ -100,6 +134,116 @@ export class ContractSyncRunClient {
   private nextRequestId(): string {
     this.requestCounter += 1;
     return `synthetic-web-req-${this.requestCounter}`;
+  }
+
+  private validateAcceptedResponse(
+    rawBody: string | undefined,
+    expectedRunId?: string
+  ):
+    | { ok: true; accepted: SyncRunAcceptedDto }
+    | { ok: false; reason: UnverifiableAcceptedReason } {
+    const parsed = parseOptionalJsonBody<SyncRunAcceptedDto>(rawBody);
+    if (
+      parsed.empty ||
+      parsed.invalidJson ||
+      !parsed.value ||
+      typeof parsed.value !== "object" ||
+      Array.isArray(parsed.value)
+    ) {
+      return { ok: false, reason: "missing_required_fields" };
+    }
+
+    const { target_id: targetId, status_url: statusUrl } = parsed.value;
+    if (
+      typeof targetId !== "string" ||
+      targetId.trim().length === 0 ||
+      typeof statusUrl !== "string" ||
+      statusUrl.trim().length === 0
+    ) {
+      return { ok: false, reason: "missing_required_fields" };
+    }
+
+    if (!doesStatusUrlMatchTargetId(statusUrl, targetId)) {
+      return { ok: false, reason: "status_url_mismatch" };
+    }
+
+    if (expectedRunId !== undefined && targetId !== expectedRunId) {
+      return { ok: false, reason: "retry_target_mismatch" };
+    }
+
+    return { ok: true, accepted: parsed.value };
+  }
+
+  private buildUncertainServerErrorFault(
+    status: number,
+    operation: "create" | "retry" | "poll"
+  ): UnconfirmedFaultViewModel {
+    if (operation === "poll") {
+      return {
+        kind: "uncertain_outcome",
+        httpStatus: status,
+        title: `상태 조회 응답 미확정 (HTTP ${status})`,
+        message: `서버 오류 응답(HTTP ${status})으로 실행 상태를 확인할 수 없습니다. 성공이나 확정 실패로 표시하지 않았으며, 새 가져오기 요청은 보내지 않았습니다.`,
+        serverConfirmed: false,
+        actionGuidance:
+          "새 가져오기를 다시 요청하지 말고 잠시 후 상태를 직접 다시 조회해 주세요.",
+      };
+    }
+
+    const actionLabel =
+      operation === "retry" ? "동일 실행 재시도" : "동일 저장소 최초 가져오기";
+
+    return {
+      kind: "uncertain_outcome",
+      httpStatus: status,
+      title: `서버 응답 미확정 — 처리 여부 확인 필요 (HTTP ${status})`,
+      message: `서버 오류 응답(HTTP ${status})으로 ${actionLabel} 처리 여부를 확인할 수 없습니다. 이미 서버에서 접수되었을 수 있으므로 성공이나 확정 실패로 표시하지 않으며, 자동으로 다시 요청하지 않습니다.`,
+      serverConfirmed: false,
+      actionGuidance: `같은 세션에서 ${actionLabel}를 직접 다시 요청하면 동일한 Idempotency-Key가 재사용됩니다. 먼저 서버 상태를 확인하거나 직접 다시 요청하세요.`,
+    };
+  }
+
+  private buildUnverifiableAcceptedFault(
+    operation: "create" | "retry",
+    reason: UnverifiableAcceptedReason
+  ): UnconfirmedFaultViewModel {
+    const actionLabel =
+      operation === "retry" ? "동일 실행 재시도" : "동일 저장소 최초 가져오기";
+
+    if (reason === "retry_target_mismatch") {
+      return {
+        kind: "uncertain_outcome",
+        httpStatus: 202,
+        title: "재시도 접수 응답의 실행 ID 불일치 — 처리 여부 미확정 (HTTP 202)",
+        message:
+          "202 응답의 target_id가 재시도 대상 원래 실행 ID와 일치하지 않아 접수 결과를 검증할 수 없습니다. 해당 경로로 조회하거나 다른 실행으로 이동하지 않았으며, 성공이나 확정 실패로 표시하지 않습니다.",
+        serverConfirmed: false,
+        actionGuidance:
+          "다른 실행으로 이동하지 않았습니다. 같은 세션에서 동일 실행 재시도를 직접 다시 요청하면 기존 Idempotency-Key가 재사용됩니다.",
+      };
+    }
+
+    if (reason === "status_url_mismatch") {
+      return {
+        kind: "uncertain_outcome",
+        httpStatus: 202,
+        title: "접수 응답 경로 불일치 — 처리 여부 미확정 (HTTP 202)",
+        message:
+          "202 응답의 status_url이 target_id와 같은 실행을 가리키지 않아 접수 결과를 검증할 수 없습니다. 해당 경로로 조회하거나 다른 실행으로 이동하지 않았으며, 성공이나 확정 실패로 표시하지 않습니다.",
+        serverConfirmed: false,
+        actionGuidance: `같은 세션에서 ${actionLabel}를 직접 다시 요청하면 기존 Idempotency-Key가 재사용됩니다. 먼저 서버 상태를 확인하거나 직접 다시 요청하세요.`,
+      };
+    }
+
+    return {
+      kind: "uncertain_outcome",
+      httpStatus: 202,
+      title: "접수 응답 검증 불가 — 처리 여부 미확정 (HTTP 202)",
+      message:
+        "202 응답에 필수 필드(target_id, status_url)가 누락되었거나 형식을 확인할 수 없어 접수 결과를 검증할 수 없습니다. 이미 서버에서 처리되었을 수 있으므로 성공이나 확정 실패로 표시하지 않으며, 자동으로 다시 요청하지 않습니다.",
+      serverConfirmed: false,
+      actionGuidance: `같은 세션에서 ${actionLabel}를 직접 다시 요청하면 동일한 Idempotency-Key가 재사용됩니다. 먼저 서버 상태를 확인하거나 직접 다시 요청하세요.`,
+    };
   }
 
   private buildNeutralHttpFault(status: number): UnconfirmedFaultViewModel {
@@ -205,8 +349,8 @@ export class ContractSyncRunClient {
 
     if (code === "SYNC_ALREADY_RUNNING") {
       const existingRunId = details?.existing_run_id;
-      // Navigate to the existing run ONLY when existing_run_id is explicitly provided!
-      if (typeof existingRunId === "string" && existingRunId.trim().length > 0) {
+      // Navigate to the existing run ONLY when a valid existing_run_id is explicitly provided!
+      if (isSafeRunId(existingRunId)) {
         const existingStatusUrl = `/v1/sync-runs/${encodeURIComponent(existingRunId)}`;
         this.statusUrlByRunId.set(existingRunId, existingStatusUrl);
         this.runMetadata.set(existingRunId, {
@@ -264,19 +408,30 @@ export class ContractSyncRunClient {
    */
   public async createInitialImport(params: {
     repo: PublicRepositoryOption;
+    authScope?: string;
   }): Promise<AdapterResult<ContractRunSyncResult>> {
+    const effectiveAuthScope = params.authScope ?? this.currentAuthScope;
     const sourceResourceId = params.repo.repoId;
-    const idempotencyKey =
-      this.pendingCreateKey &&
-      this.pendingCreateKey.sourceResourceId === sourceResourceId
-        ? this.pendingCreateKey.idempotencyKey
-        : this.keyGenerator();
-
-    this.pendingCreateKey = { sourceResourceId, idempotencyKey };
-
     const bodyDto: InitialImportRequestDto = {
       source_resource_id: sourceResourceId,
       mode: "INITIAL_BACKFILL",
+    };
+    const requestFingerprint = JSON.stringify(bodyDto);
+
+    // Different logical operation -> never keep unrelated retry key
+    this.pendingRetryKey = null;
+
+    const idempotencyKey =
+      this.pendingCreateKey &&
+      this.pendingCreateKey.authScope === effectiveAuthScope &&
+      this.pendingCreateKey.requestFingerprint === requestFingerprint
+        ? this.pendingCreateKey.idempotencyKey
+        : this.keyGenerator();
+
+    this.pendingCreateKey = {
+      authScope: effectiveAuthScope,
+      requestFingerprint,
+      idempotencyKey,
     };
 
     let response: SyntheticHttpResponse;
@@ -289,11 +444,12 @@ export class ContractSyncRunClient {
           "Idempotency-Key": idempotencyKey,
           "X-Request-ID": this.nextRequestId(),
         },
-        body: JSON.stringify(bodyDto),
+        body: requestFingerprint,
       });
     } catch {
-      // Response lost: KEEP pendingCreateKey so resending the exact same logical
-      // request reuses the exact same UUID Idempotency-Key!
+      // Network/lost response: KEEP pendingCreateKey in memory so an explicit
+      // user resend of the exact same request in the same auth scope reuses
+      // the exact same UUID Idempotency-Key. Never auto-POST.
       return {
         ok: false,
         kind: "network_error",
@@ -301,37 +457,32 @@ export class ContractSyncRunClient {
           kind: "network_error",
           title: "네트워크 통신 실패 — 서버 응답 미수신",
           message:
-            "최초 가져오기 접수 응답을 받지 못했습니다. 작업 시작 여부가 확정되지 않았습니다.",
+            "최초 가져오기 접수 응답을 받지 못했습니다. 이미 서버에서 처리되었을 수 있으므로 성공이나 확정 실패로 표시하지 않으며, 자동으로 다시 요청하지 않습니다.",
           serverConfirmed: false,
           actionGuidance:
-            "같은 요청을 다시 보내면 동일한 Idempotency-Key가 재사용됩니다. 먼저 서버 상태를 확인하거나 동일 저장소로 다시 요청하세요.",
+            "같은 세션에서 동일 저장소로 직접 다시 요청하면 동일한 Idempotency-Key가 재사용됩니다. 먼저 서버 상태를 확인하거나 직접 다시 요청하세요.",
         },
       };
     }
 
-    // Any HTTP response was received -> clear pending key so future distinct
-    // requests use a fresh UUID.
-    this.pendingCreateKey = null;
-
     if (response.status === 202) {
-      const parsed = parseOptionalJsonBody<SyncRunAcceptedDto>(response.rawBody);
-      if (
-        parsed.empty ||
-        parsed.invalidJson ||
-        !parsed.value?.target_id ||
-        !parsed.value?.status_url ||
-        !isValidRelativeStatusUrl(parsed.value.status_url)
-      ) {
+      const validated = this.validateAcceptedResponse(response.rawBody);
+      if (!validated.ok) {
+        // Unverifiable/mismatched 202: outcome is uncertain!
+        // KEEP pendingCreateKey, do NOT poll status_url, do NOT move runs.
         return {
           ok: false,
-          kind: "request_rejected",
-          fault: this.buildNeutralHttpFault(202),
+          kind: "uncertain_outcome",
+          fault: this.buildUnverifiableAcceptedFault("create", validated.reason),
         };
       }
 
-      const accepted = parsed.value;
+      // Valid 202 confirmed -> clear pending key so subsequent distinct requests use a new UUID.
+      this.pendingCreateKey = null;
+
+      const accepted = validated.accepted;
       const nowIso = this.nowProvider();
-      // Track by target_id and status_url only (independent of optional job_id)
+      // Track by validated target_id and matching status_url (independent of optional job_id)
       this.statusUrlByRunId.set(accepted.target_id, accepted.status_url);
       this.runMetadata.set(accepted.target_id, {
         repo: params.repo,
@@ -350,13 +501,28 @@ export class ContractSyncRunClient {
       return { ok: true, data: { run } };
     }
 
+    if (isServerErrorStatus(response.status)) {
+      // 5xx (e.g. 502): server may already have committed the run before failing
+      // to return the response -> KEEP pendingCreateKey, do NOT auto-POST.
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildUncertainServerErrorFault(response.status, "create"),
+      };
+    }
+
     if (response.status === 401) {
+      // Auth scope rejected/expired -> never reuse pending keys across auth scopes.
+      this.clearPendingKeys();
       return {
         ok: false,
         kind: "session_expired",
         fault: this.buildSessionExpiredFault(),
       };
     }
+
+    // Definitive non-5xx client/conflict response -> clear pending key.
+    this.pendingCreateKey = null;
 
     if (response.status === 409) {
       return this.handleConflictResponse({
@@ -437,7 +603,16 @@ export class ContractSyncRunClient {
       return { ok: true, data: { run } };
     }
 
+    if (isServerErrorStatus(response.status)) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildUncertainServerErrorFault(response.status, "poll"),
+      };
+    }
+
     if (response.status === 401) {
+      this.clearPendingKeys();
       return {
         ok: false,
         kind: "session_expired",
@@ -459,13 +634,25 @@ export class ContractSyncRunClient {
     runId: string;
     repo: PublicRepositoryOption;
     previousRun?: ImportRunViewModel | null;
+    authScope?: string;
   }): Promise<AdapterResult<ContractRunSyncResult>> {
+    const effectiveAuthScope = params.authScope ?? this.currentAuthScope;
+
+    // Different logical operation -> never keep unrelated create key
+    this.pendingCreateKey = null;
+
     const idempotencyKey =
-      this.pendingRetryKey && this.pendingRetryKey.runId === params.runId
+      this.pendingRetryKey &&
+      this.pendingRetryKey.authScope === effectiveAuthScope &&
+      this.pendingRetryKey.runId === params.runId
         ? this.pendingRetryKey.idempotencyKey
         : this.keyGenerator();
 
-    this.pendingRetryKey = { runId: params.runId, idempotencyKey };
+    this.pendingRetryKey = {
+      authScope: effectiveAuthScope,
+      runId: params.runId,
+      idempotencyKey,
+    };
 
     let response: SyntheticHttpResponse;
     try {
@@ -479,8 +666,9 @@ export class ContractSyncRunClient {
         // OpenAPI 0.2.0-draft: retry request MUST omit request body
       });
     } catch {
-      // Response lost: KEEP pendingRetryKey so resending the exact same retry
-      // reuses the exact same UUID Idempotency-Key!
+      // Network/lost response: KEEP pendingRetryKey in memory so an explicit
+      // user resend of the exact same retry in the same auth scope reuses
+      // the exact same UUID Idempotency-Key. Never auto-POST.
       return {
         ok: false,
         kind: "network_error",
@@ -488,33 +676,33 @@ export class ContractSyncRunClient {
           kind: "network_error",
           title: "재시도 요청 중 네트워크 실패 — 서버 응답 미수신",
           message:
-            "재시도 접수 응답을 받지 못했습니다. 재시도 시작 여부가 확정되지 않았습니다.",
+            "재시도 접수 응답을 받지 못했습니다. 이미 서버에서 처리되었을 수 있으므로 성공이나 확정 실패로 표시하지 않으며, 자동으로 다시 요청하지 않습니다.",
           serverConfirmed: false,
           actionGuidance:
-            "같은 재시도를 다시 보내면 동일한 Idempotency-Key가 재사용됩니다. 먼저 상태를 확인하거나 다시 시도하세요.",
+            "같은 세션에서 동일 실행 재시도를 직접 다시 보내면 동일한 Idempotency-Key가 재사용됩니다. 먼저 상태를 확인하거나 직접 다시 시도하세요.",
         },
       };
     }
 
-    this.pendingRetryKey = null;
-
     if (response.status === 202) {
-      const parsed = parseOptionalJsonBody<SyncRunAcceptedDto>(response.rawBody);
-      if (
-        parsed.empty ||
-        parsed.invalidJson ||
-        !parsed.value?.target_id ||
-        !parsed.value?.status_url ||
-        !isValidRelativeStatusUrl(parsed.value.status_url)
-      ) {
+      const validated = this.validateAcceptedResponse(
+        response.rawBody,
+        params.runId
+      );
+      if (!validated.ok) {
+        // Unverifiable/mismatched 202 (including wrong target_id or status_url):
+        // KEEP pendingRetryKey, do NOT poll status_url, do NOT move to another run!
         return {
           ok: false,
-          kind: "request_rejected",
-          fault: this.buildNeutralHttpFault(202),
+          kind: "uncertain_outcome",
+          fault: this.buildUnverifiableAcceptedFault("retry", validated.reason),
         };
       }
 
-      const accepted = parsed.value;
+      // Valid 202 for the original run confirmed -> clear pending key.
+      this.pendingRetryKey = null;
+
+      const accepted = validated.accepted;
       const nowIso = this.nowProvider();
       const prevMeta = this.runMetadata.get(params.runId);
       const nextAttempt =
@@ -540,13 +728,26 @@ export class ContractSyncRunClient {
       return { ok: true, data: { run } };
     }
 
+    if (isServerErrorStatus(response.status)) {
+      // 5xx (e.g. 502): server may already have accepted the retry -> KEEP pendingRetryKey.
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildUncertainServerErrorFault(response.status, "retry"),
+      };
+    }
+
     if (response.status === 401) {
+      this.clearPendingKeys();
       return {
         ok: false,
         kind: "session_expired",
         fault: this.buildSessionExpiredFault(),
       };
     }
+
+    // Definitive non-5xx client/conflict response -> clear pending key.
+    this.pendingRetryKey = null;
 
     if (response.status === 409) {
       return this.handleConflictResponse({

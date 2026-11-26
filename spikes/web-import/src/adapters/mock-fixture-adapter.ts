@@ -144,6 +144,7 @@ export class MockFixtureImportAdapter
   private state: PersistedPrototypeSnapshot;
   private failNextPollWithNetworkError = false;
   private revokedDuringLastPoll = false;
+  private authScopeVersion = 1;
 
   private readonly defaultOpenApiTransport: SyntheticOpenApiTransport;
   public readonly syncRunClient: ContractSyncRunClient;
@@ -216,6 +217,7 @@ export class MockFixtureImportAdapter
     this.syncRunClient = new ContractSyncRunClient({
       transport: options.syncRunTransport ?? this.defaultOpenApiTransport,
       keyGenerator: options.idempotencyKeyGenerator,
+      initialAuthScope: this.getCurrentAuthScope(),
     });
 
     if (this.state.latestRun) {
@@ -224,6 +226,17 @@ export class MockFixtureImportAdapter
         findRepo(this.state.latestRun.repositoryId)
       );
     }
+  }
+
+  private getCurrentAuthScope(): string {
+    const userId = this.state.serviceAuth.account?.syntheticUserId ?? "anonymous";
+    const ghRef = this.state.githubConnection.connectionRef ?? "none";
+    return `${this.state.serviceAuth.status}:${userId}:${this.state.githubConnection.status}:${ghRef}:epoch-${this.authScopeVersion}`;
+  }
+
+  private advanceAuthScope(): void {
+    this.authScopeVersion += 1;
+    this.syncRunClient.setAuthScope(this.getCurrentAuthScope());
   }
 
   public getRecordedHttpRequests() {
@@ -347,6 +360,7 @@ export class MockFixtureImportAdapter
         lastCheckedAt: nowIso(),
       },
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -368,6 +382,7 @@ export class MockFixtureImportAdapter
         lastCheckedAt: nowIso(),
       },
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -391,6 +406,7 @@ export class MockFixtureImportAdapter
         lastCheckedAt: nowIso(),
       },
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -435,6 +451,7 @@ export class MockFixtureImportAdapter
       },
       latestRun: nextRun,
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -456,6 +473,7 @@ export class MockFixtureImportAdapter
       ...this.state,
       githubConnection: { ...SYNTHETIC_DISCONNECTED_GITHUB },
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -482,6 +500,7 @@ export class MockFixtureImportAdapter
       githubConnection: { ...SYNTHETIC_REVOKED_GITHUB },
       latestRun: updatedRun,
     };
+    this.advanceAuthScope();
     this.persistSnapshot();
 
     return {
@@ -502,7 +521,10 @@ export class MockFixtureImportAdapter
     await sleep(this.latencyMs);
 
     const repo = findRepo(input.repoId);
-    const result = await this.syncRunClient.createInitialImport({ repo });
+    const result = await this.syncRunClient.createInitialImport({
+      repo,
+      authScope: this.getCurrentAuthScope(),
+    });
 
     if (!result.ok) {
       if (result.kind === "session_expired") {
@@ -513,6 +535,7 @@ export class MockFixtureImportAdapter
             lastCheckedAt: nowIso(),
           },
         };
+        this.advanceAuthScope();
         this.persistSnapshot();
         return {
           ...result,
@@ -558,6 +581,7 @@ export class MockFixtureImportAdapter
             lastCheckedAt: nowIso(),
           },
         };
+        this.advanceAuthScope();
         this.persistSnapshot();
         return {
           ...result,
@@ -580,6 +604,9 @@ export class MockFixtureImportAdapter
       latestRun: nextRun,
       githubConnection: nextGitHub,
     };
+    if (this.revokedDuringLastPoll) {
+      this.advanceAuthScope();
+    }
     this.persistSnapshot();
 
     return {
@@ -604,6 +631,7 @@ export class MockFixtureImportAdapter
       runId,
       repo,
       previousRun: current,
+      authScope: this.getCurrentAuthScope(),
     });
 
     if (!result.ok) {
@@ -615,6 +643,7 @@ export class MockFixtureImportAdapter
             lastCheckedAt: nowIso(),
           },
         };
+        this.advanceAuthScope();
         this.persistSnapshot();
         return {
           ...result,

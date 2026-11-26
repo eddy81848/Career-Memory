@@ -176,23 +176,38 @@ export function ImportStatusPanel({
         </div>
       )}
 
-      {/* Unconfirmed transport/session/conflict/empty-body fault */}
+      {/* Unconfirmed transport/session/conflict/empty-body/uncertain-outcome fault */}
       {unconfirmedFault && (
         <div
-          className="status-banner status-banner--danger"
+          className={`status-banner ${
+            unconfirmedFault.kind === "uncertain_outcome" ||
+            unconfirmedFault.kind === "network_error"
+              ? "status-banner--warning"
+              : "status-banner--danger"
+          }`}
           role="alert"
           aria-live="assertive"
           data-testid="unconfirmed-fault-banner"
+          data-fault-kind={unconfirmedFault.kind}
         >
           <div className="status-banner__top">
-            <span className="badge badge--danger">
+            <span
+              className={`badge ${
+                unconfirmedFault.kind === "uncertain_outcome" ||
+                unconfirmedFault.kind === "network_error"
+                  ? "badge--warning"
+                  : "badge--danger"
+              }`}
+            >
               {unconfirmedFault.kind === "session_expired"
                 ? "세션 만료 — 요청 미확정"
                 : unconfirmedFault.kind === "network_error"
                   ? "네트워크 실패 — 서버 미확정"
-                  : unconfirmedFault.kind === "request_rejected"
-                    ? `요청 처리 불가${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""} — 일반 안내`
-                    : "중복 충돌 — 요청 거절"}
+                  : unconfirmedFault.kind === "uncertain_outcome"
+                    ? `처리 여부 미확정${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""}`
+                    : unconfirmedFault.kind === "request_rejected"
+                      ? `요청 처리 불가${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""} — 일반 안내`
+                      : "중복 충돌 — 요청 거절"}
             </span>
           </div>
           <p className="status-banner__headline">{unconfirmedFault.title}</p>
@@ -213,6 +228,7 @@ export function ImportStatusPanel({
               </button>
             )}
             {(unconfirmedFault.kind === "network_error" ||
+              unconfirmedFault.kind === "uncertain_outcome" ||
               unconfirmedFault.kind === "duplicate_conflict" ||
               unconfirmedFault.kind === "request_rejected") && (
               <button

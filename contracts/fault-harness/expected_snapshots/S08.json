@@ -1,0 +1,251 @@
+{
+  "default_branch": "main",
+  "injection_points": [
+    "BEFORE_PAGE_TX"
+  ],
+  "logical_snapshot": {
+    "content_units": [],
+    "event_memberships_count": 0,
+    "gate_checks": {
+      "claim_approval_gate_allowed": null,
+      "concurrent_stale_fence_discarded": 0,
+      "export_gate_allowed": true,
+      "external_ai_gate_allowed": true,
+      "extra": {
+        "attempt1_429_retry_after_status": "PARTIAL",
+        "attempt2_safe_checkpoint_preserved": true,
+        "attempt2_timeout_status": "PARTIAL"
+      },
+      "refetch_content_allowed": true,
+      "refetch_resolution_status": null
+    },
+    "outbox_summary": {
+      "import_ready_count": 0,
+      "outbox_consumed_effects_count": 0
+    },
+    "resource_and_account_policy": {
+      "account_status": "ACTIVE",
+      "deletion_fence_active": false,
+      "resource_status": "ACTIVE",
+      "resource_visibility": "PUBLIC"
+    },
+    "source_object_revisions": [
+      {
+        "content_hash": "sha256:5203cd71d39e2ac9f324ff402268ca9ea758693b98b109e91c756b83222ceae0",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b2000000000000000000000000000000000000ca",
+        "provider_revision_id": "b2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:6edcc1b5fdd1c1db01d6a8d07b0508e17f83004f0eec62c3650d798f3a5c02de",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b2000000000000000000000000000000000000cb",
+        "provider_revision_id": "b2000000000000000000000000000000000000cb"
+      },
+      {
+        "content_hash": "sha256:21819e499d9547b8d9c00064dc43b7ec6f761c056132378e80ed1b82d5a11169",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "c2000000000000000000000000000000000000ca",
+        "provider_revision_id": "c2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:b31b8caaa16f7de16a4d3877b20e15ac42770b081d10183ce7d23f0ae6ceadf3",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "201",
+        "provider_revision_id": "a2000000000000000000000000000000000000c9"
+      },
+      {
+        "content_hash": "sha256:8ece8d51cb5012bf4b3b07c4a732ba21cc378a57b9bed6b69ad0ca6369025134",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "202",
+        "provider_revision_id": "a2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:c6bd1e5952ec57302d15c23dbcdce93f95225f53c81da27df618c5683a1392a6",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "203",
+        "provider_revision_id": "a2000000000000000000000000000000000000cb"
+      },
+      {
+        "content_hash": "sha256:79aed686235099910c30b7c52bd0fb07981d4ca5502b409b71c332afe634c340",
+        "is_tombstone": false,
+        "object_type": "REVIEW",
+        "provider_object_id": "5201",
+        "provider_revision_id": "a2000000000000000000000000000000000000c9"
+      }
+    ],
+    "source_objects": [
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": null,
+        "provider_object_id": "b2000000000000000000000000000000000000ca"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": null,
+        "provider_object_id": "b2000000000000000000000000000000000000cb"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": null,
+        "provider_object_id": "c2000000000000000000000000000000000000ca"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "201"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "202"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "203"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "REVIEW",
+        "pr_association_state": null,
+        "provider_object_id": "5201"
+      }
+    ],
+    "sync_checkpoints": [
+      {
+        "current_cursor": "https://api.github.com/repositories/900400020/commits?sha=b2000000000000000000000000000000000000cb&since=2026-08-01T00%3A00%3A00Z&until=2026-11-27T12%3A00%3A00Z&per_page=100&page=2",
+        "last_committed_page": 1,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "stream_status": "PARTIAL",
+        "unresolved_failures": 1
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 3,
+        "stream_name": "PRS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 9,
+        "stream_name": "PR_REVIEWS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      }
+    ],
+    "sync_commit_pr_associations": [],
+    "sync_item_outcomes": [],
+    "sync_run_page_observations": [
+      {
+        "item_count": 3,
+        "page_number": 1,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 3
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 2,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 3,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 0,
+        "page_number": 2,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 3,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 4,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 5,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 6,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 7,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 8,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 9,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      }
+    ],
+    "sync_runs": [
+      {
+        "failure_reason_code": "TRANSIENT_PROVIDER_ERROR",
+        "has_safe_checkpoint": true,
+        "import_ready": false,
+        "is_abandoned": false,
+        "processing_status": "NOT_STARTED",
+        "remaining_range_present": true,
+        "retry_allowed": true,
+        "source_drift": false,
+        "status": "PARTIAL"
+      }
+    ],
+    "work_events": []
+  },
+  "observed_at_iso": "2026-11-27T12:00:00Z",
+  "scenario_id": "S08",
+  "schema_version": "cm-b004-expected-v1",
+  "title": "Rate limit 429 Retry-After and timeout retry budget exhaustion"
+}

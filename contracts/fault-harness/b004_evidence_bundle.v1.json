@@ -1,0 +1,721 @@
+{
+  "database_engine": "PostgreSQL 18 (local ephemeral, migrations 0010..0050, NOBYPASSRLS)",
+  "expected_snapshot_schema_version": "cm-b004-expected-v1",
+  "gate_id": "B-004",
+  "hosted_staging_and_live_github_status": "Deferred / Waived for current gate by owner decision (not executed in local offline B-004 harness).",
+  "observed_at_iso": "2026-11-27T12:00:00Z",
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "production_entry_points": [
+    "career_memory_api.initial_import.InitialBackfillOrchestrator",
+    "career_memory_api.initial_import.InitialBackfillJobWorker",
+    "career_memory_api.initial_import.DerivedUnitIngestionProcessor",
+    "career_memory_api.backfill_engine.PostgresBackfillPageCommitter",
+    "career_memory_api.sync_runs.PostgresSyncRunService",
+    "career_memory_api.jobs.PostgresJobRuntime",
+    "career_memory_api.github_connect.PostgresGitHubConnectService",
+    "career_memory_api.github_provider.HttpGitHubImportClient",
+    "career_memory_api.resolver.RefetchResolverService",
+    "career_memory_api.contracts_api.create_contracts_router"
+  ],
+  "review_comment_global_drift_assumption": "Not assumed: completion gate detects default-branch/HEAD changes and 2nd-pass merged PR cue drift only.",
+  "scenario_schema_version": "cm-b004-scenario-v1",
+  "scenarios": [
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "1da53839188b054906b0dd9526155a978571c02315d1e27f506d5ccad0dab1c9",
+      "default_branch": "trunk",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "NONE"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "643367839fdc9533e255625e55c45ba472e177b00e74323947ecfd312fe35a3d",
+      "notes": [
+        "Baseline 10-page clean import on default_branch='trunk'."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-01",
+        "SYNC-02",
+        "SYNC-05",
+        "SYNC-20",
+        "REF-04"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S01",
+      "summary_counts": {
+        "content_units": 26,
+        "event_memberships": 23,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 26,
+        "source_objects": 26,
+        "sync_runs": 1,
+        "work_events": 11
+      },
+      "title": "10-page clean initial import completion (baseline)"
+    },
+    {
+      "baseline_equivalence_matched": true,
+      "baseline_equivalence_target": "S01",
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "1da53839188b054906b0dd9526155a978571c02315d1e27f506d5ccad0dab1c9",
+      "default_branch": "trunk",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "fa287d406dbd2d70ebe151c6f9e378215016d864c02410e720f99686c37c5fc7",
+      "notes": [
+        "PRS page 8/10 returned 503; resumed from page 8 with 0 re-fetches of pages 1..7."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-04",
+        "SYNC-10",
+        "SYNC-14"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S02",
+      "summary_counts": {
+        "content_units": 26,
+        "event_memberships": 23,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 26,
+        "source_objects": 26,
+        "sync_runs": 1,
+        "work_events": 11
+      },
+      "title": "Transient 503 on PRS page 8/10 then safe checkpoint resume equivalence"
+    },
+    {
+      "baseline_equivalence_matched": true,
+      "baseline_equivalence_target": "S01",
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "1da53839188b054906b0dd9526155a978571c02315d1e27f506d5ccad0dab1c9",
+      "default_branch": "trunk",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "INSIDE_PAGE_TX_BEFORE_COMMIT"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "a788dda996718bcf3b87dd23885592f2dd6c534cd44b21021ad78af6acb538a5",
+      "notes": [
+        "PG18 rolled back PRS page 5 atomically on pre-COMMIT crash; reclaimed worker converged to S01."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-07",
+        "REPLAY-01"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S03",
+      "summary_counts": {
+        "content_units": 26,
+        "event_memberships": 23,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 26,
+        "source_objects": 26,
+        "sync_runs": 1,
+        "work_events": 11
+      },
+      "title": "Worker crash inside PostgreSQL page TX before COMMIT then resume equivalence"
+    },
+    {
+      "baseline_equivalence_matched": true,
+      "baseline_equivalence_target": "S01",
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "1da53839188b054906b0dd9526155a978571c02315d1e27f506d5ccad0dab1c9",
+      "default_branch": "trunk",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "AFTER_PAGE_COMMIT_BEFORE_ACK"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "5bb8f52257f320c4096bfea67c89e23187bc1bca2cfabb0675ab74e1c53870b7",
+      "notes": [
+        "Post-COMMIT pre-ack crash preserved page 6; stale recommit discarded; converged to S01."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-08",
+        "REPLAY-02"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S04",
+      "summary_counts": {
+        "content_units": 26,
+        "event_memberships": 23,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 26,
+        "source_objects": 26,
+        "sync_runs": 1,
+        "work_events": 11
+      },
+      "title": "Worker crash after PostgreSQL page COMMIT before worker ack then resume equivalence"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "ab29d19a016169fdbf843850c79d6332995bfc0198092de8578f5b06ae288f27",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "CONCURRENT_REQUEST_AND_WORKER_RACE"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "1b1bd9d5255bcf9dd2f9ded3831a213bb867aaf3ccb8d58cc854533c22e76c3c",
+      "notes": [
+        "Concurrent create -> 1x 202 + 1x 409 SYNC_ALREADY_RUNNING; 2-worker checkpoint race -> 1 COMMITTED + 1 STALE_CHECKPOINT_VERSION."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-09",
+        "SYNC-10",
+        "REPLAY-04"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S05",
+      "summary_counts": {
+        "content_units": 12,
+        "event_memberships": 10,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 4
+      },
+      "title": "Concurrent duplicate import requests + 2-worker same checkpoint race"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "c2128893defbb3df9ca21f601ecb62fe1bb0b8d0b49ceb28625728c83cb3e4d4",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "68ad2720f69e6908cb9e6ce1ab6ddff3e3dc2a60b2f56857981dd5deae8745d5",
+      "notes": [
+        "Both HTTP 200 Content-Length truncation and missing required fields halted in PARTIAL/MALFORMED_OR_PARTIAL_PAGE."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-11"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S06",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 1,
+        "source_objects": 1,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "HTTP 200 truncated partial response and corrupted required fields"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "ffd615fb71041ad3ee0da96ae2d402221f240e056144dbfa27044d7bb8bf21e7",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "28f1bc616c85f594accf2b5e2b71a158942adb6c6a6b2d72f581ac26fcaabaaa",
+      "notes": [
+        "Cyclic cursor on PRS page 2 halted immediately with CURSOR_CYCLE_DETECTED (1 request, 0 loops)."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-12"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S07",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 1,
+        "source_objects": 1,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "Repeated / cyclic pagination cursor detection"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "268bf77842da659c48166c8818d8882a62ccf4cffeec03072a05368bb7573b90",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "f6865de1a3da080184ea6cc4330f604444be1a42b3e956a19c0428ce207bc9c2",
+      "notes": [
+        "429 Retry-After and Timeout exhaustion halted cleanly in PARTIAL with safe checkpoint and 0 promotions."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-13"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S08",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 7,
+        "source_objects": 7,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "Rate limit 429 Retry-After and timeout retry budget exhaustion"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "1599072a19d1b1d6cce216631eca21afbdb250d53ae46545dda9cdffa1bb0553",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_FINALIZE_SUCCESS"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "42b408720c795222ebedd6de614428e176734e650924127b144560d75d930883",
+      "notes": [
+        "PR cue drift & default-branch/HEAD drift both halted in PARTIAL/PLAN_DRIFT (409 on retry).",
+        "Global review/comment mutation detection is explicitly not assumed."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-16",
+        "SYNC-17"
+      ],
+      "review_comment_drift_note": "Completion gate verifies default branch, HEAD SHA, and 2nd-pass merged PR cues (pr_number/head_sha/updated_at/merge_commit_sha); global review/comment mutation detection across all PR threads is explicitly NOT assumed.",
+      "scenario_id": "S09",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "Mid-run PR cue mutation and default branch / HEAD drift"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "0e0ce1d494f4932aa74c0325a08a7d65e009764e5ed00acd0ce7da0d7fa4e319",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_FINALIZE_SUCCESS"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "d1afe1ea05bdeadf2ab43bfe2257ad0e766e9ecb10b301b4726353778dd02574",
+      "notes": [
+        "UNKNOWN blocked SUCCESS (0 DIRECT_COMMIT); clean run promoted 1 NO_MATCH_OBSERVED DIRECT_COMMIT (requires_user_confirmation=True) and excluded out-of-window/squash commits."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-18",
+        "SYNC-19"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S10",
+      "summary_counts": {
+        "content_units": 12,
+        "event_memberships": 10,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 4
+      },
+      "title": "UNKNOWN PR association block + NO_MATCH_OBSERVED badge + out-of-window/squash exclusions"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "f2b23be2b80603e1685f9056ef57edf7937ccbca7f0e21a8b77a8dd29544ac87",
+      "default_branch": "master",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "NONE"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "823ede9c743839ffd85f5bba098a9ec01d4d381e2dde0f411fe18db933e1567f",
+      "notes": [
+        "All PR-linked commits (head_sha, merge_commit_sha, squash) attached only to PR MUST_LINK memberships; 0 DIRECT_COMMITs."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-20"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S11",
+      "summary_counts": {
+        "content_units": 10,
+        "event_memberships": 9,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 10,
+        "source_objects": 10,
+        "sync_runs": 1,
+        "work_events": 3
+      },
+      "title": "PR-linked commits deduplicated strictly under PR Event MUST_LINK"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "f64ed27f33fec630e65daf75c41450d8a4a72db5064d327afbfd098de3a08609",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "7a0d07966ee997badce759fda804cb714cae8a14675064c7344a1c07b2f64d7a",
+      "notes": [
+        "max_objects, max_requests, and max_total_bytes all halted cleanly in PARTIAL_WITH_LIMIT with 0 promotions."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-21"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S12",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 2,
+        "source_objects": 2,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "Max objects / requests / bytes budget enforcement (PARTIAL_WITH_LIMIT)"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "22dcc16e1338d334ab65a3b40f8ad9b2c26763f6fc405dc3f3f19cf57a54a15b",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_FINALIZE_SUCCESS"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "d3a33ac752c9db45bfdf10d12b74f50a1bae4f848a8431a70e828fd735eb605f",
+      "notes": [
+        "PRIVATE flip, 401 revocation, and policy API 503 all halted with 0 tombstones, 0 promotions, and full AI/Export/refetch blocking."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-22",
+        "POLICY-01"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S13",
+      "summary_counts": {
+        "content_units": 0,
+        "event_memberships": 0,
+        "import_ready_outbox": 0,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 0
+      },
+      "title": "Mid-run visibility flip to PRIVATE, 401 revocation, and policy API 503 failure"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "9266d20b34858fc63104a8e7ce94b15e9ad35cffaaaeeac725510105ec1d793f",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "BEFORE_PAGE_TX",
+        "BEFORE_FINALIZE_SUCCESS"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "0d497e7b78e0ba3724d84e29428a2d0e2e45bd40db1c9959f15542b09ef7424a",
+      "notes": [
+        "Verified transient retry convergence, post-SUCCESS 409 rejections, no HTTP abandon route, and isolated new plan after PLAN_DRIFT."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-04",
+        "SYNC-14",
+        "SYNC-16"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S14",
+      "summary_counts": {
+        "content_units": 12,
+        "event_memberships": 10,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 2,
+        "work_events": 4
+      },
+      "title": "Transient retry vs PLAN_DRIFT abandoned-run isolation vs post-SUCCESS 409 rejection"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "2fea374f49fed3564fab8757fc294424cd5a6a565bbe2171f6b952d9ecd691de",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "AFTER_FINALIZE_BEFORE_DERIVED_UNITS"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "fab83f050c1514acafe531135a96ead97e0ed0db32a20fe2742cf089aa45bc19",
+      "notes": [
+        "Blocked pre-IMPORT_READY processing; verified duplicate completion idempotency (outbox/derived=1x); proved MATCHED vs REVISION_MISMATCH -> BLOCKED_SOURCE preserving status='SUCCESS'."
+      ],
+      "passed": true,
+      "requirements": [
+        "REPLAY-01",
+        "REPLAY-02",
+        "REPLAY-04",
+        "REF-04",
+        "REF-06"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S15",
+      "summary_counts": {
+        "content_units": 12,
+        "event_memberships": 10,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 1,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 4
+      },
+      "title": "Pre-IMPORT_READY block, duplicate completion idempotency, and refetch match/mismatch"
+    },
+    {
+      "baseline_equivalence_matched": null,
+      "baseline_equivalence_target": null,
+      "canary_audit": {
+        "canary_count_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 37
+      },
+      "core_convergence_sha256": "50093471575cb023f6dffbe82c096963196a039152bff95dc3b571bb6e353fca",
+      "default_branch": "main",
+      "expected_snapshot_diff_count": 0,
+      "expected_snapshot_matched": true,
+      "injection_points": [
+        "AFTER_FINALIZE_BEFORE_DERIVED_UNITS",
+        "BEFORE_PAGE_TX"
+      ],
+      "invariant_violation_count": 0,
+      "logical_snapshot_sha256": "4d961110918aaf7f2a98e19095e259b9b930c8a74fe70a30b5926bff55ee9d8e",
+      "notes": [
+        "Post-SUCCESS OD-003 deletion blocked raw/AI/Export (0 exposures); pre-resume deletion fence canceled run (0 resurrection); pre-resume PRIVATE flip halted resume (0 tombstones, 0 promotions)."
+      ],
+      "passed": true,
+      "requirements": [
+        "SYNC-22",
+        "OD-003"
+      ],
+      "review_comment_drift_note": null,
+      "scenario_id": "S16",
+      "summary_counts": {
+        "content_units": 12,
+        "event_memberships": 10,
+        "import_ready_outbox": 1,
+        "outbox_consumed_effects": 0,
+        "source_object_revisions": 12,
+        "source_objects": 12,
+        "sync_runs": 1,
+        "work_events": 4
+      },
+      "title": "Post-SUCCESS OD-003 deletion fence & pre-resume deletion/private cancellation"
+    }
+  ],
+  "schema_version": "cm-b004-evidence-bundle-v1",
+  "snapshot_auto_update_supported": false,
+  "summary": {
+    "all_content_units_plan_c_compliant": true,
+    "failed_scenarios": 0,
+    "passed_scenarios": 16,
+    "s01_baseline_core_convergence_sha256": "1da53839188b054906b0dd9526155a978571c02315d1e27f506d5ccad0dab1c9",
+    "s02_s03_s04_converged_to_s01": true,
+    "total_canary_hits": 0,
+    "total_invariant_violations": 0,
+    "total_scenarios": 16
+  },
+  "tracks": [
+    "T-005A",
+    "T-005B",
+    "T-005C",
+    "T-005D"
+  ]
+}

@@ -241,6 +241,22 @@ class DerivedUnitIngestionProcessor:
 
                     # Gate 2: Check deletion & policy fences (project ONLY processing_status, never mutate status='SUCCESS'!)
                     if res_status == "DELETED" or is_deletion_fence_active(cur, ws_uuid, resource_id):
+                        cur.execute(
+                            """
+                            UPDATE public.content_units cu
+                            SET policy_state = 'BLOCKED'
+                            FROM public.source_object_revisions rev
+                            JOIN public.source_objects so
+                              ON so.workspace_id = rev.workspace_id
+                             AND so.id = rev.source_object_id
+                            WHERE cu.workspace_id = %s::uuid
+                              AND rev.workspace_id = cu.workspace_id
+                              AND rev.id = cu.source_object_revision_id
+                              AND so.source_resource_id = %s::uuid
+                              AND cu.policy_state = 'ACTIVE'
+                            """,
+                            (ws_uuid, resource_id),
+                        )
                         self._project_processing_status_in_tx(
                             cur,
                             ws_uuid=ws_uuid,
@@ -585,7 +601,7 @@ class DerivedUnitIngestionProcessor:
         elif res_status in (
             ResolutionStatus.REVISION_MISMATCH,
             ResolutionStatus.INVALID_LOCATOR,
-            ResolutionStatus.SOURCE_UNAVAILABLE,
+            ResolutionStatus.UNAVAILABLE,
             ResolutionStatus.PARTIAL_WITH_LIMIT,
         ):
             projected = ProcessingStatus.BLOCKED_SOURCE

@@ -1403,6 +1403,7 @@ class PostgresBackfillPageCommitter:
                         dc_obj_id = direct_commit_obj_ids[dc_cand.provider_object_id]
                         dc_meta = dict(dc_cand.summary_metadata)
                         dc_meta["user_review_required"] = True
+                        dc_meta["requires_user_confirmation"] = True
                         dc_meta["association_note"] = DIRECT_COMMIT_ASSOCIATION_NOTE
                         dc_meta["commit_sha"] = dc_cand.commit_sha.strip().lower()
                         dc_meta["default_branch"] = dc_cand.default_branch

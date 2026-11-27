@@ -350,6 +350,7 @@ class CommitPrAssociationClassifier:
             # Qualified NO_MATCH_OBSERVED -> 1 commit = 1 DIRECT_COMMIT candidate with review badge
             badge_metadata = {
                 "user_review_required": True,
+                "requires_user_confirmation": True,
                 "association_note": DIRECT_COMMIT_ASSOCIATION_NOTE,
                 "commit_sha": sha,
                 "default_branch": default_branch,

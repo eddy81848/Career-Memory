@@ -1,7 +1,7 @@
 """Domain enum contracts and schema metadata constants for M1-T102 & M1-T104.
 
-Every StrEnum in this module is kept in strict 1:1 parity with the PostgreSQL
-CHECK constraints defined in:
+Every StrEnum in this module is kept in strict 1:1 parity with Notion Data Model
+§3.1 - §3.10 and the PostgreSQL CHECK constraints defined in:
 - db/migrations/0020_source_provenance_metadata.sql
 - db/migrations/0030_events_facts_claims_contributions.sql
 """
@@ -78,7 +78,9 @@ COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("event_memberships", "source_object_id", "source_objects"),
     ("event_composite_memberships", "composite_event_id", "work_events"),
     ("event_composite_memberships", "member_event_id", "work_events"),
+    ("event_composite_memberships", "added_by_review_action_id", "review_actions"),
     ("facts", "event_id", "work_events"),
+    ("facts", "subject_identity_id", "identities"),
     ("fact_support", "fact_id", "facts"),
     ("fact_support", "content_unit_id", "content_units"),
     ("contributions", "event_id", "work_events"),
@@ -87,17 +89,18 @@ COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("contribution_support", "fact_id", "facts"),
     ("generation_runs", "event_id", "work_events"),
     ("claims", "event_id", "work_events"),
-    ("claims", "generation_run_id", "generation_runs"),
+    ("claims", "generator_run_id", "generation_runs"),
     ("claims", "last_verification_run_id", "generation_runs"),
     ("claims", "supersedes_claim_id", "claims"),
     ("claim_atoms", "claim_id", "claims"),
     ("claim_atom_support", "claim_atom_id", "claim_atoms"),
     ("claim_atom_support", "fact_id", "facts"),
+    ("claim_atom_support", "validation_run_id", "generation_runs"),
 )
 
 
 # =============================================================================
-# Migration 0020 — Source & Plan C Provenance Enums
+# Migration 0020 — Source & Plan C Provenance Enums (Data Model §3.2 - §3.4)
 # =============================================================================
 class SourceProvider(StrEnum):
     GITHUB = "GITHUB"
@@ -183,57 +186,60 @@ class ContentUnitPolicyState(StrEnum):
 
 
 # =============================================================================
-# Migration 0030 — Identity, WorkEvent, Fact, Contribution & Claim Enums
+# Migration 0030 — Identity, WorkEvent, Fact, Contribution & Claim (§3.5 - §3.10)
 # =============================================================================
-class IdentityKind(StrEnum):
+class IdentityType(StrEnum):
     PERSON = "PERSON"
     BOT = "BOT"
-    TEAM = "TEAM"
     UNKNOWN = "UNKNOWN"
 
 
 class IdentityStatus(StrEnum):
     ACTIVE = "ACTIVE"
+    AMBIGUOUS = "AMBIGUOUS"
     MERGED = "MERGED"
-    ARCHIVED = "ARCHIVED"
+    REVOKED = "REVOKED"
 
 
 class IdentityVerificationMethod(StrEnum):
-    OAUTH_ACCOUNT_ID = "OAUTH_ACCOUNT_ID"
-    VERIFIED_EMAIL = "VERIFIED_EMAIL"
-    USER_CONFIRMED = "USER_CONFIRMED"
-    FUZZY_HEURISTIC = "FUZZY_HEURISTIC"
+    OAUTH_ACCOUNT = "OAUTH_ACCOUNT"
+    PROVIDER_ASSOCIATION = "PROVIDER_ASSOCIATION"
+    USER_CONFIRMATION = "USER_CONFIRMATION"
 
 
 class ExternalIdentityMappingStatus(StrEnum):
-    CANDIDATE = "CANDIDATE"
     VERIFIED = "VERIFIED"
-    REJECTED = "REJECTED"
-    UNRESOLVED = "UNRESOLVED"
+    USER_CONFIRMED = "USER_CONFIRMED"
+    HEURISTIC = "HEURISTIC"
+    CONFLICTED = "CONFLICTED"
+    REVOKED = "REVOKED"
 
 
-class WorkEventKind(StrEnum):
+class WorkEventAnchorMode(StrEnum):
     PR = "PR"
     PR_SEGMENT = "PR_SEGMENT"
     DIRECT_COMMIT = "DIRECT_COMMIT"
-    ISSUE = "ISSUE"
-    COMPOSITE = "COMPOSITE"
+    USER_COMPOSITE = "USER_COMPOSITE"
 
 
 class WorkEventStatus(StrEnum):
     CANDIDATE = "CANDIDATE"
     CONFIRMED = "CONFIRMED"
     REJECTED = "REJECTED"
-    MERGED = "MERGED"
-    SPLIT = "SPLIT"
     STALE = "STALE"
-    ARCHIVED = "ARCHIVED"
+    SUPERSEDED = "SUPERSEDED"
 
 
-class EventMembershipRole(StrEnum):
+class EventMembershipRelationClass(StrEnum):
     MUST_LINK = "MUST_LINK"
     CONTEXT_ONLY = "CONTEXT_ONLY"
     CANNOT_LINK = "CANNOT_LINK"
+
+
+class EventMembershipOrigin(StrEnum):
+    SOURCE = "SOURCE"
+    RULE = "RULE"
+    USER = "USER"
 
 
 class RecordOrigin(StrEnum):
@@ -253,15 +259,12 @@ class CompositeMembershipStatus(StrEnum):
 
 class ReviewActionType(StrEnum):
     CONFIRM = "CONFIRM"
-    REJECT = "REJECT"
-    MERGE = "MERGE"
+    EDIT = "EDIT"
     SPLIT = "SPLIT"
-    LINK = "LINK"
-    UNLINK = "UNLINK"
-    CANNOT_LINK = "CANNOT_LINK"
-    APPROVE = "APPROVE"
-    REVERIFY = "REVERIFY"
-    DELETE_REQUEST = "DELETE_REQUEST"
+    MERGE = "MERGE"
+    DISSOLVE = "DISSOLVE"
+    REJECT = "REJECT"
+    REOPEN = "REOPEN"
 
 
 class ReviewTargetType(StrEnum):
@@ -331,11 +334,12 @@ class ContributionStatus(StrEnum):
     STALE = "STALE"
 
 
-class GenerationRunStage(StrEnum):
-    FACT_EXTRACTION = "FACT_EXTRACTION"
-    FACT_VALIDATION = "FACT_VALIDATION"
-    CLAIM_GENERATION = "CLAIM_GENERATION"
-    CLAIM_VALIDATION = "CLAIM_VALIDATION"
+class GenerationRunType(StrEnum):
+    FACT_CANDIDATE_EXTRACTION = "FACT_CANDIDATE_EXTRACTION"
+    FACT_SUPPORT_VALIDATION = "FACT_SUPPORT_VALIDATION"
+    CLAIM_DRAFT_GENERATION = "CLAIM_DRAFT_GENERATION"
+    CLAIM_ATOMIZATION = "CLAIM_ATOMIZATION"
+    CLAIM_SUPPORT_VALIDATION = "CLAIM_SUPPORT_VALIDATION"
     REFETCH_VERIFICATION = "REFETCH_VERIFICATION"
 
 
@@ -343,7 +347,7 @@ class GenerationRunStatus(StrEnum):
     RUNNING = "RUNNING"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
+    CANCELED = "CANCELED"
 
 
 class ClaimStatus(StrEnum):

@@ -23,10 +23,21 @@ from career_memory_api.schema_contracts import (
     ClaimStatus,
     ClaimVerification,
     ContributionRole,
+    EventMembershipOrigin,
+    EventMembershipRelationClass,
+    ExternalIdentityMappingStatus,
     FactType,
+    GenerationRunStatus,
+    GenerationRunType,
+    IdentityStatus,
+    IdentityType,
+    IdentityVerificationMethod,
     RawStorageMode,
     RawTextPersistenceViolationError,
     RetentionClass,
+    ReviewActionType,
+    WorkEventAnchorMode,
+    WorkEventStatus,
     assert_no_forbidden_raw_keys,
     find_forbidden_raw_keys,
     list_schema_migrations,
@@ -50,6 +61,21 @@ def _extract_sql_forbidden_keys(sql_0020: str) -> set[str]:
     return set(re.findall(r"'([a-z0-9_]+)'", match.group("keys")))
 
 
+def _extract_table_columns(sql_text: str, table_name: str) -> set[str]:
+    block = re.search(
+        rf"CREATE TABLE IF NOT EXISTS public\.{table_name}\s*\((?P<body>.*?)\n\);",
+        sql_text,
+        flags=re.DOTALL,
+    )
+    assert block is not None, f"Could not locate CREATE TABLE for public.{table_name}"
+    return {
+        line.strip().split()[0]
+        for line in block.group("body").splitlines()
+        if line.strip()
+        and not line.strip().startswith(("--", "CONSTRAINT", "PRIMARY", "UNIQUE", ")"))
+    }
+
+
 def test_migration_files_exist_in_expected_order() -> None:
     migrations = list_schema_migrations()
     assert tuple(m.filename for m in migrations) == SCHEMA_MIGRATION_FILES
@@ -68,7 +94,6 @@ def test_python_and_sql_forbidden_raw_key_sets_match_exactly() -> None:
     sql_0020 = load_migration_sql("0020")
     sql_keys = _extract_sql_forbidden_keys(sql_0020)
     assert sql_keys == set(FORBIDDEN_RAW_TEXT_KEYS)
-    # Verify core required keys from Plan C spec are explicitly guarded.
     required_core = {
         "body",
         "raw_body",
@@ -104,26 +129,106 @@ def test_migrations_contain_no_hardcoded_passwords_and_no_deferred_tables() -> N
         ), f"Deferred table {deferred_table!r} must not be created in M1."
 
 
-def test_claims_table_ddl_has_no_writable_verification_column() -> None:
+def test_ddl_columns_match_notion_data_model_spec_1_to_1() -> None:
+    sql_0020 = load_migration_sql("0020")
     sql_0030 = load_migration_sql("0030")
-    claims_block = re.search(
-        r"CREATE TABLE IF NOT EXISTS public\.claims\s*\((?P<body>.*?)\n\);",
-        sql_0030,
-        flags=re.DOTALL,
+
+    # 0020 aligned with 0010 base tables
+    assert {"id", "auth_issuer", "auth_subject", "email", "name", "created_at"} == _extract_table_columns(
+        sql_0020, "users"
     )
-    assert claims_block is not None
-    column_names = {
-        line.strip().split()[0]
-        for line in claims_block.group("body").splitlines()
-        if line.strip()
-        and not line.strip().startswith(("--", "CONSTRAINT", ")"))
+    assert {"id", "owner_user_id", "name", "created_at"} == _extract_table_columns(
+        sql_0020, "workspaces"
+    )
+    assert {"workspace_id", "user_id", "role", "revoked_at", "created_at"} == _extract_table_columns(
+        sql_0020, "workspace_memberships"
+    )
+
+    # 0030 §3.5 identities & external_identity_mappings (no plaintext external_email)
+    ident_cols = _extract_table_columns(sql_0030, "identities")
+    assert {"display_name", "identity_type", "canonical_user_id", "status"}.issubset(ident_cols)
+    assert "canonical_name" not in ident_cols
+    assert "identity_kind" not in ident_cols
+
+    ext_cols = _extract_table_columns(sql_0030, "external_identity_mappings")
+    assert {"email_hash", "username", "verification_method", "status", "confidence_reason", "evidence_metadata", "revoked_at"}.issubset(ext_cols)
+    assert "external_email" not in ext_cols
+
+    # 0030 §3.6 work_events, event_memberships, event_composite_memberships, review_actions
+    ev_cols = _extract_table_columns(sql_0030, "work_events")
+    assert {"anchor_mode", "anchor_scope", "version", "problem", "action", "outcome", "created_by", "reviewed_at"}.issubset(ev_cols)
+    assert "event_kind" not in ev_cols
+
+    em_cols = _extract_table_columns(sql_0030, "event_memberships")
+    assert {"relation_class", "relation_type", "origin", "rationale_code"}.issubset(em_cols)
+
+    ecm_cols = _extract_table_columns(sql_0030, "event_composite_memberships")
+    assert {"composite_event_version", "member_event_version", "added_by_review_action_id", "removed_at"}.issubset(ecm_cols)
+
+    ra_cols = _extract_table_columns(sql_0030, "review_actions")
+    assert {"from_version", "to_version", "reason", "idempotency_key"}.issubset(ra_cols)
+
+    # 0030 §3.7 facts
+    fact_cols = _extract_table_columns(sql_0030, "facts")
+    assert {"subject_identity_id", "predicate", "object_text", "normalized_value"}.issubset(fact_cols)
+    assert "statement" not in fact_cols
+
+    # 0030 §3.9-3.10 generation_runs, claims (no writable verification), claim_atom_support
+    gr_cols = _extract_table_columns(sql_0030, "generation_runs")
+    assert {"run_type", "model", "algorithm_version", "input_hash", "token_usage", "cost_estimate", "latency_ms", "error_code"}.issubset(gr_cols)
+
+    claim_cols = _extract_table_columns(sql_0030, "claims")
+    assert "verification" not in claim_cols
+    assert {"version", "generator_run_id", "approved_at", "last_verified_at", "last_verification_run_id"}.issubset(claim_cols)
+    assert "claim_version" not in claim_cols
+
+    cas_cols = _extract_table_columns(sql_0030, "claim_atom_support")
+    assert "validation_run_id" in cas_cols
+
+
+def test_domain_enum_invariants_match_notion_data_model_spec() -> None:
+    assert {e.value for e in IdentityType} == {"PERSON", "BOT", "UNKNOWN"}
+    assert {e.value for e in IdentityStatus} == {"ACTIVE", "AMBIGUOUS", "MERGED", "REVOKED"}
+    assert {e.value for e in IdentityVerificationMethod} == {
+        "OAUTH_ACCOUNT",
+        "PROVIDER_ASSOCIATION",
+        "USER_CONFIRMATION",
     }
-    assert "verification" not in column_names
-    assert "last_verified_at" in column_names
-    assert "last_verification_run_id" in column_names
-
-
-def test_domain_enum_invariants_match_spec() -> None:
+    assert {e.value for e in ExternalIdentityMappingStatus} == {
+        "VERIFIED",
+        "USER_CONFIRMED",
+        "HEURISTIC",
+        "CONFLICTED",
+        "REVOKED",
+    }
+    assert {e.value for e in WorkEventAnchorMode} == {
+        "PR",
+        "PR_SEGMENT",
+        "DIRECT_COMMIT",
+        "USER_COMPOSITE",
+    }
+    assert {e.value for e in WorkEventStatus} == {
+        "CANDIDATE",
+        "CONFIRMED",
+        "REJECTED",
+        "STALE",
+        "SUPERSEDED",
+    }
+    assert {e.value for e in EventMembershipRelationClass} == {
+        "MUST_LINK",
+        "CONTEXT_ONLY",
+        "CANNOT_LINK",
+    }
+    assert {e.value for e in EventMembershipOrigin} == {"SOURCE", "RULE", "USER"}
+    assert {e.value for e in ReviewActionType} == {
+        "CONFIRM",
+        "EDIT",
+        "SPLIT",
+        "MERGE",
+        "DISSOLVE",
+        "REJECT",
+        "REOPEN",
+    }
     assert {e.value for e in FactType} == {
         "PROBLEM",
         "ACTION",
@@ -166,12 +271,26 @@ def test_domain_enum_invariants_match_spec() -> None:
     assert MVP_RULE_CONTRIBUTION_ROLES == frozenset(
         {ContributionRole.IMPLEMENTED, ContributionRole.REVIEWED}
     )
+    assert {e.value for e in GenerationRunType} == {
+        "FACT_CANDIDATE_EXTRACTION",
+        "FACT_SUPPORT_VALIDATION",
+        "CLAIM_DRAFT_GENERATION",
+        "CLAIM_ATOMIZATION",
+        "CLAIM_SUPPORT_VALIDATION",
+        "REFETCH_VERIFICATION",
+    }
+    assert {e.value for e in GenerationRunStatus} == {
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELED",
+    }
     assert {e.value for e in RawStorageMode} == {"NONE"}
     assert {e.value for e in RetentionClass} == {"NONE"}
     assert len(MIGRATION_0020_TABLES) == 5
     assert len(MIGRATION_0030_TABLES) == 14
     assert len(TENANT_DOMAIN_TABLES) == 19
-    assert len(COMPOSITE_FK_SPEC) == 25
+    assert len(COMPOSITE_FK_SPEC) == 28
 
 
 def test_metadata_guard_blocks_top_level_nested_and_array_canary_keys() -> None:
@@ -248,20 +367,25 @@ def test_anchor_and_metadata_validators() -> None:
 
 
 def test_token_secret_ref_and_sha256_validators() -> None:
+    # Both URI-style secret refs and 0010-style opaque refs are accepted.
     assert validate_token_secret_ref("secret://github/ws-1/acct-1") == (
         "secret://github/ws-1/acct-1"
     )
     assert validate_token_secret_ref("kms://projects/cm/keys/gh-token-1") == (
         "kms://projects/cm/keys/gh-token-1"
     )
+    assert validate_token_secret_ref("vault/github/ws-1/acct-ref-001") == (
+        "vault/github/ws-1/acct-ref-001"
+    )
 
     for bad_ref in (
         "",
         "ghp_1234567890abcdef1234567890abcdef1234",
+        "gho_1234567890abcdef",
         "github_pat_11ABCDEF_rawtokenvalue",
         "Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig",
-        "https://example.com/token",
-        "plain-secret-value",
+        "has spaces in ref",
+        "ref?with=query",
     ):
         with pytest.raises(ValueError):
             validate_token_secret_ref(bad_ref)

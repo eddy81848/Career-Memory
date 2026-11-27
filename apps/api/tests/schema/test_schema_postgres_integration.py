@@ -5,27 +5,32 @@ Spins up an ephemeral local PostgreSQL 18 cluster via Homebrew ``initdb`` +
 temporary directory, and guarantees full process + directory teardown.
 
 Verifies:
-1. Fresh DB migration (0020 -> 0030), ownership, NOBYPASSRLS roles, RLS FORCE,
-   25 Composite FKs, omission of deferred Post-MVP tables, and absence of a
-   writable ``claims.verification`` column.
-2. Upgrade path (0020 -> seed data -> 0030 -> idempotent re-run) and
-   ``0010``-preexisting non-superuser ``cm_migrator`` compatibility.
-3. Plan C (방안 C) raw-text non-persistence CHECK constraints and nested/array
+1. Fresh DB migration (0020 -> 0030), ownership, NOLOGIN NOBYPASSRLS roles,
+   RLS FORCE, all 28 Composite FKs, omission of deferred Post-MVP tables,
+   and absence of a writable ``claims.verification`` column.
+2. Full 3-stage sequential integration (0010 -> 0020 -> 0030 + idempotent re-run)
+   using the authoritative M1-T101 ``0010_identity_workspace_source_auth.sql`` DDL,
+   verifying live-membership RLS policy preservation on ``source_accounts``,
+   raw-token prefix blocking, and opaque ``token_secret_ref`` compatibility.
+3. Staged upgrade path (0020 -> seed data -> 0030 -> idempotent re-run) and
+   non-superuser ``cm_migrator`` execution compatibility.
+4. Plan C (방안 C) raw-text non-persistence CHECK constraints and nested/array
    JSONB canary raw-key blocking (DATA-03, REF-04).
-4. Revision immutability trigger on ``source_object_revisions`` (DATA-01).
-5. Composite FK cross-workspace isolation & SQLSTATE 23503 anti-oracle parity
-   across all parent-child relationships (both table owner and runtime roles).
-6. Fail-closed RLS, connection-reuse transaction GUC isolation, and least-
+5. Revision immutability trigger on ``source_object_revisions`` (DATA-01).
+6. Composite FK cross-workspace isolation & SQLSTATE 23503 anti-oracle parity
+   across all parent-child relationships (both RLS-bypassing admin and runtime roles).
+7. Fail-closed RLS, connection-reuse transaction GUC isolation, and least-
    privilege GRANT matrix (worker denied users/workspaces/memberships/DELETE).
-7. Domain invariants (fuzzy identity verification guard, work_events anchors,
-   composite event self-ref & active duplicate guard, review_actions idempotency,
-   MVP RULE contribution role restriction).
-8. End-to-end metadata-only provenance traceability join and read-only computed
+8. Notion Data Model §3.5-§3.10 domain invariants (external identity verification,
+   email_hash format, work_events anchor_mode, versioned composite memberships,
+   review_actions 7 actions & idempotency, MVP RULE contribution role restriction).
+9. End-to-end metadata-only provenance traceability join and read-only computed
    ``v_claim_verification_summary`` across all 4 verification states.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import socket
@@ -54,17 +59,23 @@ from career_memory_api.schema_contracts import (
     clear_workspace_rls_context,
     fetch_claim_provenance_chain,
     fetch_claim_verification_summary,
+    set_user_rls_context,
     set_workspace_rls_context,
 )
 
 pytestmark = pytest.mark.postgres
 
 _HOMEBREW_PG18_BIN = Path("/opt/homebrew/opt/postgresql@18/bin")
+_SIBLING_0010_MIGRATION = Path(
+    "/Users/eddy81848/orca/workspaces/Career Memory/"
+    "m1-t101-auth-scope/db/migrations/0010_identity_workspace_source_auth.sql"
+)
 _SUPERUSER = "cm_pg_superuser"
 _HASH_A = "sha256:" + ("a" * 64)
 _HASH_B = "sha256:" + ("b" * 64)
 _HASH_C = "sha256:" + ("c" * 64)
 _HASH_D = "sha256:" + ("d" * 64)
+_HASH_EMAIL = "sha256:" + ("e" * 64)
 
 
 def _find_pg_binary(name: str) -> str:
@@ -96,6 +107,24 @@ class EphemeralPgCluster:
         target_db = dbname or self.default_db
         target_user = user or self.superuser
         return f"postgresql://{target_user}@{self.host}:{self.port}/{target_db}"
+
+
+@contextlib.contextmanager
+def _connect_as_role(
+    cluster: EphemeralPgCluster,
+    *,
+    dbname: str,
+    role: str | None = None,
+    autocommit: bool = False,
+) -> Iterator[psycopg.Connection]:
+    """Open a connection and pin session role via ``SET ROLE`` for NOLOGIN roles."""
+    with psycopg.connect(cluster.dsn(dbname=dbname), autocommit=autocommit) as conn:
+        if role is not None and role != cluster.superuser:
+            with conn.cursor() as cur:
+                cur.execute(f'SET ROLE "{role}"')
+            if not autocommit:
+                conn.commit()
+        yield conn
 
 
 @pytest.fixture(scope="module")
@@ -214,6 +243,7 @@ def migrated_db(pg18_cluster: EphemeralPgCluster) -> Iterator[tuple[EphemeralPgC
 
 @dataclass(frozen=True, slots=True)
 class SeededWorkspaceGraph:
+    user_id: uuid.UUID
     workspace_id: uuid.UUID
     account_id: uuid.UUID
     resource_id: uuid.UUID
@@ -222,10 +252,12 @@ class SeededWorkspaceGraph:
     content_unit_id: uuid.UUID
     identity_id: uuid.UUID
     work_event_id: uuid.UUID
+    review_action_id: uuid.UUID
     fact_id: uuid.UUID
     fact_support_id: uuid.UUID
     contribution_id: uuid.UUID
     generation_run_id: uuid.UUID
+    validation_run_id: uuid.UUID
     claim_id: uuid.UUID
     claim_atom_id: uuid.UUID
     claim_atom_support_id: uuid.UUID
@@ -234,6 +266,7 @@ class SeededWorkspaceGraph:
 def _seed_workspace_graph(
     conn: psycopg.Connection, *, slug_suffix: str
 ) -> SeededWorkspaceGraph:
+    user_id = uuid.uuid4()
     ws_id = uuid.uuid4()
     acct_id = uuid.uuid4()
     res_id = uuid.uuid4()
@@ -242,18 +275,34 @@ def _seed_workspace_graph(
     cu_id = uuid.uuid4()
     ident_id = uuid.uuid4()
     event_id = uuid.uuid4()
+    review_action_id = uuid.uuid4()
     fact_id = uuid.uuid4()
     fs_id = uuid.uuid4()
     contrib_id = uuid.uuid4()
     gen_run_id = uuid.uuid4()
+    val_run_id = uuid.uuid4()
     claim_id = uuid.uuid4()
     atom_id = uuid.uuid4()
     cas_id = uuid.uuid4()
 
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO public.workspaces (id, slug, name) VALUES (%s, %s, %s)",
-            (ws_id, f"ws-{slug_suffix}-{ws_id.hex[:6]}", f"Workspace {slug_suffix}"),
+            """
+            INSERT INTO public.users (id, auth_issuer, auth_subject, email, name)
+            VALUES (%s, 'https://auth.local', %s, %s, %s)
+            """,
+            (user_id, f"sub-{slug_suffix}-{user_id.hex[:6]}", f"u-{slug_suffix}@example.com", f"User {slug_suffix}"),
+        )
+        cur.execute(
+            "INSERT INTO public.workspaces (id, owner_user_id, name) VALUES (%s, %s, %s)",
+            (ws_id, user_id, f"Workspace {slug_suffix}"),
+        )
+        cur.execute(
+            """
+            INSERT INTO public.workspace_memberships (workspace_id, user_id, role, revoked_at)
+            VALUES (%s, %s, 'OWNER', NULL)
+            """,
+            (ws_id, user_id),
         )
         cur.execute(
             """
@@ -342,26 +391,49 @@ def _seed_workspace_graph(
         cur.execute(
             """
             INSERT INTO public.identities
-                (id, workspace_id, identity_kind, canonical_name, primary_email, is_self, status)
-            VALUES (%s, %s, 'PERSON', %s, %s, true, 'ACTIVE')
+                (id, workspace_id, display_name, identity_type, canonical_user_id, status)
+            VALUES (%s, %s, %s, 'PERSON', %s, 'ACTIVE')
             """,
-            (ident_id, ws_id, f"Alex {slug_suffix}", f"alex-{slug_suffix}@example.com"),
+            (ident_id, ws_id, f"Alex {slug_suffix}", user_id),
         )
         cur.execute(
             """
             INSERT INTO public.work_events
-                (id, workspace_id, event_kind, title, primary_anchor_source_object_id, status)
-            VALUES (%s, %s, 'PR', %s, %s, 'CONFIRMED')
+                (id, workspace_id, primary_anchor_source_object_id, anchor_mode, version,
+                 title, problem, action, outcome, status, created_by)
+            VALUES (%s, %s, %s, 'PR', 1, %s,
+                    'Checkout latency spike under peak traffic',
+                    'Added Redis read-through cache',
+                    'Reduced checkout p99 latency',
+                    'CONFIRMED', 'RULE')
             """,
-            (event_id, ws_id, f"Optimize checkout latency ({slug_suffix})", obj_id),
+            (event_id, ws_id, obj_id, f"Optimize checkout latency ({slug_suffix})"),
+        )
+        cur.execute(
+            """
+            INSERT INTO public.review_actions
+                (id, workspace_id, target_type, target_id, action, actor_user_id,
+                 from_version, to_version, idempotency_key, reason)
+            VALUES (%s, %s, 'WORK_EVENT', %s, 'CONFIRM', %s, 1, 1, %s, 'seed confirmation')
+            """,
+            (review_action_id, ws_id, event_id, user_id, f"seed-confirm-{slug_suffix}"),
         )
         cur.execute(
             """
             INSERT INTO public.facts
-                (id, workspace_id, event_id, fact_type, statement, status, extractor_version)
-            VALUES (%s, %s, %s, 'ACTION', 'Added Redis read-through cache to checkout', 'SUPPORTED', 'ext-v1')
+                (id, workspace_id, event_id, fact_type, subject_identity_id,
+                 predicate, object_text, normalized_value, status, extractor_version)
+            VALUES (%s, %s, %s, 'ACTION', %s,
+                    'implemented_caching', 'Redis read-through cache for checkout',
+                    %s, 'SUPPORTED', 'ext-v1')
             """,
-            (fact_id, ws_id, event_id),
+            (
+                fact_id,
+                ws_id,
+                event_id,
+                ident_id,
+                Jsonb({"component": "checkout-api", "cache": "redis"}),
+            ),
         )
         cur.execute(
             """
@@ -397,23 +469,43 @@ def _seed_workspace_graph(
         cur.execute(
             """
             INSERT INTO public.generation_runs
-                (id, workspace_id, event_id, run_stage, model_id, prompt_version,
-                 input_artifact_versions, run_metadata, status)
-            VALUES (%s, %s, %s, 'CLAIM_GENERATION', 'gemini-synthetic-v1', 'prompt-v1',
-                    %s, %s, 'SUCCEEDED')
+                (id, workspace_id, event_id, run_type, input_artifact_versions,
+                 model, prompt_version, algorithm_version, input_hash, status,
+                 token_usage, cost_estimate, latency_ms, run_metadata)
+            VALUES (%s, %s, %s, 'CLAIM_DRAFT_GENERATION', %s,
+                    'gemini-synthetic-v1', 'prompt-v1', 'algo-v1', %s, 'SUCCEEDED',
+                    %s, 0.001250, 42, %s)
             """,
             (
                 gen_run_id,
                 ws_id,
                 event_id,
                 Jsonb({"fact_ids": [str(fact_id)], "schema_version": "0.1"}),
-                Jsonb({"latency_ms": 42}),
+                _HASH_C,
+                Jsonb({"input_tokens": 120, "output_tokens": 45}),
+                Jsonb({"stage": "3A"}),
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO public.generation_runs
+                (id, workspace_id, event_id, run_type, input_artifact_versions,
+                 model, prompt_version, algorithm_version, input_hash, status)
+            VALUES (%s, %s, %s, 'CLAIM_SUPPORT_VALIDATION', %s,
+                    'gemini-validator-v1', 'val-prompt-v1', 'algo-v1', %s, 'SUCCEEDED')
+            """,
+            (
+                val_run_id,
+                ws_id,
+                event_id,
+                Jsonb({"fact_ids": [str(fact_id)]}),
+                _HASH_D,
             ),
         )
         cur.execute(
             """
             INSERT INTO public.claims
-                (id, workspace_id, event_id, generation_run_id, claim_version, claim_text, status)
+                (id, workspace_id, event_id, generator_run_id, version, claim_text, status)
             VALUES (%s, %s, %s, %s, 1, 'Implemented Redis read-through caching for checkout.', 'SUPPORT_VALIDATED')
             """,
             (claim_id, ws_id, event_id, gen_run_id),
@@ -429,13 +521,14 @@ def _seed_workspace_graph(
         cur.execute(
             """
             INSERT INTO public.claim_atom_support
-                (id, workspace_id, claim_atom_id, fact_id, support_type, status)
-            VALUES (%s, %s, %s, %s, 'DIRECT', 'ACTIVE')
+                (id, workspace_id, claim_atom_id, fact_id, support_type, validation_run_id, status)
+            VALUES (%s, %s, %s, %s, 'DIRECT', %s, 'ACTIVE')
             """,
-            (cas_id, ws_id, atom_id, fact_id),
+            (cas_id, ws_id, atom_id, fact_id, val_run_id),
         )
     conn.commit()
     return SeededWorkspaceGraph(
+        user_id=user_id,
         workspace_id=ws_id,
         account_id=acct_id,
         resource_id=res_id,
@@ -444,10 +537,12 @@ def _seed_workspace_graph(
         content_unit_id=cu_id,
         identity_id=ident_id,
         work_event_id=event_id,
+        review_action_id=review_action_id,
         fact_id=fact_id,
         fact_support_id=fs_id,
         contribution_id=contrib_id,
         generation_run_id=gen_run_id,
+        validation_run_id=val_run_id,
         claim_id=claim_id,
         claim_atom_id=atom_id,
         claim_atom_support_id=cas_id,
@@ -460,10 +555,10 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
     cluster, dbname = migrated_db
     with psycopg.connect(cluster.dsn(dbname=dbname)) as conn:
         with conn.cursor() as cur:
-            # 1. Roles must be non-superuser and NOBYPASSRLS.
+            # 1. Roles must be NOLOGIN, non-superuser, and NOBYPASSRLS (aligned with 0010).
             cur.execute(
                 """
-                SELECT rolname, rolsuper, rolbypassrls
+                SELECT rolname, rolcanlogin, rolsuper, rolbypassrls
                 FROM pg_roles
                 WHERE rolname = ANY(%s)
                 ORDER BY rolname
@@ -472,9 +567,9 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
             )
             role_rows = cur.fetchall()
             assert role_rows == [
-                (API_APP_ROLE, False, False),
-                (MIGRATOR_ROLE, False, False),
-                (WORKER_APP_ROLE, False, False),
+                (API_APP_ROLE, False, False, False),
+                (MIGRATOR_ROLE, False, False, False),
+                (WORKER_APP_ROLE, False, False, False),
             ]
 
             # 2. All 19 domain tables exist, owned by cm_migrator, with ENABLE + FORCE RLS.
@@ -515,7 +610,7 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
                 assert views_meta[view_name] is not None
                 assert "security_invoker=true" in views_meta[view_name]
 
-            # 5. All 25 Composite FKs exist on (workspace_id, <fk_col>) -> parent(workspace_id, id).
+            # 5. All 28 Composite FKs exist on (workspace_id, <fk_col>) -> parent(workspace_id, id).
             cur.execute(
                 """
                 SELECT
@@ -545,9 +640,7 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
             )
             actual_composite_fks: set[tuple[str, str, str]] = set()
             for child_table, parent_table, child_cols, parent_cols in cur.fetchall():
-                if parent_table == "workspaces":
-                    assert child_cols == ["workspace_id"]
-                    assert parent_cols == ["id"]
+                if parent_table in {"workspaces", "users"}:
                     continue
                 if child_table == "workspace_memberships":
                     continue
@@ -559,6 +652,7 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
                 )
                 actual_composite_fks.add((child_table, child_cols[1], parent_table))
 
+            assert len(actual_composite_fks) == 28
             assert actual_composite_fks == set(COMPOSITE_FK_SPEC)
 
             # 6. `claims` MUST NOT have a writable `verification` column.
@@ -572,9 +666,107 @@ def test_fresh_migration_catalog_roles_rls_composite_fks_and_no_deferred_tables(
             )
             claim_cols = {row[0] for row in cur.fetchall()}
             assert "verification" not in claim_cols
+            assert {"version", "generator_run_id", "approved_at"}.issubset(claim_cols)
 
 
-def test_upgrade_path_and_0010_preexisting_migrator_compatibility(
+def test_sequential_0010_0020_0030_integration_and_policy_preservation(
+    pg18_cluster: EphemeralPgCluster,
+) -> None:
+    """Verify full 3-migration chain 0010 -> 0020 -> 0030 + idempotent re-run."""
+    assert _SIBLING_0010_MIGRATION.is_file(), (
+        f"Expected read-only 0010 reference at {_SIBLING_0010_MIGRATION}"
+    )
+    sql_0010 = _SIBLING_0010_MIGRATION.read_text(encoding="utf-8")
+
+    seq_db = _create_isolated_database(pg18_cluster, "cm_seq_0010_0030")
+    try:
+        with psycopg.connect(pg18_cluster.dsn(dbname=seq_db)) as conn:
+            # Stage 1: Apply 0010
+            with conn.cursor() as cur:
+                cur.execute(sql_0010)
+            conn.commit()
+
+            # Stage 2 & 3: Apply 0020 -> 0030
+            assert apply_schema_migrations(conn) == [
+                "0020_source_provenance_metadata.sql",
+                "0030_events_facts_claims_contributions.sql",
+            ]
+
+            # Re-run full chain 0010 -> 0020 -> 0030 to prove idempotency
+            with conn.cursor() as cur:
+                cur.execute(sql_0010)
+            conn.commit()
+            assert apply_schema_migrations(conn) == [
+                "0020_source_provenance_metadata.sql",
+                "0030_events_facts_claims_contributions.sql",
+            ]
+
+            # Verify 0010's source_accounts policy was NOT duplicated/weakened by 0020.
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT policyname
+                    FROM pg_policies
+                    WHERE schemaname = 'public'
+                      AND tablename = 'source_accounts'
+                      AND 'cm_api_app' = ANY(roles)
+                    """
+                )
+                assert cur.fetchall() == [("source_accounts_api_isolation",)]
+
+            # Seed graph and verify both opaque ref (0010-style) and secret:// ref work,
+            # while raw ghp_ token prefix is blocked by 0020's added constraint.
+            g = _seed_workspace_graph(conn, slug_suffix="seq")
+            opaque_acct_id = uuid.uuid4()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.source_accounts
+                        (id, workspace_id, provider, external_account_id, token_secret_ref, status)
+                    VALUES (%s, %s, 'GITHUB', 'gh-opaque-1', 'vault/github/ws1/token-ref-01', 'ACTIVE')
+                    """,
+                    (opaque_acct_id, g.workspace_id),
+                )
+            conn.commit()
+
+            with pytest.raises(pg_errors.CheckViolation):
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO public.source_accounts
+                            (id, workspace_id, provider, external_account_id, token_secret_ref, status)
+                        VALUES (%s, %s, 'GITHUB', 'gh-raw-tok', 'ghp_CANARY_RAW_TOKEN_999', 'ACTIVE')
+                        """,
+                        (uuid.uuid4(), g.workspace_id),
+                    )
+            conn.rollback()
+
+        # Verify 0010 live-membership RLS on source_accounts remains strictly enforced:
+        with _connect_as_role(pg18_cluster, dbname=seq_db, role=API_APP_ROLE) as api_conn:
+            # Workspace context ONLY (missing app.current_user_id) -> 0 rows on source_accounts!
+            set_workspace_rls_context(api_conn, g.workspace_id)
+            with api_conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM public.source_accounts")
+                assert cur.fetchone() == (0,)
+            api_conn.rollback()
+
+            # Both workspace_id AND active member user_id -> sees both accounts + full provenance!
+            set_workspace_rls_context(api_conn, g.workspace_id)
+            set_user_rls_context(api_conn, g.user_id)
+            with api_conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM public.source_accounts")
+                assert cur.fetchone() == (2,)
+            summary = fetch_claim_verification_summary(
+                api_conn, workspace_id=g.workspace_id, claim_id=g.claim_id
+            )
+            assert summary is not None
+            assert summary.computed_verification == ClaimVerification.SOURCE_VERIFIED
+            api_conn.commit()
+    finally:
+        _drop_isolated_database(pg18_cluster, seq_db)
+
+
+def test_upgrade_path_and_non_superuser_migrator_compatibility(
     pg18_cluster: EphemeralPgCluster,
 ) -> None:
     # Scenario A: 0020 applied first -> live 0020 data seeded -> 0030 upgraded -> full re-run idempotency.
@@ -591,7 +783,7 @@ def test_upgrade_path_and_0010_preexisting_migrator_compatibility(
             rev_id = uuid.uuid4()
             cu_id = uuid.uuid4()
             with conn.cursor() as cur:
-                cur.execute("INSERT INTO public.workspaces (id, slug, name) VALUES (%s, 'up-1', 'Upgrade WS')", (ws_id,))
+                cur.execute("INSERT INTO public.workspaces (id, name) VALUES (%s, 'Upgrade WS')", (ws_id,))
                 cur.execute(
                     """
                     INSERT INTO public.source_accounts
@@ -644,23 +836,22 @@ def test_upgrade_path_and_0010_preexisting_migrator_compatibility(
                 "0030_events_facts_claims_contributions.sql"
             ]
 
-            # Link newly created 0030 tables to pre-existing 0020 rows.
             ev_id = uuid.uuid4()
             f_id = uuid.uuid4()
             with conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO public.work_events
-                        (id, workspace_id, event_kind, title, primary_anchor_source_object_id)
-                    VALUES (%s, %s, 'PR', 'Upgraded event', %s)
+                        (id, workspace_id, primary_anchor_source_object_id, anchor_mode, title)
+                    VALUES (%s, %s, %s, 'PR', 'Upgraded event')
                     """,
                     (ev_id, ws_id, obj_id),
                 )
                 cur.execute(
                     """
                     INSERT INTO public.facts
-                        (id, workspace_id, event_id, fact_type, statement, status, extractor_version)
-                    VALUES (%s, %s, %s, 'ACTION', 'Upgraded fact', 'SUPPORTED', 'ext-v1')
+                        (id, workspace_id, event_id, fact_type, predicate, object_text, status, extractor_version)
+                    VALUES (%s, %s, %s, 'ACTION', 'upgraded', 'Upgraded fact', 'SUPPORTED', 'ext-v1')
                     """,
                     (f_id, ws_id, ev_id),
                 )
@@ -687,8 +878,8 @@ def test_upgrade_path_and_0010_preexisting_migrator_compatibility(
     finally:
         _drop_isolated_database(pg18_cluster, upgrade_db)
 
-    # Scenario B: Simulated 0010 pre-bootstrap + running 0020 & 0030 as non-superuser cm_migrator.
-    compat_db = _create_isolated_database(pg18_cluster, "cm_0010_compat")
+    # Scenario B: Running 0020 & 0030 as non-superuser cm_migrator after bootstrap.
+    compat_db = _create_isolated_database(pg18_cluster, "cm_non_su_mig")
     try:
         with psycopg.connect(pg18_cluster.dsn(dbname=compat_db)) as admin_conn:
             with admin_conn.cursor() as cur:
@@ -699,32 +890,9 @@ def test_upgrade_path_and_0010_preexisting_migrator_compatibility(
                     GRANT USAGE ON SCHEMA public TO cm_api_app, cm_worker_app;
                     """
                 )
-                cur.execute("SET ROLE cm_migrator")
-                cur.execute(
-                    """
-                    CREATE TABLE public.users (
-                        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                        email text NULL
-                    );
-                    CREATE TABLE public.workspaces (
-                        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                        name text NOT NULL
-                    );
-                    CREATE TABLE public.workspace_memberships (
-                        workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
-                        user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-                        revoked_at timestamptz NULL,
-                        PRIMARY KEY (workspace_id, user_id)
-                    );
-                    CREATE POLICY existing_0010_ws_select ON public.workspaces
-                        FOR SELECT TO cm_api_app USING (true);
-                    RESET ROLE;
-                    """
-                )
             admin_conn.commit()
 
-        # Now apply 0020 and 0030 directly as non-superuser cm_migrator.
-        with psycopg.connect(pg18_cluster.dsn(dbname=compat_db, user=MIGRATOR_ROLE)) as mig_conn:
+        with _connect_as_role(pg18_cluster, dbname=compat_db, role=MIGRATOR_ROLE) as mig_conn:
             assert apply_schema_migrations(mig_conn) == [
                 "0020_source_provenance_metadata.sql",
                 "0030_events_facts_claims_contributions.sql",
@@ -753,7 +921,7 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                 )
         conn.rollback()
 
-        # 2. source_resources.raw_storage_mode != 'NONE' rejected.
+        # 2. source_resources.raw_storage_mode != 'NONE' & raw_retention_seconds IS NOT NULL rejected.
         with pytest.raises(pg_errors.CheckViolation):
             with conn.cursor() as cur:
                 cur.execute(
@@ -770,7 +938,6 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                 )
         conn.rollback()
 
-        # 3. source_resources.raw_retention_seconds IS NOT NULL rejected.
         with pytest.raises(pg_errors.CheckViolation):
             with conn.cursor() as cur:
                 cur.execute(
@@ -787,7 +954,7 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                 )
         conn.rollback()
 
-        # 4. content_units: non-NULL text_content, content_ref, expires_at, non-NONE retention_class rejected.
+        # 3. content_units Plan C invariants & nested anchor canary blocking.
         bad_unit_cases = [
             ("text_content", "CANARY_RAW_TEXT", None, "NONE", None, {"parser_version": "v1"}),
             ("content_ref", None, "s3://bucket/canary.txt", "NONE", None, {"parser_version": "v1"}),
@@ -828,7 +995,7 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                     )
             conn.rollback()
 
-        # 5. source_object_revisions.normalized_metadata rejects top-level, nested, and array raw keys.
+        # 4. source_object_revisions.normalized_metadata rejects top-level, nested, and array raw keys.
         for idx, bad_meta in enumerate(
             [
                 {"body": "CANARY_TOP_LEVEL_BODY"},
@@ -855,6 +1022,33 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                         ),
                     )
             conn.rollback()
+
+        # 5. external_identity_mappings.evidence_metadata & facts.normalized_value reject canary keys.
+        with pytest.raises(pg_errors.CheckViolation):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.external_identity_mappings
+                        (workspace_id, identity_id, provider, username,
+                         verification_method, status, evidence_metadata)
+                    VALUES (%s, %s, 'GITHUB', 'octo', 'PROVIDER_ASSOCIATION', 'HEURISTIC', %s)
+                    """,
+                    (g.workspace_id, g.identity_id, Jsonb({"raw_payload": "CANARY_IDENTITY_PAYLOAD"})),
+                )
+        conn.rollback()
+
+        with pytest.raises(pg_errors.CheckViolation):
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.facts
+                        (workspace_id, event_id, fact_type, predicate, object_text,
+                         normalized_value, extractor_version)
+                    VALUES (%s, %s, 'METRIC', 'latency', 'p99 -20%%', %s, 'ext-v1')
+                    """,
+                    (g.workspace_id, g.work_event_id, Jsonb({"nested": {"quote": "CANARY_FACT_QUOTE"}})),
+                )
+        conn.rollback()
 
         # 6. fact_support: extracted_span IS NOT NULL and support_metadata canary keys rejected.
         with pytest.raises(pg_errors.CheckViolation):
@@ -888,24 +1082,28 @@ def test_plan_c_raw_text_non_persistence_and_canary_jsonb_blocking(
                 )
         conn.rollback()
 
-        # 7. generation_runs rejects prompt/raw_payload smuggling in input_artifact_versions & run_metadata.
-        for bad_inputs, bad_meta in [
-            ({"prompt": "CANARY_PROMPT_IN_INPUTS"}, {}),
-            ({"fact_ids": []}, {"trace": [{"raw_payload": "CANARY_RAW_PAYLOAD"}]}),
+        # 7. generation_runs rejects prompt/raw_payload smuggling across all 3 JSONB columns.
+        for bad_inputs, bad_tokens, bad_meta in [
+            ({"prompt": "CANARY_PROMPT_IN_INPUTS"}, None, {}),
+            ({"fact_ids": []}, {"completion": "CANARY_COMPLETION"}, {}),
+            ({"fact_ids": []}, None, {"trace": [{"raw_payload": "CANARY_RAW_PAYLOAD"}]}),
         ]:
             with pytest.raises(pg_errors.CheckViolation):
                 with conn.cursor() as cur:
                     cur.execute(
                         """
                         INSERT INTO public.generation_runs
-                            (workspace_id, event_id, run_stage, model_id, prompt_version,
-                             input_artifact_versions, run_metadata)
-                        VALUES (%s, %s, 'CLAIM_GENERATION', 'model-1', 'pv-1', %s, %s)
+                            (workspace_id, event_id, run_type, input_artifact_versions,
+                             model, prompt_version, input_hash, token_usage, run_metadata)
+                        VALUES (%s, %s, 'CLAIM_DRAFT_GENERATION', %s,
+                                'model-1', 'pv-1', %s, %s, %s)
                         """,
                         (
                             g.workspace_id,
                             g.work_event_id,
                             Jsonb(bad_inputs),
+                            _HASH_A,
+                            Jsonb(bad_tokens) if bad_tokens is not None else None,
                             Jsonb(bad_meta),
                         ),
                     )
@@ -919,7 +1117,6 @@ def test_source_object_revision_immutability_data01(
     with psycopg.connect(cluster.dsn(dbname=dbname)) as conn:
         g = _seed_workspace_graph(conn, slug_suffix="immut")
 
-        # UPDATE content_hash must fail (DATA-01).
         with pytest.raises(pg_errors.IntegrityError) as hash_exc:
             with conn.cursor() as cur:
                 cur.execute(
@@ -929,7 +1126,6 @@ def test_source_object_revision_immutability_data01(
         assert hash_exc.value.sqlstate == "23000"
         conn.rollback()
 
-        # UPDATE observed_at must fail (DATA-01).
         with pytest.raises(pg_errors.IntegrityError) as ts_exc:
             with conn.cursor() as cur:
                 cur.execute(
@@ -939,7 +1135,6 @@ def test_source_object_revision_immutability_data01(
         assert ts_exc.value.sqlstate == "23000"
         conn.rollback()
 
-        # DELETE without explicit purge context must fail.
         with pytest.raises(pg_errors.IntegrityError) as del_exc:
             with conn.cursor() as cur:
                 cur.execute(
@@ -949,7 +1144,6 @@ def test_source_object_revision_immutability_data01(
         assert del_exc.value.sqlstate == "23000"
         conn.rollback()
 
-        # DELETE WITH explicit transaction-local purge context succeeds.
         with conn.cursor() as cur:
             cur.execute("SET LOCAL app.allow_revision_purge = 'on'")
             cur.execute(
@@ -960,7 +1154,7 @@ def test_source_object_revision_immutability_data01(
         conn.commit()
 
 
-def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_anti_oracle_parity(
+def test_composite_fk_blocks_cross_workspace_parents_for_admin_and_runtime_with_anti_oracle_parity(
     migrated_db: tuple[EphemeralPgCluster, str],
 ) -> None:
     cluster, dbname = migrated_db
@@ -970,8 +1164,6 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
 
     nonexistent = uuid.uuid4()
 
-    # Each case attempts to insert a child in ws_a pointing to a parent UUID from ws_b
-    # vs a completely nonexistent UUID, verifying identical SQLSTATE 23503 (ForeignKeyViolation).
     def cross_ws_cases(target_parent_id: uuid.UUID, case_name: str) -> tuple[str, tuple[object, ...]]:
         cases: dict[str, tuple[str, tuple[object, ...]]] = {
             "source_resources->source_accounts": (
@@ -1013,58 +1205,75 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
             "external_identity_mappings->identities": (
                 """
                 INSERT INTO public.external_identity_mappings
-                    (workspace_id, identity_id, provider, external_login, verification_method, status)
-                VALUES (%s, %s, 'GITHUB', 'cross-ws-user', 'FUZZY_HEURISTIC', 'CANDIDATE')
+                    (workspace_id, identity_id, provider, username, verification_method, status)
+                VALUES (%s, %s, 'GITHUB', 'cross-ws-user', 'PROVIDER_ASSOCIATION', 'HEURISTIC')
                 """,
                 (ws_a.workspace_id, target_parent_id),
             ),
             "work_events->source_objects": (
                 """
                 INSERT INTO public.work_events
-                    (workspace_id, event_kind, title, primary_anchor_source_object_id)
-                VALUES (%s, 'PR', 'Cross-ws anchor', %s)
+                    (workspace_id, primary_anchor_source_object_id, anchor_mode, title)
+                VALUES (%s, %s, 'PR', 'Cross-ws anchor')
                 """,
                 (ws_a.workspace_id, target_parent_id),
             ),
             "event_memberships->work_events": (
                 """
                 INSERT INTO public.event_memberships
-                    (workspace_id, event_id, source_object_id, membership_role)
-                VALUES (%s, %s, %s, 'CONTEXT_ONLY')
+                    (workspace_id, event_id, source_object_id, relation_class, relation_type, origin)
+                VALUES (%s, %s, %s, 'CONTEXT_ONLY', 'MENTIONED_IN', 'RULE')
                 """,
                 (ws_a.workspace_id, target_parent_id, ws_a.source_object_id),
             ),
             "event_memberships->source_objects": (
                 """
                 INSERT INTO public.event_memberships
-                    (workspace_id, event_id, source_object_id, membership_role)
-                VALUES (%s, %s, %s, 'CONTEXT_ONLY')
+                    (workspace_id, event_id, source_object_id, relation_class, relation_type, origin)
+                VALUES (%s, %s, %s, 'CONTEXT_ONLY', 'MENTIONED_IN', 'RULE')
                 """,
                 (ws_a.workspace_id, ws_a.work_event_id, target_parent_id),
             ),
             "event_composite_memberships->composite": (
                 """
                 INSERT INTO public.event_composite_memberships
-                    (workspace_id, composite_event_id, member_event_id)
-                VALUES (%s, %s, %s)
+                    (workspace_id, composite_event_id, composite_event_version, member_event_id, member_event_version)
+                VALUES (%s, %s, 1, %s, 1)
                 """,
                 (ws_a.workspace_id, target_parent_id, ws_a.work_event_id),
             ),
             "event_composite_memberships->member": (
                 """
                 INSERT INTO public.event_composite_memberships
-                    (workspace_id, composite_event_id, member_event_id)
-                VALUES (%s, %s, %s)
+                    (workspace_id, composite_event_id, composite_event_version, member_event_id, member_event_version)
+                VALUES (%s, %s, 1, %s, 1)
                 """,
                 (ws_a.workspace_id, ws_a.work_event_id, target_parent_id),
+            ),
+            "event_composite_memberships->review_actions": (
+                """
+                INSERT INTO public.event_composite_memberships
+                    (workspace_id, composite_event_id, composite_event_version, member_event_id,
+                     member_event_version, added_by_review_action_id)
+                VALUES (%s, %s, 1, %s, 1, %s)
+                """,
+                (ws_a.workspace_id, ws_a.work_event_id, uuid.uuid4(), target_parent_id),
             ),
             "facts->work_events": (
                 """
                 INSERT INTO public.facts
-                    (workspace_id, event_id, fact_type, statement, extractor_version)
-                VALUES (%s, %s, 'ACTION', 'Cross-ws fact', 'ext-v1')
+                    (workspace_id, event_id, fact_type, predicate, object_text, extractor_version)
+                VALUES (%s, %s, 'ACTION', 'did', 'Cross-ws fact', 'ext-v1')
                 """,
                 (ws_a.workspace_id, target_parent_id),
+            ),
+            "facts->identities": (
+                """
+                INSERT INTO public.facts
+                    (workspace_id, event_id, fact_type, subject_identity_id, predicate, object_text, extractor_version)
+                VALUES (%s, %s, 'ROLE', %s, 'led', 'Cross-ws subject', 'ext-v1')
+                """,
+                (ws_a.workspace_id, ws_a.work_event_id, target_parent_id),
             ),
             "fact_support->facts": (
                 """
@@ -1122,6 +1331,14 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
                 """,
                 (ws_a.workspace_id, target_parent_id),
             ),
+            "claims->generator_run": (
+                """
+                INSERT INTO public.claims
+                    (workspace_id, event_id, generator_run_id, claim_text)
+                VALUES (%s, %s, %s, 'Cross-ws gen run')
+                """,
+                (ws_a.workspace_id, ws_a.work_event_id, target_parent_id),
+            ),
             "claim_atoms->claims": (
                 """
                 INSERT INTO public.claim_atoms
@@ -1146,8 +1363,60 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
                 """,
                 (ws_a.workspace_id, ws_a.claim_atom_id, target_parent_id),
             ),
+            "claim_atom_support->validation_run": (
+                """
+                INSERT INTO public.claim_atom_support
+                    (workspace_id, claim_atom_id, fact_id, validation_run_id)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (ws_a.workspace_id, ws_a.claim_atom_id, ws_a.fact_id, target_parent_id),
+            ),
         }
         return cases[case_name]
+
+    # Seed a second event in ws_a so event_composite_memberships->review_actions isolates the review_action FK cleanly,
+    # and a second fact in ws_a so claim_atom_support->validation_run isolates validation_run_id cleanly.
+    second_event_a = uuid.uuid4()
+    second_fact_a = uuid.uuid4()
+    with psycopg.connect(cluster.dsn(dbname=dbname)) as setup_conn:
+        with setup_conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO public.work_events (id, workspace_id, anchor_mode, title)
+                VALUES (%s, %s, 'USER_COMPOSITE', 'Composite A')
+                """,
+                (second_event_a, ws_a.workspace_id),
+            )
+            cur.execute(
+                """
+                INSERT INTO public.facts (id, workspace_id, event_id, fact_type, predicate, object_text, extractor_version)
+                VALUES (%s, %s, %s, 'RESULT', 'improved', 'p99 latency', 'ext-v1')
+                """,
+                (second_fact_a, ws_a.workspace_id, ws_a.work_event_id),
+            )
+        setup_conn.commit()
+
+    def build_case(case_name: str, target_parent_id: uuid.UUID) -> tuple[str, tuple[object, ...]]:
+        if case_name == "event_composite_memberships->review_actions":
+            return (
+                """
+                INSERT INTO public.event_composite_memberships
+                    (workspace_id, composite_event_id, composite_event_version, member_event_id,
+                     member_event_version, added_by_review_action_id)
+                VALUES (%s, %s, 1, %s, 1, %s)
+                """,
+                (ws_a.workspace_id, second_event_a, ws_a.work_event_id, target_parent_id),
+            )
+        if case_name == "claim_atom_support->validation_run":
+            return (
+                """
+                INSERT INTO public.claim_atom_support
+                    (workspace_id, claim_atom_id, fact_id, validation_run_id)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (ws_a.workspace_id, ws_a.claim_atom_id, second_fact_a, target_parent_id),
+            )
+        return cross_ws_cases(target_parent_id, case_name)
 
     parent_id_by_case: list[tuple[str, uuid.UUID]] = [
         ("source_resources->source_accounts", ws_b.account_id),
@@ -1160,7 +1429,9 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
         ("event_memberships->source_objects", ws_b.source_object_id),
         ("event_composite_memberships->composite", ws_b.work_event_id),
         ("event_composite_memberships->member", ws_b.work_event_id),
+        ("event_composite_memberships->review_actions", ws_b.review_action_id),
         ("facts->work_events", ws_b.work_event_id),
+        ("facts->identities", ws_b.identity_id),
         ("fact_support->facts", ws_b.fact_id),
         ("fact_support->content_units", ws_b.content_unit_id),
         ("contributions->work_events", ws_b.work_event_id),
@@ -1168,24 +1439,25 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
         ("contribution_support->contributions", ws_b.contribution_id),
         ("contribution_support->facts", ws_b.fact_id),
         ("claims->work_events", ws_b.work_event_id),
+        ("claims->generator_run", ws_b.generation_run_id),
         ("claim_atoms->claims", ws_b.claim_id),
         ("claim_atom_support->claim_atoms", ws_b.claim_atom_id),
         ("claim_atom_support->facts", ws_b.fact_id),
+        ("claim_atom_support->validation_run", ws_b.validation_run_id),
     ]
 
-    # Verify for BOTH RLS-bypassing admin/backfill role AND restricted runtime role (cm_api_app).
     for role_name in (cluster.superuser, API_APP_ROLE):
-        with psycopg.connect(cluster.dsn(dbname=dbname, user=role_name)) as conn:
+        with _connect_as_role(cluster, dbname=dbname, role=role_name) as conn:
             for case_name, other_ws_parent_id in parent_id_by_case:
                 set_workspace_rls_context(conn, ws_a.workspace_id)
-                sql_cross, params_cross = cross_ws_cases(other_ws_parent_id, case_name)
+                sql_cross, params_cross = build_case(case_name, other_ws_parent_id)
                 with pytest.raises(pg_errors.ForeignKeyViolation) as cross_exc:
                     with conn.cursor() as cur:
                         cur.execute(sql_cross, params_cross)
                 conn.rollback()
 
                 set_workspace_rls_context(conn, ws_a.workspace_id)
-                sql_missing, params_missing = cross_ws_cases(nonexistent, case_name)
+                sql_missing, params_missing = build_case(case_name, nonexistent)
                 with pytest.raises(pg_errors.ForeignKeyViolation) as missing_exc:
                     with conn.cursor() as cur:
                         cur.execute(sql_missing, params_missing)
@@ -1195,16 +1467,13 @@ def test_composite_fk_blocks_cross_workspace_parents_for_owner_and_runtime_with_
                 assert missing_exc.value.sqlstate == "23503"
                 assert cross_exc.value.diag.constraint_name == missing_exc.value.diag.constraint_name
 
-    # Also verify that even table owner cm_migrator (NOBYPASSRLS) is subject to FORCE RLS
-    # and cannot read or insert tenant rows when no policy grants it runtime DML.
-    with psycopg.connect(cluster.dsn(dbname=dbname, user=MIGRATOR_ROLE)) as owner_conn:
+    # Verify table owner cm_migrator (NOBYPASSRLS) is also subject to FORCE RLS.
+    with _connect_as_role(cluster, dbname=dbname, role=MIGRATOR_ROLE) as owner_conn:
         with owner_conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM public.source_resources")
             assert cur.fetchone() == (0,)
         with pytest.raises(pg_errors.InsufficientPrivilege):
-            sql_cross, params_cross = cross_ws_cases(
-                ws_b.account_id, "source_resources->source_accounts"
-            )
+            sql_cross, params_cross = build_case("source_resources->source_accounts", ws_b.account_id)
             with owner_conn.cursor() as cur:
                 cur.execute(sql_cross, params_cross)
         owner_conn.rollback()
@@ -1218,11 +1487,8 @@ def test_rls_fail_closed_connection_reuse_and_least_privilege_grants(
         ws_a = _seed_workspace_graph(setup_conn, slug_suffix="rls-a")
         ws_b = _seed_workspace_graph(setup_conn, slug_suffix="rls-b")
 
-    # 1. Both cm_api_app and cm_worker_app fail closed (0 rows) when GUC is unset/empty/malformed,
-    #    and isolate cleanly across transactions on the SAME reused connection.
     for role_name in (API_APP_ROLE, WORKER_APP_ROLE):
-        with psycopg.connect(cluster.dsn(dbname=dbname, user=role_name), autocommit=False) as conn:
-            # Unset GUC -> 0 rows everywhere.
+        with _connect_as_role(cluster, dbname=dbname, role=role_name) as conn:
             with conn.cursor() as cur:
                 for tbl in ("source_objects", "content_units", "work_events", "facts", "claims"):
                     cur.execute(f"SELECT COUNT(*) FROM public.{tbl}")
@@ -1231,27 +1497,24 @@ def test_rls_fail_closed_connection_reuse_and_least_privilege_grants(
                 assert cur.fetchone() == (0,)
             conn.rollback()
 
-            # Malformed GUC -> 0 rows (no cast error).
             with conn.cursor() as cur:
                 cur.execute("SELECT set_config('app.current_workspace_id', 'not-a-uuid', true)")
                 cur.execute("SELECT COUNT(*) FROM public.claims")
                 assert cur.fetchone() == (0,)
             conn.rollback()
 
-            # Tx 1 scoped to ws_a -> sees ONLY ws_a.
             set_workspace_rls_context(conn, ws_a.workspace_id)
             with conn.cursor() as cur:
                 cur.execute("SELECT id FROM public.claims")
                 assert cur.fetchall() == [(ws_a.claim_id,)]
             conn.commit()
 
-            # Tx 2 immediately after commit without setting GUC -> back to 0 rows (no leak!).
+            # Immediate next tx without setting GUC -> back to 0 rows.
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM public.claims")
                 assert cur.fetchone() == (0,)
             conn.rollback()
 
-            # Tx 3 scoped to ws_b -> sees ONLY ws_b.
             set_workspace_rls_context(conn, ws_b.workspace_id)
             with conn.cursor() as cur:
                 cur.execute("SELECT id FROM public.claims")
@@ -1262,8 +1525,7 @@ def test_rls_fail_closed_connection_reuse_and_least_privilege_grants(
                 assert cur.fetchone() == (0,)
             conn.commit()
 
-    # 2. cm_worker_app MUST be denied users, workspaces, workspace_memberships, DELETE, and review_actions INSERT.
-    with psycopg.connect(cluster.dsn(dbname=dbname, user=WORKER_APP_ROLE), autocommit=False) as worker_conn:
+    with _connect_as_role(cluster, dbname=dbname, role=WORKER_APP_ROLE) as worker_conn:
         for forbidden_table in ("users", "workspaces", "workspace_memberships"):
             with pytest.raises(pg_errors.InsufficientPrivilege):
                 with worker_conn.cursor() as cur:
@@ -1282,8 +1544,8 @@ def test_rls_fail_closed_connection_reuse_and_least_privilege_grants(
                 cur.execute(
                     """
                     INSERT INTO public.review_actions
-                        (workspace_id, action, target_type, target_id, idempotency_key)
-                    VALUES (%s, 'APPROVE', 'CLAIM', %s, 'worker-attempt')
+                        (workspace_id, target_type, target_id, action, idempotency_key)
+                    VALUES (%s, 'CLAIM', %s, 'CONFIRM', 'worker-attempt')
                     """,
                     (ws_a.workspace_id, ws_a.claim_id),
                 )
@@ -1294,44 +1556,52 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
     migrated_db: tuple[EphemeralPgCluster, str],
 ) -> None:
     cluster, dbname = migrated_db
-    with psycopg.connect(cluster.dsn(dbname=dbname, user=API_APP_ROLE), autocommit=False) as conn:
-        with psycopg.connect(cluster.dsn(dbname=dbname)) as setup_conn:
-            g = _seed_workspace_graph(setup_conn, slug_suffix="domain")
+    with psycopg.connect(cluster.dsn(dbname=dbname)) as setup_conn:
+        g = _seed_workspace_graph(setup_conn, slug_suffix="domain")
 
-        # 1. external_identity_mappings: FUZZY_HEURISTIC cannot be VERIFIED.
-        set_workspace_rls_context(conn, g.workspace_id)
-        with pytest.raises(pg_errors.CheckViolation):
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO public.external_identity_mappings
-                        (workspace_id, identity_id, provider, external_login,
-                         verification_method, status)
-                    VALUES (%s, %s, 'GITHUB', 'alex-guess', 'FUZZY_HEURISTIC', 'VERIFIED')
-                    """,
-                    (g.workspace_id, g.identity_id),
-                )
-        conn.rollback()
+    with _connect_as_role(cluster, dbname=dbname, role=API_APP_ROLE) as conn:
+        # 1. external_identity_mappings: method <-> status & hashed email_hash enforcement.
+        for bad_method, bad_status, bad_email_hash in [
+            ("USER_CONFIRMATION", "VERIFIED", _HASH_EMAIL),
+            ("OAUTH_ACCOUNT", "USER_CONFIRMED", _HASH_EMAIL),
+            ("OAUTH_ACCOUNT", "VERIFIED", "plaintext-email@example.com"),
+        ]:
+            set_workspace_rls_context(conn, g.workspace_id)
+            with pytest.raises(pg_errors.CheckViolation):
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO public.external_identity_mappings
+                            (workspace_id, identity_id, provider, email_hash, username,
+                             verification_method, status)
+                        VALUES (%s, %s, 'GITHUB', %s, 'alex-gh', %s, %s)
+                        """,
+                        (g.workspace_id, g.identity_id, bad_email_hash, bad_method, bad_status),
+                    )
+            conn.rollback()
 
         set_workspace_rls_context(conn, g.workspace_id)
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO public.external_identity_mappings
-                    (workspace_id, identity_id, provider, external_user_id,
+                    (workspace_id, identity_id, provider, external_user_id, email_hash, username,
                      verification_method, status, verified_at)
-                VALUES (%s, %s, 'GITHUB', '12345', 'OAUTH_ACCOUNT_ID', 'VERIFIED', now())
+                VALUES
+                    (%s, %s, 'GITHUB', '12345', %s, 'alex-gh', 'OAUTH_ACCOUNT', 'VERIFIED', now()),
+                    (%s, %s, 'GITHUB', NULL, %s, 'alex-alt', 'USER_CONFIRMATION', 'USER_CONFIRMED', now())
                 """,
-                (g.workspace_id, g.identity_id),
+                (g.workspace_id, g.identity_id, _HASH_EMAIL, g.workspace_id, g.identity_id, _HASH_EMAIL),
             )
         conn.commit()
 
-        # 2. work_events anchor invariants.
-        for bad_kind, bad_anchor, bad_scope in [
+        # 2. work_events anchor_mode invariants (PR / PR_SEGMENT / DIRECT_COMMIT / USER_COMPOSITE).
+        for bad_mode, bad_anchor, bad_scope in [
             ("PR", None, None),
             ("DIRECT_COMMIT", None, None),
             ("PR_SEGMENT", g.source_object_id, None),
             ("PR_SEGMENT", None, {"segment_index": 0}),
+            ("COMPOSITE", None, None),  # invalid non-spec anchor_mode
         ]:
             set_workspace_rls_context(conn, g.workspace_id)
             with pytest.raises(pg_errors.CheckViolation):
@@ -1339,29 +1609,29 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
                     cur.execute(
                         """
                         INSERT INTO public.work_events
-                            (workspace_id, event_kind, title, primary_anchor_source_object_id, anchor_scope)
-                        VALUES (%s, %s, 'Invalid anchor', %s, %s)
+                            (workspace_id, primary_anchor_source_object_id, anchor_mode, anchor_scope, title)
+                        VALUES (%s, %s, %s, %s, 'Invalid anchor')
                         """,
                         (
                             g.workspace_id,
-                            bad_kind,
                             bad_anchor,
+                            bad_mode,
                             Jsonb(bad_scope) if bad_scope is not None else None,
                         ),
                     )
             conn.rollback()
 
-        # 3. event_composite_memberships: no self-reference & no duplicate active member.
+        # 3. event_composite_memberships: no self-ref, versioned uniqueness, single active membership, review_action FK.
         set_workspace_rls_context(conn, g.workspace_id)
         comp_a = uuid.uuid4()
         comp_b = uuid.uuid4()
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO public.work_events (id, workspace_id, event_kind, title) VALUES (%s, %s, 'COMPOSITE', 'Comp A')",
+                "INSERT INTO public.work_events (id, workspace_id, anchor_mode, title, created_by) VALUES (%s, %s, 'USER_COMPOSITE', 'Comp A', 'USER')",
                 (comp_a, g.workspace_id),
             )
             cur.execute(
-                "INSERT INTO public.work_events (id, workspace_id, event_kind, title) VALUES (%s, %s, 'COMPOSITE', 'Comp B')",
+                "INSERT INTO public.work_events (id, workspace_id, anchor_mode, title, created_by) VALUES (%s, %s, 'USER_COMPOSITE', 'Comp B', 'USER')",
                 (comp_b, g.workspace_id),
             )
         conn.commit()
@@ -1372,8 +1642,9 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
                 cur.execute(
                     """
                     INSERT INTO public.event_composite_memberships
-                        (workspace_id, composite_event_id, member_event_id)
-                    VALUES (%s, %s, %s)
+                        (workspace_id, composite_event_id, composite_event_version,
+                         member_event_id, member_event_version)
+                    VALUES (%s, %s, 1, %s, 1)
                     """,
                     (g.workspace_id, comp_a, comp_a),
                 )
@@ -1384,10 +1655,11 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
             cur.execute(
                 """
                 INSERT INTO public.event_composite_memberships
-                    (workspace_id, composite_event_id, member_event_id, status)
-                VALUES (%s, %s, %s, 'ACTIVE')
+                    (workspace_id, composite_event_id, composite_event_version,
+                     member_event_id, member_event_version, status, added_by_review_action_id)
+                VALUES (%s, %s, 1, %s, 1, 'ACTIVE', %s)
                 """,
-                (g.workspace_id, comp_a, g.work_event_id),
+                (g.workspace_id, comp_a, g.work_event_id, g.review_action_id),
             )
         conn.commit()
 
@@ -1397,23 +1669,46 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
                 cur.execute(
                     """
                     INSERT INTO public.event_composite_memberships
-                        (workspace_id, composite_event_id, member_event_id, status)
-                    VALUES (%s, %s, %s, 'ACTIVE')
+                        (workspace_id, composite_event_id, composite_event_version,
+                         member_event_id, member_event_version, status)
+                    VALUES (%s, %s, 1, %s, 1, 'ACTIVE')
                     """,
                     (g.workspace_id, comp_b, g.work_event_id),
                 )
         conn.rollback()
 
-        # 4. review_actions idempotency uniqueness.
+        # 4. event_memberships unique on (event_id, source_object_id, relation_type).
+        set_workspace_rls_context(conn, g.workspace_id)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO public.event_memberships
+                    (workspace_id, event_id, source_object_id, relation_class, relation_type, origin)
+                VALUES
+                    (%s, %s, %s, 'MUST_LINK', 'PRIMARY_PR', 'SOURCE'),
+                    (%s, %s, %s, 'CONTEXT_ONLY', 'MENTIONED_ISSUE', 'RULE')
+                """,
+                (
+                    g.workspace_id,
+                    g.work_event_id,
+                    g.source_object_id,
+                    g.workspace_id,
+                    g.work_event_id,
+                    g.source_object_id,
+                ),
+            )
+        conn.commit()
+
+        # 5. review_actions 7 official actions & idempotency uniqueness.
         set_workspace_rls_context(conn, g.workspace_id)
         with conn.cursor() as cur:
             cur.execute(
                 """
                 INSERT INTO public.review_actions
-                    (workspace_id, action, target_type, target_id, idempotency_key)
-                VALUES (%s, 'CONFIRM', 'WORK_EVENT', %s, 'idem-001')
+                    (workspace_id, target_type, target_id, action, from_version, to_version, idempotency_key, reason)
+                VALUES (%s, 'WORK_EVENT', %s, 'DISSOLVE', 1, 2, 'idem-001', 'split composite')
                 """,
-                (g.workspace_id, g.work_event_id),
+                (g.workspace_id, comp_a),
             )
         conn.commit()
 
@@ -1423,14 +1718,14 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
                 cur.execute(
                     """
                     INSERT INTO public.review_actions
-                        (workspace_id, action, target_type, target_id, idempotency_key)
-                    VALUES (%s, 'CONFIRM', 'WORK_EVENT', %s, 'idem-001')
+                        (workspace_id, target_type, target_id, action, idempotency_key)
+                    VALUES (%s, 'WORK_EVENT', %s, 'DISSOLVE', 'idem-001')
                     """,
-                    (g.workspace_id, g.work_event_id),
+                    (g.workspace_id, comp_a),
                 )
         conn.rollback()
 
-        # 5. contributions: MVP RULE origin restricted to IMPLEMENTED / REVIEWED only.
+        # 6. contributions: MVP RULE origin restricted to IMPLEMENTED / REVIEWED only.
         for disallowed_role in ("PROPOSED", "DESIGNED", "OPERATED", "MENTORED", "MEASURED"):
             set_workspace_rls_context(conn, g.workspace_id)
             with pytest.raises(pg_errors.CheckViolation):
@@ -1445,7 +1740,6 @@ def test_domain_constraints_identity_events_review_actions_and_contributions(
                     )
             conn.rollback()
 
-        # USER origin may record DESIGNED and RULE origin may record REVIEWED.
         set_workspace_rls_context(conn, g.workspace_id)
         with conn.cursor() as cur:
             cur.execute(
@@ -1476,8 +1770,7 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         ws_a = _seed_workspace_graph(setup_conn, slug_suffix="prov-a")
         ws_b = _seed_workspace_graph(setup_conn, slug_suffix="prov-b")
 
-    with psycopg.connect(cluster.dsn(dbname=dbname, user=API_APP_ROLE), autocommit=False) as conn:
-        # 1. Full provenance chain join under ws_a RLS context.
+    with _connect_as_role(cluster, dbname=dbname, role=API_APP_ROLE) as conn:
         set_workspace_rls_context(conn, ws_a.workspace_id)
         chain = fetch_claim_provenance_chain(
             conn, workspace_id=ws_a.workspace_id, claim_id=ws_a.claim_id
@@ -1485,7 +1778,9 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         assert len(chain) == 1
         row = chain[0]
         assert row.claim_id == ws_a.claim_id
+        assert row.version == 1
         assert row.claim_atom_id == ws_a.claim_atom_id
+        assert row.claim_atom_validation_run_id == ws_a.validation_run_id
         assert row.fact_id == ws_a.fact_id
         assert row.content_unit_id == ws_a.content_unit_id
         assert row.source_object_revision_id == ws_a.revision_id
@@ -1493,11 +1788,11 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         assert row.content_unit_hash == _HASH_B
         assert row.content_unit_anchor["parser_version"] == "md-parser-v1"
 
-        # 2. Initial claim has 1 SUPPORTED atom with active DIRECT provenance -> SOURCE_VERIFIED.
         summary = fetch_claim_verification_summary(
             conn, workspace_id=ws_a.workspace_id, claim_id=ws_a.claim_id
         )
         assert summary is not None
+        assert summary.version == 1
         assert summary.computed_verification == ClaimVerification.SOURCE_VERIFIED
         assert summary.atom_count == 1
         assert summary.source_backed_atom_count == 1
@@ -1517,7 +1812,7 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
             is None
         )
 
-        # 3. Adding a second USER_CONFIRMED atom transitions computed_verification to MIXED.
+        # Adding USER_CONFIRMED atom -> MIXED.
         user_atom_id = uuid.uuid4()
         with conn.cursor() as cur:
             cur.execute(
@@ -1534,7 +1829,7 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         assert mixed_summary is not None
         assert mixed_summary.computed_verification == ClaimVerification.MIXED
 
-        # 4. Adding an active CONTRADICTS fact_support drops claim to UNVERIFIED.
+        # Adding active CONTRADICTS fact_support -> UNVERIFIED.
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1550,7 +1845,7 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         assert contra_summary is not None
         assert contra_summary.computed_verification == ClaimVerification.UNVERIFIED
 
-        # 5. Claim with ONLY USER_CONFIRMED atom computes to USER_CONFIRMED (never SOURCE_VERIFIED).
+        # USER_CONFIRMED only -> USER_CONFIRMED (never SOURCE_VERIFIED).
         user_only_claim_id = uuid.uuid4()
         with conn.cursor() as cur:
             cur.execute(
@@ -1575,7 +1870,7 @@ def test_full_provenance_chain_and_computed_claim_verification_states(
         assert user_only_summary is not None
         assert user_only_summary.computed_verification == ClaimVerification.USER_CONFIRMED
 
-        # 6. Direct write to computed view is impossible.
+        # Direct write to computed view is impossible.
         with pytest.raises((pg_errors.InsufficientPrivilege, pg_errors.ObjectNotInPrerequisiteState)):
             with conn.cursor() as cur:
                 cur.execute(

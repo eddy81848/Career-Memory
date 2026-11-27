@@ -1,24 +1,39 @@
 -- Migration 0030: Identity, WorkEvent, Fact, Contribution, Claim & Provenance Schema (T-104)
 --
 -- Prerequisites: Migration 0020_source_provenance_metadata.sql
+-- Authoritative spec alignment: Notion Data Model §3.5 - §3.10
 --
 -- Design guarantees:
--- 1. All tenant tables enforce Composite Foreign Keys (workspace_id, parent_id) ->
---    parent(workspace_id, id), eliminating PostgreSQL single-FK cross-workspace
---    existence oracle and reference vulnerabilities for both runtime roles and owner.
+-- 1. All 28 parent-child tenant relationships enforce Composite Foreign Keys
+--    (workspace_id, parent_id) -> parent(workspace_id, id), eliminating PostgreSQL
+--    single-FK cross-workspace existence oracle and reference vulnerabilities.
 -- 2. Plan C (방안 C) raw-text non-persistence:
---    - fact_support.extracted_span IS NULL
---    - JSONB metadata columns (anchor_scope, summary_metadata, action_metadata,
---      fact_metadata, support_metadata, input_artifact_versions, run_metadata)
---      block forbidden raw-text keys recursively via cm_jsonb_contains_forbidden_raw_key().
--- 3. Domain invariants:
---    - external_identity_mappings: FUZZY_HEURISTIC cannot be marked VERIFIED.
---    - work_events: PR/PR_SEGMENT require primary_anchor_source_object_id;
---      PR_SEGMENT requires anchor_scope; DIRECT_COMMIT requires primary_anchor_source_object_id.
---    - event_composite_memberships: forbids self-reference and duplicate active member assignment.
---    - contributions: MVP automatic RULE candidates restricted to IMPLEMENTED / REVIEWED.
---    - claims: NO writable `verification` column; verification state is strictly computed
---      via read-only security_invoker view `v_claim_verification_summary`.
+--    - external_identity_mappings stores email_hash (never plaintext external_email).
+--    - fact_support.extracted_span IS NULL.
+--    - JSONB metadata columns (evidence_metadata, anchor_scope, summary_metadata,
+--      action_metadata, normalized_value, fact_metadata, support_metadata,
+--      input_artifact_versions, token_usage, run_metadata) block forbidden raw-text
+--      keys recursively via public.cm_jsonb_contains_forbidden_raw_key().
+-- 3. Domain invariants (Notion Data Model §3.5 - §3.10):
+--    - identities: display_name, identity_type (PERSON|BOT|UNKNOWN), canonical_user_id,
+--      status (ACTIVE|AMBIGUOUS|MERGED|REVOKED).
+--    - external_identity_mappings: verification_method (OAUTH_ACCOUNT|PROVIDER_ASSOCIATION|
+--      USER_CONFIRMATION), status (VERIFIED|USER_CONFIRMED|HEURISTIC|CONFLICTED|REVOKED),
+--      strictly forbidding unverified/heuristic promotion to VERIFIED.
+--    - work_events: anchor_mode (PR|PR_SEGMENT|DIRECT_COMMIT|USER_COMPOSITE), version,
+--      status (CANDIDATE|CONFIRMED|REJECTED|STALE|SUPERSEDED), created_by (RULE|USER),
+--      PR/PR_SEGMENT/DIRECT_COMMIT anchor invariants.
+--    - event_memberships: relation_class (MUST_LINK|CONTEXT_ONLY|CANNOT_LINK),
+--      relation_type, origin (SOURCE|RULE|USER), UNIQUE(event_id, source_object_id, relation_type).
+--    - event_composite_memberships: versioned composite/member references, no self-reference,
+--      Composite FK to review_actions(workspace_id, id), single active membership index.
+--    - review_actions: action (CONFIRM|EDIT|SPLIT|MERGE|DISSOLVE|REJECT|REOPEN), version tracking.
+--    - facts: subject_identity_id Composite FK, predicate, object_text, normalized_value.
+--    - contributions: MVP RULE candidates restricted to IMPLEMENTED / REVIEWED.
+--    - generation_runs: 6-stage run_type, model, algorithm_version, input_hash, CANCELED.
+--    - claims: version, generator_run_id, approved_at, NO writable `verification` column;
+--      verification is strictly computed via security_invoker view `v_claim_verification_summary`.
+--    - claim_atom_support: validation_run_id Composite FK to generation_runs.
 -- 4. Deferred boundaries intentionally omitted:
 --    - OD-007 active Event-to-Event CANNOT_LINK physical table (deferred to M3 / T-304).
 --    - Post-MVP embeddings, incremental watermarks, and resource lease tables (Data Model §8).
@@ -29,29 +44,28 @@ SET ROLE cm_migrator;
 -- 1. Identity & External Identity Mappings (Data Model §3.5)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.identities (
-    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id   uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    identity_kind  text NOT NULL DEFAULT 'PERSON',
-    canonical_name text NOT NULL,
-    primary_email  text NULL,
-    is_self        boolean NOT NULL DEFAULT false,
-    status         text NOT NULL DEFAULT 'ACTIVE',
-    created_at     timestamptz NOT NULL DEFAULT now(),
-    updated_at     timestamptz NOT NULL DEFAULT now(),
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id      uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+    display_name      text NOT NULL,
+    identity_type     text NOT NULL DEFAULT 'PERSON',
+    canonical_user_id uuid NULL REFERENCES public.users (id) ON DELETE SET NULL,
+    status            text NOT NULL DEFAULT 'ACTIVE',
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    updated_at        timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT ck_identities_kind
-        CHECK (identity_kind IN ('PERSON', 'BOT', 'TEAM', 'UNKNOWN')),
-    CONSTRAINT ck_identities_canonical_name_non_empty
-        CHECK (length(btrim(canonical_name)) > 0),
+    CONSTRAINT ck_identities_display_name_non_empty
+        CHECK (length(btrim(display_name)) > 0),
+    CONSTRAINT ck_identities_type
+        CHECK (identity_type IN ('PERSON', 'BOT', 'UNKNOWN')),
     CONSTRAINT ck_identities_status
-        CHECK (status IN ('ACTIVE', 'MERGED', 'ARCHIVED')),
+        CHECK (status IN ('ACTIVE', 'AMBIGUOUS', 'MERGED', 'REVOKED')),
     CONSTRAINT uq_identities_workspace_id_id
         UNIQUE (workspace_id, id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_identities_one_active_self_per_workspace
-    ON public.identities (workspace_id)
-    WHERE is_self AND status = 'ACTIVE';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_identities_active_canonical_user_per_workspace
+    ON public.identities (workspace_id, canonical_user_id)
+    WHERE canonical_user_id IS NOT NULL AND status = 'ACTIVE';
 
 CREATE TABLE IF NOT EXISTS public.external_identity_mappings (
     id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,12 +73,14 @@ CREATE TABLE IF NOT EXISTS public.external_identity_mappings (
     identity_id         uuid NOT NULL,
     provider            text NOT NULL,
     external_user_id    text NULL,
-    external_login      text NULL,
-    external_email      text NULL,
+    email_hash          text NULL,
+    username            text NULL,
     verification_method text NOT NULL,
-    status              text NOT NULL DEFAULT 'CANDIDATE',
-    confidence          numeric(4, 3) NULL,
+    status              text NOT NULL DEFAULT 'HEURISTIC',
+    confidence_reason   text NULL,
+    evidence_metadata   jsonb NOT NULL DEFAULT '{}'::jsonb,
     verified_at         timestamptz NULL,
+    revoked_at          timestamptz NULL,
     created_at          timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT ck_external_identity_mappings_provider
@@ -72,25 +88,47 @@ CREATE TABLE IF NOT EXISTS public.external_identity_mappings (
     CONSTRAINT ck_external_identity_mappings_has_external_identifier
         CHECK (
             external_user_id IS NOT NULL
-            OR external_login IS NOT NULL
-            OR external_email IS NOT NULL
+            OR email_hash IS NOT NULL
+            OR username IS NOT NULL
         ),
+    CONSTRAINT ck_external_identity_mappings_email_hash_format
+        CHECK (email_hash IS NULL OR email_hash ~ '^(sha256:)?[0-9a-f]{64}$'),
     CONSTRAINT ck_external_identity_mappings_verification_method
         CHECK (
             verification_method IN (
-                'OAUTH_ACCOUNT_ID',
-                'VERIFIED_EMAIL',
-                'USER_CONFIRMED',
-                'FUZZY_HEURISTIC'
+                'OAUTH_ACCOUNT',
+                'PROVIDER_ASSOCIATION',
+                'USER_CONFIRMATION'
             )
         ),
     CONSTRAINT ck_external_identity_mappings_status
-        CHECK (status IN ('CANDIDATE', 'VERIFIED', 'REJECTED', 'UNRESOLVED')),
-    -- Prevent fuzzy matching from auto-promoting an identity mapping to VERIFIED.
-    CONSTRAINT ck_external_identity_mappings_no_fuzzy_verified
-        CHECK (verification_method <> 'FUZZY_HEURISTIC' OR status <> 'VERIFIED'),
-    CONSTRAINT ck_external_identity_mappings_confidence_range
-        CHECK (confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)),
+        CHECK (
+            status IN (
+                'VERIFIED',
+                'USER_CONFIRMED',
+                'HEURISTIC',
+                'CONFLICTED',
+                'REVOKED'
+            )
+        ),
+    -- Prevent heuristic/user-only claims from being marked VERIFIED without provider proof.
+    CONSTRAINT ck_external_identity_mappings_verified_method
+        CHECK (
+            status <> 'VERIFIED'
+            OR verification_method IN ('OAUTH_ACCOUNT', 'PROVIDER_ASSOCIATION')
+        ),
+    -- USER_CONFIRMED status must correspond to USER_CONFIRMATION method.
+    CONSTRAINT ck_external_identity_mappings_user_confirmed_method
+        CHECK (
+            status <> 'USER_CONFIRMED'
+            OR verification_method = 'USER_CONFIRMATION'
+        ),
+    CONSTRAINT ck_external_identity_mappings_revoked_at_consistency
+        CHECK (status = 'REVOKED' OR revoked_at IS NULL),
+    CONSTRAINT ck_external_identity_mappings_evidence_metadata_object
+        CHECK (jsonb_typeof(evidence_metadata) = 'object'),
+    CONSTRAINT ck_external_identity_mappings_evidence_metadata_no_raw
+        CHECK (NOT public.cm_jsonb_contains_forbidden_raw_key(evidence_metadata)),
     CONSTRAINT uq_external_identity_mappings_workspace_id_id
         UNIQUE (workspace_id, id),
     CONSTRAINT fk_external_identity_mappings_same_workspace_identity
@@ -104,38 +142,48 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ext_identity_mappings_verified_external_use
     WHERE status = 'VERIFIED' AND external_user_id IS NOT NULL;
 
 -- =============================================================================
--- 2. Work Events, Memberships, Composite Memberships & Review Actions (§3.6)
+-- 2. Work Events, Memberships, Review Actions & Composite Memberships (§3.6)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.work_events (
     id                              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id                    uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    event_kind                      text NOT NULL,
-    title                           text NOT NULL,
-    summary_metadata                jsonb NOT NULL DEFAULT '{}'::jsonb,
     primary_anchor_source_object_id uuid NULL,
+    anchor_mode                     text NOT NULL,
     anchor_scope                    jsonb NULL,
+    version                         integer NOT NULL DEFAULT 1,
+    title                           text NOT NULL,
+    problem                         text NULL,
+    action                          text NULL,
+    outcome                         text NULL,
+    summary_metadata                jsonb NOT NULL DEFAULT '{}'::jsonb,
     status                          text NOT NULL DEFAULT 'CANDIDATE',
+    created_by                      text NOT NULL DEFAULT 'RULE',
     occurred_start_at               timestamptz NULL,
     occurred_end_at                 timestamptz NULL,
     created_at                      timestamptz NOT NULL DEFAULT now(),
+    reviewed_at                     timestamptz NULL,
     updated_at                      timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT ck_work_events_kind
-        CHECK (event_kind IN ('PR', 'PR_SEGMENT', 'DIRECT_COMMIT', 'ISSUE', 'COMPOSITE')),
+    CONSTRAINT ck_work_events_anchor_mode
+        CHECK (anchor_mode IN ('PR', 'PR_SEGMENT', 'DIRECT_COMMIT', 'USER_COMPOSITE')),
+    CONSTRAINT ck_work_events_version_positive
+        CHECK (version >= 1),
     CONSTRAINT ck_work_events_title_non_empty
         CHECK (length(btrim(title)) > 0),
     CONSTRAINT ck_work_events_status
-        CHECK (status IN ('CANDIDATE', 'CONFIRMED', 'REJECTED', 'MERGED', 'SPLIT', 'STALE', 'ARCHIVED')),
+        CHECK (status IN ('CANDIDATE', 'CONFIRMED', 'REJECTED', 'STALE', 'SUPERSEDED')),
+    CONSTRAINT ck_work_events_created_by
+        CHECK (created_by IN ('RULE', 'USER')),
     -- Anchor invariants (Data Model §3.6):
     CONSTRAINT ck_work_events_pr_anchor
-        CHECK (event_kind NOT IN ('PR', 'PR_SEGMENT') OR primary_anchor_source_object_id IS NOT NULL),
+        CHECK (anchor_mode NOT IN ('PR', 'PR_SEGMENT') OR primary_anchor_source_object_id IS NOT NULL),
     CONSTRAINT ck_work_events_pr_segment_scope
         CHECK (
-            event_kind <> 'PR_SEGMENT'
+            anchor_mode <> 'PR_SEGMENT'
             OR (anchor_scope IS NOT NULL AND jsonb_typeof(anchor_scope) = 'object')
         ),
     CONSTRAINT ck_work_events_direct_commit_anchor
-        CHECK (event_kind <> 'DIRECT_COMMIT' OR primary_anchor_source_object_id IS NOT NULL),
+        CHECK (anchor_mode <> 'DIRECT_COMMIT' OR primary_anchor_source_object_id IS NOT NULL),
     CONSTRAINT ck_work_events_anchor_scope_no_raw
         CHECK (
             anchor_scope IS NULL
@@ -169,21 +217,25 @@ CREATE TABLE IF NOT EXISTS public.event_memberships (
     workspace_id     uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
     event_id         uuid NOT NULL,
     source_object_id uuid NOT NULL,
-    membership_role  text NOT NULL,
+    relation_class   text NOT NULL,
+    relation_type    text NOT NULL,
     origin           text NOT NULL DEFAULT 'RULE',
+    rationale_code   text NULL,
     status           text NOT NULL DEFAULT 'ACTIVE',
     created_at       timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT ck_event_memberships_role
-        CHECK (membership_role IN ('MUST_LINK', 'CONTEXT_ONLY', 'CANNOT_LINK')),
+    CONSTRAINT ck_event_memberships_relation_class
+        CHECK (relation_class IN ('MUST_LINK', 'CONTEXT_ONLY', 'CANNOT_LINK')),
+    CONSTRAINT ck_event_memberships_relation_type_non_empty
+        CHECK (length(btrim(relation_type)) > 0),
     CONSTRAINT ck_event_memberships_origin
-        CHECK (origin IN ('RULE', 'USER')),
+        CHECK (origin IN ('SOURCE', 'RULE', 'USER')),
     CONSTRAINT ck_event_memberships_status
         CHECK (status IN ('ACTIVE', 'INVALIDATED')),
     CONSTRAINT uq_event_memberships_workspace_id_id
         UNIQUE (workspace_id, id),
-    CONSTRAINT uq_event_memberships_event_source_object
-        UNIQUE (event_id, source_object_id),
+    CONSTRAINT uq_event_memberships_event_source_object_relation_type
+        UNIQUE (event_id, source_object_id, relation_type),
     CONSTRAINT fk_event_memberships_same_workspace_event
         FOREIGN KEY (workspace_id, event_id)
         REFERENCES public.work_events (workspace_id, id)
@@ -194,64 +246,22 @@ CREATE TABLE IF NOT EXISTS public.event_memberships (
         ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS public.event_composite_memberships (
-    id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id       uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    composite_event_id uuid NOT NULL,
-    member_event_id    uuid NOT NULL,
-    ordinal            integer NOT NULL DEFAULT 0,
-    status             text NOT NULL DEFAULT 'ACTIVE',
-    created_at         timestamptz NOT NULL DEFAULT now(),
-
-    CONSTRAINT ck_event_composite_memberships_no_self_reference
-        CHECK (composite_event_id <> member_event_id),
-    CONSTRAINT ck_event_composite_memberships_ordinal_non_negative
-        CHECK (ordinal >= 0),
-    CONSTRAINT ck_event_composite_memberships_status
-        CHECK (status IN ('ACTIVE', 'REMOVED')),
-    CONSTRAINT uq_event_composite_memberships_workspace_id_id
-        UNIQUE (workspace_id, id),
-    CONSTRAINT fk_event_composite_same_workspace_composite
-        FOREIGN KEY (workspace_id, composite_event_id)
-        REFERENCES public.work_events (workspace_id, id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_event_composite_same_workspace_member
-        FOREIGN KEY (workspace_id, member_event_id)
-        REFERENCES public.work_events (workspace_id, id)
-        ON DELETE CASCADE
-);
-
--- Prevent duplicate active assignment of the same member event.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_event_composite_memberships_active_member
-    ON public.event_composite_memberships (workspace_id, member_event_id)
-    WHERE status = 'ACTIVE';
-
+-- Declared before event_composite_memberships so added_by_review_action_id can
+-- reference review_actions(workspace_id, id) via Composite FK directly.
 CREATE TABLE IF NOT EXISTS public.review_actions (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    actor_user_id   uuid NULL,
-    action          text NOT NULL,
     target_type     text NOT NULL,
     target_id       uuid NOT NULL,
+    action          text NOT NULL,
+    actor_user_id   uuid NULL,
+    from_version    integer NULL,
+    to_version      integer NULL,
     idempotency_key text NOT NULL,
+    reason          text NULL,
     action_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at      timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT ck_review_actions_action
-        CHECK (
-            action IN (
-                'CONFIRM',
-                'REJECT',
-                'MERGE',
-                'SPLIT',
-                'LINK',
-                'UNLINK',
-                'CANNOT_LINK',
-                'APPROVE',
-                'REVERIFY',
-                'DELETE_REQUEST'
-            )
-        ),
     CONSTRAINT ck_review_actions_target_type
         CHECK (
             target_type IN (
@@ -265,6 +275,22 @@ CREATE TABLE IF NOT EXISTS public.review_actions (
                 'SOURCE_OBJECT'
             )
         ),
+    CONSTRAINT ck_review_actions_action
+        CHECK (
+            action IN (
+                'CONFIRM',
+                'EDIT',
+                'SPLIT',
+                'MERGE',
+                'DISSOLVE',
+                'REJECT',
+                'REOPEN'
+            )
+        ),
+    CONSTRAINT ck_review_actions_from_version_positive
+        CHECK (from_version IS NULL OR from_version >= 1),
+    CONSTRAINT ck_review_actions_to_version_positive
+        CHECK (to_version IS NULL OR to_version >= 1),
     CONSTRAINT ck_review_actions_idempotency_key_non_empty
         CHECK (length(btrim(idempotency_key)) > 0),
     CONSTRAINT ck_review_actions_metadata_object
@@ -277,39 +303,101 @@ CREATE TABLE IF NOT EXISTS public.review_actions (
         UNIQUE (workspace_id, action, target_type, target_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS public.event_composite_memberships (
+    id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id              uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+    composite_event_id        uuid NOT NULL,
+    composite_event_version   integer NOT NULL DEFAULT 1,
+    member_event_id           uuid NOT NULL,
+    member_event_version      integer NOT NULL DEFAULT 1,
+    ordinal                   integer NOT NULL DEFAULT 0,
+    status                    text NOT NULL DEFAULT 'ACTIVE',
+    added_by_review_action_id uuid NULL,
+    created_at                timestamptz NOT NULL DEFAULT now(),
+    removed_at                timestamptz NULL,
+
+    CONSTRAINT ck_event_composite_memberships_no_self_reference
+        CHECK (composite_event_id <> member_event_id),
+    CONSTRAINT ck_event_composite_memberships_composite_version_positive
+        CHECK (composite_event_version >= 1),
+    CONSTRAINT ck_event_composite_memberships_member_version_positive
+        CHECK (member_event_version >= 1),
+    CONSTRAINT ck_event_composite_memberships_ordinal_non_negative
+        CHECK (ordinal >= 0),
+    CONSTRAINT ck_event_composite_memberships_status
+        CHECK (status IN ('ACTIVE', 'REMOVED')),
+    CONSTRAINT ck_event_composite_memberships_removed_at_consistency
+        CHECK (status = 'REMOVED' OR removed_at IS NULL),
+    CONSTRAINT uq_event_composite_memberships_workspace_id_id
+        UNIQUE (workspace_id, id),
+    CONSTRAINT uq_event_composite_memberships_version_member
+        UNIQUE (composite_event_id, composite_event_version, member_event_id),
+    CONSTRAINT fk_event_composite_same_workspace_composite
+        FOREIGN KEY (workspace_id, composite_event_id)
+        REFERENCES public.work_events (workspace_id, id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_event_composite_same_workspace_member
+        FOREIGN KEY (workspace_id, member_event_id)
+        REFERENCES public.work_events (workspace_id, id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_event_composite_same_workspace_review_action
+        FOREIGN KEY (workspace_id, added_by_review_action_id)
+        REFERENCES public.review_actions (workspace_id, id)
+        ON DELETE SET NULL
+);
+
+-- Prevent duplicate active assignment of the same member event.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_composite_memberships_active_member
+    ON public.event_composite_memberships (workspace_id, member_event_id)
+    WHERE status = 'ACTIVE';
+
 -- =============================================================================
 -- 3. Facts & Fact Support (Data Model §3.7)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.facts (
-    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id      uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    event_id          uuid NOT NULL,
-    fact_type         text NOT NULL,
-    statement         text NOT NULL,
-    status            text NOT NULL DEFAULT 'CANDIDATE',
-    fact_metadata     jsonb NOT NULL DEFAULT '{}'::jsonb,
-    extractor_version text NOT NULL,
-    created_at        timestamptz NOT NULL DEFAULT now(),
-    updated_at        timestamptz NOT NULL DEFAULT now(),
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id        uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+    event_id            uuid NOT NULL,
+    fact_type           text NOT NULL,
+    subject_identity_id uuid NULL,
+    predicate           text NOT NULL,
+    object_text         text NOT NULL,
+    normalized_value    jsonb NULL,
+    fact_metadata       jsonb NOT NULL DEFAULT '{}'::jsonb,
+    status              text NOT NULL DEFAULT 'CANDIDATE',
+    extractor_version   text NOT NULL,
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    updated_at          timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT ck_facts_fact_type
         CHECK (fact_type IN ('PROBLEM', 'ACTION', 'TECHNOLOGY', 'RESULT', 'ROLE', 'METRIC')),
-    CONSTRAINT ck_facts_statement_non_empty
-        CHECK (length(btrim(statement)) > 0),
-    CONSTRAINT ck_facts_status
-        CHECK (status IN ('CANDIDATE', 'SUPPORTED', 'USER_CONFIRMED', 'CONFLICTED', 'STALE', 'REJECTED')),
-    CONSTRAINT ck_facts_extractor_version_non_empty
-        CHECK (length(btrim(extractor_version)) > 0),
+    CONSTRAINT ck_facts_predicate_non_empty
+        CHECK (length(btrim(predicate)) > 0),
+    CONSTRAINT ck_facts_object_text_non_empty
+        CHECK (length(btrim(object_text)) > 0),
+    CONSTRAINT ck_facts_normalized_value_no_raw
+        CHECK (
+            normalized_value IS NULL
+            OR NOT public.cm_jsonb_contains_forbidden_raw_key(normalized_value)
+        ),
     CONSTRAINT ck_facts_metadata_object
         CHECK (jsonb_typeof(fact_metadata) = 'object'),
     CONSTRAINT ck_facts_metadata_no_raw
         CHECK (NOT public.cm_jsonb_contains_forbidden_raw_key(fact_metadata)),
+    CONSTRAINT ck_facts_status
+        CHECK (status IN ('CANDIDATE', 'SUPPORTED', 'USER_CONFIRMED', 'CONFLICTED', 'STALE', 'REJECTED')),
+    CONSTRAINT ck_facts_extractor_version_non_empty
+        CHECK (length(btrim(extractor_version)) > 0),
     CONSTRAINT uq_facts_workspace_id_id
         UNIQUE (workspace_id, id),
     CONSTRAINT fk_facts_same_workspace_event
         FOREIGN KEY (workspace_id, event_id)
         REFERENCES public.work_events (workspace_id, id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_facts_same_workspace_subject_identity
+        FOREIGN KEY (workspace_id, subject_identity_id)
+        REFERENCES public.identities (workspace_id, id)
+        ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.fact_support (
@@ -431,39 +519,62 @@ CREATE TABLE IF NOT EXISTS public.generation_runs (
     id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id            uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
     event_id                uuid NULL,
-    run_stage               text NOT NULL,
-    model_id                text NOT NULL,
-    prompt_version          text NOT NULL,
+    run_type                text NOT NULL,
     input_artifact_versions jsonb NOT NULL DEFAULT '{}'::jsonb,
-    run_metadata            jsonb NOT NULL DEFAULT '{}'::jsonb,
+    model                   text NOT NULL,
+    prompt_version          text NOT NULL,
+    algorithm_version       text NOT NULL DEFAULT 'v1',
+    input_hash              text NOT NULL,
     status                  text NOT NULL DEFAULT 'RUNNING',
+    token_usage             jsonb NULL,
+    cost_estimate           numeric(12, 6) NULL,
+    latency_ms              integer NULL,
+    error_code              text NULL,
+    run_metadata            jsonb NOT NULL DEFAULT '{}'::jsonb,
     started_at              timestamptz NOT NULL DEFAULT now(),
     completed_at            timestamptz NULL,
 
-    CONSTRAINT ck_generation_runs_stage
+    CONSTRAINT ck_generation_runs_run_type
         CHECK (
-            run_stage IN (
-                'FACT_EXTRACTION',
-                'FACT_VALIDATION',
-                'CLAIM_GENERATION',
-                'CLAIM_VALIDATION',
+            run_type IN (
+                'FACT_CANDIDATE_EXTRACTION',
+                'FACT_SUPPORT_VALIDATION',
+                'CLAIM_DRAFT_GENERATION',
+                'CLAIM_ATOMIZATION',
+                'CLAIM_SUPPORT_VALIDATION',
                 'REFETCH_VERIFICATION'
             )
         ),
-    CONSTRAINT ck_generation_runs_model_id_non_empty
-        CHECK (length(btrim(model_id)) > 0),
+    CONSTRAINT ck_generation_runs_model_non_empty
+        CHECK (length(btrim(model)) > 0),
     CONSTRAINT ck_generation_runs_prompt_version_non_empty
         CHECK (length(btrim(prompt_version)) > 0),
+    CONSTRAINT ck_generation_runs_algorithm_version_non_empty
+        CHECK (length(btrim(algorithm_version)) > 0),
+    CONSTRAINT ck_generation_runs_input_hash_format
+        CHECK (input_hash ~ '^(sha256:)?[0-9a-f]{64}$'),
     CONSTRAINT ck_generation_runs_input_versions_object
         CHECK (jsonb_typeof(input_artifact_versions) = 'object'),
     CONSTRAINT ck_generation_runs_input_versions_no_raw
         CHECK (NOT public.cm_jsonb_contains_forbidden_raw_key(input_artifact_versions)),
+    CONSTRAINT ck_generation_runs_token_usage_object_no_raw
+        CHECK (
+            token_usage IS NULL
+            OR (
+                jsonb_typeof(token_usage) = 'object'
+                AND NOT public.cm_jsonb_contains_forbidden_raw_key(token_usage)
+            )
+        ),
+    CONSTRAINT ck_generation_runs_cost_estimate_non_negative
+        CHECK (cost_estimate IS NULL OR cost_estimate >= 0),
+    CONSTRAINT ck_generation_runs_latency_ms_non_negative
+        CHECK (latency_ms IS NULL OR latency_ms >= 0),
     CONSTRAINT ck_generation_runs_metadata_object
         CHECK (jsonb_typeof(run_metadata) = 'object'),
     CONSTRAINT ck_generation_runs_metadata_no_raw
         CHECK (NOT public.cm_jsonb_contains_forbidden_raw_key(run_metadata)),
     CONSTRAINT ck_generation_runs_status
-        CHECK (status IN ('RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED')),
+        CHECK (status IN ('RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELED')),
     CONSTRAINT ck_generation_runs_time_order
         CHECK (completed_at IS NULL OR completed_at >= started_at),
     CONSTRAINT uq_generation_runs_workspace_id_id
@@ -481,18 +592,19 @@ CREATE TABLE IF NOT EXISTS public.claims (
     id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id             uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
     event_id                 uuid NOT NULL,
-    generation_run_id        uuid NULL,
-    claim_version            integer NOT NULL DEFAULT 1,
+    generator_run_id         uuid NULL,
+    version                  integer NOT NULL DEFAULT 1,
     claim_text               text NOT NULL,
     status                   text NOT NULL DEFAULT 'DRAFT',
     supersedes_claim_id      uuid NULL,
+    approved_at              timestamptz NULL,
     last_verified_at         timestamptz NULL,
     last_verification_run_id uuid NULL,
     created_at               timestamptz NOT NULL DEFAULT now(),
     updated_at               timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT ck_claims_version_positive
-        CHECK (claim_version >= 1),
+        CHECK (version >= 1),
     CONSTRAINT ck_claims_text_non_empty
         CHECK (length(btrim(claim_text)) > 0),
     CONSTRAINT ck_claims_status
@@ -515,8 +627,8 @@ CREATE TABLE IF NOT EXISTS public.claims (
         FOREIGN KEY (workspace_id, event_id)
         REFERENCES public.work_events (workspace_id, id)
         ON DELETE CASCADE,
-    CONSTRAINT fk_claims_same_workspace_generation_run
-        FOREIGN KEY (workspace_id, generation_run_id)
+    CONSTRAINT fk_claims_same_workspace_generator_run
+        FOREIGN KEY (workspace_id, generator_run_id)
         REFERENCES public.generation_runs (workspace_id, id)
         ON DELETE SET NULL,
     CONSTRAINT fk_claims_same_workspace_last_verification_run
@@ -558,13 +670,14 @@ CREATE TABLE IF NOT EXISTS public.claim_atoms (
 );
 
 CREATE TABLE IF NOT EXISTS public.claim_atom_support (
-    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id  uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    claim_atom_id uuid NOT NULL,
-    fact_id       uuid NOT NULL,
-    support_type  text NOT NULL DEFAULT 'DIRECT',
-    status        text NOT NULL DEFAULT 'ACTIVE',
-    created_at    timestamptz NOT NULL DEFAULT now(),
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id      uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+    claim_atom_id     uuid NOT NULL,
+    fact_id           uuid NOT NULL,
+    support_type      text NOT NULL DEFAULT 'DIRECT',
+    validation_run_id uuid NULL,
+    status            text NOT NULL DEFAULT 'ACTIVE',
+    created_at        timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT ck_claim_atom_support_type
         CHECK (support_type IN ('DIRECT', 'CONTEXT', 'CONTRADICTS')),
@@ -581,7 +694,11 @@ CREATE TABLE IF NOT EXISTS public.claim_atom_support (
     CONSTRAINT fk_claim_atom_support_same_workspace_fact
         FOREIGN KEY (workspace_id, fact_id)
         REFERENCES public.facts (workspace_id, id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_claim_atom_support_same_workspace_validation_run
+        FOREIGN KEY (workspace_id, validation_run_id)
+        REFERENCES public.generation_runs (workspace_id, id)
+        ON DELETE SET NULL
 );
 
 -- =============================================================================
@@ -594,7 +711,7 @@ SELECT
     c.workspace_id,
     c.id                        AS claim_id,
     c.event_id,
-    c.claim_version,
+    c.version                   AS version,
     c.status                    AS claim_status,
     ca.id                       AS claim_atom_id,
     ca.ordinal                  AS atom_ordinal,
@@ -602,6 +719,7 @@ SELECT
     ca.status                   AS claim_atom_status,
     cas.id                      AS claim_atom_support_id,
     cas.support_type            AS claim_atom_support_type,
+    cas.validation_run_id       AS claim_atom_validation_run_id,
     cas.status                  AS claim_atom_support_status,
     f.id                        AS fact_id,
     f.fact_type,
@@ -708,8 +826,9 @@ SELECT
     c.workspace_id,
     c.id AS claim_id,
     c.event_id,
-    c.claim_version,
+    c.version AS version,
     c.status AS claim_status,
+    c.approved_at,
     c.last_verified_at,
     c.last_verification_run_id,
     COUNT(ae.claim_atom_id)::integer AS atom_count,
@@ -732,8 +851,9 @@ GROUP BY
     c.workspace_id,
     c.id,
     c.event_id,
-    c.claim_version,
+    c.version,
     c.status,
+    c.approved_at,
     c.last_verified_at,
     c.last_verification_run_id;
 
@@ -761,6 +881,10 @@ CREATE INDEX IF NOT EXISTS idx_review_actions_workspace_target
 
 CREATE INDEX IF NOT EXISTS idx_facts_workspace_event
     ON public.facts (workspace_id, event_id);
+
+CREATE INDEX IF NOT EXISTS idx_facts_workspace_subject_identity
+    ON public.facts (workspace_id, subject_identity_id)
+    WHERE subject_identity_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_fact_support_workspace_fact
     ON public.fact_support (workspace_id, fact_id);
@@ -795,6 +919,10 @@ CREATE INDEX IF NOT EXISTS idx_claim_atom_support_workspace_atom
 
 CREATE INDEX IF NOT EXISTS idx_claim_atom_support_workspace_fact
     ON public.claim_atom_support (workspace_id, fact_id);
+
+CREATE INDEX IF NOT EXISTS idx_claim_atom_support_workspace_validation_run
+    ON public.claim_atom_support (workspace_id, validation_run_id)
+    WHERE validation_run_id IS NOT NULL;
 
 -- =============================================================================
 -- 8. Enable & FORCE Row Level Security + Fail-Closed Workspace Policies

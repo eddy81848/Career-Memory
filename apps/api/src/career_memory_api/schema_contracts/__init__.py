@@ -1,7 +1,8 @@
 """Schema contracts, Plan C metadata guards, migration loader, and provenance queries.
 
 Covers M1-T102 (Source/Provenance metadata-only schema) and
-M1-T104 (Event/Fact/Contribution/Claim schema & provenance constraints).
+M1-T104 (Event/Fact/Contribution/Claim schema & provenance constraints),
+1:1 aligned with Notion Data Model §3.1 - §3.10 and 0010_identity_workspace_source_auth.sql.
 """
 
 from career_memory_api.schema_contracts.enums import (
@@ -26,14 +27,15 @@ from career_memory_api.schema_contracts.enums import (
     ContentUnitType,
     ContributionRole,
     ContributionStatus,
-    EventMembershipRole,
+    EventMembershipOrigin,
+    EventMembershipRelationClass,
     ExternalIdentityMappingStatus,
     FactStatus,
     FactType,
-    GenerationRunStage,
     GenerationRunStatus,
-    IdentityKind,
+    GenerationRunType,
     IdentityStatus,
+    IdentityType,
     IdentityVerificationMethod,
     LinkStatus,
     PrAssociationState,
@@ -52,7 +54,7 @@ from career_memory_api.schema_contracts.enums import (
     SourceResourceType,
     SupportType,
     SupportValidator,
-    WorkEventKind,
+    WorkEventAnchorMode,
     WorkEventStatus,
 )
 from career_memory_api.schema_contracts.metadata_guard import (
@@ -83,9 +85,11 @@ from career_memory_api.schema_contracts.provenance import (
     CLAIM_VERIFICATION_SUMMARY_SQL,
     ClaimVerificationSummary,
     ProvenanceChainRow,
+    clear_user_rls_context,
     clear_workspace_rls_context,
     fetch_claim_provenance_chain,
     fetch_claim_verification_summary,
+    set_user_rls_context,
     set_workspace_rls_context,
 )
 
@@ -110,15 +114,16 @@ __all__ = [
     "ContributionRole",
     "ContributionStatus",
     "DEFERRED_POST_MVP_TABLES",
-    "EventMembershipRole",
+    "EventMembershipOrigin",
+    "EventMembershipRelationClass",
     "ExternalIdentityMappingStatus",
     "FORBIDDEN_RAW_TEXT_KEYS",
     "FactStatus",
     "FactType",
-    "GenerationRunStage",
     "GenerationRunStatus",
-    "IdentityKind",
+    "GenerationRunType",
     "IdentityStatus",
+    "IdentityType",
     "IdentityVerificationMethod",
     "LinkStatus",
     "MIGRATION_0020_TABLES",
@@ -148,10 +153,11 @@ __all__ = [
     "SupportValidator",
     "TENANT_DOMAIN_TABLES",
     "WORKER_APP_ROLE",
-    "WorkEventKind",
+    "WorkEventAnchorMode",
     "WorkEventStatus",
     "apply_schema_migrations",
     "assert_no_forbidden_raw_keys",
+    "clear_user_rls_context",
     "clear_workspace_rls_context",
     "default_migrations_dir",
     "fetch_claim_provenance_chain",
@@ -159,6 +165,7 @@ __all__ = [
     "find_forbidden_raw_keys",
     "list_schema_migrations",
     "load_migration_sql",
+    "set_user_rls_context",
     "set_workspace_rls_context",
     "validate_anchor_metadata",
     "validate_generation_run_metadata",

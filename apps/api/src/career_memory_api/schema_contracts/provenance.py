@@ -15,7 +15,7 @@ SELECT
     workspace_id,
     claim_id,
     event_id,
-    claim_version,
+    version,
     claim_status,
     claim_atom_id,
     atom_ordinal,
@@ -23,6 +23,7 @@ SELECT
     claim_atom_status,
     claim_atom_support_id,
     claim_atom_support_type,
+    claim_atom_validation_run_id,
     claim_atom_support_status,
     fact_id,
     fact_type,
@@ -57,8 +58,9 @@ SELECT
     workspace_id,
     claim_id,
     event_id,
-    claim_version,
+    version,
     claim_status,
+    approved_at,
     last_verified_at,
     last_verification_run_id,
     atom_count,
@@ -78,7 +80,7 @@ class ProvenanceChainRow:
     workspace_id: UUID
     claim_id: UUID
     event_id: UUID
-    claim_version: int
+    version: int
     claim_status: str
     claim_atom_id: UUID
     atom_ordinal: int
@@ -86,6 +88,7 @@ class ProvenanceChainRow:
     claim_atom_status: str
     claim_atom_support_id: UUID
     claim_atom_support_type: str
+    claim_atom_validation_run_id: UUID | None
     claim_atom_support_status: str
     fact_id: UUID
     fact_type: str
@@ -118,8 +121,9 @@ class ClaimVerificationSummary:
     workspace_id: UUID
     claim_id: UUID
     event_id: UUID
-    claim_version: int
+    version: int
     claim_status: str
+    approved_at: datetime | None
     last_verified_at: datetime | None
     last_verification_run_id: UUID | None
     atom_count: int
@@ -141,6 +145,21 @@ def clear_workspace_rls_context(conn: Any) -> None:
     """Clear transaction-local ``app.current_workspace_id`` GUC (fail-closed)."""
     with conn.cursor() as cur:
         cur.execute("SELECT set_config('app.current_workspace_id', '', true)")
+
+
+def set_user_rls_context(conn: Any, user_id: str | UUID) -> None:
+    """Set transaction-local ``app.current_user_id`` GUC (aligned with 0010)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT set_config('app.current_user_id', %s, true)",
+            (str(user_id),),
+        )
+
+
+def clear_user_rls_context(conn: Any) -> None:
+    """Clear transaction-local ``app.current_user_id`` GUC (fail-closed)."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT set_config('app.current_user_id', '', true)")
 
 
 def fetch_claim_provenance_chain(
@@ -172,12 +191,13 @@ def fetch_claim_verification_summary(
         workspace_id=row[0],
         claim_id=row[1],
         event_id=row[2],
-        claim_version=row[3],
+        version=row[3],
         claim_status=row[4],
-        last_verified_at=row[5],
-        last_verification_run_id=row[6],
-        atom_count=row[7],
-        source_backed_atom_count=row[8],
-        user_confirmed_atom_count=row[9],
-        computed_verification=ClaimVerification(row[10]),
+        approved_at=row[5],
+        last_verified_at=row[6],
+        last_verification_run_id=row[7],
+        atom_count=row[8],
+        source_backed_atom_count=row[9],
+        user_confirmed_atom_count=row[10],
+        computed_verification=ClaimVerification(row[11]),
     )

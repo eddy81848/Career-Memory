@@ -1,12 +1,19 @@
 -- Migration 0020: Source & Provenance Metadata-Only Schema (T-102, Plan C / 방안 C)
 --
 -- Design guarantees:
--- 1. Standalone + 0010 (M1-T101) compatible idempotent bootstrap for roles, auth_ctx,
---    and minimal base tenant tables (users, workspaces, workspace_memberships).
+-- 1. Standalone + 0010 (M1-T101) sequential compatibility:
+--    - Reuses NOLOGIN NOBYPASSRLS roles (cm_migrator, cm_api_app, cm_worker_app).
+--    - Defines auth_ctx.current_workspace_id(), auth_ctx.current_user_id() (aligned
+--      with 0010), compatibility alias auth_ctx.current_subject_id(), and
+--      auth_ctx.allow_revision_purge().
+--    - Fallback IF NOT EXISTS definitions for users, workspaces, workspace_memberships,
+--      and source_accounts match 0010 column/PK structures and preserve any policies
+--      already created by 0010.
 -- 2. Plan C (방안 C) raw-text non-persistence enforced at the DB constraint layer:
---    - source_resources.raw_storage_mode = 'NONE' and raw_retention_seconds IS NULL
+--    - source_accounts.token_secret_ref forbids raw token prefixes (ghp_/gho_/github_pat_/bearer).
+--    - source_resources.raw_storage_mode = 'NONE' and raw_retention_seconds IS NULL.
 --    - content_units.text_content IS NULL, content_ref IS NULL,
---      retention_class = 'NONE', expires_at IS NULL
+--      retention_class = 'NONE', expires_at IS NULL.
 --    - JSONB columns (normalized_metadata, anchor) reject forbidden raw-text keys
 --      at both top-level and arbitrarily nested objects/arrays.
 -- 3. DATA-01 revision immutability via BEFORE UPDATE OR DELETE trigger on
@@ -17,13 +24,13 @@
 --    (workspace_id, parent_id) -> parent(workspace_id, id) across every parent-child pair.
 
 -- =============================================================================
--- 1. Idempotent Role & Schema Bootstrap (compatible with 0010_*)
+-- 1. Idempotent Role & Schema Bootstrap (1:1 compatible with 0010_*)
 -- =============================================================================
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cm_migrator') THEN
         CREATE ROLE cm_migrator
-            LOGIN
+            NOLOGIN
             NOSUPERUSER
             NOCREATEDB
             NOCREATEROLE
@@ -33,7 +40,7 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cm_api_app') THEN
         CREATE ROLE cm_api_app
-            LOGIN
+            NOLOGIN
             NOSUPERUSER
             NOCREATEDB
             NOCREATEROLE
@@ -43,7 +50,7 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cm_worker_app') THEN
         CREATE ROLE cm_worker_app
-            LOGIN
+            NOLOGIN
             NOSUPERUSER
             NOCREATEDB
             NOCREATEROLE
@@ -88,17 +95,34 @@ AS $$
     END;
 $$;
 
-CREATE OR REPLACE FUNCTION auth_ctx.current_subject_id()
+CREATE OR REPLACE FUNCTION auth_ctx.current_user_id()
 RETURNS uuid
 LANGUAGE sql
 STABLE
 AS $$
     SELECT CASE
-        WHEN COALESCE(current_setting('app.current_subject_id', true), '')
+        WHEN COALESCE(current_setting('app.current_user_id', true), '')
              ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        THEN current_setting('app.current_subject_id', true)::uuid
+        THEN current_setting('app.current_user_id', true)::uuid
         ELSE NULL
     END;
+$$;
+
+-- Compatibility alias for callers referencing current_subject_id().
+CREATE OR REPLACE FUNCTION auth_ctx.current_subject_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT COALESCE(
+        auth_ctx.current_user_id(),
+        CASE
+            WHEN COALESCE(current_setting('app.current_subject_id', true), '')
+                 ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN current_setting('app.current_subject_id', true)::uuid
+            ELSE NULL
+        END
+    );
 $$;
 
 CREATE OR REPLACE FUNCTION auth_ctx.allow_revision_purge()
@@ -110,10 +134,12 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION auth_ctx.current_workspace_id() FROM PUBLIC;
+REVOKE ALL ON FUNCTION auth_ctx.current_user_id() FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_ctx.current_subject_id() FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_ctx.allow_revision_purge() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION auth_ctx.current_workspace_id() TO cm_api_app, cm_worker_app;
+GRANT EXECUTE ON FUNCTION auth_ctx.current_user_id() TO cm_api_app;
 GRANT EXECUTE ON FUNCTION auth_ctx.current_subject_id() TO cm_api_app;
 GRANT EXECUTE ON FUNCTION auth_ctx.allow_revision_purge() TO cm_api_app, cm_worker_app;
 
@@ -187,33 +213,32 @@ REVOKE ALL ON FUNCTION public.cm_jsonb_contains_forbidden_raw_key(jsonb) FROM PU
 GRANT EXECUTE ON FUNCTION public.cm_jsonb_contains_forbidden_raw_key(jsonb) TO cm_api_app, cm_worker_app;
 
 -- =============================================================================
--- 3. Minimal Base Tenant Tables (IF NOT EXISTS fallback when 0010 has not run)
+-- 3. Minimal Base Tenant Tables (0010-aligned IF NOT EXISTS fallback)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.users (
     id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    auth_issuer  text NULL,
-    auth_subject text NULL,
+    auth_issuer  text NOT NULL DEFAULT 'local' CHECK (btrim(auth_issuer) <> ''),
+    auth_subject text NOT NULL DEFAULT gen_random_uuid()::text CHECK (btrim(auth_subject) <> ''),
     email        text NULL,
-    display_name text NULL,
+    name         text NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_users_auth_issuer_subject UNIQUE (auth_issuer, auth_subject)
 );
 
 CREATE TABLE IF NOT EXISTS public.workspaces (
-    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    slug       text NULL UNIQUE,
-    name       text NOT NULL DEFAULT 'default',
-    created_at timestamptz NOT NULL DEFAULT now()
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id uuid NULL REFERENCES public.users (id),
+    name          text NOT NULL DEFAULT 'default' CHECK (btrim(name) <> ''),
+    created_at    timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.workspace_memberships (
-    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
     user_id      uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
-    role         text NOT NULL DEFAULT 'OWNER',
+    role         text NOT NULL DEFAULT 'OWNER' CHECK (role IN ('OWNER', 'MEMBER', 'VIEWER')),
     revoked_at   timestamptz NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_workspace_memberships_workspace_user UNIQUE (workspace_id, user_id)
+    PRIMARY KEY (workspace_id, user_id)
 );
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -248,14 +273,14 @@ $$;
 -- 4. Source & Plan C Provenance Metadata Tables (Data Model §3.2 - §3.4)
 -- =============================================================================
 
--- 4.1 source_accounts
+-- 4.1 source_accounts (0010-compatible + raw token prefix guard)
 CREATE TABLE IF NOT EXISTS public.source_accounts (
     id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id        uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
     provider            text NOT NULL,
     external_account_id text NOT NULL,
     token_secret_ref    text NOT NULL,
-    scopes              text[] NOT NULL DEFAULT '{}'::text[],
+    scopes              text[] NOT NULL DEFAULT ARRAY[]::text[],
     status              text NOT NULL DEFAULT 'ACTIVE',
     created_at          timestamptz NOT NULL DEFAULT now(),
     revoked_at          timestamptz NULL,
@@ -267,18 +292,44 @@ CREATE TABLE IF NOT EXISTS public.source_accounts (
     CONSTRAINT ck_source_accounts_token_secret_ref_format
         CHECK (
             length(btrim(token_secret_ref)) BETWEEN 1 AND 255
-            AND token_secret_ref ~ '^(secret|vault|kms|sm|envref)://[A-Za-z0-9._:/-]+$'
+            AND token_secret_ref ~ '^[a-zA-Z0-9._:/-]+$'
             AND token_secret_ref !~* '^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|bearer )'
         ),
     CONSTRAINT ck_source_accounts_status
         CHECK (status IN ('ACTIVE', 'REVOKED')),
-    CONSTRAINT ck_source_accounts_revoked_at_consistency
-        CHECK (status <> 'ACTIVE' OR revoked_at IS NULL),
+    CONSTRAINT chk_source_accounts_status_revoked
+        CHECK (
+            (status = 'REVOKED' AND revoked_at IS NOT NULL)
+            OR (status = 'ACTIVE' AND revoked_at IS NULL)
+        ),
     CONSTRAINT uq_source_accounts_workspace_id_id
         UNIQUE (workspace_id, id),
     CONSTRAINT uq_source_accounts_workspace_provider_external
         UNIQUE (workspace_id, provider, external_account_id)
 );
+
+-- Ensure raw-token prefix guard and default id exist even when 0010 created source_accounts first.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.source_accounts'::regclass
+          AND conname IN (
+              'ck_source_accounts_token_secret_ref_format',
+              'ck_source_accounts_no_raw_token_prefix'
+          )
+    ) THEN
+        ALTER TABLE public.source_accounts
+            ADD CONSTRAINT ck_source_accounts_no_raw_token_prefix
+            CHECK (
+                length(btrim(token_secret_ref)) BETWEEN 1 AND 255
+                AND token_secret_ref ~ '^[a-zA-Z0-9._:/-]+$'
+                AND token_secret_ref !~* '^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|bearer )'
+            );
+    END IF;
+END
+$$;
 
 -- 4.2 source_resources
 CREATE TABLE IF NOT EXISTS public.source_resources (
@@ -367,18 +418,18 @@ CREATE TABLE IF NOT EXISTS public.source_objects (
 
 -- 4.4 source_object_revisions (Immutable Revision - DATA-01)
 CREATE TABLE IF NOT EXISTS public.source_object_revisions (
-    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id        uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
-    source_object_id    uuid NOT NULL,
+    id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id         uuid NOT NULL REFERENCES public.workspaces (id) ON DELETE CASCADE,
+    source_object_id     uuid NOT NULL,
     provider_revision_id text NULL,
-    content_hash        text NOT NULL,
-    hash_policy_version text NOT NULL,
-    observed_at         timestamptz NOT NULL DEFAULT now(),
-    provider_updated_at timestamptz NULL,
-    is_tombstone        boolean NOT NULL DEFAULT false,
-    normalized_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-    connector_version   text NOT NULL,
-    schema_version      text NOT NULL,
+    content_hash         text NOT NULL,
+    hash_policy_version  text NOT NULL,
+    observed_at          timestamptz NOT NULL DEFAULT now(),
+    provider_updated_at  timestamptz NULL,
+    is_tombstone         boolean NOT NULL DEFAULT false,
+    normalized_metadata  jsonb NOT NULL DEFAULT '{}'::jsonb,
+    connector_version    text NOT NULL,
+    schema_version       text NOT NULL,
 
     CONSTRAINT ck_source_object_revisions_content_hash_format
         CHECK (content_hash ~ '^(sha256:)?[0-9a-f]{64}$'),
@@ -543,21 +594,39 @@ ALTER TABLE public.source_object_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.content_units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.content_units FORCE ROW LEVEL SECURITY;
 
--- source_accounts
-DROP POLICY IF EXISTS source_accounts_api_workspace_isolation ON public.source_accounts;
-CREATE POLICY source_accounts_api_workspace_isolation
-    ON public.source_accounts
-    FOR ALL
-    TO cm_api_app
-    USING (workspace_id = auth_ctx.current_workspace_id())
-    WITH CHECK (workspace_id = auth_ctx.current_workspace_id());
+-- source_accounts: preserve stricter 0010 policies (live active membership check) if present.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'source_accounts'
+          AND 'cm_api_app' = ANY(roles)
+    ) THEN
+        CREATE POLICY source_accounts_api_workspace_isolation
+            ON public.source_accounts
+            FOR ALL
+            TO cm_api_app
+            USING (workspace_id = auth_ctx.current_workspace_id())
+            WITH CHECK (workspace_id = auth_ctx.current_workspace_id());
+    END IF;
 
-DROP POLICY IF EXISTS source_accounts_worker_workspace_select ON public.source_accounts;
-CREATE POLICY source_accounts_worker_workspace_select
-    ON public.source_accounts
-    FOR SELECT
-    TO cm_worker_app
-    USING (workspace_id = auth_ctx.current_workspace_id());
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'source_accounts'
+          AND 'cm_worker_app' = ANY(roles)
+    ) THEN
+        CREATE POLICY source_accounts_worker_workspace_select
+            ON public.source_accounts
+            FOR SELECT
+            TO cm_worker_app
+            USING (workspace_id = auth_ctx.current_workspace_id());
+    END IF;
+END
+$$;
 
 -- source_resources
 DROP POLICY IF EXISTS source_resources_api_workspace_isolation ON public.source_resources;
@@ -669,7 +738,7 @@ CREATE POLICY content_units_worker_workspace_update
     WITH CHECK (workspace_id = auth_ctx.current_workspace_id());
 
 -- =============================================================================
--- 7. Minimal Privilege GRANT Matrix
+-- 7. Minimal Privilege GRANT Matrix (preserves 0010 grants on shared tables)
 -- =============================================================================
 REVOKE ALL ON TABLE
     public.users,
@@ -689,10 +758,10 @@ REVOKE ALL ON TABLE
     public.workspace_memberships
 FROM cm_worker_app;
 
--- cm_api_app privileges
+-- cm_api_app privileges (aligned with 0010: no DELETE on source_accounts)
 GRANT SELECT ON public.workspaces TO cm_api_app;
+GRANT SELECT, INSERT, UPDATE ON public.source_accounts TO cm_api_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-    public.source_accounts,
     public.source_resources,
     public.source_objects,
     public.source_object_revisions,

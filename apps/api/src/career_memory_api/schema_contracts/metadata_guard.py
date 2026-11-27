@@ -163,9 +163,7 @@ ALLOWED_GENERATION_RUN_INPUT_KEYS: frozenset[str] = frozenset(
     }
 )
 
-_TOKEN_SECRET_REF_PATTERN = re.compile(
-    r"^(secret|vault|kms|sm|envref)://[A-Za-z0-9._:/-]+$"
-)
+_TOKEN_SECRET_REF_PATTERN = re.compile(r"^[a-zA-Z0-9._:/-]+$")
 _RAW_TOKEN_PREFIX_PATTERN = re.compile(
     r"^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|bearer )", re.IGNORECASE
 )
@@ -293,7 +291,12 @@ def validate_generation_run_metadata(
 
 
 def validate_token_secret_ref(token_secret_ref: str) -> str:
-    """Validate ``source_accounts.token_secret_ref`` format and reject raw tokens."""
+    """Validate ``source_accounts.token_secret_ref`` format and reject raw tokens.
+
+    Aligned with 0010 & 0020: accepts both URI-style secret refs (``secret://...``)
+    and opaque vault reference keys matching ``^[a-zA-Z0-9._:/-]+$`` (1..255 chars),
+    while strictly rejecting raw GitHub/Bearer token prefixes and whitespace.
+    """
     if not isinstance(token_secret_ref, str):
         raise ValueError("token_secret_ref must be a string.")
     trimmed = token_secret_ref.strip()
@@ -303,8 +306,7 @@ def validate_token_secret_ref(token_secret_ref: str) -> str:
         raise ValueError("token_secret_ref must not store a raw OAuth/PAT bearer token.")
     if not _TOKEN_SECRET_REF_PATTERN.match(trimmed):
         raise ValueError(
-            "token_secret_ref must use an allowed secret reference scheme "
-            "(secret://, vault://, kms://, sm://, envref://)."
+            "token_secret_ref must match opaque reference characters ^[a-zA-Z0-9._:/-]+$."
         )
     return trimmed
 

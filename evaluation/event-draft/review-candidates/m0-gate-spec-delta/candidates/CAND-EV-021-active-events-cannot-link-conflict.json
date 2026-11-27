@@ -1,0 +1,428 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "CAND-EV-021",
+  "candidate_kind": "NEW_CASE_CANDIDATE",
+  "target_case_id": "EV-021",
+  "baseline_case_ref": null,
+  "slug": "active-events-cannot-link-conflict",
+  "title": "Manual merge between two active, eligible, same-repo, version-matched Events with explicit CANNOT_LINK relation fails solely with CANNOT_LINK_CONFLICT and zero mutation",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_cand_policy_engine",
+    "source_lineage_group": "src_policy_engine",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "CAND-EV-021"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-3-ACTIVE-CANNOT-LINK",
+    "notion_clauses": [
+      "Direct Commit & Composite 계약 (https://app.notion.com/p/3f0f86591b5f81a3ab49dc7aef5bc028)",
+      "MVP API §5 (https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa)",
+      "Event Guide §6·7 (https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f)",
+      "T-001B Acceptance (https://app.notion.com/p/3f1f86591b5f813a91cbde08a573a246)"
+    ],
+    "existing_gap": "EV-013 tests non-Event IDs (ticket / UNKNOWN commit) and EV-014 tests nesting/inactive members, but no existing case tests an explicit CANNOT_LINK relation between two active, eligible, same-workspace, same-repository, exact-version Events triggering CANNOT_LINK_CONFLICT cleanly in isolation.",
+    "synthetic_input_summary": "Same workspace (ws_syn_021) and same repository (repo_syn_021, acme-syn-lab/policy-engine). Two active standalone PR Events ev_init_021_a (CONFIRMED, v2, carrying dependent Fact fct_syn_021_1 & Claim clm_syn_021_1) and ev_init_021_b (CONFIRMED, v2) linked by an explicit logical CANNOT_LINK relation (rel_syn_021_cannot_link). User submits manual_merge with exact matching versions (2, 2) and idempotency_key.",
+    "expected_behavior_summary": "Command is REJECTED solely with official Event API error code CANNOT_LINK_CONFLICT and state_mutated=false (resulting_event_ids=[]). Both Events remain CONFIRMED v2 standalone (0 USER_COMPOSITE created, 0 memberships added), and existing dependent Fact/Claim artifacts remain untouched (downstream_side_effects=[]). HTTP status and OD-007 physical table details remain unfixed.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap3_active_cannot_link",
+      "test_delta_candidates.py::test_cannot_link_requires_clean_preconditions_and_zero_mutation"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_EVENT_RELATIONS_AND_CANNOT_LINK_CATEGORY",
+      "base_schema_path": "schemas/case.schema.json#/properties/synthetic_sources & expected_proposal.command_results[*].rejection_category",
+      "limitation": "synthetic_sources has additionalProperties=false and no event_relations array to declare explicit CANNOT_LINK relations between active Events; command_results[*].rejection_category enum omits 'cannot_link_conflict' even though spec_error_code enum includes 'CANNOT_LINK_CONFLICT'.",
+      "candidate_representation": "Added logical synthetic_sources.event_relations (relation_type='CANNOT_LINK', no OD-007 table assumption), rejection_category='cannot_link_conflict', and expected_proposal.events[*].dependent_artifacts_unchanged.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-ERR-CANNOT-LINK-01"
+    ],
+    "draft_test_ids": [
+      "T-001B-DELTA-04"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-12"
+    ],
+    "scenario_tags": [
+      "cannot_link_conflict",
+      "active_events_only_failure_cause",
+      "same_workspace_same_repo",
+      "exact_version_matched",
+      "zero_mutation_on_rejection",
+      "separate_from_ev013",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_021",
+        "name": "Synthetic Workspace Policy",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_021",
+        "workspace_id": "ws_syn_021",
+        "full_name": "acme-syn-lab/policy-engine",
+        "default_branch": "main",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_021",
+        "workspace_id": "ws_syn_021",
+        "repo_id": "repo_syn_021",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T13:20:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_2101",
+        "repo_id": "repo_syn_021",
+        "number": 2101,
+        "title": "Enforce tenant quota ceiling in policy evaluator",
+        "body": "Adds per-tenant hard quota enforcement.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/tenant-quota-ceiling",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-21T10:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2101a"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_021"
+      },
+      {
+        "pr_id": "pr_syn_2102",
+        "repo_id": "repo_syn_021",
+        "number": 2102,
+        "title": "Add audit log exporter for policy evaluation denials",
+        "body": "Streams policy denial records to audit sink.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/policy-audit-export",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-22T15:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2102a"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_021"
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_2101a",
+        "repo_id": "repo_syn_021",
+        "sha": "2101a00000000000000000000000000000000001",
+        "message": "Implement hard tenant quota ceiling check",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-21T09:15:00Z",
+        "branch_name": "feat/tenant-quota-ceiling",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2101",
+        "changed_paths": [
+          "src/policy/quota.py"
+        ],
+        "source_sync_run_id": "sync_syn_021"
+      },
+      {
+        "commit_id": "cmt_syn_2102a",
+        "repo_id": "repo_syn_021",
+        "sha": "2102a00000000000000000000000000000000002",
+        "message": "Add audit denial sink exporter",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-22T14:20:00Z",
+        "branch_name": "feat/policy-audit-export",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2102",
+        "changed_paths": [
+          "src/policy/audit_sink.py"
+        ],
+        "source_sync_run_id": "sync_syn_021"
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_021_a",
+        "workspace_id": "ws_syn_021",
+        "repo_id": "repo_syn_021",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CONFIRMED",
+        "is_active_top_level": true,
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_2101",
+        "source_commit_ids": [
+          "cmt_syn_2101a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [
+            "fct_syn_021_1"
+          ],
+          "claim_ids": [
+            "clm_syn_021_1"
+          ],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Enforce tenant quota ceiling in policy evaluator",
+        "summary": "Confirmed standalone Event with dependent Fact and Claim.",
+        "source_sync_run_id": "sync_syn_021",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_021_b",
+        "workspace_id": "ws_syn_021",
+        "repo_id": "repo_syn_021",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CONFIRMED",
+        "is_active_top_level": true,
+        "version": 2,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_2102",
+        "source_commit_ids": [
+          "cmt_syn_2102a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add audit log exporter for policy evaluation denials",
+        "summary": "Confirmed standalone Event in same workspace and repository.",
+        "source_sync_run_id": "sync_syn_021",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "event_relations": [
+      {
+        "relation_id": "rel_syn_021_cannot_link",
+        "workspace_id": "ws_syn_021",
+        "relation_type": "CANNOT_LINK",
+        "source_event_id": "ev_init_021_a",
+        "target_event_id": "ev_init_021_b",
+        "reason": "Explicit user/domain CANNOT_LINK guard marking quota enforcement and audit sink export as non-linkable workstreams (logical relation only; no OD-007 physical table assumed)."
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_021_merge_cannot_link",
+      "command_action": "manual_merge",
+      "spec_command_name": "UNCONFIRMED",
+      "workspace_id": "ws_syn_021",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 2,
+      "idempotency_key": "idem_syn_021_merge_cannot_link_1",
+      "target_event_ids": [
+        "ev_init_021_a",
+        "ev_init_021_b"
+      ],
+      "target_versions": {
+        "ev_init_021_a": 2,
+        "ev_init_021_b": 2
+      },
+      "payload": {
+        "composite_title": "Attempt to merge two active same-repo Events separated by CANNOT_LINK",
+        "members": [
+          {
+            "event_id": "ev_init_021_a",
+            "expected_version": 2
+          },
+          {
+            "event_id": "ev_init_021_b",
+            "expected_version": 2
+          }
+        ]
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_021_a",
+        "workspace_id": "ws_syn_021",
+        "repo_id": "repo_syn_021",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CONFIRMED",
+        "is_active_top_level": true,
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_2101",
+        "source_commit_ids": [
+          "cmt_syn_2101a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "dependent_artifacts_unchanged": {
+          "fact_ids": [
+            "fct_syn_021_1"
+          ],
+          "claim_ids": [
+            "clm_syn_021_1"
+          ],
+          "export_ids": []
+        },
+        "title": "Enforce tenant quota ceiling in policy evaluator",
+        "summary": "Confirmed standalone Event with dependent Fact and Claim.",
+        "title_hint": "Enforce tenant quota ceiling in policy evaluator",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_init_021_b",
+        "workspace_id": "ws_syn_021",
+        "repo_id": "repo_syn_021",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CONFIRMED",
+        "is_active_top_level": true,
+        "version": 2,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_2102",
+        "source_commit_ids": [
+          "cmt_syn_2102a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "dependent_artifacts_unchanged": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "title": "Add audit log exporter for policy evaluation denials",
+        "summary": "Confirmed standalone Event in same workspace and repository.",
+        "title_hint": "Add audit log exporter for policy evaluation denials",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_021_merge_cannot_link",
+        "outcome": "REJECTED",
+        "rejection_category": "cannot_link_conflict",
+        "spec_error_code": "CANNOT_LINK_CONFLICT",
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "http_status"
+        ]
+      }
+    ],
+    "review_actions": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "policy evaluator",
+        "workspace_id": "ws_syn_021",
+        "expected_event_ids": [
+          "ev_init_021_a"
+        ],
+        "expected_result_count": 1
+      },
+      {
+        "query": "audit log exporter",
+        "workspace_id": "ws_syn_021",
+        "expected_event_ids": [
+          "ev_init_021_b"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.command_results[0].http_status",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "CANNOT_LINK_CONFLICT and zero mutation are confirmed; HTTP status code and OD-007 physical persistence of CANNOT_LINK are intentionally left unfixed."
+      },
+      {
+        "field_path": "synthetic_sources.event_relations",
+        "category": "SCHEMA_EXTENSION_REVIEW",
+        "status": "REVIEW_REQUIRED",
+        "question": "Approve adding logical synthetic_sources.event_relations (and rejection_category='cannot_link_conflict') to case.schema.json when promoting this candidate."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Isolates explicit CANNOT_LINK rejection between two active Events cleanly separated from EV-013 (non-Event IDs). Every other manual_merge precondition is satisfied (same Workspace ws_syn_021, same repo repo_syn_021, both active CONFIRMED PR Events, exact matching version=2, distinct members, valid idempotency_key). Only the explicit CANNOT_LINK relation triggers rejection with official code CANNOT_LINK_CONFLICT and zero mutation to Events, composite memberships, or existing dependent Fact/Claim artifacts.",
+    "confirmed_spec_rules": [
+      "EXPLICIT_CANNOT_LINK_BETWEEN_ACTIVE_EVENTS_REJECTS_MANUAL_MERGE_WITH_CANNOT_LINK_CONFLICT",
+      "REJECTED_COMMAND_CAUSES_ZERO_MUTATION_TO_EVENTS_MEMBERSHIPS_AND_DOWNSTREAM_ARTIFACTS",
+      "SEPARATE_ACTIVE_EVENT_CANNOT_LINK_FROM_EV013_NON_EVENT_ID_REJECTION",
+      "NO_OD007_PHYSICAL_TABLE_OR_UNCONFIRMED_HTTP_STATUS_ASSUMED"
+    ],
+    "unconfirmed_spec_tokens": [
+      "HTTP status code for CANNOT_LINK_CONFLICT (left UNCONFIRMED)",
+      "spec_command_name for manual_merge (left UNCONFIRMED)"
+    ],
+    "truly_undecided_items": [
+      "HTTP status mapping for CANNOT_LINK_CONFLICT and physical storage model (OD-007)."
+    ]
+  }
+}

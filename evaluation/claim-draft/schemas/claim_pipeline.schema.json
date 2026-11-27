@@ -374,11 +374,72 @@
               "to_version": { "type": "integer", "minimum": 1 },
               "action": {
                 "type": "string",
-                "enum": ["EDIT_CLAIM_TEXT", "EDIT_ATOM_TEXT", "DELETE_SOURCE", "DELETE_FACT", "REMOVE_SUPPORT"]
+                "enum": [
+                  "EDIT_CLAIM_TEXT",
+                  "EDIT_ATOM_TEXT",
+                  "DELETE_SOURCE",
+                  "DELETE_SOURCE_PREVIEW_CONFIRMED",
+                  "BLOCK_DEPENDENT_CLAIM_ACCESS",
+                  "PURGE_DEPENDENT_CLAIM_AND_SERVER_COPIES",
+                  "DELETE_FACT",
+                  "REMOVE_SUPPORT"
+                ]
               },
               "severity": { "type": "string", "enum": ["MINOR_PARAPHRASE", "SUBSTANTIVE", "CASCADE_DELETE"] },
               "note": { "type": "string" }
             }
+          }
+        },
+        "deletion_lifecycle": {
+          "type": ["object", "null"],
+          "required": [
+            "policy_ref",
+            "trigger_source_revision_id",
+            "deletion_preview_shown",
+            "explicit_user_confirmation",
+            "immediate_access_blocked_after_confirmation",
+            "cleanup_completed",
+            "pre_deletion_server_artifacts",
+            "post_cleanup_retained_claim_versions",
+            "post_cleanup_retained_edited_copies",
+            "post_cleanup_retained_approved_copies",
+            "independent_source_revisions_preserved",
+            "independent_facts_preserved",
+            "distinguished_from_refetch_failure_ref03"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "policy_ref": { "type": "string", "const": "OD-003" },
+            "trigger_source_revision_id": { "type": "string", "pattern": "^rev-" },
+            "deletion_preview_shown": { "type": "boolean" },
+            "explicit_user_confirmation": { "type": "boolean" },
+            "immediate_access_blocked_after_confirmation": { "type": "boolean" },
+            "cleanup_completed": { "type": "boolean" },
+            "pre_deletion_server_artifacts": {
+              "type": "object",
+              "required": ["claim_versions", "has_server_edited_copy", "has_server_approved_copy"],
+              "additionalProperties": false,
+              "properties": {
+                "claim_versions": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+                "has_server_edited_copy": { "type": "boolean" },
+                "has_server_approved_copy": { "type": "boolean" }
+              }
+            },
+            "post_cleanup_retained_claim_versions": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 1 }
+            },
+            "post_cleanup_retained_edited_copies": { "type": "integer", "minimum": 0 },
+            "post_cleanup_retained_approved_copies": { "type": "integer", "minimum": 0 },
+            "independent_source_revisions_preserved": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^rev-" }
+            },
+            "independent_facts_preserved": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^fact-" }
+            },
+            "distinguished_from_refetch_failure_ref03": { "type": "boolean" }
           }
         },
         "derived_from_claim_ids": {
@@ -631,7 +692,8 @@
                   "DRAFT_ATOM_IDENTITY_AMBIGUOUS",
                   "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION",
                   "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
-                  "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION"
+                  "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
+                  "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
                 ]
               },
               "oracle_status": { "type": "string", "const": "DRAFT" },
@@ -668,7 +730,8 @@
                   "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
                   "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
                   "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
-                  "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION"
+                  "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION",
+                  "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003"
                 ]
               },
               "source_verified_eligible": { "type": "boolean" },
@@ -678,6 +741,38 @@
                   "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
                   "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
                 ]
+              },
+              "od003_expected_post_cleanup": {
+                "type": ["object", "null"],
+                "required": [
+                  "immediate_access_blocked_after_confirmation",
+                  "claim_and_server_copies_purged",
+                  "retained_claim_versions",
+                  "retained_edited_copies",
+                  "retained_approved_copies",
+                  "independent_source_revisions_preserved",
+                  "independent_facts_preserved",
+                  "distinguished_from_ref03_refetch_failure",
+                  "partially_grounded_forbidden_post_deletion"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "immediate_access_blocked_after_confirmation": { "type": "boolean" },
+                  "claim_and_server_copies_purged": { "type": "boolean" },
+                  "retained_claim_versions": { "type": "array", "items": { "type": "integer" } },
+                  "retained_edited_copies": { "type": "integer", "minimum": 0 },
+                  "retained_approved_copies": { "type": "integer", "minimum": 0 },
+                  "independent_source_revisions_preserved": {
+                    "type": "array",
+                    "items": { "type": "string", "pattern": "^rev-" }
+                  },
+                  "independent_facts_preserved": {
+                    "type": "array",
+                    "items": { "type": "string", "pattern": "^fact-" }
+                  },
+                  "distinguished_from_ref03_refetch_failure": { "type": "boolean" },
+                  "partially_grounded_forbidden_post_deletion": { "type": "boolean" }
+                }
               },
               "oracle_status": { "type": "string", "const": "DRAFT" },
               "review_required": { "type": "boolean" },

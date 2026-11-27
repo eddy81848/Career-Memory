@@ -1217,21 +1217,23 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         user_edited: bool = False,
         reverification_state: str = "NOT_APPLICABLE_UNEDITED",
         user_edit_history: list[dict[str, Any]] | None = None,
+        deletion_lifecycle: dict[str, Any] | None = None,
     ) -> None:
-        claims.append(
-            {
-                "claim_id": claim_id,
-                "scenario_id": scenario_id,
-                "claim_version": claim_version,
-                "previous_claim_version": previous_claim_version,
-                "claim_text": claim_text,
-                "claim_atom_ids": atom_ids,
-                "user_edited": user_edited,
-                "reverification_state_on_new_version": reverification_state,
-                "user_edit_history": user_edit_history or [],
-                "derived_from_claim_ids": [],
-            }
-        )
+        entry: dict[str, Any] = {
+            "claim_id": claim_id,
+            "scenario_id": scenario_id,
+            "claim_version": claim_version,
+            "previous_claim_version": previous_claim_version,
+            "claim_text": claim_text,
+            "claim_atom_ids": atom_ids,
+            "user_edited": user_edited,
+            "reverification_state_on_new_version": reverification_state,
+            "user_edit_history": user_edit_history or [],
+            "derived_from_claim_ids": [],
+        }
+        if deletion_lifecycle is not None:
+            entry["deletion_lifecycle"] = deletion_lifecycle
+        claims.append(entry)
 
     def add_atom(
         atom_id: str,
@@ -1695,7 +1697,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         evaluated_on_claim_version=1,
     )
 
-    # SCN-13
+    # SCN-13 (OD-003: Deletion preview + explicit confirmation -> immediate access block -> full purge of dependent Claim & server edited/approved/versioned copies even when mixed with other sources; independent source src13b preserved)
     add_claim(
         "claim-13-1",
         "SCN-13",
@@ -1707,14 +1709,49 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         reverification_state="NOT_APPLICABLE_UNEDITED",
         user_edit_history=[
             {
-                "event_id": "evt-del-13-1",
+                "event_id": "evt-del-13-1a",
                 "from_version": 1,
                 "to_version": 1,
-                "action": "DELETE_SOURCE",
+                "action": "DELETE_SOURCE_PREVIEW_CONFIRMED",
                 "severity": "CASCADE_DELETE",
-                "note": "User explicitly deleted underlying source src13a, cascading invalidation to fact-13-1 and claim-13-1",
-            }
+                "note": "OD-003: Deletion preview shown for src13a listing dependent claim-13-1; user explicitly confirmed deletion.",
+            },
+            {
+                "event_id": "evt-del-13-1b",
+                "from_version": 1,
+                "to_version": 1,
+                "action": "BLOCK_DEPENDENT_CLAIM_ACCESS",
+                "severity": "CASCADE_DELETE",
+                "note": "OD-003: Dependent claim-13-1 immediately blocked from read/export/approval access upon confirmation.",
+            },
+            {
+                "event_id": "evt-del-13-1c",
+                "from_version": 1,
+                "to_version": 1,
+                "action": "PURGE_DEPENDENT_CLAIM_AND_SERVER_COPIES",
+                "severity": "CASCADE_DELETE",
+                "note": "OD-003: Cleanup completed; claim-13-1 and its server approved copy & v1 record purged (0 retained).",
+            },
         ],
+        deletion_lifecycle={
+            "policy_ref": "OD-003",
+            "trigger_source_revision_id": rev_id_by_key["src13a"],
+            "deletion_preview_shown": True,
+            "explicit_user_confirmation": True,
+            "immediate_access_blocked_after_confirmation": True,
+            "cleanup_completed": True,
+            "pre_deletion_server_artifacts": {
+                "claim_versions": [1],
+                "has_server_edited_copy": False,
+                "has_server_approved_copy": True,
+            },
+            "post_cleanup_retained_claim_versions": [],
+            "post_cleanup_retained_edited_copies": 0,
+            "post_cleanup_retained_approved_copies": 0,
+            "independent_source_revisions_preserved": [rev_id_by_key["src13b"]],
+            "independent_facts_preserved": ["fact-13-2"],
+            "distinguished_from_refetch_failure_ref03": True,
+        },
     )
     add_atom(
         "atom-13-1",
@@ -1730,20 +1767,63 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "SCN-13",
         "Migrated session keys from Memcached to Redis Cluster and built a Redis saturation alert dashboard.",
         ["atom-13-2", "atom-13-3"],
-        claim_version=1,
-        previous_claim_version=None,
-        user_edited=False,
-        reverification_state="NOT_APPLICABLE_UNEDITED",
+        claim_version=2,
+        previous_claim_version=1,
+        user_edited=True,
+        reverification_state="REVERIFY_REQUIRED_ON_NEW_VERSION",
         user_edit_history=[
             {
-                "event_id": "evt-del-13-2",
+                "event_id": "evt-del-13-2a",
                 "from_version": 1,
-                "to_version": 1,
-                "action": "DELETE_SOURCE",
+                "to_version": 2,
+                "action": "EDIT_CLAIM_TEXT",
+                "severity": "MINOR_PARAPHRASE",
+                "note": "Pre-deletion server state: claim-13-2 had v1 approved copy and v2 server edited copy mixing src13a + src13b.",
+            },
+            {
+                "event_id": "evt-del-13-2b",
+                "from_version": 2,
+                "to_version": 2,
+                "action": "DELETE_SOURCE_PREVIEW_CONFIRMED",
                 "severity": "CASCADE_DELETE",
-                "note": "Source src13a deleted; required atom-13-2 lost support while atom-13-3 survives -> cannot remain SOURCE_VERIFIED",
-            }
+                "note": "OD-003: Deletion preview shown for src13a listing mixed-source dependent claim-13-2; user explicitly confirmed deletion.",
+            },
+            {
+                "event_id": "evt-del-13-2c",
+                "from_version": 2,
+                "to_version": 2,
+                "action": "BLOCK_DEPENDENT_CLAIM_ACCESS",
+                "severity": "CASCADE_DELETE",
+                "note": "OD-003: Dependent claim-13-2 immediately blocked from access despite also citing surviving src13b.",
+            },
+            {
+                "event_id": "evt-del-13-2d",
+                "from_version": 2,
+                "to_version": 2,
+                "action": "PURGE_DEPENDENT_CLAIM_AND_SERVER_COPIES",
+                "severity": "CASCADE_DELETE",
+                "note": "OD-003: Cleanup completed; claim-13-2 and all server edited copies, approved copies, and versions [1, 2] purged (NOT left as PARTIALLY_GROUNDED). Independent source src13b & fact-13-2 preserved.",
+            },
         ],
+        deletion_lifecycle={
+            "policy_ref": "OD-003",
+            "trigger_source_revision_id": rev_id_by_key["src13a"],
+            "deletion_preview_shown": True,
+            "explicit_user_confirmation": True,
+            "immediate_access_blocked_after_confirmation": True,
+            "cleanup_completed": True,
+            "pre_deletion_server_artifacts": {
+                "claim_versions": [1, 2],
+                "has_server_edited_copy": True,
+                "has_server_approved_copy": True,
+            },
+            "post_cleanup_retained_claim_versions": [],
+            "post_cleanup_retained_edited_copies": 0,
+            "post_cleanup_retained_approved_copies": 0,
+            "independent_source_revisions_preserved": [rev_id_by_key["src13b"]],
+            "independent_facts_preserved": ["fact-13-2"],
+            "distinguished_from_refetch_failure_ref03": True,
+        },
     )
     add_atom(
         "atom-13-2",
@@ -2241,13 +2321,17 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         },
         {
             "scenario_id": "SCN-13",
-            "title": "User source deletion cascading to full invalidation and partial-atom invalidation",
-            "coverage_tags": ["user_delete_invalidation", "partial_support"],
+            "title": "OD-003 user source deletion: preview + explicit confirmation -> immediate access block -> full purge of dependent Claims & server copies (even mixed-source), preserving independent Source",
+            "coverage_tags": ["od003_user_delete", "immediate_access_block", "full_server_purge", "independent_source_preserved"],
             "expected_fact_count": 2,
             "expected_atom_count": 3,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm deleted source cascade product state naming (contrast with REF-03 unavailable)"],
-            "rationale": "Explicit user deletion of src13a removes support for fact-13-1, invalidating claim-13-1 and leaving required atom-13-2 unsupported in claim-13-2.",
+            "review_required_items": [
+                "Confirm OD-003 deletion preview + explicit confirmation UX and audit log requirements",
+                "Confirm mixed-source dependent claim-13-2 and all server edited/approved/versioned copies are purged after cleanup (never retained as PARTIALLY_GROUNDED), while independent src13b & fact-13-2 remain preserved",
+                "Confirm clear separation from simple refetch failure (REF-03)"
+            ],
+            "rationale": "Under OD-003, after deletion preview and explicit user confirmation for src13a, dependent claims claim-13-1 and mixed-source claim-13-2 are immediately blocked from access; after cleanup completes, neither claim nor any server-side edited copy, approved copy, or version remains (PARTIALLY_GROUNDED is forbidden post-deletion), while independent source src13b (rev-src13b-v1-227d1587) and fact-13-2 are preserved.",
         },
         {
             "scenario_id": "SCN-14",
@@ -2286,13 +2370,38 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         ("atom-11-2", "SCN-11", "claim-11-2", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Verified owner account PR directly supports unit test addition (fact-11-2)."),
         ("atom-12-1", "SCN-12", "claim-12-1", "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT", True, "User edit to v2 inflated 25% checkout reduction to 60% globally; v2 re-verification against fact-12-1 failed (CONTRADICTS)."),
         ("atom-12-2", "SCN-12", "claim-12-2", "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION", True, "User paraphrase created v2; existing support cas-12-2 was only evaluated on v1 and must be re-verified on v2 before any SOURCE_VERIFIED eligibility."),
-        ("atom-13-1", "SCN-13", "claim-13-1", "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION", True, "Underlying source src13a and fact-13-1 explicitly deleted by user."),
-        ("atom-13-2", "SCN-13", "claim-13-2", "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION", True, "Required atom lost support when user deleted src13a."),
-        ("atom-13-3", "SCN-13", "claim-13-2", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Surviving source src13b still directly supports Redis alert dashboard (fact-13-2)."),
+        ("atom-13-1", "SCN-13", "claim-13-1", "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003", True, "OD-003: src13a deletion preview + explicit confirmation immediately blocked claim-13-1; atom-13-1 purged with claim-13-1 on cleanup."),
+        ("atom-13-2", "SCN-13", "claim-13-2", "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003", True, "OD-003: src13a deleted; atom-13-2 purged together with dependent claim-13-2 and all server copies."),
+        ("atom-13-3", "SCN-13", "claim-13-2", "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003", True, "OD-003: Purged together with mixed-source dependent claim-13-2 (not left as surviving partial claim); underlying independent source src13b & fact-13-2 remain preserved."),
         ("atom-14-1", "SCN-14", "claim-14-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by Project Borealis fact-14-2."),
         ("atom-14-2", "SCN-14", "claim-14-1", "DRAFT_ATOM_CONTRADICTED", True, "10x numeric distortion: source fact-14-1 states 400ms, claim states 40ms."),
         ("atom-14-3", "SCN-14", "claim-14-1", "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT", True, "Cross-project conflation attaching Project Alpha metric to Project Borealis (CONTEXT-only)."),
     ]
+
+    od003_expected_by_claim = {
+        "claim-13-1": {
+            "immediate_access_blocked_after_confirmation": True,
+            "claim_and_server_copies_purged": True,
+            "retained_claim_versions": [],
+            "retained_edited_copies": 0,
+            "retained_approved_copies": 0,
+            "independent_source_revisions_preserved": [rev_id_by_key["src13b"]],
+            "independent_facts_preserved": ["fact-13-2"],
+            "distinguished_from_ref03_refetch_failure": True,
+            "partially_grounded_forbidden_post_deletion": True,
+        },
+        "claim-13-2": {
+            "immediate_access_blocked_after_confirmation": True,
+            "claim_and_server_copies_purged": True,
+            "retained_claim_versions": [],
+            "retained_edited_copies": 0,
+            "retained_approved_copies": 0,
+            "independent_source_revisions_preserved": [rev_id_by_key["src13b"]],
+            "independent_facts_preserved": ["fact-13-2"],
+            "distinguished_from_ref03_refetch_failure": True,
+            "partially_grounded_forbidden_post_deletion": True,
+        },
+    }
 
     expected_claims = [
         ("claim-01-1", "SCN-01", "DRAFT_CLAIM_UNGROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "0 supporting facts for required atom-01-1; SOURCE_VERIFIED forbidden."),
@@ -2315,8 +2424,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         ("claim-11-2", "SCN-11", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: unambiguous verified account PR."),
         ("claim-12-1", "SCN-12", "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "User edit created v2; v2 re-verification against fact-12-1 failed (CONTRADICTS); SOURCE_VERIFIED forbidden."),
         ("claim-12-2", "SCN-12", "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "User paraphrase created v2; must re-verify against fact-12-1 on v2 before any SOURCE_VERIFIED eligibility."),
-        ("claim-13-1", "SCN-13", "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "All supporting facts deleted by user; SOURCE_VERIFIED forbidden."),
-        ("claim-13-2", "SCN-13", "DRAFT_CLAIM_PARTIALLY_GROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Required atom-13-2 lost support due to user deletion (only 1/2 supported); SOURCE_VERIFIED forbidden."),
+        ("claim-13-1", "SCN-13", "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "OD-003: Deletion preview + explicit confirmation of src13a immediately blocks access; cleanup purges claim-13-1 and all server approved/version copies (distinct from REF-03). Independent src13b preserved."),
+        ("claim-13-2", "SCN-13", "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "OD-003: Despite mixed dependency with surviving src13b, explicit confirmation of src13a deletion immediately blocks access and cleanup purges claim-13-2 plus all server edited copies, approved copies, and versions [1,2] (PARTIALLY_GROUNDED forbidden). Independent src13b & fact-13-2 preserved."),
         ("claim-14-1", "SCN-14", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Required atoms include CONTRADICTED 10x distortion and CONTEXT-only conflation; SOURCE_VERIFIED forbidden."),
     ]
 
@@ -2656,6 +2765,11 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                     "draft_claim_verdict": verdict,
                     "source_verified_eligible": eligible,
                     "product_status_proposal": proposal,
+                    **(
+                        {"od003_expected_post_cleanup": od003_expected_by_claim[cid]}
+                        if cid in od003_expected_by_claim
+                        else {}
+                    ),
                     "oracle_status": "DRAFT",
                     "review_required": req,
                     "rationale": rat,

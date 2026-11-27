@@ -712,6 +712,130 @@ def validate_bundle(
                         )
                     )
 
+        # OD-003 guard: any Claim depending on a user-deleted SourceRevision or CanonicalFact
+        depends_on_user_deleted_source = False
+        for aid in claim.get("claim_atom_ids", []):
+            for cas in cas_by_atom.get(aid, []):
+                fact = facts_by_id.get(cas.get("canonical_fact_id", ""))
+                if not fact:
+                    continue
+                if fact.get("deleted_by_user"):
+                    depends_on_user_deleted_source = True
+                for fs in fact_supports_by_fact.get(fact["canonical_fact_id"], []):
+                    src = sources_by_id.get(fs.get("source_revision_id", ""))
+                    if src and src.get("deleted_by_user"):
+                        depends_on_user_deleted_source = True
+
+        if depends_on_user_deleted_source:
+            if verdict == "DRAFT_CLAIM_PARTIALLY_GROUNDED":
+                errors.append(
+                    ValidationErrorItem(
+                        "OD003_DELETION_POLICY_VIOLATION",
+                        f"expected_claims[{cid}].draft_claim_verdict",
+                        "OD-003 forbids leaving a user-deletion-dependent Claim as PARTIALLY_GROUNDED after cleanup (even when mixed with surviving sources)",
+                    )
+                )
+            if verdict != "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003":
+                errors.append(
+                    ValidationErrorItem(
+                        "OD003_DELETION_POLICY_VIOLATION",
+                        f"expected_claims[{cid}].draft_claim_verdict",
+                        f"OD-003 dependent Claim must have verdict 'DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003', got {verdict!r}",
+                    )
+                )
+            for aid in claim.get("claim_atom_ids", []):
+                ea = expected_atoms_by_id.get(aid)
+                if ea and ea.get("draft_atom_verdict") != "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003":
+                    errors.append(
+                        ValidationErrorItem(
+                            "OD003_DELETION_POLICY_VIOLATION",
+                            f"expected_atoms[{aid}].draft_atom_verdict",
+                            f"Atom belonging to OD-003 purged Claim '{cid}' must be 'DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003', got {ea.get('draft_atom_verdict')!r}",
+                        )
+                    )
+            dl = claim.get("deletion_lifecycle")
+            if not isinstance(dl, dict):
+                errors.append(
+                    ValidationErrorItem(
+                        "OD003_DELETION_POLICY_VIOLATION",
+                        f"stages/stage3_claim_assembly.json.claims[{cid}].deletion_lifecycle",
+                        "Dependent Claim on user-deleted source must declare OD-003 deletion_lifecycle",
+                    )
+                )
+            else:
+                if not (
+                    dl.get("deletion_preview_shown") is True
+                    and dl.get("explicit_user_confirmation") is True
+                    and dl.get("immediate_access_blocked_after_confirmation") is True
+                    and dl.get("cleanup_completed") is True
+                    and dl.get("distinguished_from_refetch_failure_ref03") is True
+                ):
+                    errors.append(
+                        ValidationErrorItem(
+                            "OD003_DELETION_POLICY_VIOLATION",
+                            f"stages/stage3_claim_assembly.json.claims[{cid}].deletion_lifecycle",
+                            "OD-003 requires deletion_preview_shown, explicit_user_confirmation, immediate_access_blocked_after_confirmation, cleanup_completed, and REF-03 distinction",
+                        )
+                    )
+                if (
+                    dl.get("post_cleanup_retained_claim_versions") != []
+                    or dl.get("post_cleanup_retained_edited_copies") != 0
+                    or dl.get("post_cleanup_retained_approved_copies") != 0
+                ):
+                    errors.append(
+                        ValidationErrorItem(
+                            "OD003_DELETION_POLICY_VIOLATION",
+                            f"stages/stage3_claim_assembly.json.claims[{cid}].deletion_lifecycle",
+                            "OD-003 requires 0 retained Claim versions, edited copies, and approved copies on server after cleanup",
+                        )
+                    )
+                for pres_rev in dl.get("independent_source_revisions_preserved", []):
+                    src_pres = sources_by_id.get(pres_rev)
+                    if not src_pres or src_pres.get("deleted_by_user") is not False:
+                        errors.append(
+                            ValidationErrorItem(
+                                "OD003_DELETION_POLICY_VIOLATION",
+                                f"stages/stage3_claim_assembly.json.claims[{cid}].deletion_lifecycle.independent_source_revisions_preserved",
+                                f"Independent source '{pres_rev}' must exist and remain preserved (deleted_by_user=false)",
+                            )
+                        )
+                for pres_fact in dl.get("independent_facts_preserved", []):
+                    fact_pres = facts_by_id.get(pres_fact)
+                    if not fact_pres or fact_pres.get("deleted_by_user") is not False:
+                        errors.append(
+                            ValidationErrorItem(
+                                "OD003_DELETION_POLICY_VIOLATION",
+                                f"stages/stage3_claim_assembly.json.claims[{cid}].deletion_lifecycle.independent_facts_preserved",
+                                f"Independent fact '{pres_fact}' must exist and remain preserved (deleted_by_user=false)",
+                            )
+                        )
+            od_exp = ec.get("od003_expected_post_cleanup")
+            if not isinstance(od_exp, dict):
+                errors.append(
+                    ValidationErrorItem(
+                        "OD003_DELETION_POLICY_VIOLATION",
+                        f"expected_claims[{cid}].od003_expected_post_cleanup",
+                        "OD-003 dependent Claim oracle must specify od003_expected_post_cleanup assertions",
+                    )
+                )
+            else:
+                if (
+                    od_exp.get("immediate_access_blocked_after_confirmation") is not True
+                    or od_exp.get("claim_and_server_copies_purged") is not True
+                    or od_exp.get("retained_claim_versions") != []
+                    or od_exp.get("retained_edited_copies") != 0
+                    or od_exp.get("retained_approved_copies") != 0
+                    or od_exp.get("distinguished_from_ref03_refetch_failure") is not True
+                    or od_exp.get("partially_grounded_forbidden_post_deletion") is not True
+                ):
+                    errors.append(
+                        ValidationErrorItem(
+                            "OD003_DELETION_POLICY_VIOLATION",
+                            f"expected_claims[{cid}].od003_expected_post_cleanup",
+                            "OD-003 oracle must assert immediate block, full purge (0 versions/edits/approvals), REF-03 distinction, and PARTIALLY_GROUNDED prohibition",
+                        )
+                    )
+
     # 7. Validate Official REF-01..08 Matrix & Coverage Gaps + All Preserved Refetch Fixtures
     snaps_by_id = {r["fixture_case_id"]: r for r in ref_snap_doc.get("refetch_snapshots", [])}
     checks_by_id = {r["fixture_case_id"]: r for r in s4_doc.get("refetch_checks", [])}

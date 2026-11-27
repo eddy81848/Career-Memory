@@ -320,39 +320,130 @@
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
       "user_edit_history": [
         {
-          "event_id": "evt-del-13-1",
+          "event_id": "evt-del-13-1a",
           "from_version": 1,
           "to_version": 1,
-          "action": "DELETE_SOURCE",
+          "action": "DELETE_SOURCE_PREVIEW_CONFIRMED",
           "severity": "CASCADE_DELETE",
-          "note": "User explicitly deleted underlying source src13a, cascading invalidation to fact-13-1 and claim-13-1"
+          "note": "OD-003: Deletion preview shown for src13a listing dependent claim-13-1; user explicitly confirmed deletion."
+        },
+        {
+          "event_id": "evt-del-13-1b",
+          "from_version": 1,
+          "to_version": 1,
+          "action": "BLOCK_DEPENDENT_CLAIM_ACCESS",
+          "severity": "CASCADE_DELETE",
+          "note": "OD-003: Dependent claim-13-1 immediately blocked from read/export/approval access upon confirmation."
+        },
+        {
+          "event_id": "evt-del-13-1c",
+          "from_version": 1,
+          "to_version": 1,
+          "action": "PURGE_DEPENDENT_CLAIM_AND_SERVER_COPIES",
+          "severity": "CASCADE_DELETE",
+          "note": "OD-003: Cleanup completed; claim-13-1 and its server approved copy & v1 record purged (0 retained)."
         }
       ],
-      "derived_from_claim_ids": []
+      "derived_from_claim_ids": [],
+      "deletion_lifecycle": {
+        "policy_ref": "OD-003",
+        "trigger_source_revision_id": "rev-src13a-v1-18d4db42",
+        "deletion_preview_shown": true,
+        "explicit_user_confirmation": true,
+        "immediate_access_blocked_after_confirmation": true,
+        "cleanup_completed": true,
+        "pre_deletion_server_artifacts": {
+          "claim_versions": [
+            1
+          ],
+          "has_server_edited_copy": false,
+          "has_server_approved_copy": true
+        },
+        "post_cleanup_retained_claim_versions": [],
+        "post_cleanup_retained_edited_copies": 0,
+        "post_cleanup_retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_refetch_failure_ref03": true
+      }
     },
     {
       "claim_id": "claim-13-2",
       "scenario_id": "SCN-13",
-      "claim_version": 1,
-      "previous_claim_version": null,
+      "claim_version": 2,
+      "previous_claim_version": 1,
       "claim_text": "Migrated session keys from Memcached to Redis Cluster and built a Redis saturation alert dashboard.",
       "claim_atom_ids": [
         "atom-13-2",
         "atom-13-3"
       ],
-      "user_edited": false,
-      "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
+      "user_edited": true,
+      "reverification_state_on_new_version": "REVERIFY_REQUIRED_ON_NEW_VERSION",
       "user_edit_history": [
         {
-          "event_id": "evt-del-13-2",
+          "event_id": "evt-del-13-2a",
           "from_version": 1,
-          "to_version": 1,
-          "action": "DELETE_SOURCE",
+          "to_version": 2,
+          "action": "EDIT_CLAIM_TEXT",
+          "severity": "MINOR_PARAPHRASE",
+          "note": "Pre-deletion server state: claim-13-2 had v1 approved copy and v2 server edited copy mixing src13a + src13b."
+        },
+        {
+          "event_id": "evt-del-13-2b",
+          "from_version": 2,
+          "to_version": 2,
+          "action": "DELETE_SOURCE_PREVIEW_CONFIRMED",
           "severity": "CASCADE_DELETE",
-          "note": "Source src13a deleted; required atom-13-2 lost support while atom-13-3 survives -> cannot remain SOURCE_VERIFIED"
+          "note": "OD-003: Deletion preview shown for src13a listing mixed-source dependent claim-13-2; user explicitly confirmed deletion."
+        },
+        {
+          "event_id": "evt-del-13-2c",
+          "from_version": 2,
+          "to_version": 2,
+          "action": "BLOCK_DEPENDENT_CLAIM_ACCESS",
+          "severity": "CASCADE_DELETE",
+          "note": "OD-003: Dependent claim-13-2 immediately blocked from access despite also citing surviving src13b."
+        },
+        {
+          "event_id": "evt-del-13-2d",
+          "from_version": 2,
+          "to_version": 2,
+          "action": "PURGE_DEPENDENT_CLAIM_AND_SERVER_COPIES",
+          "severity": "CASCADE_DELETE",
+          "note": "OD-003: Cleanup completed; claim-13-2 and all server edited copies, approved copies, and versions [1, 2] purged (NOT left as PARTIALLY_GROUNDED). Independent source src13b & fact-13-2 preserved."
         }
       ],
-      "derived_from_claim_ids": []
+      "derived_from_claim_ids": [],
+      "deletion_lifecycle": {
+        "policy_ref": "OD-003",
+        "trigger_source_revision_id": "rev-src13a-v1-18d4db42",
+        "deletion_preview_shown": true,
+        "explicit_user_confirmation": true,
+        "immediate_access_blocked_after_confirmation": true,
+        "cleanup_completed": true,
+        "pre_deletion_server_artifacts": {
+          "claim_versions": [
+            1,
+            2
+          ],
+          "has_server_edited_copy": true,
+          "has_server_approved_copy": true
+        },
+        "post_cleanup_retained_claim_versions": [],
+        "post_cleanup_retained_edited_copies": 0,
+        "post_cleanup_retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_refetch_failure_ref03": true
+      }
     },
     {
       "claim_id": "claim-14-1",

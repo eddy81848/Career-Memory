@@ -243,6 +243,50 @@ class ClaimDraftDatasetTests(unittest.TestCase):
     def test_20_official_ref_requirements_table_complete(self) -> None:
         self.assertEqual(len(OFFICIAL_REF_REQUIREMENTS), 8)
 
+    def test_21_fault_injection_od003_forbids_partially_grounded_after_deletion(self) -> None:
+        docs = self._clone_docs()
+        ec13_2 = next(
+            c for c in docs["expected/oracle_draft.json"]["expected_claims"] if c["claim_id"] == "claim-13-2"
+        )
+        ec13_2["draft_claim_verdict"] = "DRAFT_CLAIM_PARTIALLY_GROUNDED"
+        self.assertIn("OD003_DELETION_POLICY_VIOLATION", self._error_codes(docs))
+
+    def test_22_fault_injection_od003_forbids_retained_server_versions_edits_or_approvals(self) -> None:
+        for field, bad_val in (
+            ("post_cleanup_retained_claim_versions", [1]),
+            ("post_cleanup_retained_edited_copies", 1),
+            ("post_cleanup_retained_approved_copies", 1),
+        ):
+            with self.subTest(field=field):
+                docs = self._clone_docs()
+                c13_2 = next(
+                    c for c in docs["stages/stage3_claim_assembly.json"]["claims"] if c["claim_id"] == "claim-13-2"
+                )
+                c13_2["deletion_lifecycle"][field] = bad_val
+                self.assertIn("OD003_DELETION_POLICY_VIOLATION", self._error_codes(docs))
+
+    def test_23_fault_injection_od003_requires_preview_confirmation_and_immediate_block(self) -> None:
+        for field in (
+            "deletion_preview_shown",
+            "explicit_user_confirmation",
+            "immediate_access_blocked_after_confirmation",
+        ):
+            with self.subTest(field=field):
+                docs = self._clone_docs()
+                c13_1 = next(
+                    c for c in docs["stages/stage3_claim_assembly.json"]["claims"] if c["claim_id"] == "claim-13-1"
+                )
+                c13_1["deletion_lifecycle"][field] = False
+                self.assertIn("OD003_DELETION_POLICY_VIOLATION", self._error_codes(docs))
+
+    def test_24_fault_injection_od003_preserves_independent_source_record(self) -> None:
+        docs = self._clone_docs()
+        src13b = next(
+            s for s in docs["sources/source_revisions.json"]["source_revisions"] if s["source_key"] == "src13b"
+        )
+        src13b["deleted_by_user"] = True
+        self.assertIn("OD003_DELETION_POLICY_VIOLATION", self._error_codes(docs))
+
 
 if __name__ == "__main__":
     unittest.main()

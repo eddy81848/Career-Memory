@@ -204,18 +204,22 @@
     },
     {
       "scenario_id": "SCN-13",
-      "title": "User source deletion cascading to full invalidation and partial-atom invalidation",
+      "title": "OD-003 user source deletion: preview + explicit confirmation -> immediate access block -> full purge of dependent Claims & server copies (even mixed-source), preserving independent Source",
       "coverage_tags": [
-        "user_delete_invalidation",
-        "partial_support"
+        "od003_user_delete",
+        "immediate_access_block",
+        "full_server_purge",
+        "independent_source_preserved"
       ],
       "expected_fact_count": 2,
       "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm deleted source cascade product state naming (contrast with REF-03 unavailable)"
+        "Confirm OD-003 deletion preview + explicit confirmation UX and audit log requirements",
+        "Confirm mixed-source dependent claim-13-2 and all server edited/approved/versioned copies are purged after cleanup (never retained as PARTIALLY_GROUNDED), while independent src13b & fact-13-2 remain preserved",
+        "Confirm clear separation from simple refetch failure (REF-03)"
       ],
-      "rationale": "Explicit user deletion of src13a removes support for fact-13-1, invalidating claim-13-1 and leaving required atom-13-2 unsupported in claim-13-2."
+      "rationale": "Under OD-003, after deletion preview and explicit user confirmation for src13a, dependent claims claim-13-1 and mixed-source claim-13-2 are immediately blocked from access; after cleanup completes, neither claim nor any server-side edited copy, approved copy, or version remains (PARTIALLY_GROUNDED is forbidden post-deletion), while independent source src13b (rev-src13b-v1-227d1587) and fact-13-2 are preserved."
     },
     {
       "scenario_id": "SCN-14",
@@ -457,28 +461,28 @@
       "claim_atom_id": "atom-13-1",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-1",
-      "draft_atom_verdict": "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
+      "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Underlying source src13a and fact-13-1 explicitly deleted by user."
+      "rationale": "OD-003: src13a deletion preview + explicit confirmation immediately blocked claim-13-1; atom-13-1 purged with claim-13-1 on cleanup."
     },
     {
       "claim_atom_id": "atom-13-2",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-2",
-      "draft_atom_verdict": "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
+      "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Required atom lost support when user deleted src13a."
+      "rationale": "OD-003: src13a deleted; atom-13-2 purged together with dependent claim-13-2 and all server copies."
     },
     {
       "claim_atom_id": "atom-13-3",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-2",
-      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Surviving source src13b still directly supports Redis alert dashboard (fact-13-2)."
+      "rationale": "OD-003: Purged together with mixed-source dependent claim-13-2 (not left as surviving partial claim); underlying independent source src13b & fact-13-2 remain preserved."
     },
     {
       "claim_atom_id": "atom-14-1",
@@ -712,22 +716,52 @@
     {
       "claim_id": "claim-13-1",
       "scenario_id": "SCN-13",
-      "draft_claim_verdict": "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION",
+      "draft_claim_verdict": "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003",
       "source_verified_eligible": false,
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
+      "od003_expected_post_cleanup": {
+        "immediate_access_blocked_after_confirmation": true,
+        "claim_and_server_copies_purged": true,
+        "retained_claim_versions": [],
+        "retained_edited_copies": 0,
+        "retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_ref03_refetch_failure": true,
+        "partially_grounded_forbidden_post_deletion": true
+      },
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "All supporting facts deleted by user; SOURCE_VERIFIED forbidden."
+      "rationale": "OD-003: Deletion preview + explicit confirmation of src13a immediately blocks access; cleanup purges claim-13-1 and all server approved/version copies (distinct from REF-03). Independent src13b preserved."
     },
     {
       "claim_id": "claim-13-2",
       "scenario_id": "SCN-13",
-      "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+      "draft_claim_verdict": "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003",
       "source_verified_eligible": false,
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
+      "od003_expected_post_cleanup": {
+        "immediate_access_blocked_after_confirmation": true,
+        "claim_and_server_copies_purged": true,
+        "retained_claim_versions": [],
+        "retained_edited_copies": 0,
+        "retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_ref03_refetch_failure": true,
+        "partially_grounded_forbidden_post_deletion": true
+      },
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Required atom-13-2 lost support due to user deletion (only 1/2 supported); SOURCE_VERIFIED forbidden."
+      "rationale": "OD-003: Despite mixed dependency with surviving src13b, explicit confirmation of src13a deletion immediately blocks access and cleanup purges claim-13-2 plus all server edited copies, approved copies, and versions [1,2] (PARTIALLY_GROUNDED forbidden). Independent src13b & fact-13-2 preserved."
     },
     {
       "claim_id": "claim-14-1",

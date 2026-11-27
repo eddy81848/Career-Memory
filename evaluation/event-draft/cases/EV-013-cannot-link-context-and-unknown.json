@@ -6,13 +6,37 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_auth_services",
+    "source_lineage_group": "src_auth_services",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-013"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
-    "draft_test_ids": ["T-001A-13"],
-    "official_requirement_refs": ["FR-007"],
-    "official_test_refs": ["EVENT-12"],
-    "scenario_tags": ["cannot_link_semantics", "context_only", "unknown_association", "partial_import_run", "error_rejection"]
+    "draft_requirement_ids": [
+      "REQ-EV-ERR-LINK-01",
+      "REQ-EV-CONTEXT-01",
+      "REQ-EV-ASSOC-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-13"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-12"
+    ],
+    "scenario_tags": [
+      "cannot_link_semantics",
+      "context_only",
+      "unknown_association",
+      "partial_import_run",
+      "error_rejection"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -72,8 +96,12 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-25T10:00:00Z",
-        "commit_ids": ["cmt_syn_1301a"],
-        "referenced_ticket_ids": ["tkt_syn_1301"],
+        "commit_ids": [
+          "cmt_syn_1301a"
+        ],
+        "referenced_ticket_ids": [
+          "tkt_syn_1301"
+        ],
         "source_sync_run_id": "sync_syn_1301_pre"
       }
     ],
@@ -91,7 +119,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1301",
-        "changed_paths": ["src/auth/jwks_cache.py"],
+        "changed_paths": [
+          "src/auth/jwks_cache.py"
+        ],
         "source_sync_run_id": "sync_syn_1301_pre"
       },
       {
@@ -107,7 +137,9 @@
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/edge/ttl_fallback.py"],
+        "changed_paths": [
+          "src/edge/ttl_fallback.py"
+        ],
         "source_sync_run_id": "sync_syn_1302_partial"
       }
     ],
@@ -131,8 +163,12 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1301",
-        "source_commit_ids": ["cmt_syn_1301a"],
-        "context_ticket_ids": ["tkt_syn_1301"],
+        "source_commit_ids": [
+          "cmt_syn_1301a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_1301"
+        ],
         "member_event_ids": [],
         "dependent_artifacts": {
           "fact_ids": [],
@@ -156,7 +192,10 @@
       "workspace_id": "ws_syn_013",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
-      "target_event_ids": ["ev_init_013_pr", "tkt_syn_1301"],
+      "target_event_ids": [
+        "ev_init_013_pr",
+        "tkt_syn_1301"
+      ],
       "target_versions": {
         "ev_init_013_pr": 1
       },
@@ -171,7 +210,10 @@
       "workspace_id": "ws_syn_013",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
-      "target_event_ids": ["ev_init_013_pr", "cmt_syn_1302"],
+      "target_event_ids": [
+        "ev_init_013_pr",
+        "cmt_syn_1302"
+      ],
       "target_versions": {
         "ev_init_013_pr": 1
       },
@@ -181,8 +223,24 @@
     }
   ],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "user_commands[*].spec_command_name",
+          "held_items[*].spec_hold_status",
+          "command_results[*].spec_error_code (non-Event IDs: validation/404 vs domain error)"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_init_013_pr",
@@ -195,8 +253,12 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1301",
-        "source_commit_ids": ["cmt_syn_1301a"],
-        "context_ticket_ids": ["tkt_syn_1301"],
+        "source_commit_ids": [
+          "cmt_syn_1301a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_1301"
+        ],
         "member_event_ids": [],
         "parent_event_id": null,
         "membership_role": "standalone",
@@ -216,7 +278,9 @@
         "spec_hold_status": "UNCONFIRMED",
         "hold_reason": "PR association lookup in sync_syn_1302_partial on repo_syn_013_b is INCOMPLETE_OR_FAILED (UNKNOWN); PARTIAL run promotes 0 Events and non-Event commit ID cmt_syn_1302 cannot be merged as a USER_COMPOSITE member.",
         "interpreted_as_no_pr": false,
-        "unconfirmed_fields": ["spec_hold_status"]
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
       }
     ],
     "unpersisted_external_observations": [],
@@ -228,7 +292,11 @@
         "spec_error_code": "UNCONFIRMED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
       },
       {
         "command_id": "cmd_syn_013_link_unknown",
@@ -237,14 +305,20 @@
         "spec_error_code": "UNCONFIRMED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
       }
     ],
     "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "signing key cache",
-        "expected_event_ids": ["ev_init_013_pr"],
+        "expected_event_ids": [
+          "ev_init_013_pr"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -260,13 +334,13 @@
       {
         "field_path": "expected_proposal.held_items[0].spec_hold_status",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Fill exact observation/hold status token if exposed on Snapshot Import diagnostic API."
       },
       {
         "field_path": "expected_proposal.command_results[*].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Confirm whether passing non-Event IDs (CONTEXT_ONLY ticket tkt_syn_1301 or unpromoted UNKNOWN commit cmt_syn_1302 from repo_syn_013_b PARTIAL run) fails at request validation/not-found or returns a specific Event API code (e.g. CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE); do NOT assume both map to a single catch-all CANNOT_LINK wire code."
       }
     ]

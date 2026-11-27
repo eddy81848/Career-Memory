@@ -6,13 +6,35 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_edge_gateway",
+    "source_lineage_group": "src_edge_gateway",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-002"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-COMMIT-01"],
-    "draft_test_ids": ["T-001A-02"],
-    "official_requirement_refs": ["FR-006"],
-    "official_test_refs": ["EVENT-10"],
-    "scenario_tags": ["direct_commit", "anchor_mode_direct_commit", "default_branch", "no_match_observed", "mvp_core"]
+    "draft_requirement_ids": [
+      "REQ-EV-COMMIT-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-02"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "direct_commit",
+      "anchor_mode_direct_commit",
+      "default_branch",
+      "no_match_observed",
+      "mvp_core"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -57,7 +79,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
-        "changed_paths": ["config/router_timeouts.yaml"]
+        "changed_paths": [
+          "config/router_timeouts.yaml"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -66,8 +90,21 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_exp_002_1",
@@ -80,7 +117,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_201"],
+        "source_commit_ids": [
+          "cmt_syn_201"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -99,7 +138,9 @@
       {
         "query": "circuit breaker timeout",
         "workspace_id": "ws_syn_002",
-        "expected_event_ids": ["ev_exp_002_1"],
+        "expected_event_ids": [
+          "ev_exp_002_1"
+        ],
         "expected_result_count": 1
       }
     ],

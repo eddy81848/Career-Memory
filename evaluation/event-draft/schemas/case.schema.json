@@ -48,7 +48,25 @@
     },
     "review_status": {
       "type": "string",
-      "enum": ["PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED"]
+      "enum": ["PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED", "APPROVED_MVP_REGRESSION"]
+    },
+    "eval_grouping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eval_bundle_id", "source_lineage_group", "eval_partition", "derived_from_same_source_cases"],
+      "properties": {
+        "eval_bundle_id": { "type": "string", "minLength": 1 },
+        "source_lineage_group": { "type": "string", "minLength": 1 },
+        "eval_partition": {
+          "type": "string",
+          "enum": ["MVP_SYNTHETIC_REGRESSION", "POST_MVP_DRAFT_EXCLUDED"]
+        },
+        "derived_from_same_source_cases": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^EV-[0-9]{3}$" },
+          "minItems": 1
+        }
+      }
     },
     "coverage": {
       "type": "object",
@@ -410,11 +428,46 @@
       ],
       "properties": {
         "approval_status": {
-          "const": "DRAFT",
-          "description": "Must stay DRAFT in T-001A; never frozen as golden by agent."
+          "type": "string",
+          "enum": ["DRAFT", "APPROVED_MVP_REGRESSION"],
+          "description": "DRAFT for unapproved Post-MVP drafts; APPROVED_MVP_REGRESSION only for human-approved MVP synthetic regression logical expectations."
         },
         "approved_by": {
-          "const": null
+          "type": ["string", "null"]
+        },
+        "approval_metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "approved_at_utc",
+            "approval_baseline_commit_sha",
+            "approval_scope",
+            "dataset_version",
+            "comparison_policy"
+          ],
+          "properties": {
+            "approved_at_utc": { "type": "string", "minLength": 1 },
+            "approval_baseline_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+            "approval_scope": { "const": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS" },
+            "dataset_version": { "type": "string", "minLength": 1 },
+            "comparison_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "compare_confirmed_logical_expectations",
+                "enforce_zero_mutation_on_rejection",
+                "excluded_unconfirmed_fields"
+              ],
+              "properties": {
+                "compare_confirmed_logical_expectations": { "const": true },
+                "enforce_zero_mutation_on_rejection": { "const": true },
+                "excluded_unconfirmed_fields": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
         },
         "events": {
           "type": "array",
@@ -712,7 +765,10 @@
                 "type": "string",
                 "enum": ["UNCONFIRMED_SPEC_TOKEN", "TRULY_UNDECIDED_BEHAVIOR"]
               },
-              "status": { "const": "REVIEW_REQUIRED" },
+              "status": {
+                "type": "string",
+                "enum": ["REVIEW_REQUIRED", "EXCLUDED_FROM_MVP_TRUTH_COMPARISON"]
+              },
               "question": { "type": "string", "minLength": 1 }
             }
           }

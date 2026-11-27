@@ -6,13 +6,34 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_search_indexer",
+    "source_lineage_group": "src_search_indexer",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-004"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-BRANCH-01"],
-    "draft_test_ids": ["T-001A-04"],
-    "official_requirement_refs": ["FR-006"],
-    "official_test_refs": ["EVENT-10"],
-    "scenario_tags": ["non_default_branch", "branch_boundary", "no_match_observed", "zero_direct_commit_candidates"]
+    "draft_requirement_ids": [
+      "REQ-EV-BRANCH-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-04"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "non_default_branch",
+      "branch_boundary",
+      "no_match_observed",
+      "zero_direct_commit_candidates"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -57,7 +78,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
-        "changed_paths": ["src/indexer/trigram_proto.py"]
+        "changed_paths": [
+          "src/indexer/trigram_proto.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -66,8 +89,23 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "held_items[*].spec_hold_status",
+          "physical_collection_stage_placement"
+        ]
+      }
+    },
     "events": [],
     "held_items": [
       {
@@ -79,7 +117,9 @@
         "spec_hold_status": "UNCONFIRMED",
         "hold_reason": "Semantic oracle verdict: commit is reachable only on non-default branch 'exp/trigram-prototype', so DIRECT_COMMIT candidate count is 0. Physical collection stage placement (filtered during import vs skipped by Event Builder) is separated from this semantic verdict.",
         "interpreted_as_no_pr": false,
-        "unconfirmed_fields": ["spec_hold_status"]
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
       }
     ],
     "unpersisted_external_observations": [],
@@ -104,7 +144,7 @@
       {
         "field_path": "expected_proposal.held_items[0]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Semantic oracle verdict (0 DIRECT_COMMIT candidates) is confirmed; confirm only whether physical collection filters non-default commits before persistence (held_items=[]) or records a non-eligible source entry."
       }
     ]

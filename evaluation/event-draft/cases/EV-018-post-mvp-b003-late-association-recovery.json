@@ -7,12 +7,33 @@
   "backlog_ref": "B-003",
   "post_mvp_reason": "Post-success late PR association reclassification (B-003) after a completed Snapshot Import is POST_MVP and strictly separated from incomplete PARTIAL import retries.",
   "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_post_mvp_b003_draft",
+    "source_lineage_group": "src_billing_engine",
+    "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+    "derived_from_same_source_cases": [
+      "EV-003",
+      "EV-018"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
-    "draft_test_ids": ["T-001A-18"],
-    "official_requirement_refs": ["FR-006"],
+    "draft_requirement_ids": [
+      "REQ-EV-POST-02",
+      "REQ-EV-ASSOC-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-18"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
     "official_test_refs": [],
-    "scenario_tags": ["post_mvp", "b_003", "late_association_recovery", "direct_commit_reclassification"]
+    "scenario_tags": [
+      "post_mvp",
+      "b_003",
+      "late_association_recovery",
+      "direct_commit_reclassification"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -58,7 +79,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
-        "changed_paths": ["src/billing/tax_rounding.py"]
+        "changed_paths": [
+          "src/billing/tax_rounding.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -95,7 +118,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_1801"],
+        "source_commit_ids": [
+          "cmt_syn_1801"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -120,7 +145,9 @@
     "search_checks": [
       {
         "query": "multi-currency tax rounding",
-        "expected_event_ids": ["ev_exp_018_1"],
+        "expected_event_ids": [
+          "ev_exp_018_1"
+        ],
         "expected_result_count": 1
       }
     ],

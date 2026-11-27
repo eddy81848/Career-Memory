@@ -6,13 +6,36 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_billing_engine",
+    "source_lineage_group": "src_billing_engine",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-003",
+      "EV-018"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-ASSOC-01"],
-    "draft_test_ids": ["T-001A-03"],
-    "official_requirement_refs": ["FR-006"],
-    "official_test_refs": ["EVENT-10"],
-    "scenario_tags": ["unknown_association", "partial_import_run", "zero_events_promoted", "never_interpret_as_no_pr", "mvp_core"]
+    "draft_requirement_ids": [
+      "REQ-EV-ASSOC-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-03"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "unknown_association",
+      "partial_import_run",
+      "zero_events_promoted",
+      "never_interpret_as_no_pr",
+      "mvp_core"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -58,7 +81,9 @@
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/billing/proration.py"],
+        "changed_paths": [
+          "src/billing/proration.py"
+        ],
         "source_sync_run_id": "sync_syn_003"
       }
     ],
@@ -68,8 +93,23 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "held_items[*].spec_hold_status",
+          "diagnostic_ui_shape"
+        ]
+      }
+    },
     "events": [],
     "held_items": [
       {
@@ -81,7 +121,9 @@
         "spec_hold_status": "UNCONFIRMED",
         "hold_reason": "Required PR association lookup was incomplete (UNKNOWN); Import Run is PARTIAL and promotes 0 Events. Recording this observation is separate from creating an Event or Claim, and UNKNOWN MUST NOT be interpreted as NO_MATCH_OBSERVED.",
         "interpreted_as_no_pr": false,
-        "unconfirmed_fields": ["spec_hold_status"]
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
       }
     ],
     "unpersisted_external_observations": [],
@@ -107,7 +149,7 @@
       {
         "field_path": "expected_proposal.held_items[0].spec_hold_status",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Keep observation record storage status token unconfirmed unless a specific diagnostic enum is needed; diagnostic UI presentation is out of this oracle's scope."
       }
     ]

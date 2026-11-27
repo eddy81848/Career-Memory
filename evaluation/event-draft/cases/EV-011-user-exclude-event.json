@@ -6,13 +6,32 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_web_portal",
+    "source_lineage_group": "src_web_portal",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-011"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
-    "draft_test_ids": ["T-001A-11"],
-    "official_requirement_refs": ["FR-007"],
+    "draft_requirement_ids": [
+      "REQ-EV-CMD-EXCLUDE-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-11"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
     "official_test_refs": [],
-    "scenario_tags": ["user_exclude", "lifecycle_rejected", "source_preserved", "curation_command"]
+    "scenario_tags": [
+      "user_exclude",
+      "lifecycle_rejected",
+      "source_preserved",
+      "curation_command"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +73,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-27T08:00:00Z",
-        "commit_ids": ["cmt_syn_1101a"],
+        "commit_ids": [
+          "cmt_syn_1101a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -68,7 +89,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-27T15:00:00Z",
-        "commit_ids": ["cmt_syn_1102a"],
+        "commit_ids": [
+          "cmt_syn_1102a"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -86,7 +109,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1101",
-        "changed_paths": ["package-lock.synthetic.json"]
+        "changed_paths": [
+          "package-lock.synthetic.json"
+        ]
       },
       {
         "commit_id": "cmt_syn_1102a",
@@ -101,7 +126,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1102",
-        "changed_paths": ["src/ui/TimelineDrawer.tsx"]
+        "changed_paths": [
+          "src/ui/TimelineDrawer.tsx"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -116,7 +143,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1101",
-        "source_commit_ids": ["cmt_syn_1101a"],
+        "source_commit_ids": [
+          "cmt_syn_1101a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -138,7 +167,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1102",
-        "source_commit_ids": ["cmt_syn_1102a"],
+        "source_commit_ids": [
+          "cmt_syn_1102a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -162,7 +193,9 @@
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
       "idempotency_key": "idem_syn_011_exclude_1",
-      "target_event_ids": ["ev_init_011_noise"],
+      "target_event_ids": [
+        "ev_init_011_noise"
+      ],
       "target_versions": {
         "ev_init_011_noise": 1
       },
@@ -172,8 +205,23 @@
     }
   ],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "user_commands[*].spec_command_name",
+          "restore_or_downstream_exclude_cascade"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_init_011_noise",
@@ -186,7 +234,9 @@
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_011_exclude",
         "primary_pr_id": "pr_syn_1101",
-        "source_commit_ids": ["cmt_syn_1101a"],
+        "source_commit_ids": [
+          "cmt_syn_1101a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -207,7 +257,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1102",
-        "source_commit_ids": ["cmt_syn_1102a"],
+        "source_commit_ids": [
+          "cmt_syn_1102a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -227,8 +279,12 @@
         "rejection_category": null,
         "spec_error_code": null,
         "state_mutated": true,
-        "resulting_event_ids": ["ev_init_011_noise"],
-        "unconfirmed_fields": ["spec_command_name"]
+        "resulting_event_ids": [
+          "ev_init_011_noise"
+        ],
+        "unconfirmed_fields": [
+          "spec_command_name"
+        ]
       }
     ],
     "downstream_side_effects": [],
@@ -242,7 +298,9 @@
       {
         "query": "timeline drawer",
         "workspace_id": "ws_syn_011",
-        "expected_event_ids": ["ev_init_011_keep"],
+        "expected_event_ids": [
+          "ev_init_011_keep"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -257,13 +315,13 @@
       {
         "field_path": "user_commands[0].spec_command_name",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Official REJECTED lifecycle status and Source preservation are confirmed; exact wire command route/name remains UNCONFIRMED."
       },
       {
         "field_path": "expected_proposal.events[0]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Separate restore command and Composite-exclude propagation behavior are intentionally not guessed without contract specification."
       }
     ]

@@ -46,9 +46,14 @@ class TestEventDraftFixtureLint(unittest.TestCase):
             + "\n".join(i.format() for i in issues),
         )
 
-    def test_exact_18_cases_scope_traceability_and_still_draft(self) -> None:
+    def test_exact_18_cases_mvp_approved_post_mvp_draft_and_traceability(self) -> None:
         manifest = json.loads((DATASET_DIR / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["approval_status"], "DRAFT")
+        self.assertEqual(manifest["approval_status"], "PARTIALLY_APPROVED_MVP_REGRESSION")
+        self.assertEqual(manifest["dataset_version"], "1.0.0-mvp-approved")
+        self.assertEqual(
+            manifest["approval_record"]["approval_baseline_commit_sha"],
+            "0773ac5740b358f4168777fda1e578231cc6dff9",
+        )
         cases = manifest["cases"]
         self.assertEqual(len(cases), 18)
         mvp_cases = [c for c in cases if c["scope"] == "MVP"]
@@ -57,14 +62,24 @@ class TestEventDraftFixtureLint(unittest.TestCase):
         self.assertEqual(len(post_mvp_cases), 2)
         for case in post_mvp_cases:
             self.assertEqual(case["backlog_ref"], "B-003")
+            self.assertEqual(case["approval_status"], "DRAFT")
+            self.assertEqual(case["eval_partition"], "POST_MVP_DRAFT_EXCLUDED")
 
         by_test_ref: dict[str, list[str]] = {}
         for c in cases:
             for tref in c["official_test_refs"]:
                 by_test_ref.setdefault(tref, []).append(c["case_id"])
             cdata = json.loads((DATASET_DIR / c["path"]).read_text(encoding="utf-8"))
-            self.assertEqual(cdata["expected_proposal"]["approval_status"], "DRAFT")
-            self.assertIsNone(cdata["expected_proposal"]["approved_by"])
+            if c["scope"] == "MVP":
+                self.assertEqual(cdata["expected_proposal"]["approval_status"], "APPROVED_MVP_REGRESSION")
+                self.assertTrue(str(cdata["expected_proposal"]["approved_by"]).startswith("human-reviewer"))
+                cpol = cdata["expected_proposal"]["approval_metadata"]["comparison_policy"]
+                self.assertTrue(cpol["compare_confirmed_logical_expectations"])
+                self.assertTrue(cpol["enforce_zero_mutation_on_rejection"])
+                self.assertTrue(any("http_status" in f for f in cpol["excluded_unconfirmed_fields"]))
+            else:
+                self.assertEqual(cdata["expected_proposal"]["approval_status"], "DRAFT")
+                self.assertIsNone(cdata["expected_proposal"]["approved_by"])
 
         self.assertEqual(by_test_ref["EVENT-10"], ["EV-001", "EV-002", "EV-003", "EV-004"])
         self.assertEqual(by_test_ref["EVENT-11"], ["EV-009", "EV-010"])
@@ -209,6 +224,74 @@ class TestEventDraftFixtureLint(unittest.TestCase):
         del ev016_ws["expected_proposal"]["aggregation_check"]["per_workspace_countable_events"]
         issues_w = lint_case_data(ev016_ws, "mutated-EV-016-missing-per-ws")
         self.assertIn("WORKSPACE_AGGREGATION_SEPARATION", {i.rule_code for i in issues_w})
+
+    def test_post_mvp_approval_and_agent_self_approval_rejected(self) -> None:
+        ev017 = json.loads(
+            (DATASET_DIR / "cases/EV-017-post-mvp-b003-auto-change-discovery.json").read_text(encoding="utf-8")
+        )
+        ev017["expected_proposal"]["approval_status"] = "APPROVED_MVP_REGRESSION"
+        ev017["expected_proposal"]["approved_by"] = "human-reviewer"
+        issues_p = lint_case_data(ev017, "mutated-EV-017-approved")
+        self.assertIn("APPROVAL_STATUS_MUST_BE_DRAFT", {i.rule_code for i in issues_p})
+
+        ev001 = json.loads((DATASET_DIR / "cases/EV-001-pr-centered-basic.json").read_text(encoding="utf-8"))
+        ev001["expected_proposal"]["approved_by"] = "event-qa-agent"
+        issues_a = lint_case_data(ev001, "mutated-EV-001-agent-self-approved")
+        self.assertIn("APPROVAL_STATUS_MUST_BE_DRAFT", {i.rule_code for i in issues_a})
+
+    def test_same_source_cases_split_across_eval_bundles_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp) / "event-draft"
+            shutil.copytree(DATASET_DIR, tmp_dir)
+            ev008_path = tmp_dir / "cases/EV-008-user-split-mixed-pr.json"
+            ev008 = json.loads(ev008_path.read_text(encoding="utf-8"))
+            ev008["eval_grouping"]["eval_bundle_id"] = "bundle_mvp_split_separate"
+            ev008_path.write_text(json.dumps(ev008, indent=2), encoding="utf-8")
+
+            issues = lint_dataset(tmp_dir)
+            self.assertIn("EVAL_BUNDLE_LINEAGE_ISOLATION", {i.rule_code for i in issues})
+
+    def test_negative_variant_leaked_into_eval_bundle_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp) / "event-draft"
+            shutil.copytree(DATASET_DIR, tmp_dir)
+            mpath = tmp_dir / "manifest.json"
+            manifest = json.loads(mpath.read_text(encoding="utf-8"))
+            manifest["evaluation_bundles"][0]["case_ids"].append("NEG-001")
+            manifest["negative_variants"][0]["eval_excluded"] = False
+            mpath.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+            issues = lint_dataset(tmp_dir)
+            self.assertIn("NEGATIVE_VARIANT_ISOLATION", {i.rule_code for i in issues})
+
+    def test_tampered_approved_case_triggers_sha256_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp) / "event-draft"
+            shutil.copytree(DATASET_DIR, tmp_dir)
+            ev001_path = tmp_dir / "cases/EV-001-pr-centered-basic.json"
+            ev001 = json.loads(ev001_path.read_text(encoding="utf-8"))
+            ev001["title"] = ev001["title"] + " (tampered)"
+            ev001_path.write_text(json.dumps(ev001, indent=2), encoding="utf-8")
+
+            issues = lint_dataset(tmp_dir)
+            self.assertIn("INTEGRITY_HASH_MISMATCH", {i.rule_code for i in issues})
+
+    def test_rejected_command_mutation_and_disabled_zero_mutation_policy_rejected(self) -> None:
+        ev014 = json.loads(
+            (DATASET_DIR / "cases/EV-014-cannot-link-nested-and-excluded.json").read_text(encoding="utf-8")
+        )
+        ev014["expected_proposal"]["command_results"][0]["state_mutated"] = True
+        issues_m = lint_case_data(ev014, "mutated-EV-014-state-mutated")
+        self.assertIn("COMMAND_VERSION_RULES", {i.rule_code for i in issues_m})
+
+        ev014_pol = json.loads(
+            (DATASET_DIR / "cases/EV-014-cannot-link-nested-and-excluded.json").read_text(encoding="utf-8")
+        )
+        ev014_pol["expected_proposal"]["approval_metadata"]["comparison_policy"][
+            "enforce_zero_mutation_on_rejection"
+        ] = False
+        issues_z = lint_case_data(ev014_pol, "mutated-EV-014-zero-mut-policy")
+        self.assertIn("APPROVAL_STATUS_MUST_BE_DRAFT", {i.rule_code for i in issues_z})
 
 
 if __name__ == "__main__":

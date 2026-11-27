@@ -6,13 +6,35 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_analytics_pipe",
+    "source_lineage_group": "src_analytics_pipe",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-014"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
-    "draft_test_ids": ["T-001A-14"],
-    "official_requirement_refs": ["FR-007"],
-    "official_test_refs": ["EVENT-12"],
-    "scenario_tags": ["no_nested_user_composite", "member_not_active", "member_already_composed", "error_rejection"]
+    "draft_requirement_ids": [
+      "REQ-EV-ERR-LINK-02",
+      "REQ-EV-COMP-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-14"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-12"
+    ],
+    "scenario_tags": [
+      "no_nested_user_composite",
+      "member_not_active",
+      "member_already_composed",
+      "error_rejection"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +76,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-20T10:00:00Z",
-        "commit_ids": ["cmt_syn_1401a"],
+        "commit_ids": [
+          "cmt_syn_1401a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -68,7 +92,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-21T10:00:00Z",
-        "commit_ids": ["cmt_syn_1402a"],
+        "commit_ids": [
+          "cmt_syn_1402a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -82,7 +108,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-22T10:00:00Z",
-        "commit_ids": ["cmt_syn_1403a"],
+        "commit_ids": [
+          "cmt_syn_1403a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -96,7 +124,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-22T12:00:00Z",
-        "commit_ids": ["cmt_syn_1404a"],
+        "commit_ids": [
+          "cmt_syn_1404a"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -114,7 +144,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1401",
-        "changed_paths": ["src/pipe/writer.py"]
+        "changed_paths": [
+          "src/pipe/writer.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1402a",
@@ -129,7 +161,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1402",
-        "changed_paths": ["src/pipe/checksum.py"]
+        "changed_paths": [
+          "src/pipe/checksum.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1403a",
@@ -144,7 +178,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1403",
-        "changed_paths": ["src/pipe/schema_gate.py"]
+        "changed_paths": [
+          "src/pipe/schema_gate.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1404a",
@@ -159,7 +195,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1404",
-        "changed_paths": ["docs/README.md"]
+        "changed_paths": [
+          "docs/README.md"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -174,9 +212,15 @@
         "version": 2,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_1401a", "cmt_syn_1402a"],
+        "source_commit_ids": [
+          "cmt_syn_1401a",
+          "cmt_syn_1402a"
+        ],
         "context_ticket_ids": [],
-        "member_event_ids": ["ev_init_014_m1", "ev_init_014_m2"],
+        "member_event_ids": [
+          "ev_init_014_m1",
+          "ev_init_014_m2"
+        ],
         "dependent_artifacts": {
           "fact_ids": [],
           "claim_ids": [],
@@ -198,7 +242,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1401",
-        "source_commit_ids": ["cmt_syn_1401a"],
+        "source_commit_ids": [
+          "cmt_syn_1401a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -221,7 +267,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1402",
-        "source_commit_ids": ["cmt_syn_1402a"],
+        "source_commit_ids": [
+          "cmt_syn_1402a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -244,7 +292,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1403",
-        "source_commit_ids": ["cmt_syn_1403a"],
+        "source_commit_ids": [
+          "cmt_syn_1403a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -266,7 +316,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1404",
-        "source_commit_ids": ["cmt_syn_1404a"],
+        "source_commit_ids": [
+          "cmt_syn_1404a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -289,7 +341,10 @@
       "workspace_id": "ws_syn_014",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 2,
-      "target_event_ids": ["ev_init_014_m1", "ev_init_014_solo"],
+      "target_event_ids": [
+        "ev_init_014_m1",
+        "ev_init_014_solo"
+      ],
       "target_versions": {
         "ev_init_014_m1": 2,
         "ev_init_014_solo": 2
@@ -297,8 +352,14 @@
       "payload": {
         "composite_title": "Invalid attempt to re-merge an already-composed SUPERSEDED member",
         "members": [
-          { "event_id": "ev_init_014_m1", "expected_version": 2 },
-          { "event_id": "ev_init_014_solo", "expected_version": 2 }
+          {
+            "event_id": "ev_init_014_m1",
+            "expected_version": 2
+          },
+          {
+            "event_id": "ev_init_014_solo",
+            "expected_version": 2
+          }
         ]
       }
     },
@@ -309,7 +370,10 @@
       "workspace_id": "ws_syn_014",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 2,
-      "target_event_ids": ["ev_init_014_comp", "ev_init_014_solo"],
+      "target_event_ids": [
+        "ev_init_014_comp",
+        "ev_init_014_solo"
+      ],
       "target_versions": {
         "ev_init_014_comp": 2,
         "ev_init_014_solo": 2
@@ -317,8 +381,14 @@
       "payload": {
         "composite_title": "Invalid attempt to nest an existing USER_COMPOSITE inside another USER_COMPOSITE",
         "members": [
-          { "event_id": "ev_init_014_comp", "expected_version": 2 },
-          { "event_id": "ev_init_014_solo", "expected_version": 2 }
+          {
+            "event_id": "ev_init_014_comp",
+            "expected_version": 2
+          },
+          {
+            "event_id": "ev_init_014_solo",
+            "expected_version": 2
+          }
         ]
       }
     },
@@ -329,7 +399,10 @@
       "workspace_id": "ws_syn_014",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 2,
-      "target_event_ids": ["ev_init_014_solo", "ev_init_014_excl"],
+      "target_event_ids": [
+        "ev_init_014_solo",
+        "ev_init_014_excl"
+      ],
       "target_versions": {
         "ev_init_014_solo": 2,
         "ev_init_014_excl": 2
@@ -337,15 +410,36 @@
       "payload": {
         "composite_title": "Invalid attempt to merge a REJECTED Event",
         "members": [
-          { "event_id": "ev_init_014_solo", "expected_version": 2 },
-          { "event_id": "ev_init_014_excl", "expected_version": 2 }
+          {
+            "event_id": "ev_init_014_solo",
+            "expected_version": 2
+          },
+          {
+            "event_id": "ev_init_014_excl",
+            "expected_version": 2
+          }
         ]
       }
     }
   ],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "user_commands[*].spec_command_name",
+          "command_results[0].spec_error_code (multi-violation precedence: MEMBER_ALREADY_COMPOSED vs MEMBER_NOT_ACTIVE)"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_init_014_comp",
@@ -358,9 +452,15 @@
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_1401a", "cmt_syn_1402a"],
+        "source_commit_ids": [
+          "cmt_syn_1401a",
+          "cmt_syn_1402a"
+        ],
         "context_ticket_ids": [],
-        "member_event_ids": ["ev_init_014_m1", "ev_init_014_m2"],
+        "member_event_ids": [
+          "ev_init_014_m1",
+          "ev_init_014_m2"
+        ],
         "parent_event_id": null,
         "membership_role": "user_composite_root",
         "composite_membership_status": "ACTIVE",
@@ -381,7 +481,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1401",
-        "source_commit_ids": ["cmt_syn_1401a"],
+        "source_commit_ids": [
+          "cmt_syn_1401a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_014_comp",
@@ -403,7 +505,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1402",
-        "source_commit_ids": ["cmt_syn_1402a"],
+        "source_commit_ids": [
+          "cmt_syn_1402a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_014_comp",
@@ -425,7 +529,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1403",
-        "source_commit_ids": ["cmt_syn_1403a"],
+        "source_commit_ids": [
+          "cmt_syn_1403a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -446,7 +552,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1404",
-        "source_commit_ids": ["cmt_syn_1404a"],
+        "source_commit_ids": [
+          "cmt_syn_1404a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -465,10 +573,17 @@
         "outcome": "REJECTED",
         "rejection_category": "member_already_composed_or_not_active",
         "spec_error_code": "UNCONFIRMED",
-        "candidate_error_codes": ["MEMBER_ALREADY_COMPOSED", "MEMBER_NOT_ACTIVE"],
+        "candidate_error_codes": [
+          "MEMBER_ALREADY_COMPOSED",
+          "MEMBER_NOT_ACTIVE"
+        ],
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
       },
       {
         "command_id": "cmd_syn_014_nested_root",
@@ -477,7 +592,10 @@
         "spec_error_code": "NESTED_COMPOSITE_NOT_ALLOWED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "http_status"
+        ]
       },
       {
         "command_id": "cmd_syn_014_excluded",
@@ -486,14 +604,20 @@
         "spec_error_code": "MEMBER_NOT_ACTIVE",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "http_status"
+        ]
       }
     ],
     "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "parquet",
-        "expected_event_ids": ["ev_init_014_comp", "ev_init_014_solo"],
+        "expected_event_ids": [
+          "ev_init_014_comp",
+          "ev_init_014_solo"
+        ],
         "expected_result_count": 2
       }
     ],
@@ -508,13 +632,13 @@
       {
         "field_path": "expected_proposal.command_results[0].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "ev_init_014_m1 is both already composed and SUPERSEDED; without a multi-violation precedence contract, confirm whether cmd_syn_014_nested returns MEMBER_ALREADY_COMPOSED or MEMBER_NOT_ACTIVE (zero mutation is fixed)."
       },
       {
         "field_path": "expected_proposal.command_results[*].http_status",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Confirm HTTP status codes for NESTED_COMPOSITE_NOT_ALLOWED, MEMBER_NOT_ACTIVE, and MEMBER_ALREADY_COMPOSED."
       }
     ]

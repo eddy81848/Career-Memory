@@ -6,13 +6,35 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+    "source_lineage_group": "src_queue_dispatcher",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-010"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-COMP-01"],
-    "draft_test_ids": ["T-001A-10"],
-    "official_requirement_refs": ["FR-007"],
-    "official_test_refs": ["EVENT-11"],
-    "scenario_tags": ["composite_double_count_prevention", "user_composite", "members_superseded", "member_search_rollup", "aggregation_integrity"]
+    "draft_requirement_ids": [
+      "REQ-EV-COMP-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-10"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-11"
+    ],
+    "scenario_tags": [
+      "composite_double_count_prevention",
+      "user_composite",
+      "members_superseded",
+      "member_search_rollup",
+      "aggregation_integrity"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +76,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-20T10:00:00Z",
-        "commit_ids": ["cmt_syn_1001a"],
+        "commit_ids": [
+          "cmt_syn_1001a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -68,7 +92,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-21T10:00:00Z",
-        "commit_ids": ["cmt_syn_1002a"],
+        "commit_ids": [
+          "cmt_syn_1002a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -82,7 +108,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-22T10:00:00Z",
-        "commit_ids": ["cmt_syn_1003a"],
+        "commit_ids": [
+          "cmt_syn_1003a"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -100,7 +128,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1001",
-        "changed_paths": ["src/dlq/backoff.py"]
+        "changed_paths": [
+          "src/dlq/backoff.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1002a",
@@ -115,7 +145,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1002",
-        "changed_paths": ["src/dlq/replay_cli.py"]
+        "changed_paths": [
+          "src/dlq/replay_cli.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1003a",
@@ -130,7 +162,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1003",
-        "changed_paths": ["src/worker/heartbeat.py"]
+        "changed_paths": [
+          "src/worker/heartbeat.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -145,9 +179,15 @@
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_1001a", "cmt_syn_1002a"],
+        "source_commit_ids": [
+          "cmt_syn_1001a",
+          "cmt_syn_1002a"
+        ],
         "context_ticket_ids": [],
-        "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
+        "member_event_ids": [
+          "ev_init_010_m1",
+          "ev_init_010_m2"
+        ],
         "dependent_artifacts": {
           "fact_ids": [],
           "claim_ids": [],
@@ -169,7 +209,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1001",
-        "source_commit_ids": ["cmt_syn_1001a"],
+        "source_commit_ids": [
+          "cmt_syn_1001a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -191,7 +233,9 @@
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1002",
-        "source_commit_ids": ["cmt_syn_1002a"],
+        "source_commit_ids": [
+          "cmt_syn_1002a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -213,7 +257,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1003",
-        "source_commit_ids": ["cmt_syn_1003a"],
+        "source_commit_ids": [
+          "cmt_syn_1003a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -230,8 +276,22 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "detail_get_superseded_member_history_shape"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_init_010_comp",
@@ -244,9 +304,15 @@
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_1001a", "cmt_syn_1002a"],
+        "source_commit_ids": [
+          "cmt_syn_1001a",
+          "cmt_syn_1002a"
+        ],
         "context_ticket_ids": [],
-        "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
+        "member_event_ids": [
+          "ev_init_010_m1",
+          "ev_init_010_m2"
+        ],
         "parent_event_id": null,
         "membership_role": "user_composite_root",
         "composite_membership_status": "ACTIVE",
@@ -267,7 +333,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1001",
-        "source_commit_ids": ["cmt_syn_1001a"],
+        "source_commit_ids": [
+          "cmt_syn_1001a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_010_comp",
@@ -288,7 +356,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1002",
-        "source_commit_ids": ["cmt_syn_1002a"],
+        "source_commit_ids": [
+          "cmt_syn_1002a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_010_comp",
@@ -309,7 +379,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1003",
-        "source_commit_ids": ["cmt_syn_1003a"],
+        "source_commit_ids": [
+          "cmt_syn_1003a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -328,19 +400,25 @@
       {
         "query": "deadletter queue",
         "workspace_id": "ws_syn_010",
-        "expected_event_ids": ["ev_init_010_comp"],
+        "expected_event_ids": [
+          "ev_init_010_comp"
+        ],
         "expected_result_count": 1
       },
       {
         "query": "replay CLI",
         "workspace_id": "ws_syn_010",
-        "expected_event_ids": ["ev_init_010_comp"],
+        "expected_event_ids": [
+          "ev_init_010_comp"
+        ],
         "expected_result_count": 1
       },
       {
         "query": "heartbeat",
         "workspace_id": "ws_syn_010",
-        "expected_event_ids": ["ev_init_010_solo"],
+        "expected_event_ids": [
+          "ev_init_010_solo"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -355,7 +433,7 @@
       {
         "field_path": "expected_proposal.events[1..2]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Single-count aggregation, SUPERSEDED member history, and rolling up member-only search hits ('replay CLI') to parent USER_COMPOSITE once are confirmed; direct detail GET response shape for historical SUPERSEDED member IDs remains unconfirmed."
       }
     ]

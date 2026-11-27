@@ -10,6 +10,7 @@ Does NOT represent M3/EVAL-EVENT runtime quality evaluation or T-001B human appr
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -19,7 +20,10 @@ from typing import Any
 
 
 ALLOWED_SCOPES = {"MVP", "POST_MVP"}
-ALLOWED_REVIEW_STATUSES = {"PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED"}
+ALLOWED_REVIEW_STATUSES = {"PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED", "APPROVED_MVP_REGRESSION"}
+ALLOWED_CASE_APPROVAL_STATUSES = {"DRAFT", "APPROVED_MVP_REGRESSION"}
+ALLOWED_MANIFEST_APPROVAL_STATUSES = {"DRAFT", "PARTIALLY_APPROVED_MVP_REGRESSION"}
+ALLOWED_EVAL_PARTITIONS = {"MVP_SYNTHETIC_REGRESSION", "POST_MVP_DRAFT_EXCLUDED"}
 ALLOWED_SYNC_RUN_STATUSES = {"SUCCESS", "PARTIAL", "PENDING"}
 ALLOWED_LOOKUP_STATUS = {"COMPLETED", "INCOMPLETE_OR_FAILED"}
 ALLOWED_PR_ASSOC = {"ASSOCIATED", "NO_MATCH_OBSERVED", "UNKNOWN"}
@@ -157,12 +161,16 @@ REQUIRED_COMMAND_KEYS = {
 REQUIRED_MANIFEST_KEYS = {
     "schema_version",
     "dataset_id",
+    "dataset_version",
     "task_ref",
     "approval_status",
     "base_commit_sha",
+    "approval_record",
     "scope_boundary",
     "generation_provenance",
     "reference_docs",
+    "evaluation_bundles",
+    "integrity_hashes",
     "cases",
     "negative_variants",
 }
@@ -979,7 +987,54 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                         )
                     )
 
-    # 5. Validate expected_proposal top-level & DRAFT governance
+    # 5. Validate eval_grouping, expected_proposal top-level & T-001B approval governance
+    case_id_str = str(case.get("case_id", ""))
+    eval_grp = case.get("eval_grouping")
+    if case_id_str.startswith("EV-"):
+        if not isinstance(eval_grp, dict):
+            issues.append(
+                LintIssue(
+                    "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                    f"{location}.eval_grouping",
+                    "EV-* case must declare eval_grouping (eval_bundle_id, source_lineage_group, eval_partition, derived_from_same_source_cases).",
+                )
+            )
+        else:
+            epart = eval_grp.get("eval_partition")
+            if epart not in ALLOWED_EVAL_PARTITIONS:
+                issues.append(
+                    LintIssue(
+                        "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                        f"{location}.eval_grouping.eval_partition",
+                        f"Invalid eval_partition {epart!r}; allowed: {sorted(ALLOWED_EVAL_PARTITIONS)}.",
+                    )
+                )
+            elif scope == "MVP" and epart != "MVP_SYNTHETIC_REGRESSION":
+                issues.append(
+                    LintIssue(
+                        "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                        f"{location}.eval_grouping.eval_partition",
+                        "MVP case must belong to eval_partition='MVP_SYNTHETIC_REGRESSION'.",
+                    )
+                )
+            elif scope == "POST_MVP" and epart != "POST_MVP_DRAFT_EXCLUDED":
+                issues.append(
+                    LintIssue(
+                        "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                        f"{location}.eval_grouping.eval_partition",
+                        "POST_MVP case must belong to eval_partition='POST_MVP_DRAFT_EXCLUDED'.",
+                    )
+                )
+            same_src = eval_grp.get("derived_from_same_source_cases")
+            if not isinstance(same_src, list) or case_id_str not in same_src:
+                issues.append(
+                    LintIssue(
+                        "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                        f"{location}.eval_grouping.derived_from_same_source_cases",
+                        f"derived_from_same_source_cases must be a list containing '{case_id_str}'.",
+                    )
+                )
+
     expected = case.get("expected_proposal")
     if not isinstance(expected, dict):
         issues.append(LintIssue("SCHEMA_REQUIRED_FIELD", f"{location}.expected_proposal", "Must be an object."))
@@ -994,22 +1049,103 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             )
         )
 
-    if "approval_status" in expected and expected.get("approval_status") != "DRAFT":
-        issues.append(
-            LintIssue(
-                "APPROVAL_STATUS_MUST_BE_DRAFT",
-                f"{location}.expected_proposal.approval_status",
-                f"Expected approval_status='DRAFT' (must never be frozen as golden by agent); got {expected.get('approval_status')!r}.",
+    exp_approval = expected.get("approval_status")
+    approved_by = expected.get("approved_by")
+    if case_id_str.startswith("NEG-") or scope == "POST_MVP":
+        if "approval_status" in expected and exp_approval != "DRAFT":
+            issues.append(
+                LintIssue(
+                    "APPROVAL_STATUS_MUST_BE_DRAFT",
+                    f"{location}.expected_proposal.approval_status",
+                    f"POST_MVP drafts and NEG-* variants MUST remain approval_status='DRAFT'; got {exp_approval!r}.",
+                )
             )
-        )
-    if expected.get("approved_by") is not None:
-        issues.append(
-            LintIssue(
-                "APPROVAL_STATUS_MUST_BE_DRAFT",
-                f"{location}.expected_proposal.approved_by",
-                "approved_by must be null in T-001A draft.",
+        if approved_by is not None:
+            issues.append(
+                LintIssue(
+                    "APPROVAL_STATUS_MUST_BE_DRAFT",
+                    f"{location}.expected_proposal.approved_by",
+                    "POST_MVP drafts and NEG-* variants MUST keep approved_by=null.",
+                )
             )
-        )
+    else:
+        if "approval_status" in expected and exp_approval not in ALLOWED_CASE_APPROVAL_STATUSES:
+            issues.append(
+                LintIssue(
+                    "APPROVAL_STATUS_MUST_BE_DRAFT",
+                    f"{location}.expected_proposal.approval_status",
+                    f"Invalid approval_status {exp_approval!r}; allowed: {sorted(ALLOWED_CASE_APPROVAL_STATUSES)}.",
+                )
+            )
+        elif exp_approval == "DRAFT":
+            if approved_by is not None:
+                issues.append(
+                    LintIssue(
+                        "APPROVAL_STATUS_MUST_BE_DRAFT",
+                        f"{location}.expected_proposal.approved_by",
+                        "DRAFT case must have approved_by=null.",
+                    )
+                )
+        elif exp_approval == "APPROVED_MVP_REGRESSION":
+            if (
+                not isinstance(approved_by, str)
+                or not approved_by.startswith("human-reviewer")
+                or "agent" in approved_by.lower()
+            ):
+                issues.append(
+                    LintIssue(
+                        "APPROVAL_STATUS_MUST_BE_DRAFT",
+                        f"{location}.expected_proposal.approved_by",
+                        f"APPROVED_MVP_REGRESSION requires explicit human reviewer attribution (not agent self-approval); got {approved_by!r}.",
+                    )
+                )
+            ameta = expected.get("approval_metadata")
+            if not isinstance(ameta, dict):
+                issues.append(
+                    LintIssue(
+                        "APPROVAL_STATUS_MUST_BE_DRAFT",
+                        f"{location}.expected_proposal.approval_metadata",
+                        "APPROVED_MVP_REGRESSION case must declare approval_metadata with baseline SHA, version, and comparison_policy.",
+                    )
+                )
+            else:
+                cpol = ameta.get("comparison_policy")
+                if not isinstance(cpol, dict):
+                    issues.append(
+                        LintIssue(
+                            "APPROVAL_STATUS_MUST_BE_DRAFT",
+                            f"{location}.expected_proposal.approval_metadata.comparison_policy",
+                            "approval_metadata must include comparison_policy.",
+                        )
+                    )
+                else:
+                    if cpol.get("compare_confirmed_logical_expectations") is not True:
+                        issues.append(
+                            LintIssue(
+                                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                                f"{location}.expected_proposal.approval_metadata.comparison_policy.compare_confirmed_logical_expectations",
+                                "compare_confirmed_logical_expectations must be true.",
+                            )
+                        )
+                    if cpol.get("enforce_zero_mutation_on_rejection") is not True:
+                        issues.append(
+                            LintIssue(
+                                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                                f"{location}.expected_proposal.approval_metadata.comparison_policy.enforce_zero_mutation_on_rejection",
+                                "enforce_zero_mutation_on_rejection MUST stay true on approved MVP cases.",
+                            )
+                        )
+                    excl_fields = cpol.get("excluded_unconfirmed_fields")
+                    if not isinstance(excl_fields, list) or not any(
+                        isinstance(f, str) and "http_status" in f for f in excl_fields
+                    ):
+                        issues.append(
+                            LintIssue(
+                                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                                f"{location}.expected_proposal.approval_metadata.comparison_policy.excluded_unconfirmed_fields",
+                                "excluded_unconfirmed_fields must explicitly exclude unconfirmed http_status from ground-truth comparison.",
+                            )
+                        )
 
     # 6. Validate user_commands & command_results
     commands = case.get("user_commands") if isinstance(case.get("user_commands"), list) else []
@@ -1172,12 +1308,17 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     )
                 )
         elif outcome == "REJECTED":
-            if rej_cat is None or spec_err is None or mutated is not False:
+            if (
+                rej_cat is None
+                or spec_err is None
+                or mutated is not False
+                or res.get("resulting_event_ids") != []
+            ):
                 issues.append(
                     LintIssue(
                         "COMMAND_VERSION_RULES",
                         f"{location}.expected_proposal.command_results[{idx}]",
-                        "REJECTED command must have non-null rejection_category, spec_error_code (official code or 'UNCONFIRMED'), and state_mutated=false.",
+                        "REJECTED command must have non-null rejection_category, spec_error_code (official code or 'UNCONFIRMED'), state_mutated=false, and resulting_event_ids=[].",
                     )
                 )
         else:
@@ -2102,6 +2243,10 @@ def lint_case_file(path: Path) -> list[LintIssue]:
     return lint_case_data(data, str(path))
 
 
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
     issues: list[LintIssue] = []
     manifest_path = dataset_dir / "manifest.json"
@@ -2116,12 +2261,13 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
         )
     _walk_keys_and_strings(manifest, "manifest.json", issues)
 
-    if manifest.get("approval_status") != "DRAFT":
+    m_approval = manifest.get("approval_status")
+    if m_approval not in ALLOWED_MANIFEST_APPROVAL_STATUSES:
         issues.append(
             LintIssue(
                 "APPROVAL_STATUS_MUST_BE_DRAFT",
                 "manifest.json.approval_status",
-                f"Manifest approval_status must be 'DRAFT', got {manifest.get('approval_status')!r}.",
+                f"Manifest approval_status must be in {sorted(ALLOWED_MANIFEST_APPROVAL_STATUSES)}, got {m_approval!r}.",
             )
         )
 
@@ -2149,6 +2295,8 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
     seen_slugs: set[str] = set()
     manifest_case_paths: set[Path] = set()
     manifest_case_map: dict[str, dict[str, Any]] = {}
+    loaded_cases: dict[str, dict[str, Any]] = {}
+    actual_case_sha256: dict[str, str] = {}
 
     for idx, entry in enumerate(cases_entries):
         if not isinstance(entry, dict):
@@ -2166,9 +2314,12 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
         if load_issues:
             issues.extend(load_issues)
             continue
+        actual_sha = _sha256_file(full_path)
+        actual_case_sha256[cid] = actual_sha
         issues.extend(lint_case_data(case_data, rel_path))
 
         if isinstance(case_data, dict):
+            loaded_cases[cid] = case_data
             if case_data.get("case_id") != cid:
                 issues.append(
                     LintIssue(
@@ -2199,6 +2350,43 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                     )
                 )
 
+            ep = case_data.get("expected_proposal") if isinstance(case_data.get("expected_proposal"), dict) else {}
+            if entry.get("approval_status") != ep.get("approval_status"):
+                issues.append(
+                    LintIssue(
+                        "APPROVAL_STATUS_MUST_BE_DRAFT",
+                        f"manifest.json.cases[{cid}].approval_status",
+                        f"Manifest approval_status {entry.get('approval_status')!r} disagrees with case file {ep.get('approval_status')!r}.",
+                    )
+                )
+            if entry.get("review_status") != case_data.get("review_status"):
+                issues.append(
+                    LintIssue(
+                        "COVERAGE_AND_REVIEW_QUEUE_SYNC",
+                        f"manifest.json.cases[{cid}].review_status",
+                        f"Manifest review_status {entry.get('review_status')!r} disagrees with case file {case_data.get('review_status')!r}.",
+                    )
+                )
+            if entry.get("file_sha256") != actual_sha:
+                issues.append(
+                    LintIssue(
+                        "INTEGRITY_HASH_MISMATCH",
+                        f"manifest.json.cases[{cid}].file_sha256",
+                        f"Manifest file_sha256={entry.get('file_sha256')!r} does not match actual SHA-256 {actual_sha!r}.",
+                    )
+                )
+
+            eg = case_data.get("eval_grouping") if isinstance(case_data.get("eval_grouping"), dict) else {}
+            for gfield in ("eval_bundle_id", "source_lineage_group", "eval_partition"):
+                if entry.get(gfield) != eg.get(gfield):
+                    issues.append(
+                        LintIssue(
+                            "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                            f"manifest.json.cases[{cid}].{gfield}",
+                            f"Manifest {gfield}={entry.get(gfield)!r} disagrees with case eval_grouping {eg.get(gfield)!r}.",
+                        )
+                    )
+
             cov = case_data.get("coverage") if isinstance(case_data.get("coverage"), dict) else {}
             for field in (
                 "draft_requirement_ids",
@@ -2227,6 +2415,219 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                     )
                 )
 
+    # Validate approval_record consistency
+    approval_rec = manifest.get("approval_record") if isinstance(manifest.get("approval_record"), dict) else {}
+    approved_ids_list = approval_rec.get("approved_case_ids") if isinstance(approval_rec.get("approved_case_ids"), list) else []
+    post_mvp_ids_list = (
+        approval_rec.get("unapproved_post_mvp_draft_case_ids")
+        if isinstance(approval_rec.get("unapproved_post_mvp_draft_case_ids"), list)
+        else []
+    )
+    actual_approved_ids = sorted(
+        cid
+        for cid, cdata in loaded_cases.items()
+        if isinstance(cdata.get("expected_proposal"), dict)
+        and cdata["expected_proposal"].get("approval_status") == "APPROVED_MVP_REGRESSION"
+    )
+    actual_post_mvp_draft_ids = sorted(
+        cid
+        for cid, cdata in loaded_cases.items()
+        if cdata.get("scope") == "POST_MVP"
+        and isinstance(cdata.get("expected_proposal"), dict)
+        and cdata["expected_proposal"].get("approval_status") == "DRAFT"
+    )
+    if sorted(approved_ids_list) != actual_approved_ids:
+        issues.append(
+            LintIssue(
+                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                "manifest.json.approval_record.approved_case_ids",
+                f"approval_record.approved_case_ids={sorted(approved_ids_list)!r} disagrees with approved MVP cases {actual_approved_ids!r}.",
+            )
+        )
+    if sorted(post_mvp_ids_list) != actual_post_mvp_draft_ids:
+        issues.append(
+            LintIssue(
+                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                "manifest.json.approval_record.unapproved_post_mvp_draft_case_ids",
+                f"approval_record.unapproved_post_mvp_draft_case_ids={sorted(post_mvp_ids_list)!r} disagrees with Post-MVP drafts {actual_post_mvp_draft_ids!r}.",
+            )
+        )
+    cpol = approval_rec.get("comparison_policy") if isinstance(approval_rec.get("comparison_policy"), dict) else {}
+    if cpol.get("enforce_zero_mutation_on_rejection") is not True:
+        issues.append(
+            LintIssue(
+                "APPROVAL_STATUS_MUST_BE_DRAFT",
+                "manifest.json.approval_record.comparison_policy.enforce_zero_mutation_on_rejection",
+                "Manifest comparison_policy MUST enforce zero mutation on rejection.",
+            )
+        )
+
+    # Validate same-source evaluation bundles & lineage isolation
+    eval_bundles = manifest.get("evaluation_bundles") if isinstance(manifest.get("evaluation_bundles"), list) else []
+    bundle_case_seen: set[str] = set()
+    bundle_map: dict[str, dict[str, Any]] = {}
+    for idx, bundle in enumerate(eval_bundles):
+        if not isinstance(bundle, dict):
+            continue
+        bid = bundle.get("eval_bundle_id", "")
+        bpart = bundle.get("eval_partition", "")
+        if bid in bundle_map:
+            issues.append(
+                LintIssue("EVAL_BUNDLE_LINEAGE_ISOLATION", f"manifest.json.evaluation_bundles[{idx}]", f"Duplicate eval_bundle_id '{bid}'.")
+            )
+        bundle_map[bid] = bundle
+        for cid in bundle.get("case_ids", []):
+            if str(cid).startswith("NEG-"):
+                issues.append(
+                    LintIssue(
+                        "NEGATIVE_VARIANT_ISOLATION",
+                        f"manifest.json.evaluation_bundles[{bid}].case_ids",
+                        f"Negative variant '{cid}' MUST NEVER appear in evaluation_bundles.",
+                    )
+                )
+            if cid in bundle_case_seen:
+                issues.append(
+                    LintIssue(
+                        "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                        f"manifest.json.evaluation_bundles[{bid}].case_ids",
+                        f"Case '{cid}' appears in multiple evaluation bundles.",
+                    )
+                )
+            bundle_case_seen.add(cid)
+            if cid in loaded_cases:
+                eg = loaded_cases[cid].get("eval_grouping") or {}
+                if eg.get("eval_bundle_id") != bid or eg.get("eval_partition") != bpart:
+                    issues.append(
+                        LintIssue(
+                            "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                            f"manifest.json.evaluation_bundles[{bid}]",
+                            f"Case '{cid}' eval_grouping ({eg.get('eval_bundle_id')}/{eg.get('eval_partition')}) disagrees with bundle ({bid}/{bpart}).",
+                        )
+                    )
+    if bundle_case_seen != seen_case_ids:
+        issues.append(
+            LintIssue(
+                "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                "manifest.json.evaluation_bundles",
+                f"evaluation_bundles cases {sorted(bundle_case_seen)} do not match manifest cases {sorted(seen_case_ids)}.",
+            )
+        )
+
+    # Same-source invariant within approved MVP evaluation partition:
+    # Any two MVP cases sharing a synthetic repository full_name MUST share source_lineage_group and eval_bundle_id.
+    repo_to_mvp_bundle: dict[str, tuple[str, str, str]] = {}
+    for cid in actual_approved_ids:
+        cdata = loaded_cases[cid]
+        eg = cdata.get("eval_grouping") if isinstance(cdata.get("eval_grouping"), dict) else {}
+        bid = str(eg.get("eval_bundle_id", ""))
+        lgrp = str(eg.get("source_lineage_group", ""))
+        repos = cdata.get("synthetic_sources", {}).get("repositories", [])
+        for r in repos:
+            if not isinstance(r, dict):
+                continue
+            rname = str(r.get("full_name", ""))
+            if not rname:
+                continue
+            if rname in repo_to_mvp_bundle:
+                prev_cid, prev_bid, prev_lgrp = repo_to_mvp_bundle[rname]
+                if prev_bid != bid or prev_lgrp != lgrp:
+                    issues.append(
+                        LintIssue(
+                            "EVAL_BUNDLE_LINEAGE_ISOLATION",
+                            f"cases[{cid}]",
+                            f"Cases '{prev_cid}' and '{cid}' share synthetic source repository '{rname}' but have different eval_bundle_id/source_lineage_group ({prev_bid}/{prev_lgrp} vs {bid}/{lgrp}).",
+                        )
+                    )
+            else:
+                repo_to_mvp_bundle[rname] = (cid, bid, lgrp)
+
+    # Validate SHA-256 integrity hashes
+    ihashes = manifest.get("integrity_hashes") if isinstance(manifest.get("integrity_hashes"), dict) else {}
+    if ihashes:
+        if ihashes.get("hash_algorithm") != "sha256":
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.hash_algorithm",
+                    "integrity_hashes.hash_algorithm must be 'sha256'.",
+                )
+            )
+        app_map = ihashes.get("approved_mvp_cases_sha256") if isinstance(ihashes.get("approved_mvp_cases_sha256"), dict) else {}
+        post_map = ihashes.get("post_mvp_draft_cases_sha256") if isinstance(ihashes.get("post_mvp_draft_cases_sha256"), dict) else {}
+        if sorted(app_map.keys()) != actual_approved_ids:
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.approved_mvp_cases_sha256",
+                    f"Keys {sorted(app_map.keys())} do not match approved MVP cases {actual_approved_ids}.",
+                )
+            )
+        if sorted(post_map.keys()) != actual_post_mvp_draft_ids:
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.post_mvp_draft_cases_sha256",
+                    f"Keys {sorted(post_map.keys())} do not match Post-MVP draft cases {actual_post_mvp_draft_ids}.",
+                )
+            )
+        for label, hmap in (("approved_mvp_cases_sha256", app_map), ("post_mvp_draft_cases_sha256", post_map)):
+            for cid, rec in hmap.items():
+                if not isinstance(rec, dict):
+                    continue
+                if cid in actual_case_sha256 and rec.get("file_sha256") != actual_case_sha256[cid]:
+                    issues.append(
+                        LintIssue(
+                            "INTEGRITY_HASH_MISMATCH",
+                            f"manifest.json.integrity_hashes.{label}.{cid}.file_sha256",
+                            f"Recorded SHA-256 {rec.get('file_sha256')!r} != actual {actual_case_sha256[cid]!r}.",
+                        )
+                    )
+
+        def _recompute_bundle_sha(hmap: dict[str, Any], key_name: str) -> str:
+            payload = "".join(f"{cid}:{hmap[cid].get(key_name, '')}\n" for cid in sorted(hmap))
+            return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+        exp_mvp_bundle_sha = _recompute_bundle_sha(app_map, "file_sha256")
+        if ihashes.get("approved_mvp_bundle_sha256") != exp_mvp_bundle_sha:
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.approved_mvp_bundle_sha256",
+                    f"Recorded approved_mvp_bundle_sha256 {ihashes.get('approved_mvp_bundle_sha256')!r} != recomputed {exp_mvp_bundle_sha!r}.",
+                )
+            )
+        exp_base_bundle_sha = _recompute_bundle_sha(app_map, "baseline_sha256_at_0773ac5")
+        if ihashes.get("approved_mvp_baseline_bundle_sha256") != exp_base_bundle_sha:
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.approved_mvp_baseline_bundle_sha256",
+                    f"Recorded approved_mvp_baseline_bundle_sha256 {ihashes.get('approved_mvp_baseline_bundle_sha256')!r} != recomputed {exp_base_bundle_sha!r}.",
+                )
+            )
+        exp_post_bundle_sha = _recompute_bundle_sha(post_map, "file_sha256")
+        if ihashes.get("post_mvp_draft_bundle_sha256") != exp_post_bundle_sha:
+            issues.append(
+                LintIssue(
+                    "INTEGRITY_HASH_MISMATCH",
+                    "manifest.json.integrity_hashes.post_mvp_draft_bundle_sha256",
+                    f"Recorded post_mvp_draft_bundle_sha256 {ihashes.get('post_mvp_draft_bundle_sha256')!r} != recomputed {exp_post_bundle_sha!r}.",
+                )
+            )
+        schema_hashes = ihashes.get("schema_files_sha256") if isinstance(ihashes.get("schema_files_sha256"), dict) else {}
+        for srel, ssha in schema_hashes.items():
+            spath = dataset_dir / srel
+            if not spath.is_file():
+                issues.append(LintIssue("FILE_NOT_FOUND", srel, "Schema file listed in integrity_hashes does not exist."))
+            elif _sha256_file(spath) != ssha:
+                issues.append(
+                    LintIssue(
+                        "INTEGRITY_HASH_MISMATCH",
+                        f"manifest.json.integrity_hashes.schema_files_sha256.{srel}",
+                        f"Schema SHA-256 {ssha!r} != actual {_sha256_file(spath)!r}.",
+                    )
+                )
+
     neg_entries = manifest.get("negative_variants") if isinstance(manifest.get("negative_variants"), list) else []
     for idx, nentry in enumerate(neg_entries):
         if not isinstance(nentry, dict):
@@ -2238,6 +2639,14 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                     "NEGATIVE_VARIANT_ISOLATION",
                     f"manifest.json.negative_variants[{idx}].path",
                     f"Negative variant must live under negative-fixtures/, got '{rel_path}'.",
+                )
+            )
+        if nentry.get("eval_excluded") is not True:
+            issues.append(
+                LintIssue(
+                    "NEGATIVE_VARIANT_ISOLATION",
+                    f"manifest.json.negative_variants[{idx}].eval_excluded",
+                    "Negative variant must declare eval_excluded=true (isolated from evaluation dataset).",
                 )
             )
         if not (dataset_dir / rel_path).is_file():
@@ -2338,7 +2747,7 @@ def verify_negative_variants(dataset_dir: Path) -> tuple[bool, list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Lint T-001A Event synthetic dataset draft fixtures and negative variants."
+        description="Lint Event synthetic dataset fixtures (MVP approved + Post-MVP draft) and negative variants."
     )
     parser.add_argument("--dataset-dir", type=Path, help="Path to evaluation/event-draft directory.")
     parser.add_argument("--case-file", type=Path, help="Lint a single case JSON file.")
@@ -2371,7 +2780,14 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest_data, _ = _load_json(args.dataset_dir / "manifest.json")
     case_count = len(manifest_data.get("cases", [])) if isinstance(manifest_data, dict) else 0
-    print(f"DATASET LINT PASSED: {case_count} draft cases, coverage matrix, and review queue verified (DRAFT only).")
+    ver = manifest_data.get("dataset_version", "unknown") if isinstance(manifest_data, dict) else "unknown"
+    app_rec = manifest_data.get("approval_record", {}) if isinstance(manifest_data, dict) else {}
+    n_app = len(app_rec.get("approved_case_ids", []))
+    n_post = len(app_rec.get("unapproved_post_mvp_draft_case_ids", []))
+    print(
+        f"DATASET LINT PASSED: {case_count} cases verified "
+        f"(version={ver}, {n_app} MVP approved, {n_post} Post-MVP DRAFT, same-source bundles & SHA-256 integrity verified)."
+    )
 
     if args.verify_negatives:
         ok, lines = verify_negative_variants(args.dataset_dir)

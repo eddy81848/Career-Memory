@@ -7,12 +7,33 @@
   "backlog_ref": "B-003",
   "post_mvp_reason": "Post-success automatic change discovery after completed Snapshot Import (INITIAL_BACKFILL) is deferred to B-003 (POST_MVP).",
   "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_post_mvp_b003_draft",
+    "source_lineage_group": "src_ledger_service",
+    "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+    "derived_from_same_source_cases": [
+      "EV-001",
+      "EV-015",
+      "EV-017"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-POST-01"],
-    "draft_test_ids": ["T-001A-17"],
-    "official_requirement_refs": ["FR-006"],
+    "draft_requirement_ids": [
+      "REQ-EV-POST-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-17"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
     "official_test_refs": [],
-    "scenario_tags": ["post_mvp", "b_003", "auto_change_discovery", "snapshot_import_boundary"]
+    "scenario_tags": [
+      "post_mvp",
+      "b_003",
+      "auto_change_discovery",
+      "snapshot_import_boundary"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +75,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-30T10:00:00Z",
-        "commit_ids": ["cmt_syn_1701a"],
+        "commit_ids": [
+          "cmt_syn_1701a"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -72,7 +95,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1701",
-        "changed_paths": ["src/ledger/snapshot.py"]
+        "changed_paths": [
+          "src/ledger/snapshot.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -107,7 +132,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1701",
-        "source_commit_ids": ["cmt_syn_1701a"],
+        "source_commit_ids": [
+          "cmt_syn_1701a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -132,7 +159,9 @@
     "search_checks": [
       {
         "query": "initial snapshot",
-        "expected_event_ids": ["ev_exp_017_1"],
+        "expected_event_ids": [
+          "ev_exp_017_1"
+        ],
         "expected_result_count": 1
       }
     ],

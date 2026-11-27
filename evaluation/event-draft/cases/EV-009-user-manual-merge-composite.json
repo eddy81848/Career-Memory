@@ -6,13 +6,38 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_catalog_api",
+    "source_lineage_group": "src_catalog_api",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-006",
+      "EV-009",
+      "EV-012"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
-    "draft_test_ids": ["T-001A-09"],
-    "official_requirement_refs": ["FR-007"],
-    "official_test_refs": ["EVENT-11"],
-    "scenario_tags": ["user_manual_merge", "user_composite", "same_repository_only", "members_superseded", "curation_command"]
+    "draft_requirement_ids": [
+      "REQ-EV-CMD-MERGE-01",
+      "REQ-EV-MERGE-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-09"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-11"
+    ],
+    "scenario_tags": [
+      "user_manual_merge",
+      "user_composite",
+      "same_repository_only",
+      "members_superseded",
+      "curation_command"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,8 +79,12 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-25T10:00:00Z",
-        "commit_ids": ["cmt_syn_901a"],
-        "referenced_ticket_ids": ["tkt_syn_901"]
+        "commit_ids": [
+          "cmt_syn_901a"
+        ],
+        "referenced_ticket_ids": [
+          "tkt_syn_901"
+        ]
       },
       {
         "pr_id": "pr_syn_902",
@@ -68,8 +97,12 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-25T14:00:00Z",
-        "commit_ids": ["cmt_syn_902a"],
-        "referenced_ticket_ids": ["tkt_syn_901"]
+        "commit_ids": [
+          "cmt_syn_902a"
+        ],
+        "referenced_ticket_ids": [
+          "tkt_syn_901"
+        ]
       }
     ],
     "commits": [
@@ -86,7 +119,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_901",
-        "changed_paths": ["src/catalog/model.py"]
+        "changed_paths": [
+          "src/catalog/model.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_902a",
@@ -101,7 +136,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_902",
-        "changed_paths": ["src/catalog/handlers.py"]
+        "changed_paths": [
+          "src/catalog/handlers.py"
+        ]
       }
     ],
     "issues_tickets": [
@@ -124,8 +161,12 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_901",
-        "source_commit_ids": ["cmt_syn_901a"],
-        "context_ticket_ids": ["tkt_syn_901"],
+        "source_commit_ids": [
+          "cmt_syn_901a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_901"
+        ],
         "member_event_ids": [],
         "dependent_artifacts": {
           "fact_ids": [],
@@ -146,8 +187,12 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_902",
-        "source_commit_ids": ["cmt_syn_902a"],
-        "context_ticket_ids": ["tkt_syn_901"],
+        "source_commit_ids": [
+          "cmt_syn_902a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_901"
+        ],
         "member_event_ids": [],
         "dependent_artifacts": {
           "fact_ids": [],
@@ -170,7 +215,10 @@
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
       "idempotency_key": "idem_syn_009_merge_1",
-      "target_event_ids": ["ev_init_009_1", "ev_init_009_2"],
+      "target_event_ids": [
+        "ev_init_009_1",
+        "ev_init_009_2"
+      ],
       "target_versions": {
         "ev_init_009_1": 1,
         "ev_init_009_2": 1
@@ -181,8 +229,22 @@
     }
   ],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "user_commands[*].spec_command_name"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_exp_009_composite",
@@ -195,9 +257,17 @@
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": "cmd_syn_009_merge",
         "primary_pr_id": null,
-        "source_commit_ids": ["cmt_syn_901a", "cmt_syn_902a"],
-        "context_ticket_ids": ["tkt_syn_901"],
-        "member_event_ids": ["ev_init_009_1", "ev_init_009_2"],
+        "source_commit_ids": [
+          "cmt_syn_901a",
+          "cmt_syn_902a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_901"
+        ],
+        "member_event_ids": [
+          "ev_init_009_1",
+          "ev_init_009_2"
+        ],
         "parent_event_id": null,
         "membership_role": "user_composite_root",
         "composite_membership_status": "ACTIVE",
@@ -218,8 +288,12 @@
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_009_merge",
         "primary_pr_id": "pr_syn_901",
-        "source_commit_ids": ["cmt_syn_901a"],
-        "context_ticket_ids": ["tkt_syn_901"],
+        "source_commit_ids": [
+          "cmt_syn_901a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_901"
+        ],
         "member_event_ids": [],
         "parent_event_id": "ev_exp_009_composite",
         "membership_role": "subsumed_by_user_composite",
@@ -239,8 +313,12 @@
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_009_merge",
         "primary_pr_id": "pr_syn_902",
-        "source_commit_ids": ["cmt_syn_902a"],
-        "context_ticket_ids": ["tkt_syn_901"],
+        "source_commit_ids": [
+          "cmt_syn_902a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_901"
+        ],
         "member_event_ids": [],
         "parent_event_id": "ev_exp_009_composite",
         "membership_role": "subsumed_by_user_composite",
@@ -259,8 +337,12 @@
         "rejection_category": null,
         "spec_error_code": null,
         "state_mutated": true,
-        "resulting_event_ids": ["ev_exp_009_composite"],
-        "unconfirmed_fields": ["spec_command_name"]
+        "resulting_event_ids": [
+          "ev_exp_009_composite"
+        ],
+        "unconfirmed_fields": [
+          "spec_command_name"
+        ]
       }
     ],
     "downstream_side_effects": [],
@@ -268,7 +350,9 @@
       {
         "query": "SKU deprecation",
         "workspace_id": "ws_syn_009",
-        "expected_event_ids": ["ev_exp_009_composite"],
+        "expected_event_ids": [
+          "ev_exp_009_composite"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -283,7 +367,7 @@
       {
         "field_path": "user_commands[0].spec_command_name",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Same-repo USER_COMPOSITE merge, SUPERSEDED member history, immutable snapshots, per-member version checks, and PR+DIRECT_COMMIT eligibility are confirmed; only exact wire command route/name remains UNCONFIRMED."
       }
     ]

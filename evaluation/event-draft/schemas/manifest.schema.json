@@ -1,19 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://career-memory.example.invalid/schemas/event-draft-manifest.v1.json",
-  "title": "Career Memory T-001A Event Synthetic Dataset Draft Manifest",
-  "description": "Manifest schema for T-001A synthetic Event fixtures and draft expected proposals. Separates local draft tracking IDs from official FR/EVENT traceability refs. Logical domain contract only (no OD-007 physical table assumptions).",
+  "title": "Career Memory Event Synthetic Dataset Manifest (T-001A/T-001B)",
+  "description": "Manifest schema for Event synthetic fixtures covering human-approved MVP synthetic regression ground truth (EV-001..EV-016), unapproved Post-MVP B-003 drafts (EV-017..EV-018), same-source evaluation bundles, isolated negative fixtures (NEG-001..NEG-006), and SHA-256 integrity hashes. Logical domain contract only (no OD-007 physical table assumptions).",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "dataset_id",
+    "dataset_version",
     "task_ref",
     "approval_status",
     "base_commit_sha",
+    "approval_record",
     "scope_boundary",
     "generation_provenance",
     "reference_docs",
+    "evaluation_bundles",
+    "integrity_hashes",
     "cases",
     "negative_variants"
   ],
@@ -25,16 +29,82 @@
       "type": "string",
       "minLength": 1
     },
+    "dataset_version": {
+      "type": "string",
+      "minLength": 1
+    },
     "task_ref": {
-      "const": "T-001A"
+      "type": "string",
+      "enum": ["T-001A", "T-001B"]
     },
     "approval_status": {
-      "const": "DRAFT",
-      "description": "Agent-authored dataset must remain DRAFT until independent human review and freeze in T-001B."
+      "type": "string",
+      "enum": ["DRAFT", "PARTIALLY_APPROVED_MVP_REGRESSION"],
+      "description": "PARTIALLY_APPROVED_MVP_REGRESSION indicates EV-001..EV-016 confirmed logical expectations are approved for MVP synthetic regression while EV-017..EV-018 remain Post-MVP DRAFT."
     },
     "base_commit_sha": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
+    },
+    "approval_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approved_by",
+        "approved_at_utc",
+        "approval_baseline_commit_sha",
+        "base_main_commit_sha",
+        "approval_scope",
+        "approved_case_ids",
+        "unapproved_post_mvp_draft_case_ids",
+        "excluded_negative_variant_ids",
+        "comparison_policy"
+      ],
+      "properties": {
+        "approved_by": { "type": "string", "minLength": 1 },
+        "approved_at_utc": { "type": "string", "minLength": 1 },
+        "approval_baseline_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "base_main_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "approval_scope": { "type": "string", "minLength": 1 },
+        "approved_case_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^EV-[0-9]{3}$" },
+          "minItems": 16
+        },
+        "unapproved_post_mvp_draft_case_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^EV-[0-9]{3}$" }
+        },
+        "excluded_negative_variant_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^NEG-[0-9]{3}$" },
+          "minItems": 1
+        },
+        "comparison_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "compare_confirmed_logical_expectations",
+            "enforce_zero_mutation_on_rejection",
+            "excluded_from_truth_comparison",
+            "retained_mandatory_rejection_checks"
+          ],
+          "properties": {
+            "compare_confirmed_logical_expectations": { "const": true },
+            "enforce_zero_mutation_on_rejection": { "const": true },
+            "excluded_from_truth_comparison": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            },
+            "retained_mandatory_rejection_checks": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            }
+          }
+        }
+      }
     },
     "scope_boundary": {
       "type": "object",
@@ -121,6 +191,96 @@
         }
       }
     },
+    "evaluation_bundles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eval_bundle_id",
+          "eval_partition",
+          "source_lineage_groups",
+          "shared_synthetic_repositories",
+          "case_ids",
+          "rationale"
+        ],
+        "properties": {
+          "eval_bundle_id": { "type": "string", "minLength": 1 },
+          "eval_partition": {
+            "type": "string",
+            "enum": ["MVP_SYNTHETIC_REGRESSION", "POST_MVP_DRAFT_EXCLUDED"]
+          },
+          "source_lineage_groups": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          },
+          "shared_synthetic_repositories": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          },
+          "case_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^EV-[0-9]{3}$" },
+            "minItems": 1
+          },
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "integrity_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hash_algorithm",
+        "baseline_commit_sha",
+        "approved_mvp_bundle_sha256",
+        "approved_mvp_baseline_bundle_sha256",
+        "post_mvp_draft_bundle_sha256",
+        "schema_files_sha256",
+        "approved_mvp_cases_sha256",
+        "post_mvp_draft_cases_sha256"
+      ],
+      "properties": {
+        "hash_algorithm": { "const": "sha256" },
+        "baseline_commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "approved_mvp_bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "approved_mvp_baseline_bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "post_mvp_draft_bundle_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "schema_files_sha256": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        },
+        "approved_mvp_cases_sha256": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "file_sha256", "baseline_sha256_at_0773ac5"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "baseline_sha256_at_0773ac5": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        },
+        "post_mvp_draft_cases_sha256": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "file_sha256", "baseline_sha256_at_0773ac5"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "baseline_sha256_at_0773ac5": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        }
+      }
+    },
     "cases": {
       "type": "array",
       "minItems": 16,
@@ -132,6 +292,11 @@
           "path",
           "scope",
           "review_status",
+          "approval_status",
+          "eval_bundle_id",
+          "source_lineage_group",
+          "eval_partition",
+          "file_sha256",
           "draft_requirement_ids",
           "draft_test_ids",
           "official_requirement_refs",
@@ -147,8 +312,19 @@
           "backlog_ref": { "type": ["string", "null"] },
           "review_status": {
             "type": "string",
-            "enum": ["PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED"]
+            "enum": ["PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED", "APPROVED_MVP_REGRESSION"]
           },
+          "approval_status": {
+            "type": "string",
+            "enum": ["DRAFT", "APPROVED_MVP_REGRESSION"]
+          },
+          "eval_bundle_id": { "type": "string", "minLength": 1 },
+          "source_lineage_group": { "type": "string", "minLength": 1 },
+          "eval_partition": {
+            "type": "string",
+            "enum": ["MVP_SYNTHETIC_REGRESSION", "POST_MVP_DRAFT_EXCLUDED"]
+          },
+          "file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
           "draft_requirement_ids": {
             "type": "array",
             "items": { "type": "string" },
@@ -179,6 +355,7 @@
         "required": [
           "variant_id",
           "path",
+          "eval_excluded",
           "expected_rule_codes",
           "purpose"
         ],
@@ -191,6 +368,7 @@
             "type": "string",
             "pattern": "^negative-fixtures/NEG-[0-9]{3}-.+\\.json$"
           },
+          "eval_excluded": { "const": true },
           "expected_rule_codes": {
             "type": "array",
             "items": { "type": "string" },

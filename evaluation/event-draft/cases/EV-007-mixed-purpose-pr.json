@@ -6,13 +6,34 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_reporting_core",
+    "source_lineage_group": "src_reporting_core_mixed_pr",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-007",
+      "EV-008"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-MIXED-01"],
-    "draft_test_ids": ["T-001A-07"],
-    "official_requirement_refs": ["FR-006", "FR-007"],
+    "draft_requirement_ids": [
+      "REQ-EV-MIXED-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-07"
+    ],
+    "official_requirement_refs": [
+      "FR-006",
+      "FR-007"
+    ],
     "official_test_refs": [],
-    "scenario_tags": ["mixed_purpose_pr", "review_flag_present", "anchor_mode_pr", "no_unsolicited_auto_split"]
+    "scenario_tags": [
+      "mixed_purpose_pr",
+      "review_flag_present",
+      "anchor_mode_pr",
+      "no_unsolicited_auto_split"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +75,10 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-26T17:15:00Z",
-        "commit_ids": ["cmt_syn_701a", "cmt_syn_701b"],
+        "commit_ids": [
+          "cmt_syn_701a",
+          "cmt_syn_701b"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -72,7 +96,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
-        "changed_paths": ["src/middleware/auth_header.py"]
+        "changed_paths": [
+          "src/middleware/auth_header.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_701b",
@@ -87,7 +113,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
-        "changed_paths": ["src/export/csv_stream.py"]
+        "changed_paths": [
+          "src/export/csv_stream.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -96,8 +124,23 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "events[*].review_flags.exact_flag_token",
+          "review_flag_ui_shape"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_exp_007_1",
@@ -110,7 +153,10 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_701",
-        "source_commit_ids": ["cmt_syn_701a", "cmt_syn_701b"],
+        "source_commit_ids": [
+          "cmt_syn_701a",
+          "cmt_syn_701b"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -123,7 +169,9 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Refactor auth header parser and add monthly CSV export",
-        "unconfirmed_fields": ["review_flags.exact_flag_token"]
+        "unconfirmed_fields": [
+          "review_flags.exact_flag_token"
+        ]
       }
     ],
     "held_items": [],
@@ -134,7 +182,9 @@
       {
         "query": "CSV export",
         "workspace_id": "ws_syn_007",
-        "expected_event_ids": ["ev_exp_007_1"],
+        "expected_event_ids": [
+          "ev_exp_007_1"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -149,7 +199,7 @@
       {
         "field_path": "expected_proposal.events[0].review_flags.exact_flag_token",
         "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Both keeping 1 PR CANDIDATE (auto_split_count=0) and surfacing a mixed-purpose review flag are confirmed; exact wire flag string and UI presentation remain unconfirmed."
       }
     ]

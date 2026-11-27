@@ -6,13 +6,36 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_multi_workspace",
+    "source_lineage_group": "src_multi_workspace_services",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-016"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-ERR-WS-01", "REQ-EV-CMD-MERGE-01"],
-    "draft_test_ids": ["T-001A-16"],
-    "official_requirement_refs": ["FR-007"],
-    "official_test_refs": ["EVENT-12"],
-    "scenario_tags": ["workspace_conflict", "same_repository_only", "cross_repo_merge_rejected", "tenant_isolation", "error_rejection"]
+    "draft_requirement_ids": [
+      "REQ-EV-ERR-WS-01",
+      "REQ-EV-CMD-MERGE-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-16"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-12"
+    ],
+    "scenario_tags": [
+      "workspace_conflict",
+      "same_repository_only",
+      "cross_repo_merge_rejected",
+      "tenant_isolation",
+      "error_rejection"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -91,7 +114,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-28T10:00:00Z",
-        "commit_ids": ["cmt_syn_1601a"],
+        "commit_ids": [
+          "cmt_syn_1601a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -105,7 +130,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-28T10:30:00Z",
-        "commit_ids": ["cmt_syn_1603a"],
+        "commit_ids": [
+          "cmt_syn_1603a"
+        ],
         "referenced_ticket_ids": []
       },
       {
@@ -119,7 +146,9 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-28T11:00:00Z",
-        "commit_ids": ["cmt_syn_1602a"],
+        "commit_ids": [
+          "cmt_syn_1602a"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -137,7 +166,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1601",
-        "changed_paths": ["src/alpha/cache.py"]
+        "changed_paths": [
+          "src/alpha/cache.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1603a",
@@ -152,7 +183,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1603",
-        "changed_paths": ["src/worker/metrics.py"]
+        "changed_paths": [
+          "src/worker/metrics.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_1602a",
@@ -167,7 +200,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1602",
-        "changed_paths": ["src/beta/cache.py"]
+        "changed_paths": [
+          "src/beta/cache.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -182,7 +217,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1601",
-        "source_commit_ids": ["cmt_syn_1601a"],
+        "source_commit_ids": [
+          "cmt_syn_1601a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -204,7 +241,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1603",
-        "source_commit_ids": ["cmt_syn_1603a"],
+        "source_commit_ids": [
+          "cmt_syn_1603a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -226,7 +265,9 @@
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1602",
-        "source_commit_ids": ["cmt_syn_1602a"],
+        "source_commit_ids": [
+          "cmt_syn_1602a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "dependent_artifacts": {
@@ -249,7 +290,10 @@
       "workspace_id": "ws_syn_016_a",
       "actor_id": "usr_syn_owner_a",
       "expected_version": 1,
-      "target_event_ids": ["ev_init_016_a", "ev_init_016_b"],
+      "target_event_ids": [
+        "ev_init_016_a",
+        "ev_init_016_b"
+      ],
       "target_versions": {
         "ev_init_016_a": 1,
         "ev_init_016_b": 1
@@ -265,7 +309,9 @@
       "workspace_id": "ws_syn_016_a",
       "actor_id": "usr_syn_owner_a",
       "expected_version": 1,
-      "target_event_ids": ["ev_init_016_b"],
+      "target_event_ids": [
+        "ev_init_016_b"
+      ],
       "target_versions": {
         "ev_init_016_b": 1
       },
@@ -280,7 +326,10 @@
       "workspace_id": "ws_syn_016_a",
       "actor_id": "usr_syn_owner_a",
       "expected_version": 1,
-      "target_event_ids": ["ev_init_016_a", "ev_init_016_a2"],
+      "target_event_ids": [
+        "ev_init_016_a",
+        "ev_init_016_a2"
+      ],
       "target_versions": {
         "ev_init_016_a": 1,
         "ev_init_016_a2": 1
@@ -291,8 +340,24 @@
     }
   ],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status (unauthorized 403 vs 404 vs external error mapping)",
+          "user_commands[*].spec_command_name",
+          "command_results[0].spec_error_code (cross-workspace merge external wire error)",
+          "command_results[1].spec_error_code (cross-workspace exclude external wire error)"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_init_016_a",
@@ -305,7 +370,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1601",
-        "source_commit_ids": ["cmt_syn_1601a"],
+        "source_commit_ids": [
+          "cmt_syn_1601a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -326,7 +393,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1603",
-        "source_commit_ids": ["cmt_syn_1603a"],
+        "source_commit_ids": [
+          "cmt_syn_1603a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -347,7 +416,9 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1602",
-        "source_commit_ids": ["cmt_syn_1602a"],
+        "source_commit_ids": [
+          "cmt_syn_1602a"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -369,7 +440,11 @@
         "internal_policy_code": "CROSS_WORKSPACE_MEMBER",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
       },
       {
         "command_id": "cmd_syn_016_wrong_ws",
@@ -379,7 +454,11 @@
         "internal_policy_code": null,
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
       },
       {
         "command_id": "cmd_syn_016_cross_repo_same_ws",
@@ -388,7 +467,10 @@
         "spec_error_code": "CROSS_REPOSITORY_MEMBER",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "http_status"]
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "http_status"
+        ]
       }
     ],
     "downstream_side_effects": [],
@@ -396,7 +478,9 @@
       {
         "query": "alpha cache",
         "workspace_id": "ws_syn_016_a",
-        "expected_event_ids": ["ev_init_016_a"],
+        "expected_event_ids": [
+          "ev_init_016_a"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -416,13 +500,13 @@
       {
         "field_path": "expected_proposal.command_results[0].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Internal domain policy for cross-workspace merge is CROSS_WORKSPACE_MEMBER; confirm whether external HTTP response exposes CROSS_WORKSPACE_MEMBER or hides unauthorized foreign-workspace objects via 403/404."
       },
       {
         "field_path": "expected_proposal.command_results[1].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Confirm external error code and HTTP status (e.g., 403 vs 404) for non-merge cross-workspace exclude without attaching merge-only CROSS_WORKSPACE_MEMBER."
       }
     ]

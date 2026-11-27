@@ -1,34 +1,90 @@
 {
   "schema_version": "event-draft-manifest.v1",
-  "dataset_id": "career-memory-event-synthetic-draft-v1",
-  "task_ref": "T-001A",
-  "approval_status": "DRAFT",
+  "dataset_id": "career-memory-event-synthetic-mvp-v1.0.0",
+  "dataset_version": "1.0.0-mvp-approved",
+  "task_ref": "T-001B",
+  "approval_status": "PARTIALLY_APPROVED_MVP_REGRESSION",
   "base_commit_sha": "efe251071fbee1be9a2ffee680a73f3ca3cd8084",
+  "approval_record": {
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approved_at_utc": "2026-11-27T03:36:33Z",
+    "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+    "base_main_commit_sha": "efe251071fbee1be9a2ffee680a73f3ca3cd8084",
+    "approval_scope": "Confirmed logical expectations of EV-001..EV-016 approved as MVP synthetic regression ground truth; EV-017..EV-018 remain unapproved Post-MVP (B-003) drafts; NEG-001..NEG-006 remain isolated lint-only negative fixtures. Does NOT represent M3/EVAL-EVENT runtime evaluation or wire-protocol HTTP/precedence freeze.",
+    "approved_case_ids": [
+      "EV-001",
+      "EV-002",
+      "EV-003",
+      "EV-004",
+      "EV-005",
+      "EV-006",
+      "EV-007",
+      "EV-008",
+      "EV-009",
+      "EV-010",
+      "EV-011",
+      "EV-012",
+      "EV-013",
+      "EV-014",
+      "EV-015",
+      "EV-016"
+    ],
+    "unapproved_post_mvp_draft_case_ids": [
+      "EV-017",
+      "EV-018"
+    ],
+    "excluded_negative_variant_ids": [
+      "NEG-001",
+      "NEG-002",
+      "NEG-003",
+      "NEG-004",
+      "NEG-005",
+      "NEG-006"
+    ],
+    "comparison_policy": {
+      "compare_confirmed_logical_expectations": true,
+      "enforce_zero_mutation_on_rejection": true,
+      "excluded_from_truth_comparison": [
+        "Unconfirmed HTTP status codes (e.g., 409 vs 412 and If-Match in EV-015; unauthorized 403 vs 404 vs external error code in EV-016; Event API error HTTP mappings in EV-013..EV-014)",
+        "Unconfirmed multi-violation error precedence (EV-014 cmd_syn_014_nested: MEMBER_ALREADY_COMPOSED vs MEMBER_NOT_ACTIVE)",
+        "Unconfirmed wire error codes for non-Event IDs and cross-workspace external responses (EV-013, EV-016 external wire code)",
+        "Unconfirmed wire command names, diagnostic hold tokens, review flag strings, ticket-keyword search ranking, and detail GET history shapes"
+      ],
+      "retained_mandatory_rejection_checks": [
+        "command_results[*].outcome == REJECTED",
+        "command_results[*].state_mutated == false (zero state mutation on rejection)",
+        "command_results[*].resulting_event_ids == []",
+        "expected_proposal.events remains unmutated relative to synthetic_sources.initial_events on rejected-only cases",
+        "Confirmed official domain error codes where unambiguous (NESTED_COMPOSITE_NOT_ALLOWED, MEMBER_NOT_ACTIVE, EVENT_VERSION_CONFLICT, CROSS_REPOSITORY_MEMBER)"
+      ]
+    }
+  },
   "scope_boundary": {
     "includes": [
-      "Synthetic Event source fixtures (workspaces, repositories, sync runs with official SUCCESS/PARTIAL/PENDING statuses, PRs, commits with start/end default-branch verification & PR-association lookup status, CONTEXT_ONLY tickets, initial events with official anchor_mode/lifecycle_status/dependent_artifacts, post-sync observations)",
-      "Synthetic user curation commands (split with disjoint evidence scopes, manual_merge with per-Event version checks, exclude, dissolve with expected_version/reason/idempotency_key)",
-      "DRAFT expected proposals separated from inputs and rationale (official tokens applied; genuinely unconfirmed wire details left UNCONFIRMED)",
-      "Isolated intentionally broken negative fixtures (NEG-001..NEG-006)",
-      "Automated format, referential, scope, official-token, and Event-invariant fixture linter",
-      "Coverage matrix separating draft local IDs from official FR-006/FR-007/EVENT-10/EVENT-11/EVENT-12 refs, plus T-001B human review queue"
+      "Human-approved MVP synthetic regression ground truth for confirmed logical expectations (EV-001..EV-016, dataset_version 1.0.0-mvp-approved, baseline 0773ac5740b358f4168777fda1e578231cc6dff9)",
+      "Unapproved Post-MVP B-003 draft cases (EV-017..EV-018) explicitly excluded from MVP regression evaluation",
+      "Same-source evaluation bundle grouping (12 MVP bundles + 1 Post-MVP draft exclusion bundle)",
+      "Isolated intentionally broken negative fixtures (NEG-001..NEG-006, eval_excluded=true)",
+      "SHA-256 integrity hashes and automated format/domain/lineage/hash linter",
+      "Coverage matrix separating draft local IDs from official FR-006/FR-007/EVENT-10/EVENT-11/EVENT-12 refs and review queue"
     ],
     "excludes": [
-      "Event Builder runtime implementation",
-      "Human ground-truth approval and golden dataset freeze (T-001B)",
+      "Event Builder runtime implementation or product API changes",
+      "Approval of Post-MVP B-003 cases (EV-017..EV-018)",
+      "Freeze of unconfirmed HTTP status codes, multi-violation error precedence, or unconfirmed wire tokens",
       "Actual Event Builder quality evaluation (M3 / T-306A / EVAL-EVENT — NOT passed by fixture lint)",
-      "CLAIM-QA fixtures, shared schemas, CI workflows, and main branch merge/push",
+      "CLAIM-QA fixtures, shared schemas, CI workflows, Notion/cloud edits, and main branch merge/push",
       "OD-007 physical database table or SQL schema assumptions"
     ],
     "od_007_physical_table_assumption": false,
     "synthetic_only": true
   },
   "generation_provenance": {
-    "generation_method": "AI-assisted structured authoring & official-spec correction pass by EVENT-QA agent without external API calls (applied CHANGES REQUESTED correction table from commit 817eb23 without creating new cases or freezing golden)",
-    "agent_role": "EVENT-QA (T-001A)",
+    "generation_method": "T-001A synthetic Event fixtures refined through official-spec alignment (8177bb3, 0773ac5) and recorded under explicit human T-001B approval of confirmed logical expectations for EV-001..EV-016 (MVP synthetic regression ground truth) while retaining EV-017..EV-018 as Post-MVP drafts.",
+    "agent_role": "EVENT-QA (T-001A draft / T-001B human-approval recording)",
     "model_identifier": "UNEXPOSED_IN_RUNTIME_METADATA (Antigravity interactive session; exact model build/checkpoint ID not readable from local environment)",
     "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 + EVENT-QA 공식 명세 대조 및 수정표 (CHANGES REQUESTED) on qa/event-fixtures (base main SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084, prior draft 817eb23)",
-    "generated_at_utc": "2026-11-27T03:20:00Z",
+    "generated_at_utc": "2026-11-27T03:36:33Z",
     "external_api_calls": {
       "github_api": 0,
       "llm_api_from_script": 0,
@@ -83,60 +139,422 @@
       "note": "Checked tree at efe251071fbee1be9a2ffee680a73f3ca3cd8084; only README.md exists at base SHA (AGENTS.md is not present yet)."
     }
   ],
+  "evaluation_bundles": [
+    {
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_ledger_service"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/ledger-service"
+      ],
+      "case_ids": [
+        "EV-001",
+        "EV-015"
+      ],
+      "rationale": "Groups MVP cases derived from synthetic repo acme-syn-lab/ledger-service (EV-001 basic PR candidate and EV-015 version conflict) into one evaluation bundle; Post-MVP sibling EV-017 remains excluded in POST_MVP_DRAFT_EXCLUDED."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_edge_gateway"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/edge-gateway"
+      ],
+      "case_ids": [
+        "EV-002"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/edge-gateway (EV-002 default-branch direct commit fallback)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_billing_engine",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_billing_engine"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/billing-engine"
+      ],
+      "case_ids": [
+        "EV-003"
+      ],
+      "rationale": "MVP case from acme-syn-lab/billing-engine (EV-003 UNKNOWN association PARTIAL hold); Post-MVP sibling EV-018 remains excluded in POST_MVP_DRAFT_EXCLUDED."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_search_indexer",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_search_indexer"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/search-indexer"
+      ],
+      "case_ids": [
+        "EV-004"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/search-indexer (EV-004 non-default branch commit exclusion)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_notification_hub",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_notification_hub"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/notification-hub"
+      ],
+      "case_ids": [
+        "EV-005"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/notification-hub (EV-005 CONTEXT_ONLY ticket)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_catalog_api"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/catalog-api"
+      ],
+      "case_ids": [
+        "EV-006",
+        "EV-009",
+        "EV-012"
+      ],
+      "rationale": "Groups all MVP cases derived from synthetic repo acme-syn-lab/catalog-api (EV-006 shared-ticket no-auto-merge, EV-009 manual-merge composite pair, and EV-012 dissolve composite) into one evaluation bundle to prevent cross-split leakage."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_reporting_core_mixed_pr"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/reporting-core"
+      ],
+      "case_ids": [
+        "EV-007",
+        "EV-008"
+      ],
+      "rationale": "Groups MVP cases derived from the identical synthetic mixed-purpose PR in acme-syn-lab/reporting-core (EV-007 mixed-purpose review hint and EV-008 explicit user split) into one evaluation bundle."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_queue_dispatcher"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/queue-dispatcher"
+      ],
+      "case_ids": [
+        "EV-010"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/queue-dispatcher (EV-010 composite single-counting and member-hit roll-up)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_web_portal",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_web_portal"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/web-portal"
+      ],
+      "case_ids": [
+        "EV-011"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/web-portal (EV-011 user exclude -> REJECTED)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_auth_services",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_auth_services"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/auth-core",
+        "acme-syn-lab/auth-edge"
+      ],
+      "case_ids": [
+        "EV-013"
+      ],
+      "rationale": "Standalone synthetic source pair acme-syn-lab/auth-core & auth-edge (EV-013 non-Event ID merge rejection)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_analytics_pipe",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_analytics_pipe"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/analytics-pipe"
+      ],
+      "case_ids": [
+        "EV-014"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/analytics-pipe (EV-014 nested composite & inactive member rejection)."
+    },
+    {
+      "eval_bundle_id": "bundle_mvp_multi_workspace",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "source_lineage_groups": [
+        "src_multi_workspace_services"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-alpha/service-a",
+        "acme-syn-alpha/service-a-worker",
+        "acme-syn-beta/service-b"
+      ],
+      "case_ids": [
+        "EV-016"
+      ],
+      "rationale": "Standalone multi-workspace synthetic sources acme-syn-alpha/* & acme-syn-beta/service-b (EV-016 cross-workspace & cross-repo rejection)."
+    },
+    {
+      "eval_bundle_id": "bundle_post_mvp_b003_draft",
+      "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+      "source_lineage_groups": [
+        "src_billing_engine",
+        "src_ledger_service"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/billing-engine",
+        "acme-syn-lab/ledger-service"
+      ],
+      "case_ids": [
+        "EV-017",
+        "EV-018"
+      ],
+      "rationale": "Unapproved Post-MVP B-003 draft cases (EV-017, EV-018) kept strictly excluded from MVP synthetic regression ground truth; source_lineage_group records their future bundle affinities (src_ledger_service, src_billing_engine)."
+    }
+  ],
+  "integrity_hashes": {
+    "hash_algorithm": "sha256",
+    "baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+    "approved_mvp_bundle_sha256": "e51878f094d77b2f32675ffc6b48bab013347620277ac91eed0996ae1ee2328e",
+    "approved_mvp_baseline_bundle_sha256": "b1bdffa8bbec1e47f2401d383ae874466193598e2b664cbd415cac7372d1d8f6",
+    "post_mvp_draft_bundle_sha256": "1adb920c9df98ea18edbebffef5c5708521c18ef40a0fc4cb796ecb10fb4a17d",
+    "schema_files_sha256": {
+      "schemas/case.schema.json": "d97e2b04fb7527809776c59e780605b0a5d2d7e3d598182f854faf1a0cf5ed51",
+      "schemas/manifest.schema.json": "8eef5122b79dccbe80fa2e8b05baacff53a3d250150e7486050047d25247d770"
+    },
+    "approved_mvp_cases_sha256": {
+      "EV-001": {
+        "path": "cases/EV-001-pr-centered-basic.json",
+        "file_sha256": "3079a2b7aba4e14110d790cd9639f0a5e99c61500a3b638beaa2ca5d76df1193",
+        "baseline_sha256_at_0773ac5": "d8bf43595a3132156d13c83aeac77d2843d3046e04be2d95f77e93deee793970"
+      },
+      "EV-002": {
+        "path": "cases/EV-002-default-branch-direct-commit.json",
+        "file_sha256": "354be261b848463ac0fa4660203817af7890f06c37be5d0f74669e40cc194a6f",
+        "baseline_sha256_at_0773ac5": "0e667bfa27659cbe3f5d053b4f86c716c8564a0ecf0b909174139ba67953aa4f"
+      },
+      "EV-003": {
+        "path": "cases/EV-003-unknown-association-hold.json",
+        "file_sha256": "047309ade40cab34331e6ee6abf2a8348e6120def96c418472c17f3001219aef",
+        "baseline_sha256_at_0773ac5": "5f718923c8577ceab3d79e1cad262ec56198149bca9d592cd29e081ca9ac7f69"
+      },
+      "EV-004": {
+        "path": "cases/EV-004-non-default-branch-no-pr.json",
+        "file_sha256": "4926170e905b76eb28dcc5568e5f3337ab874fd64fe1c952a14fb6cadcd7da89",
+        "baseline_sha256_at_0773ac5": "cf4973fbbc15c9a1fc4c3fd49731aa8f70b29afd5f62748c712dd723caea84e7"
+      },
+      "EV-005": {
+        "path": "cases/EV-005-issue-ticket-context-only.json",
+        "file_sha256": "4f0542d63a4e7a5d11a87f7f12e2724009eb5726cf3bf40b1e7fdab6c6e2f196",
+        "baseline_sha256_at_0773ac5": "a04da58facb91d8df66f0d0faa36ced75386ac089ed17f8eff8dcb3cc36ffb66"
+      },
+      "EV-006": {
+        "path": "cases/EV-006-shared-ticket-no-auto-merge.json",
+        "file_sha256": "9ac7652635e702c0c1977cdbae7f943837f6d1f0cae7d791d025b74a4a732bdc",
+        "baseline_sha256_at_0773ac5": "143c3458d08e1ccce740a8e3c97fb5321a320db00b56fcda42447f9c8afeb298"
+      },
+      "EV-007": {
+        "path": "cases/EV-007-mixed-purpose-pr.json",
+        "file_sha256": "38f935bcef9c4fcd74468bbf66157633a737b1c2b1ddbd37c96172d05bf7c4b5",
+        "baseline_sha256_at_0773ac5": "5578fea01267dded4d3a739446c1610b8e627abe4e0da6a0db8f34ee0506672d"
+      },
+      "EV-008": {
+        "path": "cases/EV-008-user-split-mixed-pr.json",
+        "file_sha256": "5f7fd823d6c412c6cd5332fc1062070c8ae888eb233654d2a4335ad9611837b8",
+        "baseline_sha256_at_0773ac5": "ee30e1d9d31ec26e4e48a06658acf2394e798f18640b1970f93a797f764935af"
+      },
+      "EV-009": {
+        "path": "cases/EV-009-user-manual-merge-composite.json",
+        "file_sha256": "2531245ccbb9f661498965857208a40cf668a8dec8dfb5f2fca3b3118f92f2f4",
+        "baseline_sha256_at_0773ac5": "ceaacbbb87b9a80e621cacd362ebb67aa9e914e4f451cfc4ffb43ad0d252c4c6"
+      },
+      "EV-010": {
+        "path": "cases/EV-010-composite-no-double-counting.json",
+        "file_sha256": "8402d24af183808241a56061e78e1b8726a3e4f605506188a23e4a63bdce8e59",
+        "baseline_sha256_at_0773ac5": "185391b9bdfd10ddef9f908250f1dc6f434baeacabf19996143ac9a50aba8acb"
+      },
+      "EV-011": {
+        "path": "cases/EV-011-user-exclude-event.json",
+        "file_sha256": "7b766cb20bce985735015e4895d32db45035f3eec95ba0e3d42b83a27219e67c",
+        "baseline_sha256_at_0773ac5": "ea2d231c6d6830dd4cb4fe8e55dde938aee1f34b9173d3d2151225e546641e75"
+      },
+      "EV-012": {
+        "path": "cases/EV-012-user-dissolve-composite.json",
+        "file_sha256": "0e8d8f70ccb11ddc986754a1f676c7fc09be2cd30a3780086c07176d762c885a",
+        "baseline_sha256_at_0773ac5": "baa0e99145fb6330decd1d8d92cebba780354c9f9b15ed1cbfa363b3c5a6b14b"
+      },
+      "EV-013": {
+        "path": "cases/EV-013-cannot-link-context-and-unknown.json",
+        "file_sha256": "fafb94669999d2c3edbfc765b84a3943781bea2928ad94647f1dfc213a277c59",
+        "baseline_sha256_at_0773ac5": "a0fad61fd31cad4c710167dc3307c5479b18e5b56ea49124ba972c6df63032c4"
+      },
+      "EV-014": {
+        "path": "cases/EV-014-cannot-link-nested-and-excluded.json",
+        "file_sha256": "d80e571a21dbfaea8b79c71a6684e956be323b19d88429c647089c7a12612a26",
+        "baseline_sha256_at_0773ac5": "f7bef49ca8286449ade2e87770475fe120e9684cfe72bd83445f039939ced043"
+      },
+      "EV-015": {
+        "path": "cases/EV-015-version-conflict-optimistic-lock.json",
+        "file_sha256": "478e15b0d2401b452cb3253aa23eecfa52eef9d0f5695bcbc36464c4eaa1a02f",
+        "baseline_sha256_at_0773ac5": "67105653f623515ca3f479cef3f109566d4d26439cbddd104cb1b64a52e2fb99"
+      },
+      "EV-016": {
+        "path": "cases/EV-016-workspace-boundary-conflict.json",
+        "file_sha256": "7ff70aef52fc382f780e63eeb8a8d481a5faef1e0d20c8b58687dd281f9700a7",
+        "baseline_sha256_at_0773ac5": "e006ceb1ce3ce9ad12fec8f2a9acffb12fc3515563871a7f4f2ab24e95372d44"
+      }
+    },
+    "post_mvp_draft_cases_sha256": {
+      "EV-017": {
+        "path": "cases/EV-017-post-mvp-b003-auto-change-discovery.json",
+        "file_sha256": "4087c1feafc058751ba126d5ca5a4d49d859d51b91dec685fe683d2a3aa42bd3",
+        "baseline_sha256_at_0773ac5": "f339bfd8d556522bbfc0ce24b0c21eda43ec5a0ab4f1cdb917d405bd936821c7"
+      },
+      "EV-018": {
+        "path": "cases/EV-018-post-mvp-b003-late-association-recovery.json",
+        "file_sha256": "1fd6667b7fc8212374920b537e4ad94d6874bc4161a96e5a9a28d48974984dbd",
+        "baseline_sha256_at_0773ac5": "e86daa609c80e707322b56dd0af9485f39b9904d150957e0859949311608346c"
+      }
+    }
+  },
   "cases": [
     {
       "case_id": "EV-001",
       "path": "cases/EV-001-pr-centered-basic.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-PR-01"],
-      "draft_test_ids": ["T-001A-01"],
-      "official_requirement_refs": ["FR-006"],
-      "official_test_refs": ["EVENT-10"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "source_lineage_group": "src_ledger_service",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "3079a2b7aba4e14110d790cd9639f0a5e99c61500a3b638beaa2ca5d76df1193",
+      "draft_requirement_ids": [
+        "REQ-EV-PR-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-01"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
+      "official_test_refs": [
+        "EVENT-10"
+      ]
     },
     {
       "case_id": "EV-002",
       "path": "cases/EV-002-default-branch-direct-commit.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-COMMIT-01"],
-      "draft_test_ids": ["T-001A-02"],
-      "official_requirement_refs": ["FR-006"],
-      "official_test_refs": ["EVENT-10"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "source_lineage_group": "src_edge_gateway",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "354be261b848463ac0fa4660203817af7890f06c37be5d0f74669e40cc194a6f",
+      "draft_requirement_ids": [
+        "REQ-EV-COMMIT-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-02"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
+      "official_test_refs": [
+        "EVENT-10"
+      ]
     },
     {
       "case_id": "EV-003",
       "path": "cases/EV-003-unknown-association-hold.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-ASSOC-01"],
-      "draft_test_ids": ["T-001A-03"],
-      "official_requirement_refs": ["FR-006"],
-      "official_test_refs": ["EVENT-10"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_billing_engine",
+      "source_lineage_group": "src_billing_engine",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "047309ade40cab34331e6ee6abf2a8348e6120def96c418472c17f3001219aef",
+      "draft_requirement_ids": [
+        "REQ-EV-ASSOC-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-03"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
+      "official_test_refs": [
+        "EVENT-10"
+      ]
     },
     {
       "case_id": "EV-004",
       "path": "cases/EV-004-non-default-branch-no-pr.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-BRANCH-01"],
-      "draft_test_ids": ["T-001A-04"],
-      "official_requirement_refs": ["FR-006"],
-      "official_test_refs": ["EVENT-10"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_search_indexer",
+      "source_lineage_group": "src_search_indexer",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "4926170e905b76eb28dcc5568e5f3337ab874fd64fe1c952a14fb6cadcd7da89",
+      "draft_requirement_ids": [
+        "REQ-EV-BRANCH-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-04"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
+      "official_test_refs": [
+        "EVENT-10"
+      ]
     },
     {
       "case_id": "EV-005",
       "path": "cases/EV-005-issue-ticket-context-only.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CONTEXT-01"],
-      "draft_test_ids": ["T-001A-05"],
-      "official_requirement_refs": ["FR-006"],
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_notification_hub",
+      "source_lineage_group": "src_notification_hub",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "4f0542d63a4e7a5d11a87f7f12e2724009eb5726cf3bf40b1e7fdab6c6e2f196",
+      "draft_requirement_ids": [
+        "REQ-EV-CONTEXT-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-05"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
       "official_test_refs": []
     },
     {
@@ -144,10 +562,22 @@
       "path": "cases/EV-006-shared-ticket-no-auto-merge.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
-      "draft_test_ids": ["T-001A-06"],
-      "official_requirement_refs": ["FR-006"],
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "source_lineage_group": "src_catalog_api",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "9ac7652635e702c0c1977cdbae7f943837f6d1f0cae7d791d025b74a4a732bdc",
+      "draft_requirement_ids": [
+        "REQ-EV-CONTEXT-02",
+        "REQ-EV-MERGE-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-06"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
       "official_test_refs": []
     },
     {
@@ -155,10 +585,22 @@
       "path": "cases/EV-007-mixed-purpose-pr.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-MIXED-01"],
-      "draft_test_ids": ["T-001A-07"],
-      "official_requirement_refs": ["FR-006", "FR-007"],
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "source_lineage_group": "src_reporting_core_mixed_pr",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "38f935bcef9c4fcd74468bbf66157633a737b1c2b1ddbd37c96172d05bf7c4b5",
+      "draft_requirement_ids": [
+        "REQ-EV-MIXED-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-07"
+      ],
+      "official_requirement_refs": [
+        "FR-006",
+        "FR-007"
+      ],
       "official_test_refs": []
     },
     {
@@ -166,10 +608,22 @@
       "path": "cases/EV-008-user-split-mixed-pr.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CMD-SPLIT-01", "REQ-EV-MIXED-01"],
-      "draft_test_ids": ["T-001A-08"],
-      "official_requirement_refs": ["FR-007"],
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "source_lineage_group": "src_reporting_core_mixed_pr",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "5f7fd823d6c412c6cd5332fc1062070c8ae888eb233654d2a4335ad9611837b8",
+      "draft_requirement_ids": [
+        "REQ-EV-CMD-SPLIT-01",
+        "REQ-EV-MIXED-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-08"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
       "official_test_refs": []
     },
     {
@@ -177,32 +631,70 @@
       "path": "cases/EV-009-user-manual-merge-composite.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
-      "draft_test_ids": ["T-001A-09"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-11"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "source_lineage_group": "src_catalog_api",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "2531245ccbb9f661498965857208a40cf668a8dec8dfb5f2fca3b3118f92f2f4",
+      "draft_requirement_ids": [
+        "REQ-EV-CMD-MERGE-01",
+        "REQ-EV-MERGE-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-09"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-11"
+      ]
     },
     {
       "case_id": "EV-010",
       "path": "cases/EV-010-composite-no-double-counting.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-COMP-01"],
-      "draft_test_ids": ["T-001A-10"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-11"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+      "source_lineage_group": "src_queue_dispatcher",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "8402d24af183808241a56061e78e1b8726a3e4f605506188a23e4a63bdce8e59",
+      "draft_requirement_ids": [
+        "REQ-EV-COMP-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-10"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-11"
+      ]
     },
     {
       "case_id": "EV-011",
       "path": "cases/EV-011-user-exclude-event.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
-      "draft_test_ids": ["T-001A-11"],
-      "official_requirement_refs": ["FR-007"],
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_web_portal",
+      "source_lineage_group": "src_web_portal",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "7b766cb20bce985735015e4895d32db45035f3eec95ba0e3d42b83a27219e67c",
+      "draft_requirement_ids": [
+        "REQ-EV-CMD-EXCLUDE-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-11"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
       "official_test_refs": []
     },
     {
@@ -210,55 +702,125 @@
       "path": "cases/EV-012-user-dissolve-composite.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-CMD-DISSOLVE-01", "REQ-EV-COMP-01"],
-      "draft_test_ids": ["T-001A-12"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-12"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "source_lineage_group": "src_catalog_api",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "0e8d8f70ccb11ddc986754a1f676c7fc09be2cd30a3780086c07176d762c885a",
+      "draft_requirement_ids": [
+        "REQ-EV-CMD-DISSOLVE-01",
+        "REQ-EV-COMP-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-12"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-12"
+      ]
     },
     {
       "case_id": "EV-013",
       "path": "cases/EV-013-cannot-link-context-and-unknown.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
-      "draft_test_ids": ["T-001A-13"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-12"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_auth_services",
+      "source_lineage_group": "src_auth_services",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "fafb94669999d2c3edbfc765b84a3943781bea2928ad94647f1dfc213a277c59",
+      "draft_requirement_ids": [
+        "REQ-EV-ERR-LINK-01",
+        "REQ-EV-CONTEXT-01",
+        "REQ-EV-ASSOC-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-13"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-12"
+      ]
     },
     {
       "case_id": "EV-014",
       "path": "cases/EV-014-cannot-link-nested-and-excluded.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
-      "draft_test_ids": ["T-001A-14"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-12"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_analytics_pipe",
+      "source_lineage_group": "src_analytics_pipe",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "d80e571a21dbfaea8b79c71a6684e956be323b19d88429c647089c7a12612a26",
+      "draft_requirement_ids": [
+        "REQ-EV-ERR-LINK-02",
+        "REQ-EV-COMP-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-14"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-12"
+      ]
     },
     {
       "case_id": "EV-015",
       "path": "cases/EV-015-version-conflict-optimistic-lock.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-ERR-VER-01"],
-      "draft_test_ids": ["T-001A-15"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-12"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "source_lineage_group": "src_ledger_service",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "478e15b0d2401b452cb3253aa23eecfa52eef9d0f5695bcbc36464c4eaa1a02f",
+      "draft_requirement_ids": [
+        "REQ-EV-ERR-VER-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-15"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-12"
+      ]
     },
     {
       "case_id": "EV-016",
       "path": "cases/EV-016-workspace-boundary-conflict.json",
       "scope": "MVP",
       "backlog_ref": null,
-      "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-ERR-WS-01", "REQ-EV-CMD-MERGE-01"],
-      "draft_test_ids": ["T-001A-16"],
-      "official_requirement_refs": ["FR-007"],
-      "official_test_refs": ["EVENT-12"]
+      "review_status": "APPROVED_MVP_REGRESSION",
+      "approval_status": "APPROVED_MVP_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_multi_workspace",
+      "source_lineage_group": "src_multi_workspace_services",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "file_sha256": "7ff70aef52fc382f780e63eeb8a8d481a5faef1e0d20c8b58687dd281f9700a7",
+      "draft_requirement_ids": [
+        "REQ-EV-ERR-WS-01",
+        "REQ-EV-CMD-MERGE-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-16"
+      ],
+      "official_requirement_refs": [
+        "FR-007"
+      ],
+      "official_test_refs": [
+        "EVENT-12"
+      ]
     },
     {
       "case_id": "EV-017",
@@ -266,9 +828,20 @@
       "scope": "POST_MVP",
       "backlog_ref": "B-003",
       "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-POST-01"],
-      "draft_test_ids": ["T-001A-17"],
-      "official_requirement_refs": ["FR-006"],
+      "approval_status": "DRAFT",
+      "eval_bundle_id": "bundle_post_mvp_b003_draft",
+      "source_lineage_group": "src_ledger_service",
+      "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+      "file_sha256": "4087c1feafc058751ba126d5ca5a4d49d859d51b91dec685fe683d2a3aa42bd3",
+      "draft_requirement_ids": [
+        "REQ-EV-POST-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-17"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
       "official_test_refs": []
     },
     {
@@ -277,9 +850,21 @@
       "scope": "POST_MVP",
       "backlog_ref": "B-003",
       "review_status": "REVIEW_REQUIRED",
-      "draft_requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
-      "draft_test_ids": ["T-001A-18"],
-      "official_requirement_refs": ["FR-006"],
+      "approval_status": "DRAFT",
+      "eval_bundle_id": "bundle_post_mvp_b003_draft",
+      "source_lineage_group": "src_billing_engine",
+      "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+      "file_sha256": "1fd6667b7fc8212374920b537e4ad94d6874bc4161a96e5a9a28d48974984dbd",
+      "draft_requirement_ids": [
+        "REQ-EV-POST-02",
+        "REQ-EV-ASSOC-01"
+      ],
+      "draft_test_ids": [
+        "T-001A-18"
+      ],
+      "official_requirement_refs": [
+        "FR-006"
+      ],
       "official_test_refs": []
     }
   ],
@@ -287,36 +872,53 @@
     {
       "variant_id": "NEG-001",
       "path": "negative-fixtures/NEG-001-broken-id-ref.json",
-      "expected_rule_codes": ["ID_REFERENCE_INTEGRITY"],
+      "eval_excluded": true,
+      "expected_rule_codes": [
+        "ID_REFERENCE_INTEGRITY"
+      ],
       "purpose": "Verifies linter detects dangling PR and commit ID references."
     },
     {
       "variant_id": "NEG-002",
       "path": "negative-fixtures/NEG-002-missing-required-field.json",
-      "expected_rule_codes": ["SCHEMA_REQUIRED_FIELD"],
+      "eval_excluded": true,
+      "expected_rule_codes": [
+        "SCHEMA_REQUIRED_FIELD"
+      ],
       "purpose": "Verifies linter detects omitted rationale, approval_status, and command expected_version."
     },
     {
       "variant_id": "NEG-003",
       "path": "negative-fixtures/NEG-003-unknown-as-no-pr.json",
-      "expected_rule_codes": ["INVARIANT_UNKNOWN_NOT_NO_PR", "INVARIANT_PARTIAL_RUN_NO_PROMOTION"],
+      "eval_excluded": true,
+      "expected_rule_codes": [
+        "INVARIANT_UNKNOWN_NOT_NO_PR",
+        "INVARIANT_PARTIAL_RUN_NO_PROMOTION"
+      ],
       "purpose": "Verifies linter rejects classifying an UNKNOWN commit from a PARTIAL run as a DIRECT_COMMIT candidate."
     },
     {
       "variant_id": "NEG-004",
       "path": "negative-fixtures/NEG-004-composite-double-count.json",
-      "expected_rule_codes": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
+      "eval_excluded": true,
+      "expected_rule_codes": [
+        "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"
+      ],
       "purpose": "Verifies linter rejects double-counting SUPERSEDED USER_COMPOSITE members in search results and metrics."
     },
     {
       "variant_id": "NEG-005",
       "path": "negative-fixtures/NEG-005-context-only-auto-merge.json",
-      "expected_rule_codes": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
+      "eval_excluded": true,
+      "expected_rule_codes": [
+        "INVARIANT_NO_CONTEXT_AUTO_MERGE"
+      ],
       "purpose": "Verifies linter rejects automatic multi-PR merges triggered by Issue/ticket CONTEXT_ONLY links."
     },
     {
       "variant_id": "NEG-006",
       "path": "negative-fixtures/NEG-006-premature-approval-and-od007.json",
+      "eval_excluded": true,
       "expected_rule_codes": [
         "APPROVAL_STATUS_MUST_BE_DRAFT",
         "SCOPE_TAG_POLICY",

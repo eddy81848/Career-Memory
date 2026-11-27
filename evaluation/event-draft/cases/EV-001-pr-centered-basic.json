@@ -6,13 +6,36 @@
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
-  "review_status": "REVIEW_REQUIRED",
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_ledger_service",
+    "source_lineage_group": "src_ledger_service",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-001",
+      "EV-015",
+      "EV-017"
+    ]
+  },
   "coverage": {
-    "draft_requirement_ids": ["REQ-EV-PR-01"],
-    "draft_test_ids": ["T-001A-01"],
-    "official_requirement_refs": ["FR-006"],
-    "official_test_refs": ["EVENT-10"],
-    "scenario_tags": ["merged_pr_candidate", "anchor_mode_pr", "default_branch_merge", "mvp_core"]
+    "draft_requirement_ids": [
+      "REQ-EV-PR-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-01"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "merged_pr_candidate",
+      "anchor_mode_pr",
+      "default_branch_merge",
+      "mvp_core"
+    ]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -54,7 +77,10 @@
         "base_branch": "main",
         "state": "MERGED",
         "merged_at": "2026-10-20T14:30:00Z",
-        "commit_ids": ["cmt_syn_101a", "cmt_syn_101b"],
+        "commit_ids": [
+          "cmt_syn_101a",
+          "cmt_syn_101b"
+        ],
         "referenced_ticket_ids": []
       }
     ],
@@ -72,7 +98,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_101",
-        "changed_paths": ["src/settlement/retry_guard.py"]
+        "changed_paths": [
+          "src/settlement/retry_guard.py"
+        ]
       },
       {
         "commit_id": "cmt_syn_101b",
@@ -87,7 +115,9 @@
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_101",
-        "changed_paths": ["tests/test_retry_guard.py"]
+        "changed_paths": [
+          "tests/test_retry_guard.py"
+        ]
       }
     ],
     "issues_tickets": [],
@@ -96,8 +126,22 @@
   },
   "user_commands": [],
   "expected_proposal": {
-    "approval_status": "DRAFT",
-    "approved_by": null,
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "merge_commit_sha_inclusion_detail"
+        ]
+      }
+    },
     "events": [
       {
         "event_id": "ev_exp_001_1",
@@ -110,7 +154,10 @@
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_101",
-        "source_commit_ids": ["cmt_syn_101a", "cmt_syn_101b"],
+        "source_commit_ids": [
+          "cmt_syn_101a",
+          "cmt_syn_101b"
+        ],
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
@@ -129,7 +176,9 @@
       {
         "query": "payment retry guard",
         "workspace_id": "ws_syn_001",
-        "expected_event_ids": ["ev_exp_001_1"],
+        "expected_event_ids": [
+          "ev_exp_001_1"
+        ],
         "expected_result_count": 1
       }
     ],
@@ -144,7 +193,7 @@
       {
         "field_path": "expected_proposal.events[0].source_commit_ids",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
         "question": "Should merge commits created on main during merge-commit strategy also be listed in source_commit_ids or only PR branch commits?"
       }
     ]

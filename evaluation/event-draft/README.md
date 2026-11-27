@@ -1,69 +1,80 @@
-# T-001A Event Synthetic Dataset Draft (`evaluation/event-draft/`)
+# Event Synthetic Dataset (`evaluation/event-draft/`, `1.0.0-mvp-approved`)
 
-This directory contains **AI-authored synthetic Event fixtures, DRAFT expected proposals, JSON Schemas, coverage/review metadata, isolated negative fixtures, and an automated integrity linter** for Career Memory **T-001A**.
+This directory contains **synthetic Event fixtures, T-001B human-approved MVP synthetic regression ground truth (`EV-001`..`EV-016`), unapproved Post-MVP `B-003` drafts (`EV-017`..`EV-018`), JSON Schemas, same-source evaluation bundle grouping, SHA-256 integrity hashes, isolated negative fixtures (`NEG-001`..`NEG-006`), and an automated linter + regression test suite** for Career Memory.
 
-## Scope & Boundaries
+## Dataset Version & Approval Scope
 
-- **Included**:
-  - 18 synthetic fixture cases (`cases/EV-001` through `cases/EV-018`: 16 `MVP` + 2 `POST_MVP` tagged `B-003`).
-  - 6 isolated intentionally broken negative variants (`negative-fixtures/NEG-001` through `NEG-006`).
-  - Strict separation of `synthetic_sources`, `user_commands`, `expected_proposal` (`approval_status="DRAFT"`, `approved_by=null`), and `rationale` (`confirmed_spec_rules` / `unconfirmed_spec_tokens` / `truly_undecided_items`).
-  - JSON Schemas (`schemas/manifest.schema.json`, `schemas/case.schema.json`).
-  - Coverage matrix (`coverage-matrix.json`, `coverage-matrix.md`) separating draft local IDs (`REQ-EV-*`, `T-001A-*`) from official refs (`FR-006`, `FR-007`, `EVENT-10`, `EVENT-11`, `EVENT-12`) and explicitly deferring `EVAL-EVENT` to M3.
-  - T-001B human review queue (`review-queue.json`, `review-queue.md`).
-  - Zero-dependency Python fixture linter (`lint/lint_fixtures.py`) and regression test suite (`lint/test_lint_fixtures.py`).
-- **Excluded (explicitly NOT in T-001A)**:
-  - Event Builder runtime implementation.
-  - Human ground-truth review, approval, or golden dataset freeze (**T-001B**).
+- **Dataset ID / Version**: `career-memory-event-synthetic-mvp-v1.0.0` / **`1.0.0-mvp-approved`** (`task_ref: T-001B`, `approval_status: PARTIALLY_APPROVED_MVP_REGRESSION`).
+- **Approval Baseline**: `qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9` (base `main`: `efe251071fbee1be9a2ffee680a73f3ca3cd8084`).
+- **Approved for MVP Synthetic Regression (`16` cases)**: `EV-001`..`EV-016` (`eval_partition: MVP_SYNTHETIC_REGRESSION`) — confirmed logical expectations approved by explicit human review.
+- **Retained as Unapproved Post-MVP Drafts (`2` cases)**: `EV-017`, `EV-018` (`scope: POST_MVP`, `backlog_ref: B-003`, `approval_status: DRAFT`, `approved_by: null`, `eval_partition: POST_MVP_DRAFT_EXCLUDED`).
+- **Isolated Negative Fixtures (`6` variants)**: `negative-fixtures/NEG-001`..`NEG-006` (`eval_excluded: true`) — intentionally broken fixtures for linter verification only; never included in `cases/` or `evaluation_bundles`.
+- **Excluded from This Package**:
+  - Event Builder runtime implementation or product API changes.
   - Real Event Builder runtime quality evaluation (**M3 / T-306A / EVAL-EVENT** — never marked passed by fixture lint).
-  - Any CLAIM-QA files, shared schemas, CI workflows, or physical database table assumptions (**OD-007**).
-  - Any real repository text, real accounts, GitHub/LLM API calls, or billable runs.
+  - Freeze of unconfirmed HTTP status codes, multi-violation error precedence, or unconfirmed wire tokens.
+  - CLAIM-QA files, shared schemas, CI workflows, OD-007 physical database table assumptions, Notion/cloud edits, or `main` branch merge/push.
 
-## Official Spec Rules Applied vs. Open Items
+## Truth Comparison Policy
 
-- **Official rules applied across all 18 cases**:
-  - **Anchor modes**: `PR`, `PR_SEGMENT`, `DIRECT_COMMIT`, `USER_COMPOSITE` (`PR` and `DIRECT_COMMIT` auto-generated; default-branch direct commit = 1 candidate per commit when `SUCCESS` initial import + `COMPLETED` lookup `NO_MATCH_OBSERVED` + start/end default-branch verified).
-  - **Import runs**: `PARTIAL` (never `PARTIAL_SUCCESS`) promotes `0` Events; `UNKNOWN` is never `NO_MATCH_OBSERVED`; default Event search returns `0`.
-  - **Lifecycle statuses**: `CANDIDATE`, `CONFIRMED`, `REJECTED`, `SUPERSEDED`, `STALE` separated from top-level visibility (`is_active_top_level`). No arbitrary `ACTIVE`, `EXCLUDED`, or `DISSOLVED`.
-  - **Split**: Mixed-purpose PR stays 1 `CANDIDATE` with a review flag (`auto_split_count=0`); user split requires disjoint `evidence_scope` (`file_paths`, `diff_hunks`, `review_thread_ids`, `content_unit_ids`), emits `PR_SEGMENT` (or `DIRECT_COMMIT`), and marks parent `SUPERSEDED`.
-  - **Merge**: Same workspace & same repository across `PR`, `PR_SEGMENT`, `DIRECT_COMMIT` (PR + direct commit allowed); checks each member's Event version; preserves snapshots; marks members `SUPERSEDED`; rolls up member-only search hits once to parent `USER_COMPOSITE`; no auto-inheritance of member Fact/Claim.
-  - **Dissolve**: Requires `expected_version`, `reason`, `idempotency_key`; sets Composite `SUPERSEDED` + `composite_membership_status='REMOVED'`; re-evaluates members (`CANDIDATE`/`CONFIRMED`/`STALE`); marks dependent `FACT`, `CLAIM`, and `EXPORT` as `STALE` without deletion or auto-transfer.
-  - **Official Event API error codes**: `EVENT_VERSION_CONFLICT`, `CROSS_WORKSPACE_MEMBER`, `CROSS_REPOSITORY_MEMBER`, `DUPLICATE_COMPOSITE_MEMBER`, `NESTED_COMPOSITE_NOT_ALLOWED`, `CANNOT_LINK_CONFLICT`, `MEMBER_NOT_ACTIVE`, `MEMBER_ALREADY_COMPOSED`, `PR_ASSOCIATION_INCOMPLETE`. `CANNOT_LINK` is a relation semantic, not a catch-all wire code.
-- **Unconfirmed details (`UNCONFIRMED` / `REVIEW_REQUIRED`)**:
-  - Command wire names, exact review flag string/UI, diagnostic record status tokens, HTTP status codes (`409` vs `412`, `If-Match`, unauthorized `403` vs `404`), multi-violation precedence (`MEMBER_ALREADY_COMPOSED` vs `MEMBER_NOT_ACTIVE`), detail GET shape for historical `SUPERSEDED` members, and post-MVP `B-003` transition mechanics remain open in `review-queue.md`.
+- **Enforced in MVP synthetic regression (`EV-001`..`EV-016`)**:
+  - Confirmed logical expectations (anchor modes, `PARTIAL` import hold, lifecycle statuses, disjoint split, same-repo manual merge, single-count search/metrics roll-up, exclude, dissolve + `STALE` propagation, workspace/repository/version isolation).
+  - Unambiguous official Event API error codes (`NESTED_COMPOSITE_NOT_ALLOWED`, `MEMBER_NOT_ACTIVE`, `EVENT_VERSION_CONFLICT`, `CROSS_REPOSITORY_MEMBER`).
+  - **Zero state mutation on every rejected command**: `command_results[*].outcome == "REJECTED"`, `state_mutated == false`, `resulting_event_ids == []`, and unmutated `events`.
+- **Excluded from truth comparison**:
+  - Unconfirmed HTTP status codes (`409` vs `412`, `If-Match`, unauthorized `403` vs `404`).
+  - Unconfirmed multi-violation error precedence (`EV-014` `cmd_syn_014_nested`: `MEMBER_ALREADY_COMPOSED` vs `MEMBER_NOT_ACTIVE`).
+  - Unconfirmed wire error codes for non-Event IDs (`EV-013`) and unauthorized cross-workspace external responses (`EV-016`).
+  - Unconfirmed wire command names (`spec_command_name`), exact mixed-purpose review flag string (`EV-007`), diagnostic record status tokens (`EV-003`, `EV-004`, `EV-013`), ticket-only keyword search ranking (`EV-005`, `EV-006`), and direct detail GET shape for historical `SUPERSEDED` members (`EV-010`).
+
+## Same-Source Evaluation Bundles & Isolation
+
+Cases derived from the same synthetic source repository are grouped into the same evaluation bundle in `manifest.json` (`evaluation_bundles`) and each case's `eval_grouping` block (enforced automatically by `EVAL_BUNDLE_LINEAGE_ISOLATION`):
+
+- **Multi-case MVP bundles (same synthetic source)**:
+  - `bundle_mvp_ledger_service` (`acme-syn-lab/ledger-service`): `EV-001`, `EV-015` *(Post-MVP sibling `EV-017` isolated in `bundle_post_mvp_b003_draft`)*.
+  - `bundle_mvp_catalog_api` (`acme-syn-lab/catalog-api`): `EV-006`, `EV-009`, `EV-012`.
+  - `bundle_mvp_reporting_core` (`acme-syn-lab/reporting-core`): `EV-007`, `EV-008`.
+- **Single-case MVP bundles (`9` bundles)**:
+  - `bundle_mvp_edge_gateway` (`EV-002`), `bundle_mvp_billing_engine` (`EV-003`; *Post-MVP sibling `EV-018` isolated in `bundle_post_mvp_b003_draft`*), `bundle_mvp_search_indexer` (`EV-004`), `bundle_mvp_notification_hub` (`EV-005`), `bundle_mvp_queue_dispatcher` (`EV-010`), `bundle_mvp_web_portal` (`EV-011`), `bundle_mvp_auth_services` (`EV-013`), `bundle_mvp_analytics_pipe` (`EV-014`), `bundle_mvp_multi_workspace` (`EV-016`).
+- **Post-MVP draft exclusion bundle (`1` bundle)**:
+  - `bundle_post_mvp_b003_draft` (`POST_MVP_DRAFT_EXCLUDED`): `EV-017`, `EV-018`.
+- **Negative variants (`eval_excluded: true`)**:
+  - `NEG-001`..`NEG-006` live strictly under `negative-fixtures/` and are rejected by the linter if referenced in `evaluation_bundles`.
+
+## Integrity Hashes (`SHA-256`)
+
+All per-file and bundle SHA-256 digests are recorded in `manifest.json` (`integrity_hashes`) and verified on every lint run (`INTEGRITY_HASH_MISMATCH`):
+
+- `approved_mvp_bundle_sha256` (`EV-001`..`EV-016`, current approved files): `e51878f094d77b2f32675ffc6b48bab013347620277ac91eed0996ae1ee2328e`
+- `approved_mvp_baseline_bundle_sha256` (`EV-001`..`EV-016` at `0773ac5740b358f4168777fda1e578231cc6dff9`): `b1bdffa8bbec1e47f2401d383ae874466193598e2b664cbd415cac7372d1d8f6`
+- `post_mvp_draft_bundle_sha256` (`EV-017`..`EV-018`, unapproved Post-MVP drafts): `1adb920c9df98ea18edbebffef5c5708521c18ef40a0fc4cb796ecb10fb4a17d`
+- `schemas/case.schema.json`: `d97e2b04fb7527809776c59e780605b0a5d2d7e3d598182f854faf1a0cf5ed51`
+- `schemas/manifest.schema.json`: `8eef5122b79dccbe80fa2e8b05baacff53a3d250150e7486050047d25247d770`
 
 ## Provenance & Reproducibility Limits
 
-- **Base commit**: `efe251071fbee1be9a2ffee680a73f3ca3cd8084` (`main`; note `AGENTS.md` was not present at this commit).
-- **Branch / Worktree**: `qa/event-fixtures` (`.worktrees/qa-event-fixtures`).
-- **Generation method**: Interactive AI authoring and official-spec correction pass by the EVENT-QA agent; `0` external GitHub, Notion, or scripted LLM API calls.
-- **Model / Seed limitation**: The local workspace environment does not expose the underlying model build/checkpoint identifier or a deterministic sampling seed/temperature. Token-for-token regeneration via seed is **not reproducible**; draft reproducibility relies on immutable git commits and deterministic lint checks.
+- **Base `main` commit**: `efe251071fbee1be9a2ffee680a73f3ca3cd8084` (`AGENTS.md` was not present at this commit).
+- **Approval baseline commit**: `0773ac5740b358f4168777fda1e578231cc6dff9` on `qa/event-fixtures` (`.worktrees/qa-event-fixtures`).
+- **External API calls**: `0` GitHub, Notion, or scripted LLM API calls.
+- **Model / Seed limitation**: Interactive agent authoring does not expose a model checkpoint identifier or deterministic sampling seed. Reproducibility of this approved regression dataset relies on immutable git commits, SHA-256 digests in `manifest.json`, and deterministic lint verification.
 
 ## Running the Fixture Lint & Regression Tests
 
 Run from the worktree root (`.worktrees/qa-event-fixtures`):
 
 ```sh
-# 1. Lint the full valid draft dataset (manifest, 18 cases, coverage matrix, review queue)
+# 1. Lint the full dataset (manifest, 18 cases, bundles, SHA-256 hashes, coverage matrix, review queue)
 python3 -B evaluation/event-draft/lint/lint_fixtures.py --dataset-dir evaluation/event-draft
 
-# 2. Run linter against an intentionally broken negative variant (expected: non-zero exit + rule code)
-python3 -B evaluation/event-draft/lint/lint_fixtures.py --case-file evaluation/event-draft/negative-fixtures/NEG-001-broken-id-ref.json
-
-# 3. Verify all 6 isolated negative variants fail with their exact expected rule codes
+# 2. Verify all 6 isolated negative variants fail with their exact expected rule codes
 python3 -B evaluation/event-draft/lint/lint_fixtures.py --dataset-dir evaluation/event-draft --verify-negatives
 
-# 4. Run full automated unit & regression test suite
+# 3. Run full automated unit & regression test suite (20 tests)
 python3 -B -m unittest discover -s evaluation/event-draft/lint -v
 
-# 5. Check whitespace cleanliness
+# 4. Check whitespace cleanliness
 git diff --check
 ```
 
-> **Note**: These tests validate **synthetic dataset format, referential integrity, governance rules, official-token discipline, and Event-domain safety invariants only**. Passing lint does **not** constitute ground-truth approval / golden freeze (**T-001B**) or Event Builder runtime quality evaluation (**M3 / T-306A / EVAL-EVENT**).
-
-## T-001B Handoff Checklist
-
-1. Review `review-queue.md` Sections 2–3 to fill remaining wire details (`spec_command_name`, HTTP status codes / `If-Match`, exact review flag string) and resolve open contract decisions (multi-violation precedence, unauthorized foreign-workspace HTTP exposure, detail GET history shape).
-2. Independently verify all 18 `expected_proposal` objects against human engineering judgment before transitioning `approval_status` from `DRAFT` to frozen golden truth in **T-001B**.
-3. Keep `negative-fixtures/` strictly isolated from the frozen evaluation set.
+> **Note**: These tests validate **synthetic dataset format, referential integrity, approval/bundle governance, SHA-256 integrity, and Event-domain safety invariants only**. Passing lint does **not** execute or pass Event Builder runtime quality evaluation (**M3 / T-306A / EVAL-EVENT**).

@@ -1,82 +1,62 @@
-# T-004A/B Fact·Claim Synthetic Regression Golden Dataset (`evaluation/claim-draft`)
+# T-004A → T-004B Fact·Claim Owner-Review Candidate Dataset (`evaluation/claim-draft`)
 
-- **Dataset Version**: `0.3.0-synthetic-golden` (approved from `0.3.0-draft` @ `570067488a2d8d5b2fe249653336ec60af4a45c8`)
-- **Schema Version**: `0.3.0-synthetic-golden`
-- **Approval Status**: `APPROVED_SYNTHETIC_REGRESSION_GOLDEN` (`oracle_status: "APPROVED_SYNTHETIC_REGRESSION"`, `frozen_for_golden: true`)
-- **Golden Scope**: `SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION`
-- **Provisional Verdict Namespace**: `DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS` (`DRAFT_CLAIM_*`, `DRAFT_ATOM_*`, `DRAFT_REFETCH_*` — **strictly separated** from unconfirmed product state enums)
-- **Approval Manifest**: [`APPROVAL_MANIFEST.json`](APPROVAL_MANIFEST.json) (`bundle_sha256: sha256:881b6bb182b65c51c88a09ecf605322167ff439a4fffc37c1d77f07f1ad6b51f`)
-- **Branch**: `qa/claim-fixtures` (continued from `570067488a2d8d5b2fe249653336ec60af4a45c8`)
+- **Approved Synthetic Golden Manifest (`T-407A` 단일 진입점)**: [`GOLDEN_APPROVAL_MANIFEST_v0.4.0.json`](GOLDEN_APPROVAL_MANIFEST_v0.4.0.json) (`dataset_version: 0.4.0-synthetic-golden`, `T-004B` 프로젝트 오너 승인 기록 — 아래 후보 데이터셋·해시를 수정 없이 그대로 참조)
+- **Reviewed Candidate Dataset / Schema Version (원본 보존)**: `0.4.0-owner-review-candidate` (`CANDIDATE_MANIFEST.json` 및 후보 JSON의 `PENDING_OWNER_REVIEW`, `human_approved: false`, `frozen_for_golden: false` 상태와 해시를 그대로 보존)
+- **Prior Baseline Preserved in Git**: `0.3.0-synthetic-golden` @ `fa6332d2dda00c59dd922465c1005349017577fe` (이전 `APPROVAL_MANIFEST.json`의 승인 상태·해시 미복사)
+- **Candidate Integrity Manifest**: [`CANDIDATE_MANIFEST.json`](CANDIDATE_MANIFEST.json) (`bundle_sha256: sha256:27b6d1eeace3e4ac5771f1abb1555a2af3c6cd9446a9f7f10005404572d7b059`, 파일 SHA-256 `2e9ffde13dfa619cee9035fdf2f9746adfd6b925875a7a955790e210b4a0bcea`)
+- **Branch**: `qa/claim-fixtures` (base commit `fa6332d2dda00c59dd922465c1005349017577fe`)
 
-## Approval Scope & Strict Boundary
+## `T-407A` Single Entry Point & Anti-Double-Counting Contract
 
-This directory contains the **approved synthetic regression test ground truth** and programmatic validation tools for the Career Memory Grounded Claim Pipeline:
+- **`T-407A` 소비자는 반드시 [`GOLDEN_APPROVAL_MANIFEST_v0.4.0.json`](GOLDEN_APPROVAL_MANIFEST_v0.4.0.json) (`0.4.0-synthetic-golden`)만 단일 진입점으로 읽어야 한다.**
+- `0.4.0-synthetic-golden`은 `fa6332d`의 이전 `0.3.0-synthetic-golden` 23개 Claim을 모두 보존한 상태에서 6개 Claim과 15개 재조회 케이스를 추가한 **총 16 시나리오 · 29 Claim · 27 재조회 케이스** 기준본이다.
+- 이전 `0.3.0-synthetic-golden` (23건)과 `0.4.0-synthetic-golden` (29건)을 합쳐 중복 집계하거나, 이전 `0.3.0`만 읽어 추가 케이스를 누락해서는 안 된다.
+- 동일 원본과 편집 버전은 기존 `SYNTHETIC_REGRESSION_DEV` / `SYNTHETIC_REGRESSION_TEST` 묶음을 그대로 유지한다.
 
-`Source Revision → Content Unit → Fact Support → Canonical Fact → Claim Atom Support → Claim Atom → Claim` + `Refetch Verification (Official REF-01..REF-08)`
+## What Changed in `v0.4.0-owner-review-candidate` (Spec Sync)
 
-- **Approved for synthetic regression tests ONLY**: covers all 18 synthetic `SourceRevision` fixtures, 14 Fact·Claim scenarios (`SCN-01`..`SCN-14`), 23 Claims (11 Round-01 revisions + 12 kept Claims including `SCN-13` **OD-003**), 41 Claim Atoms, 26 Canonical Facts, 29 Fact Supports, and 12 static synthetic refetch fixtures (`refcase-01a`..`refcase-05b`).
-- **Explicitly OUT of approval scope**:
-  - **No live LLM evaluation** (`live_llm_evaluation_in_scope: false`): zero external LLM inference, prompt tuning, or cost/latency benchmarking.
-  - **No production / external connector integration** (`production_connector_integration_in_scope: false`, `synthetic_semantics_only_not_connector_evidence: true`): fixtures do NOT prove real GitHub/Notion/Slack/Jira connectors, live OAuth/tenant isolation, live HTTP refetch/retry-backoff, or production DB/product code behavior.
-  - **Unverified REF items are NOT passed**: `REF-04` and `REF-05` remain `PARTIAL_COVERAGE_GAP` (`verified_in_draft: false`, `oracle_status: PARTIAL_UNVERIFIED_COVERAGE_GAP`), and `REF-06`, `REF-07`, `REF-08` remain `COVERAGE_GAP` (`verified_in_draft: false`, `oracle_status: UNVERIFIED_COVERAGE_GAP`).
-- **Option C (방안 C) non-persistence**: artificial raw texts exist **only** inside `sources/` as test fixtures. Downstream stage files (`stages/stage1..stage4`) and `APPROVAL_MANIFEST.json` enforce `persists_raw_text: false` and canary-leak auditing.
-
-## Family-Preserving Evaluation Partitions (Anti-Leakage)
-
-Every case, edited Claim version (`v1 → v2`), and Refetch fixture derived from the same raw source (`evaluation_family_id` / `source_revision_id`) is locked into the exact same partition, enforced programmatically by `validate_dataset.py` (`FAMILY_PARTITION_LEAKAGE`):
-
-- **`SYNTHETIC_REGRESSION_DEV`** (8 families · 7 scenarios · 11 claims · 1 refetch fixture): `family-src01`, `src03`, `src04`, `src06`, `src08`, `src10`, `src12` (original `src12` + user-edited `claim-12-1` v2 & `claim-12-2` v2 together), `src_ref07_canary` (`refcase-04a`).
-- **`SYNTHETIC_REGRESSION_TEST`** (7 families · 7 scenarios · 12 claims · 11 refetch fixtures): `family-src02` (`SCN-02` + all 11 `src02`-derived refetch fixtures `refcase-01a`..`05b` together), `src05`, `src07`, `src09`, `src11`, `src13` (`src13a`+`src13b` + edited `claim-13-2` v2 together), `src14`.
-
-## Official `REF-01..REF-08` Alignment & Unverified Coverage Gaps
-
-Unverified requirements are explicitly NOT marked passed:
-
-| Official ID | 공식 요구사항 | Coverage Status | Approval / Verified Flag | Linked Fixtures | Boundary / Coverage Gap Note |
-|---|---|---|---|---|---|
-| `REF-01` | 동일 버전과 정확한 근거 위치 재현 | `COVERED_SYNTHETIC_STUB` | `APPROVED_SYNTHETIC_REGRESSION` (`true`, stub only) | `refcase-01a` | Static stub & round-trip only; live external provider refetch 미실행 |
-| `REF-02` | hash/locator 불일치 차단 | `COVERED_SYNTHETIC_STUB` | `APPROVED_SYNTHETIC_REGRESSION` (`true`, stub only) | `refcase-02a`, `02b`, `02c` | Body drift (`02a`), body append (`02b`), and same-hash locator-only mismatch (`02c`) separated; approval blocked & Post-MVP auto-mutation disabled |
-| `REF-03` | 재조회 불가와 삭제·거짓 구분 | `COVERED_SYNTHETIC_STUB` | `APPROVED_SYNTHETIC_REGRESSION` (`true`, stub only) | `refcase-03a` (`404`), `03b` (`206`), `03c` (`429`), `03d` (`503`), `03e` (`timeout`) | `404`/`206` vs transient `429`/`5xx`/`timeout` (bounded retry stub max=3, approval blocked) distinguished from `SCN-13` OD-003 deletion and historical falsity; **live retry/backoff harness 미실행** |
-| `REF-04` | 원문 비영속 | **`PARTIAL_COVERAGE_GAP`** | **`PARTIAL_UNVERIFIED_COVERAGE_GAP` (`false`, NOT passed)** | `refcase-04a` | Static JSON canary verified; **coverage gap**: live DB/logs/queues/caches/disk runtime audit |
-| `REF-05` | 접근 권한·허용된 URL 경계 | **`PARTIAL_COVERAGE_GAP`** | **`PARTIAL_UNVERIFIED_COVERAGE_GAP` (`false`, NOT passed)** | `refcase-05a`, `refcase-05b` | Static HTTP 403 & URL pre-check verified; **coverage gap**: live OAuth/tenant, 30x redirect SSRF, DNS-rebinding |
-| `REF-06` | 중단·재실행 시 원문 저장에 의존하지 않음 | **`COVERAGE_GAP`** | **`UNVERIFIED_COVERAGE_GAP` (`false`, NOT passed)** | *(none — unverified)* | **coverage gap**: worker crash/checkpoint/replay integration test required |
-| `REF-07` | 승인·Export·근거 열람 시 재조회 | **`COVERAGE_GAP`** | **`UNVERIFIED_COVERAGE_GAP` (`false`, NOT passed)** | *(none — unverified)* | **coverage gap**: product Approval / Export / Evidence-Viewer E2E trigger required |
-| `REF-08` | 비용·크기 한도와 단계 간 메모리 전용 처리 | **`COVERAGE_GAP`** | **`UNVERIFIED_COVERAGE_GAP` (`false`, NOT passed)** | *(none — unverified)* | **coverage gap**: runtime byte/token/cost limit & in-memory inter-stage transport test required |
-
-> Note: Reusable evidence from separate `RUNTIME` verification tracks does **not** close `REF-04..REF-08` as full product verification.
-
-## Key Guards Enforced by Validator (`validate_dataset.py`)
-
-1. **Synthetic-Only Approval Scope & Tamper Hash Guard**: Verifies `oracle_status == "APPROVED_SYNTHETIC_REGRESSION"`, `live_llm_evaluation_in_scope == false`, `production_connector_integration_in_scope == false`, and exact UTF-8 SHA-256 digests of all 9 files + `bundle_sha256` in `APPROVAL_MANIFEST.json`.
-2. **Family & Source-Revision Anti-Leakage Guard**: Rejects any split of an `evaluation_family_id` or `source_revision_id` across `SYNTHETIC_REGRESSION_DEV` and `SYNTHETIC_REGRESSION_TEST` (`FAMILY_PARTITION_LEAKAGE`).
-3. **Unverified REF Non-Pass Guard**: Rejects marking `REF-04..REF-05` (`PARTIAL_COVERAGE_GAP`) or `REF-06..REF-08` (`COVERAGE_GAP`) as `verified_in_draft: true` or `APPROVED_SYNTHETIC_REGRESSION` (`FALSE_COVERAGE_CLAIM`).
-4. **Provisional Verdict Separation**: Enforces `DRAFT_CLAIM_*`, `DRAFT_ATOM_*`, and `DRAFT_REFETCH_*` namespace (`verdict_namespace: "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS"`) while product status enum mapping remains `REVIEW_REQUIRED`.
-5. **User Edit Re-Verification (`SCN-12`), Strict `SOURCE_VERIFIED`, OD-003 User Deletion (`SCN-13`), Same-Hash Locator-Only (`REF-02`), & Transient Retry (`REF-03`)**: All prior structural & semantic regression guards remain active and verified by 30 unit/fault-injection tests.
-
-## Fixture-Only Normalization & Offset Assumptions (`TEST_FIXTURE_ONLY`, `REVIEW_REQUIRED`)
-
-1. **Text Normalization (`fixture-nfc-lf-v0-draft`, `REVIEW_REQUIRED`)**: CRLF/CR → LF, Unicode NFC, internal whitespace preserved verbatim.
-2. **Offsets (`fixture-locator-v0-draft`, `REVIEW_REQUIRED`)**: Half-open `[start, end)` computed programmatically in `char` (Unicode codepoint), `utf8_byte`, `utf16` (code unit), and 1-based `line`.
-3. **Hashes & Deterministic IDs (`REVIEW_REQUIRED`)**: `sha256:<64-hex>` over UTF-8 bytes of normalized text/span.
+1. **Fact 추출(`FactCandidateExtractor`) vs 검증(`FactSupportValidator`) vs 승격 분리 (Stage 2A/2B)**:
+   - `stages/stage2_fact_extraction.json`에 `extractor_runs`, `fact_candidates` (34건, `candidate_status: EXTRACTED_UNVALIDATED`), `validator_runs`, `fact_support_validations` (38건), `fact_supports` (35건)을 두어 추출만으로 `SUPPORTED`가 되지 않음을 명시했다.
+   - 정정(`SCN-05`)·계획(`SCN-06`)·부정(`SCN-07`)·팀 작업(`SCN-08`)·스테이징(`SCN-09`) 문장을 삭제하지 않고 정확한 의미 그대로 보존하며, 계획→완료(`fcand-06-3-rejected`)·부정 누락(`fcand-07-4-rejected`)·팀→개인(`fcand-08-3-rejected`) 과장 후보는 Stage 2B에서 `REJECT_DO_NOT_PROMOTE`로 차단한다.
+2. **Claim 생성(`ClaimGenerator`)·분해(`ClaimAtomizer`)·검증(`ClaimSupportValidator`) 분리 + 실제 근거 체인 연결 (Stage 3A/3B/3C)**:
+   - `stages/stage3_claim_assembly.json`에 `confirmed_events` (16건, `fixture_event_sha256`)와 5개 파이프라인 역할 전체에서 전역 유일한 `run_id`를 갖는 `role_execution_runs`를 추가해 동일 AI 응답을 생성 결과와 검증 증거로 재사용할 수 없게 했다 (`ROLE_RUN_ID_REUSE_VIOLATION`).
+   - 모든 역할의 `input_version_refs`에서 상태 문자열(`CONFIRMED`/`SUPPORTED`)을 금지(`STATUS_USED_AS_VERSION_IDENTIFIER`)하고 실제 fixture 버전·해시(`fixture_event_sha256`, `fixture_fact_sha256`, Atom 버전·텍스트 해시, `SourceRevision.content_sha256`, `ContentUnit.unit_sha256`)를 연결했다.
+   - `Claim.input_fact_ids`, `ClaimAtomSupport`, `ClaimSupportValidator` 입력을 동일 `ConfirmedEvent`로 한정(`CROSS_EVENT_EVIDENCE_MISMATCH`)하고, `SOURCE_VERIFIED=true` 기대값마다 현재 Claim 버전 Atom → Fact → 활성 `DIRECT` `FactSupport` → Revision/Unit hash·locator → 동일 작업 재조회 결과를 `verified_evidence_bindings`로 끝까지 검증한다 (`VALIDATOR_INPUT_EVIDENCE_MISMATCH`).
+3. **공식 도메인 값과 테스트 전용 라벨 분리**:
+   - 공식 Fact 유형 6종(`PROBLEM | ACTION | TECHNOLOGY | RESULT | ROLE | METRIC`)과 공식 Atom 상태 4종(`SUPPORTED | USER_CONFIRMED | UNSUPPORTED | STALE`)을 최상위 도메인 필드로 분리하고, `DRAFT_*`·`ENGINEERING_DELIVERY` 등 테스트 라벨은 `fixture_classification` / `fixture_test_classification` (`TEST_FIXTURE_ONLY_NOT_DOMAIN_API`)에 격리했다.
+   - `SOURCE_VERIFIED`는 모든 필수 Atom이 활성 `SUPPORTED` Fact + 활성 `DIRECT` 근거 + 검증된 근거 바인딩을 갖고 동일 작업 내 hash·locator·권한·의미 재검증이 통과할 때만 계산된다 (`expected_source_verified_computed`). 생성기/사용자의 직접 설정은 차단된다.
+4. **필수 보강 케이스 (`CLAIM-05`, `CLAIM-06`, `CLAIM-08`, `REF-04`, `REF-06..08`)**:
+   - **`CLAIM-05`** (`SCN-15`): `claim-15-1` (PASS)의 Tech Lead Atom을 `person-alex-kim-verified` + `evt-career-15` + `Tech Lead` + 활성 구체 기여 근거 `fs-15-1b`(RFC 작성 및 스키마 롤아웃 리뷰 승인)에 연결(`FIXTURE_SEMANTICS_FOR_DB_MODEL_3_8_NOT_PRODUCT_TABLE`)하여 작성자 일치·역할 문구만으로는 통과하지 못하게 하고(`ROLE_EVIDENCE_VALIDATION_ERROR`), 기여 근거 누락·타인 기여 변형 실패 테스트와 `claim-15-2` (Security Lead FAIL)를 함께 유지한다.
+   - **`CLAIM-06`** (`SCN-16`): 값·단위·30일 기간·Datadog APM 출처·prod checkout-api p99 범위 일치(`claim-16-1` PASS) vs 전사·연간 과대확장(`claim-16-2` FAIL), 공식 `PROBLEM`/`TECHNOLOGY`/`METRIC` 유형 포함.
+   - **`CLAIM-08`** (`SCN-12`): 기존 편집 실패(`claim-12-1`)·편집 미재검증 `STALE`(`claim-12-2`)에 더해 편집 후 v2 재검증 통과(`claim-12-3` PASS)와 `USER_CONFIRMED`-only(`claim-12-4` FAIL)를 동일 `family-src12` (`DEV`) 내에 배치.
+   - **`REF-04`..`REF-08`**: `refcase-04b` (DB/로그/Job/캐시/Export 5면 정적 canary), `REF-06` (`refcase-06a..06c`), `REF-07` (`refcase-07a..07g` — `07b`에 승인 `claim-02-1` v1 전제 및 검증 메타데이터/원문 인용 비포함, `07f` 재조회 성공·미승인 Export 차단, `07g` 재조회 성공·승인 버전 불일치 v2≠v1 Export 차단 포함, `REF07_EXPORT_PRECONDITION_VIOLATION`), `REF-08` (`refcase-08a..08d`) 등 총 27개 합성 Refetch 케이스를 포함한다.
+5. **기존 `v0.3.0` 평가 경계 100% 보존**:
+   - 기존 15개 family의 `SYNTHETIC_REGRESSION_DEV` / `SYNTHETIC_REGRESSION_TEST` 배치와 기존 23개 Claim 기대 판정·출처 연결을 100% 유지하고, 신규 독립 family `family-src15` (DEV)와 `family-src16` (TEST)를 추가했다.
 
 ## Commands
 
-Run from the worktree root:
+Run from the worktree root (`/Users/eddy81848/Projects/Career Memory/.worktrees/qa-claim-fixtures`):
 
 ```bash
-# 1. Programmatically rebuild all fixtures + APPROVAL_MANIFEST.json (idempotent)
-PYTHONDONTWRITEBYTECODE=1 python3 evaluation/claim-draft/tools/build_fixtures.py
+# 1. Programmatically rebuild all 9 candidate files + CANDIDATE_MANIFEST.json (idempotent)
+python3 -B evaluation/claim-draft/tools/build_fixtures.py
 
-# 2. Run full structural, schema, locator/hash round-trip, partition anti-leakage, manifest hash, coverage-gap, & canary validator
-PYTHONDONTWRITEBYTECODE=1 python3 evaluation/claim-draft/tools/validate_dataset.py
+# 2. Run full structural, schema, round-trip, stage-separation, evidence-linkage, role/export, Option C leak, partition, & ADR-018 candidate validator
+python3 -B evaluation/claim-draft/tools/validate_dataset.py
 
-# 3. Run unit + regression + deliberate fault-injection test suite (30 tests)
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s evaluation/claim-draft/tools -p "test_*.py" -v
+# 3. Validate the separate 0.4.0-synthetic-golden approval manifest against the untouched candidate bundle
+python3 -B evaluation/claim-draft/tools/validate_golden_approval.py
+
+# 4. Run candidate (40 tests) + approval manifest (8 tests) regression & semantic fault-injection suites (48 tests total)
+python3 -B -m unittest discover -s evaluation/claim-draft/tools -p 'test_*.py' -v
+
+# 5. Verify zero whitespace/EOF errors
+git diff --check
 ```
 
-## Explicitly Not Executed / Outside Approval Scope
+## Explicitly Not Approved / Not Executed / Outside This Task Scope
 
-- Real external provider HTTP refetch / live retry-backoff / live OAuth / live redirect & DNS-rebinding SSRF tests
-- External LLM inference quality evaluation, prompt tuning, or token/cost benchmarking
-- Worker crash/checkpoint/resume (`REF-06`), Approval/Export/Evidence-Viewer E2E (`REF-07`), or runtime size/cost/memory-only inter-stage tests (`REF-08`); reusable `RUNTIME` evidence is NOT treated as full product verification
-- Production code integration, shared CI wiring, EVENT-QA edits, or finalized product enum / normalization sign-off (`REVIEW_REQUIRED`)
+- **실제 LLM 품질 평가, 제품 Claim 파이프라인 구현, 물리 DB 스키마·외부 커넥터 연동, 운영 수치 한도, 공용 CI, `EVENT-QA` 수정**: 이번 합성 회귀 기준 승인 범위가 아니며 미실행.
+- **`REF-01..REF-08` 실제 런타임/M4 제품 시험**: `product_runtime_verified: false` 전 항목 유지; `REF-04/05` 부분 정적 점검 및 `REF-06..08` 합성 케이스 준비는 실제 제품 시험 통과가 아니며, `RUNTIME Spike` 결과도 M4 제품 시험을 대신하지 않음.
+- **후보 JSON 원본 보존**: `CANDIDATE_MANIFEST.json` 및 후보 JSON 파일들은 `PENDING_OWNER_REVIEW` / `human_approved: false` 상태를 그대로 유지하며, 승인 기록은 별도 [`GOLDEN_APPROVAL_MANIFEST_v0.4.0.json`](GOLDEN_APPROVAL_MANIFEST_v0.4.0.json)에 분리 보관한다.
+- **미확정 API/DB 세부사항 (`확인 필요`, 미고정)**: 운영 정규화/offset 규약, 비-`SUPPORTED` Fact·비-`SOURCE_VERIFIED` Claim 제품 enum명, DB Model §3.8 역할·기여 제품 테이블/컬럼명, `FactCandidate` 완료/불확실성 DB 컬럼명, `REF-08` 운영 수치 한도, `REF-07` Export 검증 메타데이터의 파일 헤더·API 필드 배치 규약 — 상세 검토 큐는 [`COVERAGE.md`](COVERAGE.md) 참조.

@@ -1,16 +1,18 @@
 {
-  "schema_version": "0.3.0-synthetic-golden",
-  "dataset_version": "0.3.0-synthetic-golden",
+  "schema_version": "0.4.0-owner-review-candidate",
+  "dataset_version": "0.4.0-owner-review-candidate",
   "artifact_role": "SYNTHETIC_SOURCE_INPUT",
   "normalization_policy": "fixture-nfc-lf-v0-draft",
   "convention_scope": "TEST_FIXTURE_ONLY",
   "review_required_specs": [
-    "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — fixture uses TEST_FIXTURE_ONLY fixture-nfc-lf-v0-draft",
-    "REVIEW_REQUIRED: Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit) — fixture uses TEST_FIXTURE_ONLY fixture-locator-v0-draft",
-    "REVIEW_REQUIRED: Production canonical entity ID formats and hashing algorithm/salt policy",
-    "REVIEW_REQUIRED: Final product Claim/Atom/Refetch status enum mapping (provisional DRAFT_* verdicts are NOT product states)",
-    "REVIEW_REQUIRED: User-edit re-verification transition policy for minor paraphrases after v2 re-verification passes (SCN-12 claim-12-2)",
-    "REVIEW_REQUIRED: Option C zero-raw-text runtime persistence boundary across DB, queues, logs, caches, and traces (REF-04/REF-06/REF-08)"
+    "확인 필요 (REVIEW_REQUIRED): Production text normalization policy (CRLF/NFC/whitespace stripping) — fixture uses TEST_FIXTURE_ONLY fixture-nfc-lf-v0-draft",
+    "확인 필요 (REVIEW_REQUIRED): Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit) — fixture uses TEST_FIXTURE_ONLY fixture-locator-v0-draft",
+    "확인 필요 (REVIEW_REQUIRED): Finalized product non-SUPPORTED CanonicalFact status enum names and non-SOURCE_VERIFIED Claim status enum names (Notion direct read unavailable; only SUPPORTED, USER_CONFIRMED, UNSUPPORTED, STALE, DRAFT, SOURCE_VERIFIED, and Fact types PROBLEM|ACTION|TECHNOLOGY|RESULT|ROLE|METRIC are confirmed)",
+    "확인 필요 (REVIEW_REQUIRED): Exact FactCandidate DB schema field names for completion_state and uncertainty_level",
+    "확인 필요 (REVIEW_REQUIRED): Exact REF-08 production numeric thresholds for max_requests, max_bytes, max_tokens, max_retries, and max_concurrency (fixture thresholds are TEST_FIXTURE_ONLY)",
+    "확인 필요 (REVIEW_REQUIRED): Exact REF-07 Export file-header / API field layout for verification metadata (locator_id, span_sha256, source_revision_id, source_content_sha256, checked_at) is NOT frozen here (`TEST_FIXTURE_ONLY_API_OR_FILE_HEADER_LAYOUT_NOT_FROZEN`); raw source quotes are strictly excluded from Export either way",
+    "확인 필요 (REVIEW_REQUIRED): Exact DB Model §3.8 product table/column names for role attribution & contribution evidence (fixture uses `FIXTURE_SEMANTICS_FOR_DB_MODEL_3_8_NOT_PRODUCT_TABLE` without freezing product DB columns)",
+    "확인 필요 (REVIEW_REQUIRED): Option C zero-raw-text runtime verification across live DB, app logs, job queues, caches, and Export (REF-04/REF-06/REF-08 product runtime tests NOT executed)"
   ],
   "source_revisions": [
     {
@@ -43,7 +45,10 @@
         "REF-01",
         "REF-02",
         "REF-03",
-        "REF-05"
+        "REF-05",
+        "REF-06",
+        "REF-07",
+        "REF-08"
       ],
       "source_key": "src02",
       "revision_seq": 1,
@@ -407,6 +412,52 @@
       "contains_canary": false,
       "canary_token_id": null,
       "raw_text_fixture_only": "H1 Engineering Notes\nAuthor: Alex Kim\n\nProject Alpha: I optimized image thumbnail decoding, reducing processing latency from 900ms to 400ms.\nProject Borealis: I migrated 12 internal documentation pages to the new Markdown linter."
+    },
+    {
+      "source_revision_id": "rev-src15-v1-61ce37bb",
+      "scenario_ids": [
+        "SCN-15"
+      ],
+      "source_key": "src15",
+      "revision_seq": 1,
+      "source_kind": "SYNTHETIC_DESIGN_DOC",
+      "synthetic_uri": "https://synthetic.example.test/sources/scn15-q1-payments-role-review",
+      "language": "en",
+      "author_label": "Alex Kim (Verified Owner)",
+      "author_identity_confidence": "VERIFIED_OWNER",
+      "created_at": "2026-04-15T10:00:00Z",
+      "normalization_policy": "fixture-nfc-lf-v0-draft",
+      "content_sha256": "sha256:61ce37bb32efddbfff3a4a7b31e99e7ab3489d7abc9b26532c31f60bc2672ca5",
+      "char_length": 427,
+      "utf8_byte_length": 427,
+      "is_synthetic_fixture": true,
+      "deleted_by_user": false,
+      "contains_canary": false,
+      "canary_token_id": null,
+      "raw_text_fixture_only": "Q1 Payments Platform Architecture Review\nAuthor: Alex Kim (Verified Owner)\n\nDuring the Q1 2026 payments ledger migration, Alex Kim served as Tech Lead for the ledger migration squad, authoring the dual-write cutover RFC and signing off on schema rollout reviews.\nThe broader Core Platform group also ran a quarterly security compliance audit led by the Security team, with no recorded role for Alex Kim in the compliance audit."
+    },
+    {
+      "source_revision_id": "rev-src16-v1-fc6f81e4",
+      "scenario_ids": [
+        "SCN-16"
+      ],
+      "source_key": "src16",
+      "revision_seq": 1,
+      "source_kind": "SYNTHETIC_BENCHMARK_NOTE",
+      "synthetic_uri": "https://synthetic.example.test/sources/scn16-checkout-api-april-latency-report",
+      "language": "en",
+      "author_label": "Alex Kim (Verified Owner)",
+      "author_identity_confidence": "VERIFIED_OWNER",
+      "created_at": "2026-05-02T14:00:00Z",
+      "normalization_policy": "fixture-nfc-lf-v0-draft",
+      "content_sha256": "sha256:fc6f81e4330aaadc566cd7a4841812a363f14b3f315f3b0db8d2f5a31c7d1cdf",
+      "char_length": 535,
+      "utf8_byte_length": 535,
+      "is_synthetic_fixture": true,
+      "deleted_by_user": false,
+      "contains_canary": false,
+      "canary_token_id": null,
+      "raw_text_fixture_only": "Production Checkout API Latency Report (Datadog APM, 2026-04-01 to 2026-04-30)\nAuthor: Alex Kim (Verified Owner)\n\nProblem: Checkout API p99 response latency spiked to 920ms during April 2026 peak traffic due to unindexed order-lookup queries.\nTechnology: I applied a PostgreSQL 16 covering composite index (orders_checkout_idx) to optimize checkout order-lookup queries.\nMetric: In production checkout-api (Datadog APM, 2026-04-01 to 2026-04-30, 30-day window), p99 checkout API latency decreased from 920ms to 210ms (77.2% reduction)."
     },
     {
       "source_revision_id": "rev-src_ref07_canary-v1-7e7ec30a",

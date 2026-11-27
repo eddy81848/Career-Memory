@@ -1,12 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-synthetic-golden-v0.3.0.json",
-  "title": "Career Memory T-004A/B Grounded Claim Pipeline Synthetic Regression Dataset Schema (v0.3.0-synthetic-golden)",
-  "description": "Structural schema for the approved synthetic regression test dataset (v0.3.0-synthetic-golden, approved from v0.3.0-draft @ 5700674). Scope is strictly limited to synthetic regression tests; live LLM evaluation, external connector integration, and unverified REF items (REF-04/05 partial gaps, REF-06..08 coverage gaps) remain excluded. Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED for production.",
+  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-owner-review-candidate-v0.4.0.json",
+  "title": "Career Memory T-004A/B Grounded Claim Pipeline Synthetic Dataset Schema (v0.4.0-owner-review-candidate)",
+  "description": "Structural schema for the v0.4.0-owner-review-candidate dataset package pending human owner review in T-004B (ADR-018: AI cannot record human approval). Separates Stage 2A FactCandidateExtractor vs Stage 2B FactSupportValidator vs CanonicalFact promotion, Stage 3A ClaimGenerator vs Stage 3B ClaimAtomizer vs Stage 3C ClaimSupportValidator with distinct role execution runs, official domain values (Fact types PROBLEM|ACTION|TECHNOLOGY|RESULT|ROLE|METRIC; Atom statuses SUPPORTED|USER_CONFIRMED|UNSUPPORTED|STALE) from TEST_FIXTURE_ONLY labels, and covers synthetic cases for REF-01..REF-08 and CLAIM-05/06/08 while explicitly distinguishing synthetic case preparation from unexecuted product runtime/E2E verification.",
   "$defs": {
     "Sha256Hash": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "OfficialFactType": {
+      "type": "string",
+      "enum": ["PROBLEM", "ACTION", "TECHNOLOGY", "RESULT", "ROLE", "METRIC"]
+    },
+    "OfficialAtomStatus": {
+      "type": "string",
+      "enum": ["SUPPORTED", "USER_CONFIRMED", "UNSUPPORTED", "STALE"]
+    },
+    "SupportRole": {
+      "type": "string",
+      "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"]
     },
     "Locator": {
       "type": "object",
@@ -44,6 +56,154 @@
         "line_start": { "type": "integer", "minimum": 1 },
         "line_end": { "type": "integer", "minimum": 1 },
         "span_sha256": { "$ref": "#/$defs/Sha256Hash" }
+      }
+    },
+    "MetricDetails": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "source_basis",
+        "environment_scope",
+        "measurement_scope"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "minLength": 1 },
+        "unit": { "type": "string", "minLength": 1 },
+        "period": { "type": "string", "minLength": 1 },
+        "source_basis": { "type": "string", "minLength": 1 },
+        "environment_scope": { "type": "string", "enum": ["PRODUCTION", "STAGING_TEST", "UNSPECIFIED"] },
+        "measurement_scope": { "type": "string", "minLength": 1 }
+      }
+    },
+    "PipelineRoleRun": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "scenario_id",
+        "pipeline_role",
+        "stage_code",
+        "model_or_stub_version",
+        "prompt_version",
+        "execution_mode",
+        "input_version_refs",
+        "persists_raw_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": { "type": "string", "pattern": "^run-" },
+        "scenario_id": { "type": "string", "pattern": "^(SCN-[0-9]{2}|REF-0[1-8])$" },
+        "pipeline_role": {
+          "type": "string",
+          "enum": [
+            "FactCandidateExtractor",
+            "FactSupportValidator",
+            "ClaimGenerator",
+            "ClaimAtomizer",
+            "ClaimSupportValidator"
+          ]
+        },
+        "stage_code": {
+          "type": "string",
+          "enum": [
+            "STAGE_2A_FACT_CANDIDATE_EXTRACTION",
+            "STAGE_2B_FACT_SUPPORT_VALIDATION",
+            "STAGE_3A_CLAIM_GENERATION",
+            "STAGE_3B_CLAIM_ATOMIZATION",
+            "STAGE_3C_CLAIM_SUPPORT_VALIDATION"
+          ]
+        },
+        "model_or_stub_version": { "type": "string", "minLength": 3 },
+        "prompt_version": { "type": "string", "minLength": 3 },
+        "execution_mode": { "type": "string", "const": "SYNTHETIC_STUB_OFFLINE" },
+        "input_version_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["entity_type", "entity_id", "version_or_hash"],
+            "additionalProperties": false,
+            "properties": {
+              "entity_type": {
+                "type": "string",
+                "enum": [
+                  "SOURCE_REVISION",
+                  "CONTENT_UNIT",
+                  "FACT_CANDIDATE",
+                  "CONFIRMED_EVENT",
+                  "CANONICAL_FACT",
+                  "CLAIM_VERSION",
+                  "CLAIM_ATOM"
+                ]
+              },
+              "entity_id": { "type": "string", "minLength": 2 },
+              "version_or_hash": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "target_claim_id": { "type": ["string", "null"], "pattern": "^claim-" },
+        "target_claim_version": { "type": ["integer", "null"], "minimum": 1 },
+        "output_initial_status": { "type": ["string", "null"], "enum": ["DRAFT", null] },
+        "uses_claim_draft_or_ai_explanation_as_evidence": { "type": ["boolean", "null"] },
+        "reverification_job_context": {
+          "type": ["object", "null"],
+          "required": [
+            "refetch_checked_in_same_job",
+            "hash_and_locator_verified",
+            "permission_verified",
+            "semantics_verified",
+            "verified_evidence_bindings"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "refetch_checked_in_same_job": { "type": "boolean" },
+            "hash_and_locator_verified": { "type": "boolean" },
+            "permission_verified": { "type": "boolean" },
+            "semantics_verified": { "type": "boolean" },
+            "verified_evidence_bindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "claim_atom_id",
+                  "claim_version",
+                  "canonical_fact_id",
+                  "fact_fixture_sha256",
+                  "fact_support_id",
+                  "support_role",
+                  "source_revision_id",
+                  "source_content_sha256",
+                  "content_unit_id",
+                  "unit_sha256",
+                  "locator_id",
+                  "span_sha256",
+                  "same_job_refetch_result"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "claim_atom_id": { "type": "string", "pattern": "^atom-" },
+                  "claim_version": { "type": "integer", "minimum": 1 },
+                  "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
+                  "fact_fixture_sha256": { "$ref": "#/$defs/Sha256Hash" },
+                  "fact_support_id": { "type": "string", "pattern": "^fs-" },
+                  "support_role": { "$ref": "#/$defs/SupportRole" },
+                  "source_revision_id": { "type": "string", "pattern": "^rev-" },
+                  "source_content_sha256": { "$ref": "#/$defs/Sha256Hash" },
+                  "content_unit_id": { "type": "string", "pattern": "^cu-" },
+                  "unit_sha256": { "$ref": "#/$defs/Sha256Hash" },
+                  "locator_id": { "type": "string", "minLength": 5 },
+                  "span_sha256": { "$ref": "#/$defs/Sha256Hash" },
+                  "same_job_refetch_result": {
+                    "type": "string",
+                    "enum": ["VERIFIED_EXACT_MATCH", "NOT_VERIFIED_OR_BLOCKED"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "persists_raw_text": { "type": "boolean", "const": false }
       }
     },
     "SourceRevision": {
@@ -122,8 +282,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_SOURCE_INPUT" },
         "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
         "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
@@ -173,8 +333,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
         "stage_name": { "type": "string", "const": "STAGE_1_CONTENT_UNIT_SEGMENTATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -182,6 +342,97 @@
           "type": "array",
           "items": { "$ref": "#/$defs/ContentUnit" }
         }
+      }
+    },
+    "FactCandidate": {
+      "type": "object",
+      "required": [
+        "fact_candidate_id",
+        "scenario_id",
+        "extractor_run_id",
+        "extractor_version",
+        "source_revision_id",
+        "content_unit_id",
+        "locator",
+        "proposed_fact_text",
+        "fact_type",
+        "completion_state",
+        "uncertainty_level",
+        "candidate_status",
+        "persists_raw_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fact_candidate_id": { "type": "string", "pattern": "^fcand-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "extractor_run_id": { "type": "string", "pattern": "^run-fact-extract-" },
+        "extractor_version": { "type": "string", "minLength": 3 },
+        "source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "content_unit_id": { "type": "string", "pattern": "^cu-" },
+        "locator": { "$ref": "#/$defs/Locator" },
+        "proposed_fact_text": { "type": "string", "minLength": 5 },
+        "fact_type": { "$ref": "#/$defs/OfficialFactType" },
+        "completion_state": {
+          "type": "string",
+          "enum": ["COMPLETED", "PLANNED", "NEGATED", "CORRECTED", "OBSERVED_CORRELATION", "UNKNOWN"]
+        },
+        "uncertainty_level": {
+          "type": "string",
+          "enum": [
+            "EXPLICIT_CERTAIN",
+            "QUALIFIED_OR_CONDITIONAL",
+            "OBSERVATION_TIME_PLAN",
+            "AMBIGUOUS_ATTRIBUTION",
+            "CONFOUNDED_NO_CAUSATION",
+            "REFUTED_BY_CORRECTION",
+            "UNVERIFIED_EXTRACTOR_OVERCLAIM"
+          ]
+        },
+        "candidate_status": { "type": "string", "const": "EXTRACTED_UNVALIDATED" },
+        "persists_raw_text": { "type": "boolean", "const": false }
+      }
+    },
+    "FactSupportValidation": {
+      "type": "object",
+      "required": [
+        "validation_id",
+        "scenario_id",
+        "fact_candidate_id",
+        "validator_run_id",
+        "source_revision_id",
+        "content_unit_id",
+        "verified_locator",
+        "revision_and_locator_verified",
+        "support_role",
+        "promotion_decision",
+        "promoted_canonical_fact_id",
+        "rejection_reason",
+        "persists_raw_text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "validation_id": { "type": "string", "pattern": "^fval-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "fact_candidate_id": { "type": "string", "pattern": "^fcand-" },
+        "validator_run_id": { "type": "string", "pattern": "^run-fact-validate-" },
+        "source_revision_id": { "type": "string", "pattern": "^rev-" },
+        "content_unit_id": { "type": "string", "pattern": "^cu-" },
+        "verified_locator": { "$ref": "#/$defs/Locator" },
+        "revision_and_locator_verified": { "type": "boolean" },
+        "support_role": { "$ref": "#/$defs/SupportRole" },
+        "promotion_decision": {
+          "type": "string",
+          "enum": [
+            "PROMOTE_TO_CANONICAL_FACT",
+            "PROMOTE_AS_CONFLICTING_RECORD",
+            "PROMOTE_AS_IDENTITY_UNRESOLVED_RECORD",
+            "PROMOTE_AS_DELETED_RECORD",
+            "REJECT_DO_NOT_PROMOTE"
+          ]
+        },
+        "promoted_canonical_fact_id": { "type": ["string", "null"], "pattern": "^fact-" },
+        "rejection_reason": { "type": ["string", "null"] },
+        "persists_raw_text": { "type": "boolean", "const": false }
       }
     },
     "FactSupport": {
@@ -192,6 +443,7 @@
         "canonical_fact_id",
         "source_revision_id",
         "content_unit_id",
+        "validator_run_id",
         "support_role",
         "locator",
         "persists_raw_text"
@@ -203,7 +455,8 @@
         "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
         "source_revision_id": { "type": "string", "pattern": "^rev-" },
         "content_unit_id": { "type": "string", "pattern": "^cu-" },
-        "support_role": { "type": "string", "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"] },
+        "validator_run_id": { "type": "string", "pattern": "^run-fact-validate-" },
+        "support_role": { "$ref": "#/$defs/SupportRole" },
         "locator": { "$ref": "#/$defs/Locator" },
         "persists_raw_text": { "type": "boolean", "const": false }
       }
@@ -213,37 +466,100 @@
       "required": [
         "canonical_fact_id",
         "scenario_id",
+        "source_candidate_id",
+        "validator_run_id",
         "fact_text",
-        "fact_category",
+        "fact_type",
+        "fact_support_status",
+        "is_active_supported_fact",
         "modality",
         "environment_scope",
         "attribution_scope",
         "identity_status",
-        "deleted_by_user"
+        "deleted_by_user",
+        "fixture_classification"
       ],
       "additionalProperties": false,
       "properties": {
         "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
         "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "source_candidate_id": { "type": "string", "pattern": "^fcand-" },
+        "validator_run_id": { "type": "string", "pattern": "^run-fact-validate-" },
         "fact_text": { "type": "string", "minLength": 5 },
-        "fact_category": {
+        "fact_type": { "$ref": "#/$defs/OfficialFactType" },
+        "fact_support_status": {
           "type": "string",
           "enum": [
-            "ENGINEERING_DELIVERY",
-            "INCIDENT_RECORD",
-            "PLAN_OR_PROPOSAL",
-            "NEGATIVE_OUTCOME",
-            "BENCHMARK_RESULT",
-            "LAUNCH_EVENT",
-            "CORRECTION_NOTICE",
-            "PROJECT_CONTEXT"
+            "SUPPORTED",
+            "CONFLICTING_REVIEW_REQUIRED",
+            "IDENTITY_UNRESOLVED_REVIEW_REQUIRED",
+            "DELETED_REVIEW_REQUIRED"
           ]
         },
+        "is_active_supported_fact": { "type": "boolean" },
         "modality": { "type": "string", "enum": ["COMPLETED", "PLANNED", "NEGATED", "OBSERVED_CORRELATION"] },
         "environment_scope": { "type": "string", "enum": ["PRODUCTION", "STAGING_TEST", "UNSPECIFIED"] },
         "attribution_scope": { "type": "string", "enum": ["INDIVIDUAL", "TEAM", "AMBIGUOUS", "UNSPECIFIED"] },
         "identity_status": { "type": "string", "enum": ["RESOLVED", "AMBIGUOUS"] },
-        "deleted_by_user": { "type": "boolean" }
+        "deleted_by_user": { "type": "boolean" },
+        "metric_details": {
+          "$ref": "#/$defs/MetricDetails"
+        },
+        "role_attribution_grounding": {
+          "type": "object",
+          "required": [
+            "representation_scope",
+            "subject_person_ref",
+            "confirmed_event_id",
+            "role_label",
+            "author_match_or_role_string_alone_insufficient",
+            "active_contribution_fact_support_ids",
+            "contribution_contributor_person_ref",
+            "contribution_summary"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "representation_scope": {
+              "type": "string",
+              "const": "FIXTURE_SEMANTICS_FOR_DB_MODEL_3_8_NOT_PRODUCT_TABLE"
+            },
+            "subject_person_ref": { "type": "string", "minLength": 3 },
+            "confirmed_event_id": { "type": "string", "pattern": "^evt-career-" },
+            "role_label": { "type": "string", "minLength": 2 },
+            "author_match_or_role_string_alone_insufficient": { "type": "boolean", "const": true },
+            "active_contribution_fact_support_ids": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^fs-" }
+            },
+            "contribution_contributor_person_ref": { "type": ["string", "null"] },
+            "contribution_summary": { "type": "string", "minLength": 5 }
+          }
+        },
+        "fixture_classification": {
+          "type": "object",
+          "required": ["label_scope", "legacy_test_category", "fixture_fact_sha256"],
+          "additionalProperties": false,
+          "properties": {
+            "label_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API" },
+            "fixture_fact_sha256": { "$ref": "#/$defs/Sha256Hash" },
+            "legacy_test_category": {
+              "type": "string",
+              "enum": [
+                "ENGINEERING_DELIVERY",
+                "INCIDENT_RECORD",
+                "PLAN_OR_PROPOSAL",
+                "NEGATIVE_OUTCOME",
+                "BENCHMARK_RESULT",
+                "LAUNCH_EVENT",
+                "CORRECTION_NOTICE",
+                "PROJECT_CONTEXT",
+                "ROLE_EVIDENCE",
+                "SYSTEM_PROBLEM",
+                "TECHNOLOGY_ADOPTION"
+              ]
+            }
+          }
+        }
       }
     },
     "Stage2FactExtractionFile": {
@@ -254,18 +570,40 @@
         "stage_name",
         "stage_responsibility",
         "artifact_role",
+        "extractor_runs",
+        "validator_runs",
+        "scenario_candidate_counts",
         "scenario_fact_counts",
+        "fact_candidates",
+        "fact_support_validations",
         "canonical_facts",
         "fact_supports"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION_AND_VALIDATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "extractor_runs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PipelineRoleRun" }
+        },
+        "validator_runs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PipelineRoleRun" }
+        },
+        "scenario_candidate_counts": { "type": "object" },
         "scenario_fact_counts": { "type": "object" },
+        "fact_candidates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FactCandidate" }
+        },
+        "fact_support_validations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FactSupportValidation" }
+        },
         "canonical_facts": {
           "type": "array",
           "items": { "$ref": "#/$defs/CanonicalFact" }
@@ -276,6 +614,29 @@
         }
       }
     },
+    "ConfirmedEvent": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "scenario_id",
+        "event_status",
+        "title",
+        "source_revision_ids",
+        "fixture_event_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string", "pattern": "^evt-career-" },
+        "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "event_status": { "type": "string", "const": "CONFIRMED" },
+        "title": { "type": "string", "minLength": 3 },
+        "source_revision_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^rev-" }
+        },
+        "fixture_event_sha256": { "$ref": "#/$defs/Sha256Hash" }
+      }
+    },
     "ClaimAtomSupport": {
       "type": "object",
       "required": [
@@ -283,6 +644,8 @@
         "scenario_id",
         "claim_atom_id",
         "canonical_fact_id",
+        "validator_run_id",
+        "evidence_source_kind",
         "support_role",
         "evaluated_on_claim_version",
         "removed_by_user"
@@ -293,7 +656,9 @@
         "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
         "claim_atom_id": { "type": "string", "pattern": "^atom-" },
         "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
-        "support_role": { "type": "string", "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"] },
+        "validator_run_id": { "type": "string", "pattern": "^run-claim-validate-" },
+        "evidence_source_kind": { "type": "string", "const": "CANONICAL_FACT" },
+        "support_role": { "$ref": "#/$defs/SupportRole" },
         "evaluated_on_claim_version": { "type": "integer", "minimum": 1 },
         "removed_by_user": { "type": "boolean" }
       }
@@ -304,27 +669,43 @@
         "claim_atom_id",
         "scenario_id",
         "claim_id",
+        "claim_version",
+        "atomizer_run_id",
+        "validator_run_id",
         "atom_text",
-        "atom_kind",
         "is_required_atom",
         "user_edited",
-        "is_hard_negative"
+        "user_confirmed_by_owner",
+        "is_hard_negative",
+        "fixture_classification"
       ],
       "additionalProperties": false,
       "properties": {
         "claim_atom_id": { "type": "string", "pattern": "^atom-" },
         "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
         "claim_id": { "type": "string", "pattern": "^claim-" },
+        "claim_version": { "type": "integer", "minimum": 1 },
+        "atomizer_run_id": { "type": "string", "pattern": "^run-atomize-" },
+        "validator_run_id": { "type": ["string", "null"], "pattern": "^run-claim-validate-" },
         "atom_text": { "type": "string", "minLength": 5 },
-        "atom_kind": {
-          "type": "string",
-          "enum": ["ACTION", "OUTCOME_METRIC", "SCOPE_ENVIRONMENT", "ATTRIBUTION", "TIMING"]
-        },
         "is_required_atom": { "type": "boolean" },
         "user_edited": { "type": "boolean" },
+        "user_confirmed_by_owner": { "type": "boolean" },
         "edit_severity": { "type": ["string", "null"], "enum": ["NONE", "MINOR_PARAPHRASE", "SUBSTANTIVE", null] },
         "is_hard_negative": { "type": "boolean" },
-        "hard_negative_type": { "type": ["string", "null"] }
+        "hard_negative_type": { "type": ["string", "null"] },
+        "fixture_classification": {
+          "type": "object",
+          "required": ["label_scope", "test_atom_kind"],
+          "additionalProperties": false,
+          "properties": {
+            "label_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API" },
+            "test_atom_kind": {
+              "type": "string",
+              "enum": ["ACTION", "OUTCOME_METRIC", "SCOPE_ENVIRONMENT", "ATTRIBUTION", "TIMING", "ROLE", "TECHNOLOGY"]
+            }
+          }
+        }
       }
     },
     "Claim": {
@@ -332,8 +713,16 @@
       "required": [
         "claim_id",
         "scenario_id",
+        "confirmed_event_id",
+        "input_fact_ids",
         "claim_version",
         "previous_claim_version",
+        "generator_initial_status",
+        "user_can_directly_set_source_verified",
+        "generator_run_id",
+        "atomizer_run_id",
+        "validator_run_id",
+        "generation_fixture_origin",
         "claim_text",
         "claim_atom_ids",
         "user_edited",
@@ -345,8 +734,27 @@
       "properties": {
         "claim_id": { "type": "string", "pattern": "^claim-" },
         "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "confirmed_event_id": { "type": "string", "pattern": "^evt-career-" },
+        "input_fact_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^fact-" }
+        },
         "claim_version": { "type": "integer", "minimum": 1 },
         "previous_claim_version": { "type": ["integer", "null"], "minimum": 1 },
+        "generator_initial_status": { "type": "string", "const": "DRAFT" },
+        "user_can_directly_set_source_verified": { "type": "boolean", "const": false },
+        "generator_run_id": { "type": "string", "pattern": "^run-claim-gen-" },
+        "atomizer_run_id": { "type": "string", "pattern": "^run-atomize-" },
+        "validator_run_id": { "type": ["string", "null"], "pattern": "^run-claim-validate-" },
+        "generation_fixture_origin": {
+          "type": "string",
+          "enum": [
+            "GENERATED_FROM_SUPPORTED_FACTS",
+            "ADVERSARIAL_NEGATIVE_TEST_INPUT",
+            "USER_EDITED_NEW_VERSION",
+            "USER_CONFIRMED_UNSUPPORTED_TEST_INPUT"
+          ]
+        },
         "claim_text": { "type": "string", "minLength": 5 },
         "claim_atom_ids": {
           "type": "array",
@@ -377,6 +785,7 @@
                 "enum": [
                   "EDIT_CLAIM_TEXT",
                   "EDIT_ATOM_TEXT",
+                  "USER_CONFIRM_UNSUPPORTED_ATOM",
                   "DELETE_SOURCE",
                   "DELETE_SOURCE_PREVIEW_CONFIRMED",
                   "BLOCK_DEPENDENT_CLAIM_ACCESS",
@@ -385,7 +794,7 @@
                   "REMOVE_SUPPORT"
                 ]
               },
-              "severity": { "type": "string", "enum": ["MINOR_PARAPHRASE", "SUBSTANTIVE", "CASCADE_DELETE"] },
+              "severity": { "type": "string", "enum": ["MINOR_PARAPHRASE", "SUBSTANTIVE", "CASCADE_DELETE", "USER_CONFIRMATION_ONLY"] },
               "note": { "type": "string" }
             }
           }
@@ -456,17 +865,27 @@
         "stage_name",
         "stage_responsibility",
         "artifact_role",
+        "confirmed_events",
+        "role_execution_runs",
         "claims",
         "claim_atoms",
         "claim_atom_supports"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_ASSEMBLY" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_GENERATION_ATOMIZATION_VALIDATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
+        "confirmed_events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConfirmedEvent" }
+        },
+        "role_execution_runs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PipelineRoleRun" }
+        },
         "claims": {
           "type": "array",
           "items": { "$ref": "#/$defs/Claim" }
@@ -532,8 +951,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_REFETCH_STUB_INPUT" },
         "refetch_snapshots": {
           "type": "array",
@@ -579,8 +998,23 @@
             "STUB_TRANSIENT_SERVER_ERROR_5XX_RETRY_EXHAUSTED",
             "STUB_TRANSIENT_TIMEOUT_RETRY_EXHAUSTED",
             "STUB_CANARY_STATIC_SNAPSHOT_CLEAN",
+            "STUB_CANARY_JOB_CACHE_EXPORT_SURFACES_CLEAN",
             "STUB_POLICY_PERMISSION_DENIED_403",
-            "STUB_UNSAFE_URL_BLOCKED_PREFETCH"
+            "STUB_UNSAFE_URL_BLOCKED_PREFETCH",
+            "STUB_REF06_PRE_COMMIT_CRASH_REPLAY_REPRODUCED",
+            "STUB_REF06_POST_COMMIT_CRASH_IDEMPOTENT_REPLAY",
+            "STUB_REF06_MEMORY_LOST_HASH_CHANGED_BLOCKED",
+            "STUB_REF07_APPROVAL_SAME_JOB_REFETCH_PASSED",
+            "STUB_REF07_EXPORT_SAME_JOB_REFETCH_PASSED_NO_RAW_QUOTE",
+            "STUB_REF07_EVIDENCE_VIEW_SAME_JOB_REFETCH_PASSED",
+            "STUB_REF07_PRIOR_CHECK_ONLY_BLOCKED",
+            "STUB_REF07_TOCTOU_PERMISSION_OR_VALIDITY_CHANGED_BLOCKED",
+            "STUB_REF07_EXPORT_UNAPPROVED_CLAIM_BLOCKED",
+            "STUB_REF07_EXPORT_VERSION_MISMATCH_BLOCKED",
+            "STUB_REF08_IN_MEMORY_DEDUP_WITHIN_LIMITS_PASSED",
+            "STUB_REF08_SEPARATE_JOB_METADATA_HANDOFF_REFETCH_PASSED",
+            "STUB_REF08_BYTE_TOKEN_LIMIT_EXCEEDED_BLOCKED_NO_TRUNCATION",
+            "STUB_REF08_REQUEST_RETRY_CONCURRENCY_LIMIT_BLOCKED_NO_TRUNCATION"
           ]
         },
         "locator_recheck_matched": { "type": ["boolean", "null"] },
@@ -606,6 +1040,154 @@
             "distinguished_from_404": { "type": "boolean" }
           }
         },
+        "canary_audit_surfaces": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string",
+            "enum": ["DB_SNAPSHOT", "APP_LOG", "JOB_PAYLOAD", "CACHE_ENTRY", "EXPORT_ARTIFACT"]
+          }
+        },
+        "crash_replay_stub": {
+          "type": ["object", "null"],
+          "required": [
+            "crash_timing",
+            "atomic_metadata_checkpoint_commit",
+            "checkpoint_persisted_before_crash",
+            "in_memory_raw_text_wiped",
+            "raw_text_fallback_path_exists",
+            "idempotency_key",
+            "replay_refetch_executed",
+            "duplicate_records_created",
+            "checkpoint_payload"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "crash_timing": { "type": "string", "enum": ["BEFORE_COMMIT", "AFTER_COMMIT"] },
+            "atomic_metadata_checkpoint_commit": { "type": "boolean" },
+            "checkpoint_persisted_before_crash": { "type": "boolean" },
+            "in_memory_raw_text_wiped": { "type": "boolean" },
+            "raw_text_fallback_path_exists": { "type": "boolean" },
+            "idempotency_key": { "type": "string", "minLength": 5 },
+            "replay_refetch_executed": { "type": "boolean" },
+            "duplicate_records_created": { "type": "integer", "minimum": 0 },
+            "checkpoint_payload": { "type": "object" }
+          }
+        },
+        "operation_refetch_stub": {
+          "type": ["object", "null"],
+          "required": [
+            "operation_type",
+            "same_job_refetch_executed",
+            "prior_verification_record_only",
+            "permission_or_validity_changed_before_save",
+            "checked_at_recorded_in_audit",
+            "verification_audit_record",
+            "export_payload_snapshot",
+            "export_excludes_raw_source_quotes",
+            "ephemeral_memory_only_display"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "operation_type": { "type": "string", "enum": ["APPROVAL", "EXPORT_DOWNLOAD", "EVIDENCE_VIEW"] },
+            "same_job_refetch_executed": { "type": "boolean" },
+            "prior_verification_record_only": { "type": "boolean" },
+            "permission_or_validity_changed_before_save": { "type": "boolean" },
+            "checked_at_recorded_in_audit": { "type": "boolean" },
+            "verification_audit_record": { "type": "object" },
+            "export_precondition_input": {
+              "type": ["object", "null"],
+              "required": [
+                "requested_claim_id",
+                "requested_claim_version",
+                "claim_version_approved",
+                "approved_claim_version",
+                "requested_version_matches_approved_version",
+                "export_artifact_emitted",
+                "metadata_layout_convention_scope"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "requested_claim_id": { "type": "string", "pattern": "^claim-" },
+                "requested_claim_version": { "type": "integer", "minimum": 1 },
+                "claim_version_approved": { "type": "boolean" },
+                "approved_claim_version": { "type": ["integer", "null"], "minimum": 1 },
+                "requested_version_matches_approved_version": { "type": "boolean" },
+                "export_artifact_emitted": { "type": "boolean" },
+                "metadata_layout_convention_scope": {
+                  "type": "string",
+                  "const": "TEST_FIXTURE_ONLY_API_OR_FILE_HEADER_LAYOUT_NOT_FROZEN"
+                }
+              }
+            },
+            "export_payload_snapshot": { "type": ["object", "null"] },
+            "export_excludes_raw_source_quotes": { "type": ["boolean", "null"] },
+            "ephemeral_memory_only_display": { "type": ["boolean", "null"] }
+          }
+        },
+        "limits_and_boundary_stub": {
+          "type": ["object", "null"],
+          "required": [
+            "limits_convention_scope",
+            "transport_mode",
+            "limits_configured",
+            "observed_usage",
+            "limit_breached",
+            "input_unit_refs_count",
+            "deduplicated_unit_count",
+            "duplicate_units_removed_in_job",
+            "inter_job_handoff_payload",
+            "next_job_refetch_executed",
+            "silent_truncation_occurred",
+            "required_evidence_dropped_silently"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "limits_convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NUMERIC_THRESHOLDS_REVIEW_REQUIRED" },
+            "transport_mode": {
+              "type": "string",
+              "enum": ["IN_MEMORY_SAME_JOB_ONLY", "SEPARATE_JOB_METADATA_ONLY_HANDOFF"]
+            },
+            "limits_configured": {
+              "type": "object",
+              "required": ["max_requests", "max_bytes", "max_tokens", "max_retries", "max_concurrency"],
+              "additionalProperties": false,
+              "properties": {
+                "max_requests": { "type": "integer", "minimum": 1 },
+                "max_bytes": { "type": "integer", "minimum": 1 },
+                "max_tokens": { "type": "integer", "minimum": 1 },
+                "max_retries": { "type": "integer", "minimum": 1 },
+                "max_concurrency": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "observed_usage": {
+              "type": "object",
+              "required": ["requests", "bytes", "tokens", "retries", "concurrency"],
+              "additionalProperties": false,
+              "properties": {
+                "requests": { "type": "integer", "minimum": 0 },
+                "bytes": { "type": "integer", "minimum": 0 },
+                "tokens": { "type": "integer", "minimum": 0 },
+                "retries": { "type": "integer", "minimum": 0 },
+                "concurrency": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "limit_breached": {
+              "type": ["string", "null"],
+              "enum": [
+                null,
+                "BYTE_AND_TOKEN_LIMIT_EXCEEDED",
+                "REQUEST_RETRY_CONCURRENCY_LIMIT_EXCEEDED"
+              ]
+            },
+            "input_unit_refs_count": { "type": "integer", "minimum": 1 },
+            "deduplicated_unit_count": { "type": "integer", "minimum": 1 },
+            "duplicate_units_removed_in_job": { "type": "integer", "minimum": 0 },
+            "inter_job_handoff_payload": { "type": ["object", "null"] },
+            "next_job_refetch_executed": { "type": "boolean" },
+            "silent_truncation_occurred": { "type": "boolean" },
+            "required_evidence_dropped_silently": { "type": "boolean" }
+          }
+        },
         "persisted_payload_snapshot": { "type": "object" },
         "negative_leaky_payload_fixture": { "type": ["object", "null"] },
         "post_mvp_tags": {
@@ -626,8 +1208,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
         "stage_name": { "type": "string", "const": "STAGE_4_REFETCH_VERIFICATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -644,35 +1226,37 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
-        "golden_scope",
-        "verdict_namespace",
-        "product_status_mapping_policy",
+        "candidate_scope",
+        "domain_vs_fixture_label_policy",
         "frozen_for_golden",
+        "human_approved",
         "requires_human_review_task",
         "provenance_and_freeze_preconditions",
         "scenarios",
+        "expected_facts",
         "expected_atoms",
         "expected_claims"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_APPROVED_SYNTHETIC_REGRESSION" },
-        "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
-        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
-        "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
-        "product_status_mapping_policy": { "type": "string", "minLength": 10 },
-        "frozen_for_golden": { "type": "boolean", "const": true },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_OWNER_REVIEW_CANDIDATE" },
+        "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
+        "candidate_scope": { "type": "string", "const": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED" },
+        "domain_vs_fixture_label_policy": { "type": "string", "minLength": 10 },
+        "frozen_for_golden": { "type": "boolean", "const": false },
+        "human_approved": { "type": "boolean", "const": false },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
         "provenance_and_freeze_preconditions": {
           "type": "object",
           "required": [
-            "base_commit_sha",
-            "approved_from_draft_commit_sha",
-            "approved_from_draft_version",
-            "review_source_ref",
+            "supersedes_baseline_commit_sha",
+            "supersedes_baseline_version",
+            "spec_sync_basis",
             "human_approval_status",
+            "human_approved",
+            "adr_018_ai_cannot_self_approve",
             "family_split_anti_leakage_rule",
             "live_llm_evaluation_in_scope",
             "production_connector_integration_in_scope",
@@ -680,11 +1264,12 @@
           ],
           "additionalProperties": false,
           "properties": {
-            "base_commit_sha": { "type": "string", "minLength": 7 },
-            "approved_from_draft_commit_sha": { "type": "string", "minLength": 7 },
-            "approved_from_draft_version": { "type": "string", "minLength": 3 },
-            "review_source_ref": { "type": "string", "minLength": 5 },
-            "human_approval_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION_ONLY" },
+            "supersedes_baseline_commit_sha": { "type": "string", "minLength": 7 },
+            "supersedes_baseline_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+            "spec_sync_basis": { "type": "string", "minLength": 10 },
+            "human_approval_status": { "type": "string", "const": "PENDING_OWNER_REVIEW_NOT_APPROVED" },
+            "human_approved": { "type": "boolean", "const": false },
+            "adr_018_ai_cannot_self_approve": { "type": "boolean", "const": true },
             "family_split_anti_leakage_rule": { "type": "string", "minLength": 10 },
             "live_llm_evaluation_in_scope": { "type": "boolean", "const": false },
             "production_connector_integration_in_scope": { "type": "boolean", "const": false },
@@ -700,7 +1285,9 @@
               "evaluation_family_id",
               "evaluation_partition",
               "title",
+              "notion_test_ids",
               "coverage_tags",
+              "expected_candidate_count",
               "expected_fact_count",
               "expected_atom_count",
               "oracle_status",
@@ -716,11 +1303,56 @@
                 "enum": ["SYNTHETIC_REGRESSION_DEV", "SYNTHETIC_REGRESSION_TEST"]
               },
               "title": { "type": "string" },
+              "notion_test_ids": { "type": "array", "items": { "type": "string" } },
               "coverage_tags": { "type": "array", "items": { "type": "string" } },
+              "expected_candidate_count": { "type": "integer", "minimum": 0 },
               "expected_fact_count": { "type": "integer", "minimum": 0 },
               "expected_atom_count": { "type": "integer", "minimum": 1 },
-              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
               "review_required_items": { "type": "array", "items": { "type": "string" } },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "expected_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "fact_candidate_id",
+              "scenario_id",
+              "expected_fact_type",
+              "expected_validator_support_roles",
+              "expected_promotion_decision",
+              "expected_canonical_fact_id",
+              "expected_active_supported_fact",
+              "oracle_status",
+              "review_required",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "fact_candidate_id": { "type": "string", "pattern": "^fcand-" },
+              "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+              "expected_fact_type": { "$ref": "#/$defs/OfficialFactType" },
+              "expected_validator_support_roles": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/SupportRole" }
+              },
+              "expected_promotion_decision": {
+                "type": "string",
+                "enum": [
+                  "PROMOTE_TO_CANONICAL_FACT",
+                  "PROMOTE_AS_CONFLICTING_RECORD",
+                  "PROMOTE_AS_IDENTITY_UNRESOLVED_RECORD",
+                  "PROMOTE_AS_DELETED_RECORD",
+                  "REJECT_DO_NOT_PROMOTE"
+                ]
+              },
+              "expected_canonical_fact_id": { "type": ["string", "null"], "pattern": "^fact-" },
+              "expected_active_supported_fact": { "type": "boolean" },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
+              "review_required": { "type": "boolean" },
               "rationale": { "type": "string" }
             }
           }
@@ -733,7 +1365,8 @@
               "claim_atom_id",
               "scenario_id",
               "claim_id",
-              "draft_atom_verdict",
+              "expected_domain_atom_status",
+              "fixture_test_classification",
               "oracle_status",
               "review_required",
               "rationale"
@@ -743,22 +1376,33 @@
               "claim_atom_id": { "type": "string", "pattern": "^atom-" },
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
               "claim_id": { "type": "string", "pattern": "^claim-" },
-              "draft_atom_verdict": {
-                "type": "string",
-                "enum": [
-                  "DRAFT_ATOM_SUPPORTED_DIRECT",
-                  "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
-                  "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
-                  "DRAFT_ATOM_UNSUPPORTED",
-                  "DRAFT_ATOM_CONTRADICTED",
-                  "DRAFT_ATOM_IDENTITY_AMBIGUOUS",
-                  "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION",
-                  "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
-                  "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
-                  "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
-                ]
+              "expected_domain_atom_status": { "$ref": "#/$defs/OfficialAtomStatus" },
+              "od003_purged_after_cleanup": { "type": "boolean" },
+              "fixture_test_classification": {
+                "type": "object",
+                "required": ["label_scope", "draft_atom_verdict"],
+                "additionalProperties": false,
+                "properties": {
+                  "label_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API" },
+                  "draft_atom_verdict": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT_ATOM_SUPPORTED_DIRECT",
+                      "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
+                      "DRAFT_ATOM_USER_CONFIRMED_NOT_SOURCE_VERIFIED",
+                      "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
+                      "DRAFT_ATOM_UNSUPPORTED",
+                      "DRAFT_ATOM_CONTRADICTED",
+                      "DRAFT_ATOM_IDENTITY_AMBIGUOUS",
+                      "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION",
+                      "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
+                      "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
+                      "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
+                    ]
+                  }
+                }
               },
-              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
               "review_required": { "type": "boolean" },
               "rationale": { "type": "string" }
             }
@@ -771,9 +1415,11 @@
             "required": [
               "claim_id",
               "scenario_id",
-              "draft_claim_verdict",
-              "source_verified_eligible",
-              "product_status_proposal",
+              "notion_test_ids",
+              "expected_source_verified_computed",
+              "same_job_refetch_required_for_source_verified",
+              "expected_domain_claim_status_note",
+              "fixture_test_classification",
               "oracle_status",
               "review_required",
               "rationale"
@@ -782,27 +1428,45 @@
             "properties": {
               "claim_id": { "type": "string", "pattern": "^claim-" },
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
-              "draft_claim_verdict": {
+              "notion_test_ids": { "type": "array", "items": { "type": "string" } },
+              "expected_source_verified_computed": { "type": "boolean" },
+              "same_job_refetch_required_for_source_verified": { "type": "boolean", "const": true },
+              "expected_domain_claim_status_note": {
                 "type": "string",
                 "enum": [
-                  "DRAFT_CLAIM_GROUNDED_CANDIDATE",
-                  "DRAFT_CLAIM_PARTIALLY_GROUNDED",
-                  "DRAFT_CLAIM_UNGROUNDED",
-                  "DRAFT_CLAIM_CONFLICTING",
-                  "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
-                  "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
-                  "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
-                  "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION",
-                  "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003"
+                  "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+                  "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED"
                 ]
               },
-              "source_verified_eligible": { "type": "boolean" },
-              "product_status_proposal": {
-                "type": "string",
-                "enum": [
-                  "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
-                  "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
-                ]
+              "fixture_test_classification": {
+                "type": "object",
+                "required": ["label_scope", "draft_claim_verdict", "product_status_proposal"],
+                "additionalProperties": false,
+                "properties": {
+                  "label_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API" },
+                  "draft_claim_verdict": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+                      "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+                      "DRAFT_CLAIM_USER_CONFIRMED_ONLY_NOT_SOURCE_VERIFIED",
+                      "DRAFT_CLAIM_UNGROUNDED",
+                      "DRAFT_CLAIM_CONFLICTING",
+                      "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
+                      "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
+                      "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
+                      "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION",
+                      "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003"
+                    ]
+                  },
+                  "product_status_proposal": {
+                    "type": "string",
+                    "enum": [
+                      "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
+                      "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+                    ]
+                  }
+                }
               },
               "od003_expected_post_cleanup": {
                 "type": ["object", "null"],
@@ -836,7 +1500,7 @@
                   "partially_grounded_forbidden_post_deletion": { "type": "boolean" }
                 }
               },
-              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
               "review_required": { "type": "boolean" },
               "rationale": { "type": "string" }
             }
@@ -851,24 +1515,24 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
-        "golden_scope",
-        "verdict_namespace",
-        "product_status_mapping_policy",
+        "candidate_scope",
+        "domain_vs_fixture_label_policy",
         "frozen_for_golden",
+        "human_approved",
         "requires_human_review_task",
         "official_ref_matrix",
         "expected_refetch_fixtures"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_APPROVED_SYNTHETIC_REGRESSION" },
-        "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
-        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
-        "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
-        "product_status_mapping_policy": { "type": "string", "minLength": 10 },
-        "frozen_for_golden": { "type": "boolean", "const": true },
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_OWNER_REVIEW_CANDIDATE" },
+        "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
+        "candidate_scope": { "type": "string", "const": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED" },
+        "domain_vs_fixture_label_policy": { "type": "string", "minLength": 10 },
+        "frozen_for_golden": { "type": "boolean", "const": false },
+        "human_approved": { "type": "boolean", "const": false },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
         "official_ref_matrix": {
           "type": "array",
@@ -877,8 +1541,8 @@
             "required": [
               "official_ref_id",
               "official_requirement_label",
-              "coverage_status",
-              "verified_in_draft",
+              "synthetic_fixture_coverage_status",
+              "product_runtime_verified",
               "linked_fixture_case_ids",
               "coverage_gap_details",
               "oracle_status",
@@ -888,11 +1552,15 @@
             "properties": {
               "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
               "official_requirement_label": { "type": "string", "minLength": 5 },
-              "coverage_status": {
+              "synthetic_fixture_coverage_status": {
                 "type": "string",
-                "enum": ["COVERED_SYNTHETIC_STUB", "PARTIAL_COVERAGE_GAP", "COVERAGE_GAP"]
+                "enum": [
+                  "SYNTHETIC_STUB_PREPARED",
+                  "PARTIAL_STATIC_FIXTURE_PREPARED",
+                  "SYNTHETIC_CASE_PREPARED_RUNTIME_UNVERIFIED"
+                ]
               },
-              "verified_in_draft": { "type": "boolean" },
+              "product_runtime_verified": { "type": "boolean", "const": false },
               "linked_fixture_case_ids": {
                 "type": "array",
                 "items": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" }
@@ -901,14 +1569,7 @@
                 "type": "array",
                 "items": { "type": "string" }
               },
-              "oracle_status": {
-                "type": "string",
-                "enum": [
-                  "APPROVED_SYNTHETIC_REGRESSION",
-                  "PARTIAL_UNVERIFIED_COVERAGE_GAP",
-                  "UNVERIFIED_COVERAGE_GAP"
-                ]
-              },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
               "review_required_items": {
                 "type": "array",
                 "items": { "type": "string" }
@@ -926,7 +1587,7 @@
               "evaluation_partition",
               "official_ref_id",
               "legacy_draft_id",
-              "draft_refetch_verdict",
+              "fixture_test_classification",
               "expected_fetch_attempted",
               "expected_unverifiable_now",
               "expected_approval_blocked",
@@ -950,22 +1611,45 @@
               },
               "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
               "legacy_draft_id": { "type": ["string", "null"], "pattern": "^REF-0[1-8]$" },
-              "draft_refetch_verdict": {
-                "type": "string",
-                "enum": [
-                  "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
-                  "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
-                  "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
-                  "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
-                  "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
-                  "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
-                  "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
-                  "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
-                  "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
-                  "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
-                  "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
-                  "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH"
-                ]
+              "fixture_test_classification": {
+                "type": "object",
+                "required": ["label_scope", "draft_refetch_verdict"],
+                "additionalProperties": false,
+                "properties": {
+                  "label_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API" },
+                  "draft_refetch_verdict": {
+                    "type": "string",
+                    "enum": [
+                      "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
+                      "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
+                      "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
+                      "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
+                      "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+                      "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+                      "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+                      "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+                      "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+                      "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
+                      "DRAFT_REFETCH_STATIC_CANARY_JOB_CACHE_EXPORT_CLEAN",
+                      "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
+                      "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH",
+                      "DRAFT_REFETCH_REF06_PRE_COMMIT_CRASH_REPLAY_REPRODUCED",
+                      "DRAFT_REFETCH_REF06_POST_COMMIT_CRASH_IDEMPOTENT_REPLAY",
+                      "DRAFT_REFETCH_REF06_MEMORY_LOST_HASH_CHANGED_BLOCKED",
+                      "DRAFT_REFETCH_REF07_APPROVAL_SAME_JOB_VERIFIED",
+                      "DRAFT_REFETCH_REF07_EXPORT_SAME_JOB_VERIFIED_NO_RAW_QUOTE",
+                      "DRAFT_REFETCH_REF07_EVIDENCE_VIEW_SAME_JOB_VERIFIED",
+                      "DRAFT_REFETCH_REF07_PRIOR_RECORD_ONLY_BLOCKED",
+                      "DRAFT_REFETCH_REF07_TOCTOU_STATE_CHANGED_BLOCKED",
+                      "DRAFT_REFETCH_REF07_EXPORT_UNAPPROVED_CLAIM_BLOCKED",
+                      "DRAFT_REFETCH_REF07_EXPORT_VERSION_MISMATCH_BLOCKED",
+                      "DRAFT_REFETCH_REF08_IN_MEMORY_DEDUP_WITHIN_LIMITS_PASS",
+                      "DRAFT_REFETCH_REF08_SEPARATE_JOB_METADATA_HANDOFF_REFETCH_PASS",
+                      "DRAFT_REFETCH_REF08_BYTE_TOKEN_LIMIT_BLOCKED_NO_TRUNCATION",
+                      "DRAFT_REFETCH_REF08_REQUEST_RETRY_CONCURRENCY_BLOCKED_NO_TRUNCATION"
+                    ]
+                  }
+                }
               },
               "expected_fetch_attempted": { "type": "boolean" },
               "expected_unverifiable_now": { "type": "boolean" },
@@ -975,8 +1659,62 @@
               "expected_claim_auto_mutated": { "type": "boolean" },
               "expected_canary_leaked_in_clean_snapshot": { "type": "boolean" },
               "expected_canary_detected_in_negative_fixture": { "type": ["boolean", "null"] },
+              "expected_ref06_assertions": {
+                "type": ["object", "null"],
+                "required": [
+                  "atomic_metadata_checkpoint_required",
+                  "expected_duplicate_records",
+                  "raw_text_fallback_forbidden",
+                  "expected_replay_reproduced"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "atomic_metadata_checkpoint_required": { "type": "boolean" },
+                  "expected_duplicate_records": { "type": "integer", "minimum": 0 },
+                  "raw_text_fallback_forbidden": { "type": "boolean" },
+                  "expected_replay_reproduced": { "type": "boolean" }
+                }
+              },
+              "expected_ref07_assertions": {
+                "type": ["object", "null"],
+                "required": [
+                  "operation_type",
+                  "expected_operation_allowed",
+                  "requires_same_job_refetch",
+                  "expected_checked_at_recorded_in_audit",
+                  "expected_export_excludes_raw_quotes",
+                  "requires_approved_exact_claim_version",
+                  "expected_export_artifact_emitted"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "operation_type": { "type": "string", "enum": ["APPROVAL", "EXPORT_DOWNLOAD", "EVIDENCE_VIEW"] },
+                  "expected_operation_allowed": { "type": "boolean" },
+                  "requires_same_job_refetch": { "type": "boolean" },
+                  "expected_checked_at_recorded_in_audit": { "type": "boolean" },
+                  "expected_export_excludes_raw_quotes": { "type": ["boolean", "null"] },
+                  "requires_approved_exact_claim_version": { "type": ["boolean", "null"] },
+                  "expected_export_artifact_emitted": { "type": ["boolean", "null"] }
+                }
+              },
+              "expected_ref08_assertions": {
+                "type": ["object", "null"],
+                "required": [
+                  "expected_operation_allowed",
+                  "expected_silent_truncation_forbidden",
+                  "expected_inter_job_metadata_only",
+                  "expected_duplicate_units_removed"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "expected_operation_allowed": { "type": "boolean" },
+                  "expected_silent_truncation_forbidden": { "type": "boolean" },
+                  "expected_inter_job_metadata_only": { "type": "boolean" },
+                  "expected_duplicate_units_removed": { "type": "integer", "minimum": 0 }
+                }
+              },
               "post_mvp_tags": { "type": "array", "items": { "type": "string" } },
-              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+              "oracle_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
               "review_required_items": { "type": "array", "items": { "type": "string" } },
               "rationale": { "type": "string" }
             }
@@ -984,56 +1722,73 @@
         }
       }
     },
-    "ApprovalManifestFile": {
+    "CandidateManifestFile": {
       "type": "object",
       "required": [
         "schema_version",
         "dataset_version",
         "artifact_role",
-        "approval_status",
-        "golden_scope",
-        "approved_from_draft_commit_sha",
-        "approved_from_draft_version",
-        "approval_scope",
-        "unverified_ref_items_not_passed",
+        "candidate_status",
+        "candidate_scope",
+        "human_approved",
+        "human_approval_recorded_by",
+        "adr_018_ai_cannot_self_approve",
+        "frozen_for_golden",
+        "supersedes_baseline_commit_sha",
+        "supersedes_baseline_version",
+        "scope_statement",
+        "ref_verification_status",
         "evaluation_partitions",
         "artifact_sha256",
         "bundle_sha256"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
-        "artifact_role": { "type": "string", "const": "SYNTHETIC_REGRESSION_APPROVAL_MANIFEST" },
-        "approval_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION_GOLDEN" },
-        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
-        "approved_from_draft_commit_sha": { "type": "string", "minLength": 7 },
-        "approved_from_draft_version": { "type": "string", "const": "0.3.0-draft" },
-        "approval_scope": {
+        "schema_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "dataset_version": { "type": "string", "const": "0.4.0-owner-review-candidate" },
+        "artifact_role": { "type": "string", "const": "OWNER_REVIEW_CANDIDATE_MANIFEST" },
+        "candidate_status": { "type": "string", "const": "PENDING_OWNER_REVIEW" },
+        "candidate_scope": { "type": "string", "const": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED" },
+        "human_approved": { "type": "boolean", "const": false },
+        "human_approval_recorded_by": { "type": "null" },
+        "adr_018_ai_cannot_self_approve": { "type": "boolean", "const": true },
+        "frozen_for_golden": { "type": "boolean", "const": false },
+        "supersedes_baseline_commit_sha": { "type": "string", "minLength": 7 },
+        "supersedes_baseline_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "scope_statement": {
           "type": "object",
           "required": [
-            "included",
-            "excluded",
+            "included_in_candidate",
+            "excluded_not_executed",
             "live_llm_evaluation_in_scope",
             "production_connector_integration_in_scope",
+            "product_e2e_verified",
             "synthetic_semantics_only_not_connector_evidence"
           ],
           "additionalProperties": false,
           "properties": {
-            "included": { "type": "array", "items": { "type": "string" } },
-            "excluded": { "type": "array", "items": { "type": "string" } },
+            "included_in_candidate": { "type": "array", "items": { "type": "string" } },
+            "excluded_not_executed": { "type": "array", "items": { "type": "string" } },
             "live_llm_evaluation_in_scope": { "type": "boolean", "const": false },
             "production_connector_integration_in_scope": { "type": "boolean", "const": false },
+            "product_e2e_verified": { "type": "boolean", "const": false },
             "synthetic_semantics_only_not_connector_evidence": { "type": "boolean", "const": true }
           }
         },
-        "unverified_ref_items_not_passed": {
+        "ref_verification_status": {
           "type": "object",
-          "required": ["partial_coverage_gap", "coverage_gap"],
+          "required": [
+            "synthetic_stubs_prepared",
+            "partial_static_fixtures_prepared",
+            "synthetic_cases_prepared_runtime_unverified",
+            "product_runtime_unverified_all"
+          ],
           "additionalProperties": false,
           "properties": {
-            "partial_coverage_gap": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } },
-            "coverage_gap": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } }
+            "synthetic_stubs_prepared": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } },
+            "partial_static_fixtures_prepared": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } },
+            "synthetic_cases_prepared_runtime_unverified": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } },
+            "product_runtime_unverified_all": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } }
           }
         },
         "evaluation_partitions": {

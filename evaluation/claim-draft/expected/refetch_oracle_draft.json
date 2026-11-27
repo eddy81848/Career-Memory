@@ -1,54 +1,53 @@
 {
-  "schema_version": "0.3.0-synthetic-golden",
-  "dataset_version": "0.3.0-synthetic-golden",
-  "artifact_role": "EXPECTED_REFETCH_ORACLE_APPROVED_SYNTHETIC_REGRESSION",
-  "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
-  "golden_scope": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION",
-  "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
-  "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are approved strictly for synthetic regression stubs and remain separate from unconfirmed product states; unverified REF-04..08 gaps are NOT marked passed.",
-  "frozen_for_golden": true,
+  "schema_version": "0.4.0-owner-review-candidate",
+  "dataset_version": "0.4.0-owner-review-candidate",
+  "artifact_role": "EXPECTED_REFETCH_ORACLE_OWNER_REVIEW_CANDIDATE",
+  "oracle_status": "PENDING_OWNER_REVIEW",
+  "candidate_scope": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED",
+  "domain_vs_fixture_label_policy": "DRAFT_REFETCH_* verdicts live inside fixture_test_classification (TEST_FIXTURE_ONLY_NOT_DOMAIN_API). Synthetic case preparation across REF-01..REF-08 is strictly distinguished from unexecuted product runtime/E2E verification (product_runtime_verified=false for all 8).",
+  "frozen_for_golden": false,
+  "human_approved": false,
   "requires_human_review_task": "T-004B",
   "official_ref_matrix": [
     {
       "official_ref_id": "REF-01",
       "official_requirement_label": "동일 버전과 정확한 근거 위치 재현",
-      "coverage_status": "COVERED_SYNTHETIC_STUB",
-      "verified_in_draft": true,
+      "synthetic_fixture_coverage_status": "SYNTHETIC_STUB_PREPARED",
+      "product_runtime_verified": false,
       "linked_fixture_case_ids": [
         "refcase-01a"
       ],
       "coverage_gap_details": [
-        "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed and NOT in this approval scope."
+        "Synthetic stub & programmatic locator round-trip prepared only; live external connector HTTP refetch is NOT executed (product_runtime_verified=false)."
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm production normalization/offset contract for exact span reproduction"
+        "확인 필요: Production normalization/offset contract for exact span reproduction"
       ]
     },
     {
       "official_ref_id": "REF-02",
       "official_requirement_label": "hash/locator 불일치 차단",
-      "coverage_status": "COVERED_SYNTHETIC_STUB",
-      "verified_in_draft": true,
+      "synthetic_fixture_coverage_status": "SYNTHETIC_STUB_PREPARED",
+      "product_runtime_verified": false,
       "linked_fixture_case_ids": [
         "refcase-02a",
         "refcase-02b",
         "refcase-02c"
       ],
       "coverage_gap_details": [
-        "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch is NOT executed and NOT in this approval scope."
+        "Synthetic stubs separate body drift (refcase-02a), appended new revision (refcase-02b), and same-hash locator-only mismatch (refcase-02c); live external refetch is NOT executed (product_runtime_verified=false)."
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP",
-        "REVIEW_REQUIRED: Confirm distinct error telemetry between upstream content change (refcase-02a/02b) and internal/corrupted locator mismatch (refcase-02c)"
+        "확인 필요: Production error telemetry separating body drift vs locator-only mismatch"
       ]
     },
     {
       "official_ref_id": "REF-03",
       "official_requirement_label": "재조회 불가와 삭제·거짓 구분",
-      "coverage_status": "COVERED_SYNTHETIC_STUB",
-      "verified_in_draft": true,
+      "synthetic_fixture_coverage_status": "SYNTHETIC_STUB_PREPARED",
+      "product_runtime_verified": false,
       "linked_fixture_case_ids": [
         "refcase-03a",
         "refcase-03b",
@@ -57,86 +56,105 @@
         "refcase-03e"
       ],
       "coverage_gap_details": [
-        "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed and NOT in this approval scope."
+        "Synthetic stubs separate HTTP 404 (03a), partial 206 (03b), and transient 429/503/timeout (03c..03e) from SCN-13 OD-003 deletion and historical falsity; live retry/backoff & product approval-gate E2E are NOT executed (product_runtime_verified=false)."
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm product status distinction between 404, partial 206, transient 429/5xx/timeout retry-cap block, confirmed upstream delete (410), and user deletion (SCN-13)"
+        "확인 필요: Production retry cap, backoff policy, and HTTP 410 vs 404 product status mapping"
       ]
     },
     {
       "official_ref_id": "REF-04",
       "official_requirement_label": "원문 비영속",
-      "coverage_status": "PARTIAL_COVERAGE_GAP",
-      "verified_in_draft": false,
+      "synthetic_fixture_coverage_status": "PARTIAL_STATIC_FIXTURE_PREPARED",
+      "product_runtime_verified": false,
       "linked_fixture_case_ids": [
-        "refcase-04a"
+        "refcase-04a",
+        "refcase-04b"
       ],
       "coverage_gap_details": [
-        "COVERAGE GAP (runtime — NOT passed): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
+        "PARTIAL STATIC ONLY (product_runtime_verified=false): Static canary fixtures audit JSON snapshots across DB/log/Job/cache/Export surfaces plus negative leak fixtures, but live DB tables, real app logs, real job queues, real caches, and real Export files are NOT executed in M4 product tests. RUNTIME Spike results are reference-only and do NOT substitute for M4 product tests."
       ],
-      "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, queues, and Export"
+        "확인 필요: Live DB/log/Job/cache/Export raw-text non-persistence audit in M4 product QA"
       ]
     },
     {
       "official_ref_id": "REF-05",
       "official_requirement_label": "접근 권한·허용된 URL 경계",
-      "coverage_status": "PARTIAL_COVERAGE_GAP",
-      "verified_in_draft": false,
+      "synthetic_fixture_coverage_status": "PARTIAL_STATIC_FIXTURE_PREPARED",
+      "product_runtime_verified": false,
       "linked_fixture_case_ids": [
         "refcase-05a",
         "refcase-05b"
       ],
       "coverage_gap_details": [
-        "COVERAGE GAP (runtime — NOT passed): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
+        "PARTIAL STATIC ONLY (product_runtime_verified=false): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check; live OAuth/tenant boundaries, HTTP 30x redirect SSRF chains, and DNS-rebinding defenses are NOT executed in M4 product tests."
       ],
-      "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm full production URL allowlist, redirect policy, and tenant/OAuth permission error codes"
+        "확인 필요: Production URL allowlist, redirect SSRF policy, and tenant/OAuth error codes"
       ]
     },
     {
       "official_ref_id": "REF-06",
       "official_requirement_label": "중단·재실행 시 원문 저장에 의존하지 않음",
-      "coverage_status": "COVERAGE_GAP",
-      "verified_in_draft": false,
-      "linked_fixture_case_ids": [],
-      "coverage_gap_details": [
-        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A/B static dataset (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
+      "synthetic_fixture_coverage_status": "SYNTHETIC_CASE_PREPARED_RUNTIME_UNVERIFIED",
+      "product_runtime_verified": false,
+      "linked_fixture_case_ids": [
+        "refcase-06a",
+        "refcase-06b",
+        "refcase-06c"
       ],
-      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
+      "coverage_gap_details": [
+        "SYNTHETIC CASE PREPARED ONLY (product_runtime_verified=false): Synthetic crash-before-commit (06a), crash-after-atomic-commit idempotent replay (06b), and memory-lost changed-hash explicit block (06c) fixtures are prepared for owner review; real worker crash/DB-transaction/replay execution is NOT run here. RUNTIME Spike is reference-only and does NOT replace M4 product verification."
+      ],
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Define worker checkpoint schema and add restart/replay test in worker/integration QA harness"
+        "확인 필요: Production worker checkpoint table schema, idempotency key contract, and M4 worker crash-replay test"
       ]
     },
     {
       "official_ref_id": "REF-07",
       "official_requirement_label": "승인·Export·근거 열람 시 재조회",
-      "coverage_status": "COVERAGE_GAP",
-      "verified_in_draft": false,
-      "linked_fixture_case_ids": [],
-      "coverage_gap_details": [
-        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline synthetic regression dataset; requires product API/UI integration QA."
+      "synthetic_fixture_coverage_status": "SYNTHETIC_CASE_PREPARED_RUNTIME_UNVERIFIED",
+      "product_runtime_verified": false,
+      "linked_fixture_case_ids": [
+        "refcase-07a",
+        "refcase-07b",
+        "refcase-07c",
+        "refcase-07d",
+        "refcase-07e",
+        "refcase-07f",
+        "refcase-07g"
       ],
-      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
+      "coverage_gap_details": [
+        "SYNTHETIC CASE PREPARED ONLY (product_runtime_verified=false): Synthetic Approval (07a), Export/Download with approved Claim ID+version precondition & verification metadata without raw quotes (07b), Evidence View (07c), prior-check-only block (07d), TOCTOU pre-save change block (07e), and Export contrast blocks where refetch passes (HTTP 200) yet unapproved Claim (07f) or approved-version mismatch v2!=v1 (07g) prevents Export emission; real product Approval/Export/Evidence-Viewer E2E is NOT executed."
+      ],
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Define trigger contract for on-demand refetch during Claim approval, Export generation, and evidence inspection"
+        "확인 필요: Export file-header / API field layout for verification metadata (`locator_id`, `span_sha256`, `source_revision_id`, `source_content_sha256`, `checked_at`) is NOT frozen here (`TEST_FIXTURE_ONLY_API_OR_FILE_HEADER_LAYOUT_NOT_FROZEN`); raw source quotes strictly excluded either way",
+        "확인 필요: Product Approval / Export / Evidence-Viewer on-demand refetch E2E in M4"
       ]
     },
     {
       "official_ref_id": "REF-08",
       "official_requirement_label": "비용·크기 한도와 단계 간 메모리 전용 처리",
-      "coverage_status": "COVERAGE_GAP",
-      "verified_in_draft": false,
-      "linked_fixture_case_ids": [],
-      "coverage_gap_details": [
-        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
+      "synthetic_fixture_coverage_status": "SYNTHETIC_CASE_PREPARED_RUNTIME_UNVERIFIED",
+      "product_runtime_verified": false,
+      "linked_fixture_case_ids": [
+        "refcase-08a",
+        "refcase-08b",
+        "refcase-08c",
+        "refcase-08d"
       ],
-      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
+      "coverage_gap_details": [
+        "SYNTHETIC CASE PREPARED ONLY (product_runtime_verified=false): Synthetic in-memory same-job dedup within limits (08a), separate-job ID/hash-only handoff + next-job refetch (08b), byte/token limit block without silent truncation (08c), and request/retry/concurrency limit block (08d) fixtures are prepared for owner review; real runtime limit/memory-boundary tests are NOT executed."
+      ],
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm exact max source byte size, LLM budget/token cap, and inter-stage memory-only execution contract"
+        "확인 필요: Final production numeric limits for max_requests, max_bytes, max_tokens, max_retries, and max_concurrency (fixture numbers are TEST_FIXTURE_ONLY)"
       ]
     }
   ],
@@ -144,9 +162,13 @@
     {
       "fixture_case_id": "refcase-01a",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-01",
       "legacy_draft_id": "REF-01",
-      "draft_refetch_verdict": "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": false,
       "expected_approval_blocked": false,
@@ -159,19 +181,22 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm exact product status name for successful refetch reproduction (URL-only or partial match must not pass)"
+        "확인 필요: Exact product status name for successful refetch reproduction"
       ],
-      "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection and auto-refresh remain disabled.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection/refresh disabled."
     },
     {
       "fixture_case_id": "refcase-02a",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-02",
       "legacy_draft_id": "REF-02",
-      "draft_refetch_verdict": "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -184,19 +209,22 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm mismatch block UX/status vs Post-MVP re-anchoring"
+        "확인 필요: Mismatch block UX/status vs Post-MVP re-anchoring"
       ],
-      "rationale": "Inserted header changes content hash and shifts offsets (body change); verification & approval are blocked without claiming historical falsity or auto-updating the claim.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Inserted header changes content hash and shifts offsets (body change); verification & approval blocked without asserting historical falsity."
     },
     {
       "fixture_case_id": "refcase-02b",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-02",
       "legacy_draft_id": "REF-08",
-      "draft_refetch_verdict": "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -209,19 +237,22 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm policy when document hash changes via appended text while prefix span still matches"
+        "확인 필요: Policy when document hash changes via appended text while prefix span still matches"
       ],
-      "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and approval while Post-MVP auto-detect/auto-claim-refresh remains disabled.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Appended follow-up changes content_sha256; hash mismatch blocks silent reuse and approval without Post-MVP auto-mutation."
     },
     {
       "fixture_case_id": "refcase-02c",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-02",
       "legacy_draft_id": null,
-      "draft_refetch_verdict": "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -234,19 +265,22 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm diagnostic/block handling when content_sha256 matches identically but stored locator offsets/span_sha256 fail round-trip"
+        "확인 필요: Distinct telemetry for same-hash locator-only corruption vs body drift"
       ],
-      "rationale": "Returned source body has the exact same content_sha256 as baseline, but tested_locator offsets point to the wrong span; blocks verification & approval cleanly distinct from upstream body drift (refcase-02a/02b).",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Identical content_sha256 but corrupted tested_locator offsets fail round-trip and block approval."
     },
     {
       "fixture_case_id": "refcase-03a",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-03",
-      "draft_refetch_verdict": "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -256,19 +290,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm product status for HTTP 404 (distinct from transient 429/5xx/timeout, confirmed deletion SCN-13, and historical falsity)"
+        "확인 필요: Product status for HTTP 404 distinct from transient failures, SCN-13 deletion, and historical falsity"
       ],
-      "rationale": "Single HTTP 404 makes the source currently unverifiable and blocks approval; it MUST be distinguished from transient outages (refcase-03c..03e), confirmed user deletion (SCN-13), and historical falsity.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Single HTTP 404 makes source unverifiable now and blocks approval without confirming deletion or falsifying historical facts."
     },
     {
       "fixture_case_id": "refcase-03b",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-04",
-      "draft_refetch_verdict": "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -278,19 +315,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm truncated HTTP 206 retry/fallback handling"
+        "확인 필요: Truncated HTTP 206 retry/fallback handling"
       ],
-      "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable and blocks approval, neither confirmed deleted nor historically false.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Truncated HTTP 206 omits baseline locator range -> unverifiable now and blocks approval."
     },
     {
       "fixture_case_id": "refcase-03c",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-03",
       "legacy_draft_id": null,
-      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -300,19 +340,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm production max retry cap, Retry-After backoff, and approval-gate block UX for HTTP 429 (runtime retry harness NOT executed)"
+        "확인 필요: Production max retry cap and Retry-After backoff for HTTP 429"
       ],
-      "rationale": "Transient HTTP 429 rate-limit failure exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Transient HTTP 429 exhausts bounded retry cap and blocks approval, distinct from 404, deletion, and falsity."
     },
     {
       "fixture_case_id": "refcase-03d",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-03",
       "legacy_draft_id": null,
-      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -322,19 +365,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm production max retry cap and approval-gate block UX for HTTP 5xx transient outages (runtime retry harness NOT executed)"
+        "확인 필요: Production max retry cap for HTTP 5xx transient outages"
       ],
-      "rationale": "Transient HTTP 503 upstream server outage exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Transient HTTP 503 exhausts bounded retry cap and blocks approval, distinct from 404, deletion, and falsity."
     },
     {
       "fixture_case_id": "refcase-03e",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-03",
       "legacy_draft_id": null,
-      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -344,19 +390,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm production timeout threshold, retry cap, and approval-gate block UX (runtime timeout harness NOT executed)"
+        "확인 필요: Production timeout threshold & retry cap"
       ],
-      "rationale": "Transient network/read timeout exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Transient network timeout exhausts bounded retry cap and blocks approval, distinct from 404, deletion, and falsity."
     },
     {
       "fixture_case_id": "refcase-04a",
       "evaluation_family_id": "family-src_ref07_canary",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
       "official_ref_id": "REF-04",
       "legacy_draft_id": "REF-07",
-      "draft_refetch_verdict": "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": false,
       "expected_approval_blocked": false,
@@ -366,19 +415,47 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": true,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Extend canary audit to live DB/logs/caches/queues/Export in backend QA (PARTIAL_COVERAGE_GAP)"
+        "확인 필요: Extend canary audit to live DB/logs in M4 product QA (PARTIAL_STATIC_FIXTURE_PREPARED)"
       ],
-      "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture (not a substitute for runtime leak auditing).",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV"
+      "rationale": "Static canary check confirms 0 leaks in DB/app-log snapshot while catching negative_leaky_payload_fixture."
+    },
+    {
+      "fixture_case_id": "refcase-04b",
+      "evaluation_family_id": "family-src_ref07_canary",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "official_ref_id": "REF-04",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_STATIC_CANARY_JOB_CACHE_EXPORT_CLEAN"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": true,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Extend multi-surface canary audit (DB/log/Job/cache/Export) to live M4 runtime (PARTIAL_STATIC_FIXTURE_PREPARED)"
+      ],
+      "rationale": "Static canary check verifies 0 leaks across DB/log/Job/cache/Export snapshots while catching negative leaky Job/Export fixture."
     },
     {
       "fixture_case_id": "refcase-05a",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-05",
       "legacy_draft_id": "REF-05",
-      "draft_refetch_verdict": "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_POLICY_ACCESS_DENIED"
+      },
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -388,19 +465,22 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm OAuth scope revocation & tenant permission boundary codes (PARTIAL_COVERAGE_GAP)"
+        "확인 필요: Live OAuth scope revocation & tenant boundary codes (PARTIAL_STATIC_FIXTURE_PREPARED)"
       ],
-      "rationale": "HTTP 403 / revoked OAuth scope blocks access and approval without deleting or falsifying historical facts.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "HTTP 403 revoked scope blocks access and approval without deleting or falsifying historical facts."
     },
     {
       "fixture_case_id": "refcase-05b",
       "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
       "official_ref_id": "REF-05",
       "legacy_draft_id": "REF-06",
-      "draft_refetch_verdict": "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH"
+      },
       "expected_fetch_attempted": false,
       "expected_unverifiable_now": true,
       "expected_approval_blocked": true,
@@ -410,12 +490,466 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+      "oracle_status": "PENDING_OWNER_REVIEW",
       "review_required_items": [
-        "REVIEW_REQUIRED: Add live redirect/DNS-rebinding SSRF tests in backend QA (PARTIAL_COVERAGE_GAP)"
+        "확인 필요: Add live 30x redirect & DNS-rebinding SSRF tests in M4 backend QA"
       ],
-      "rationale": "Metadata IP, loopback, private CIDR, embedded credentials, and non-HTTPS schemes are rejected prior to any outbound fetch.",
-      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
+      "rationale": "Unsafe URLs (metadata IP, loopback, private CIDR, credentials, non-HTTPS) blocked prior to network fetch."
+    },
+    {
+      "fixture_case_id": "refcase-06a",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-06",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF06_PRE_COMMIT_CRASH_REPLAY_REPRODUCED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Production worker transaction boundary for atomic metadata+checkpoint commit (M4 runtime unverified)"
+      ],
+      "rationale": "Crash before commit discards uncommitted metadata & in-memory raw text; replay refetches unchanged source with matching hash, commits metadata+checkpoint atomically, creates 0 duplicates, and never falls back to stored raw text.",
+      "expected_ref06_assertions": {
+        "atomic_metadata_checkpoint_required": true,
+        "expected_duplicate_records": 0,
+        "raw_text_fallback_forbidden": true,
+        "expected_replay_reproduced": true
+      }
+    },
+    {
+      "fixture_case_id": "refcase-06b",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-06",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF06_POST_COMMIT_CRASH_IDEMPOTENT_REPLAY"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Production idempotency key enforcement across worker retries (M4 runtime unverified)"
+      ],
+      "rationale": "Crash after atomic metadata+checkpoint commit loses in-memory raw text; replaying the exact same job reuses idempotency key with 0 duplicate records and reproduces from same-hash refetch without stored raw fallback.",
+      "expected_ref06_assertions": {
+        "atomic_metadata_checkpoint_required": true,
+        "expected_duplicate_records": 0,
+        "raw_text_fallback_forbidden": true,
+        "expected_replay_reproduced": true
+      }
+    },
+    {
+      "fixture_case_id": "refcase-06c",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-06",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF06_MEMORY_LOST_HASH_CHANGED_BLOCKED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Operator UX & retry guidance when replay detects upstream hash change after worker crash"
+      ],
+      "rationale": "After crash and memory loss, replay refetches source whose content_sha256 changed -> explicitly blocked with NO fallback to persisted raw text (neither confirmed deletion nor historical falsity).",
+      "expected_ref06_assertions": {
+        "atomic_metadata_checkpoint_required": true,
+        "expected_duplicate_records": 0,
+        "raw_text_fallback_forbidden": true,
+        "expected_replay_reproduced": false
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07a",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_APPROVAL_SAME_JOB_VERIFIED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Product Approval API transaction & audit log schema (M4 product E2E unverified)"
+      ],
+      "rationale": "Claim approval executes a fresh same-job refetch verifying hash, locator, and permissions, recording `checked_at` in audit metadata without persisting raw text.",
+      "expected_ref07_assertions": {
+        "operation_type": "APPROVAL",
+        "expected_operation_allowed": true,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": null,
+        "requires_approved_exact_claim_version": null,
+        "expected_export_artifact_emitted": null
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07b",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_EXPORT_SAME_JOB_VERIFIED_NO_RAW_QUOTE"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Exact Export file-header / API field layout for verification metadata is NOT frozen (`TEST_FIXTURE_ONLY_API_OR_FILE_HEADER_LAYOUT_NOT_FROZEN`); raw source quotes strictly excluded from Export"
+      ],
+      "rationale": "New Export/Download takes approved Claim ID + exact version (`claim-02-1` v1) as precondition, executes fresh same-job refetch, records verification metadata (`source_revision_id`, `source_content_sha256`, `locator_id`, `span_sha256`, `checked_at`), emits Export artifact, and excludes raw source quotes.",
+      "expected_ref07_assertions": {
+        "operation_type": "EXPORT_DOWNLOAD",
+        "expected_operation_allowed": true,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": true,
+        "requires_approved_exact_claim_version": true,
+        "expected_export_artifact_emitted": true
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07c",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_EVIDENCE_VIEW_SAME_JOB_VERIFIED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Evidence-viewer ephemeral response caching headers (`Cache-Control: no-store`) in M4 product QA"
+      ],
+      "rationale": "Evidence View executes fresh same-job refetch, renders the exact span ephemerally in memory, and records `checked_at` without persisting raw text.",
+      "expected_ref07_assertions": {
+        "operation_type": "EVIDENCE_VIEW",
+        "expected_operation_allowed": true,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": null,
+        "requires_approved_exact_claim_version": null,
+        "expected_export_artifact_emitted": null
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07d",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_PRIOR_RECORD_ONLY_BLOCKED"
+      },
+      "expected_fetch_attempted": false,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Error code returned when Approval/Export/View lacks same-job refetch"
+      ],
+      "rationale": "Prior verification record alone (without a fresh refetch in the current operation) MUST block Approval/Export/Evidence View.",
+      "expected_ref07_assertions": {
+        "operation_type": "APPROVAL",
+        "expected_operation_allowed": false,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": false,
+        "expected_export_excludes_raw_quotes": null,
+        "requires_approved_exact_claim_version": null,
+        "expected_export_artifact_emitted": null
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07e",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_TOCTOU_STATE_CHANGED_BLOCKED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Production transactional guard / lock detecting permission or validity revocation between refetch and commit/save"
+      ],
+      "rationale": "Even after refetch succeeds for approved claim-02-1 v1, if permission or source validity changes before commit/save (TOCTOU), the operation and Export MUST be blocked with no Export artifact emitted.",
+      "expected_ref07_assertions": {
+        "operation_type": "EXPORT_DOWNLOAD",
+        "expected_operation_allowed": false,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": true,
+        "requires_approved_exact_claim_version": true,
+        "expected_export_artifact_emitted": false
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07f",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_EXPORT_UNAPPROVED_CLAIM_BLOCKED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Product error code when Export is requested for an unapproved Claim version despite successful source refetch"
+      ],
+      "rationale": "Contrast case: same-job refetch succeeds (HTTP 200, hash/locator match), yet requested `claim-02-1` v1 is unapproved (`claim_version_approved=false`) -> Export MUST be blocked with no Export artifact emitted.",
+      "expected_ref07_assertions": {
+        "operation_type": "EXPORT_DOWNLOAD",
+        "expected_operation_allowed": false,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": true,
+        "requires_approved_exact_claim_version": true,
+        "expected_export_artifact_emitted": false
+      }
+    },
+    {
+      "fixture_case_id": "refcase-07g",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-07",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF07_EXPORT_VERSION_MISMATCH_BLOCKED"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Product error code when Export requests Claim v2 while only Claim v1 is approved despite successful source refetch"
+      ],
+      "rationale": "Contrast case: same-job refetch succeeds (HTTP 200, hash/locator match), yet requested `claim-02-1` v2 differs from approved version v1 (`requested_version_matches_approved_version=false`) -> Export MUST be blocked with no Export artifact emitted.",
+      "expected_ref07_assertions": {
+        "operation_type": "EXPORT_DOWNLOAD",
+        "expected_operation_allowed": false,
+        "requires_same_job_refetch": true,
+        "expected_checked_at_recorded_in_audit": true,
+        "expected_export_excludes_raw_quotes": true,
+        "requires_approved_exact_claim_version": true,
+        "expected_export_artifact_emitted": false
+      }
+    },
+    {
+      "fixture_case_id": "refcase-08a",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-08",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF08_IN_MEMORY_DEDUP_WITHIN_LIMITS_PASS"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Production numeric limits for requests/bytes/tokens/retries/concurrency (fixture uses TEST_FIXTURE_ONLY thresholds)"
+      ],
+      "rationale": "Within request/byte/token/retry/concurrency limits, duplicate ContentUnits inside the same job are deduplicated (2 -> 1) and processed in memory only with zero silent truncation.",
+      "expected_ref08_assertions": {
+        "expected_operation_allowed": true,
+        "expected_silent_truncation_forbidden": true,
+        "expected_inter_job_metadata_only": true,
+        "expected_duplicate_units_removed": 1
+      }
+    },
+    {
+      "fixture_case_id": "refcase-08b",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-08",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF08_SEPARATE_JOB_METADATA_HANDOFF_REFETCH_PASS"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Inter-job queue message schema containing ID/hash/locator metadata only (M4 runtime unverified)"
+      ],
+      "rationale": "Cross-job boundary passes ONLY source_revision_id, content_sha256, and locator metadata (zero raw text payload), and the next Job executes fresh refetch cleanly.",
+      "expected_ref08_assertions": {
+        "expected_operation_allowed": true,
+        "expected_silent_truncation_forbidden": true,
+        "expected_inter_job_metadata_only": true,
+        "expected_duplicate_units_removed": 0
+      }
+    },
+    {
+      "fixture_case_id": "refcase-08c",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-08",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF08_BYTE_TOKEN_LIMIT_BLOCKED_NO_TRUNCATION"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Exact byte/token ceiling error codes and user feedback when limit is exceeded"
+      ],
+      "rationale": "Byte and token ceiling breach explicitly blocks/fails the job; MUST NEVER silently truncate required evidence and report success.",
+      "expected_ref08_assertions": {
+        "expected_operation_allowed": false,
+        "expected_silent_truncation_forbidden": true,
+        "expected_inter_job_metadata_only": true,
+        "expected_duplicate_units_removed": 0
+      }
+    },
+    {
+      "fixture_case_id": "refcase-08d",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "official_ref_id": "REF-08",
+      "legacy_draft_id": null,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_refetch_verdict": "DRAFT_REFETCH_REF08_REQUEST_RETRY_CONCURRENCY_BLOCKED_NO_TRUNCATION"
+      },
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required_items": [
+        "확인 필요: Exact request/retry/concurrency ceiling enforcement in worker runtime"
+      ],
+      "rationale": "Request, retry, and concurrency limit breach explicitly blocks/fails the job; MUST NEVER silently drop required evidence and report success.",
+      "expected_ref08_assertions": {
+        "expected_operation_allowed": false,
+        "expected_silent_truncation_forbidden": true,
+        "expected_inter_job_metadata_only": true,
+        "expected_duplicate_units_removed": 0
+      }
     }
   ]
 }

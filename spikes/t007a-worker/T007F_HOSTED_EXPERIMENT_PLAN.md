@@ -1,11 +1,12 @@
 # T-007F 최소 호스팅 실험 설계 및 무료 한도(Zero-Cost) 안전 게이트
 
 > [!CAUTION]
-> **현재 실행 판정: `NO-GO` (클라우드 연결·이미지 업로드·리소스 생성·배포 미실행, 호스팅 승인 전 RUNTIME 대기)**
+> **현재 게이트 판정: `오너 결정에 따른 호스팅 검증 유예 (Deferred / Waived for current gate, 클라우드 실환경 미실행)` · 호스팅 실행 `NO-GO` 유지**
+> - 프로젝트 오너 결정에 따라 M0→M1 로컬 구현 전환 차단은 해제하되, **실제 Cloud Run 배포·IAM(`roles/run.invoker`/OIDC)·네트워크 `--ingress`·Artifact Registry 청구량·호스팅 Supabase `:6543` 동작은 모두 미실행/미검증** 상태를 유지합니다. 향후 호스팅 진입 전 본 런북 및 `hosted-iam-probe/` 기준으로 별도 실행·검증해야 합니다.
 > - 본 문서는 `T-007F` 관리형 환경 검증을 위한 **정정된 사전 실험 설계 및 비용 안전 게이트(`RUNTIME-06` 반영)**입니다.
-> - **계정별 당월 잔여 한도**, **과금·사용량 집계 지연(Metering Lag)**을 감안한 안전 여유, **정리 여유(Teardown Buffer)**, 그리고 공용 프로젝트의 유료 보안 스캔 활성화 여부를 확인하지 않았으므로 **현재 판정은 `NO-GO`를 유지**합니다.
+> - **계정별 당월 잔여 한도**, **과금·사용량 집계 지연(Metering Lag)**을 감안한 안전 여유, **정리 여유(Teardown Buffer)**, 그리고 공용 프로젝트의 유료 보안 스캔 활성화 여부를 확인하지 않았으므로 **호스팅 실행 판정은 계속 `NO-GO`**입니다.
 > - **GCP 예산 알림(Budget Alert)은 지연된 사후 통지일 뿐 자동 차단(Auto-Shutoff) 수단이 아닙니다.** 또한 비용 회피를 이유로 **공용 프로젝트·조직의 보안 설정(예: Container Scanning API, 조직 정책, 공용 IAM)을 임의로 변경·비활성화하지 않습니다.**
-> - 로컬 Docker 컨테이너 실행(`tests/test_r05_containers.py` 및 `linux/amd64` 타깃 검증 `tests/test_r06_amd64_container.py`)은 로컬 패키징·역할 분리 증거일 뿐이며, **Cloud Run IAM, 네트워크 인그레스 경로, cold start, request-based CPU 회수, 호스팅 Supabase Supavisor 동작을 대체하지 않습니다.**
+> - 로컬 Docker 컨테이너 실행(`tests/test_r05_containers.py` 및 `linux/amd64` 타깃 검증 `tests/test_r06_amd64_container.py`)과 로컬 `hosted-iam-probe` 단위 테스트는 로컬 패키징·역할 분리 증거일 뿐이며, **Cloud Run IAM, 네트워크 인그레스 경로, cold start, request-based CPU 회수, 호스팅 Supabase Supavisor 동작을 대체하지 않습니다.**
 
 ---
 

@@ -1,8 +1,8 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "stage_name": "STAGE_3_CLAIM_ASSEMBLY",
-  "stage_responsibility": "Assemble versioned Claims and required Claim Atoms linked to Canonical Facts via Claim Atom Supports, modeling user-edit re-verification on new versions and deletion cascades without self-evidencing claims.",
+  "stage_responsibility": "Assemble versioned Claims and required Claim Atoms linked to Canonical Facts via Claim Atom Supports, modeling user-edit re-verification on new versions and OD-003 deletion cascades without self-evidencing claims.",
   "artifact_role": "STAGE_STUB_OUTPUT",
   "claims": [
     {
@@ -24,9 +24,10 @@
       "scenario_id": "SCN-02",
       "claim_version": 1,
       "previous_claim_version": null,
-      "claim_text": "Implemented an idempotent retry queue with exponential backoff for Project Aurora billing webhooks, preventing duplicate invoice alerts.",
+      "claim_text": "Implemented an idempotent retry queue with exponential backoff for Project Aurora billing webhooks, preventing duplicate invoice notifications during transient gateway timeouts.",
       "claim_atom_ids": [
-        "atom-02-1"
+        "atom-02-1",
+        "atom-02-2"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -38,11 +39,12 @@
       "scenario_id": "SCN-03",
       "claim_version": 1,
       "previous_claim_version": null,
-      "claim_text": "프로젝트 오로라 검색 클러스터의 p95 지연을 620ms에서 180ms로 단축하고, 2분 내 자동 롤백 스크립트 및 300ms 슬로우 쿼리 알림을 구축했다.",
+      "claim_text": "프로젝트 오로라에서 검색 인덱스 샤드 재분배 스크립트를 작성해 운영 클러스터의 p95 검색 지연 시간을 620ms에서 180ms로 단축했고, 배포 실패 시 2분 이내 이전 스냅샷으로 복구하는 자동 롤백 스크립트와 슬로우 쿼리 300ms 초과 시 경보를 발송하는 알림 규칙을 구성했다.",
       "claim_atom_ids": [
         "atom-03-1",
         "atom-03-2",
-        "atom-03-3"
+        "atom-03-3",
+        "atom-03-4"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -54,7 +56,7 @@
       "scenario_id": "SCN-04",
       "claim_version": 1,
       "previous_claim_version": null,
-      "claim_text": "Migrated the nightly billing job queue from legacy cron scripts to WorkerPool v2 in production as part of Q3 reliability work.",
+      "claim_text": "Migrated the nightly billing job queue from legacy cron scripts to WorkerPool v2 in production.",
       "claim_atom_ids": [
         "atom-04-1"
       ],
@@ -84,7 +86,8 @@
       "previous_claim_version": null,
       "claim_text": "Executed database primary failover with zero dropped checkout requests.",
       "claim_atom_ids": [
-        "atom-05-1"
+        "atom-05-1",
+        "atom-05-2"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -98,7 +101,8 @@
       "previous_claim_version": null,
       "claim_text": "Audited failover logs and documented 412 HTTP 503 checkout responses during the 90-second failover window.",
       "claim_atom_ids": [
-        "atom-05-2"
+        "atom-05-3",
+        "atom-05-4"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -112,7 +116,8 @@
       "previous_claim_version": null,
       "claim_text": "읽기 전용 복제본 헬스체크 엔드포인트를 구현하여 운영 모니터링에 연동했다.",
       "claim_atom_ids": [
-        "atom-06-1"
+        "atom-06-1",
+        "atom-06-2"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -126,7 +131,8 @@
       "previous_claim_version": null,
       "claim_text": "운영 환경의 user_events 테이블 샤딩을 완료하고 벤치마크를 마쳤다.",
       "claim_atom_ids": [
-        "atom-06-2"
+        "atom-06-3",
+        "atom-06-4"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -154,7 +160,8 @@
       "previous_claim_version": null,
       "claim_text": "Deployed the canary autoscaler to production and achieved 30% compute cost savings.",
       "claim_atom_ids": [
-        "atom-07-2"
+        "atom-07-2",
+        "atom-07-3"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -182,7 +189,9 @@
       "previous_claim_version": null,
       "claim_text": "Single-handedly rebuilt the entire monorepo CI pipeline from scratch, reducing median build time from 22m to 8m.",
       "claim_atom_ids": [
-        "atom-08-2"
+        "atom-08-2",
+        "atom-08-3",
+        "atom-08-4"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -210,7 +219,8 @@
       "previous_claim_version": null,
       "claim_text": "운영 데이터베이스에 복합 인덱스를 배포해 조회 p95를 840ms에서 95ms로 개선했다.",
       "claim_atom_ids": [
-        "atom-09-2"
+        "atom-09-2",
+        "atom-09-3"
       ],
       "user_edited": false,
       "reverification_state_on_new_version": "NOT_APPLICABLE_UNEDITED",
@@ -268,7 +278,8 @@
       "previous_claim_version": 1,
       "claim_text": "Tuned PostgreSQL connection pool sizing globally, cutting p99 API latency by 60%.",
       "claim_atom_ids": [
-        "atom-12-1"
+        "atom-12-1",
+        "atom-12-3"
       ],
       "user_edited": true,
       "reverification_state_on_new_version": "REVERIFIED_FAILED_ON_NEW_VERSION",
@@ -279,7 +290,7 @@
           "to_version": 2,
           "action": "EDIT_CLAIM_TEXT",
           "severity": "SUBSTANTIVE",
-          "note": "User created v2 changing '25% in checkout service' to '60% globally'; v2 re-verification against fact-12-1 failed (CONTRADICTS)"
+          "note": "User created v2 expanding 'checkout service / 25% under peak load' to 'globally / 60%'; v2 re-verification against fact-12-1 fails due to unsupported scope & metric (does not infer 60% is false in every scope)"
         }
       ],
       "derived_from_claim_ids": []
@@ -488,11 +499,23 @@
       "hard_negative_type": null
     },
     {
+      "claim_atom_id": "atom-02-2",
+      "scenario_id": "SCN-02",
+      "claim_id": "claim-02-1",
+      "atom_text": "Prevented duplicate invoice notifications during transient gateway timeouts",
+      "atom_kind": "OUTCOME_METRIC",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": false,
+      "hard_negative_type": null
+    },
+    {
       "claim_atom_id": "atom-03-1",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "atom_text": "검색 인덱스 샤드 재분배 스크립트로 운영 클러스터 p95 검색 지연을 620ms에서 180ms로 단축",
-      "atom_kind": "OUTCOME_METRIC",
+      "atom_text": "검색 인덱스 샤드 재분배 스크립트 작성",
+      "atom_kind": "ACTION",
       "is_required_atom": true,
       "user_edited": false,
       "edit_severity": "NONE",
@@ -503,8 +526,8 @@
       "claim_atom_id": "atom-03-2",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "atom_text": "배포 실패 시 2분 이내 이전 스냅샷으로 복구하는 자동 롤백 스크립트 추가",
-      "atom_kind": "ACTION",
+      "atom_text": "운영 클러스터의 p95 검색 지연 시간을 620ms에서 180ms로 단축",
+      "atom_kind": "OUTCOME_METRIC",
       "is_required_atom": true,
       "user_edited": false,
       "edit_severity": "NONE",
@@ -515,7 +538,19 @@
       "claim_atom_id": "atom-03-3",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "atom_text": "슬로우 쿼리 300ms 초과 시 경보 발송 알림 규칙 구성",
+      "atom_text": "배포 실패 시 2분 이내로 이전 스냅샷으로 복구하는 자동 롤백 스크립트 추가",
+      "atom_kind": "ACTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": false,
+      "hard_negative_type": null
+    },
+    {
+      "claim_atom_id": "atom-03-4",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "atom_text": "슬로우 쿼리 임계값 300ms 초과 시 경보를 발송하는 알림 규칙 구성",
       "atom_kind": "ACTION",
       "is_required_atom": true,
       "user_edited": false,
@@ -551,6 +586,18 @@
       "claim_atom_id": "atom-05-1",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-1",
+      "atom_text": "User personally executed the database primary failover",
+      "atom_kind": "ATTRIBUTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "UNSUPPORTED_EXECUTION_ATTRIBUTION"
+    },
+    {
+      "claim_atom_id": "atom-05-2",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-1",
       "atom_text": "Zero checkout requests were dropped during database primary failover",
       "atom_kind": "OUTCOME_METRIC",
       "is_required_atom": true,
@@ -560,11 +607,11 @@
       "hard_negative_type": "CONTRADICTED_BY_CORRECTION"
     },
     {
-      "claim_atom_id": "atom-05-2",
+      "claim_atom_id": "atom-05-3",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-2",
-      "atom_text": "Audited failover logs confirming 412 HTTP 503 checkout responses during the 90-second failover window",
-      "atom_kind": "ACTION",
+      "atom_text": "Log audit confirmed 412 checkout requests returned HTTP 503 during the 90-second failover window",
+      "atom_kind": "OUTCOME_METRIC",
       "is_required_atom": true,
       "user_edited": false,
       "edit_severity": "NONE",
@@ -572,10 +619,22 @@
       "hard_negative_type": null
     },
     {
+      "claim_atom_id": "atom-05-4",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-2",
+      "atom_text": "User personally audited failover logs and documented the 412 HTTP 503 findings",
+      "atom_kind": "ATTRIBUTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "UNSUPPORTED_INDIVIDUAL_AUDIT_ATTRIBUTION"
+    },
+    {
       "claim_atom_id": "atom-06-1",
       "scenario_id": "SCN-06",
       "claim_id": "claim-06-1",
-      "atom_text": "읽기 전용 복제본 헬스체크 엔드포인트 구현 및 운영 모니터링 연동 완료",
+      "atom_text": "읽기 전용 복제본 헬스체크 엔드포인트 구현 완료",
       "atom_kind": "ACTION",
       "is_required_atom": true,
       "user_edited": false,
@@ -586,8 +645,32 @@
     {
       "claim_atom_id": "atom-06-2",
       "scenario_id": "SCN-06",
+      "claim_id": "claim-06-1",
+      "atom_text": "읽기 전용 복제본 헬스체크 엔드포인트를 운영 모니터링에 연동 완료",
+      "atom_kind": "ACTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": false,
+      "hard_negative_type": null
+    },
+    {
+      "claim_atom_id": "atom-06-3",
+      "scenario_id": "SCN-06",
       "claim_id": "claim-06-2",
       "atom_text": "운영 환경의 user_events 테이블 샤딩 완료",
+      "atom_kind": "ACTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "PLANNED_AS_COMPLETED"
+    },
+    {
+      "claim_atom_id": "atom-06-4",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-2",
+      "atom_text": "user_events 테이블 샤딩 프로토타입 벤치마크 완료",
       "atom_kind": "ACTION",
       "is_required_atom": true,
       "user_edited": false,
@@ -611,7 +694,19 @@
       "claim_atom_id": "atom-07-2",
       "scenario_id": "SCN-07",
       "claim_id": "claim-07-2",
-      "atom_text": "Deployed canary autoscaler to production and cut compute costs by 30%",
+      "atom_text": "Deployed the canary autoscaler to production",
+      "atom_kind": "ACTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "NEGATION_REVERSAL"
+    },
+    {
+      "claim_atom_id": "atom-07-3",
+      "scenario_id": "SCN-07",
+      "claim_id": "claim-07-2",
+      "atom_text": "Achieved 30% compute cost savings from the canary autoscaler",
       "atom_kind": "OUTCOME_METRIC",
       "is_required_atom": true,
       "user_edited": false,
@@ -635,13 +730,37 @@
       "claim_atom_id": "atom-08-2",
       "scenario_id": "SCN-08",
       "claim_id": "claim-08-2",
-      "atom_text": "Solo-rebuilt the entire monorepo CI pipeline reducing build duration from 22m to 8m",
+      "atom_text": "Single-handedly rebuilt the entire monorepo CI pipeline",
       "atom_kind": "ATTRIBUTION",
       "is_required_atom": true,
       "user_edited": false,
       "edit_severity": "NONE",
       "is_hard_negative": true,
       "hard_negative_type": "TEAM_OVERCLAIM_AS_INDIVIDUAL"
+    },
+    {
+      "claim_atom_id": "atom-08-3",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "atom_text": "Rebuilt the monorepo CI pipeline from scratch",
+      "atom_kind": "ACTION",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "UNSUPPORTED_FROM_SCRATCH_CLAIM"
+    },
+    {
+      "claim_atom_id": "atom-08-4",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "atom_text": "Reduced median monorepo build duration from 22m to 8m (team-level outcome attributed to solo rebuild)",
+      "atom_kind": "OUTCOME_METRIC",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "TEAM_METRIC_CONTEXT_ONLY"
     },
     {
       "claim_atom_id": "atom-09-1",
@@ -659,13 +778,25 @@
       "claim_atom_id": "atom-09-2",
       "scenario_id": "SCN-09",
       "claim_id": "claim-09-2",
-      "atom_text": "운영 데이터베이스에 복합 인덱스 배포 후 조회 p95를 840ms에서 95ms로 개선",
+      "atom_text": "운영 데이터베이스에 복합 인덱스를 배포함",
       "atom_kind": "SCOPE_ENVIRONMENT",
       "is_required_atom": true,
       "user_edited": false,
       "edit_severity": "NONE",
       "is_hard_negative": true,
-      "hard_negative_type": "STAGING_CONFLATED_WITH_PRODUCTION"
+      "hard_negative_type": "UNSTARTED_PRODUCTION_ROLLOUT"
+    },
+    {
+      "claim_atom_id": "atom-09-3",
+      "scenario_id": "SCN-09",
+      "claim_id": "claim-09-2",
+      "atom_text": "운영 데이터베이스에서 조회 p95를 840ms에서 95ms로 개선함",
+      "atom_kind": "OUTCOME_METRIC",
+      "is_required_atom": true,
+      "user_edited": false,
+      "edit_severity": "NONE",
+      "is_hard_negative": true,
+      "hard_negative_type": "STAGING_METRIC_CONFLATED_WITH_PRODUCTION"
     },
     {
       "claim_atom_id": "atom-10-1",
@@ -731,13 +862,25 @@
       "claim_atom_id": "atom-12-1",
       "scenario_id": "SCN-12",
       "claim_id": "claim-12-1",
-      "atom_text": "Reduced global p99 API latency by 60% via PostgreSQL pool tuning",
+      "atom_text": "Tuned PostgreSQL connection pool sizing globally across all services",
+      "atom_kind": "SCOPE_ENVIRONMENT",
+      "is_required_atom": true,
+      "user_edited": true,
+      "edit_severity": "SUBSTANTIVE",
+      "is_hard_negative": true,
+      "hard_negative_type": "USER_EDIT_SCOPE_OVERGENERALIZATION"
+    },
+    {
+      "claim_atom_id": "atom-12-3",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-1",
+      "atom_text": "Cut global p99 API latency by 60%",
       "atom_kind": "OUTCOME_METRIC",
       "is_required_atom": true,
       "user_edited": true,
       "edit_severity": "SUBSTANTIVE",
       "is_hard_negative": true,
-      "hard_negative_type": "USER_EDIT_METRIC_INFLATION"
+      "hard_negative_type": "USER_EDIT_METRIC_SCOPE_MISMATCH"
     },
     {
       "claim_atom_id": "atom-12-2",
@@ -835,6 +978,15 @@
       "removed_by_user": false
     },
     {
+      "claim_atom_support_id": "cas-02-2",
+      "scenario_id": "SCN-02",
+      "claim_atom_id": "atom-02-2",
+      "canonical_fact_id": "fact-02-1",
+      "support_role": "DIRECT",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
       "claim_atom_support_id": "cas-03-1",
       "scenario_id": "SCN-03",
       "claim_atom_id": "atom-03-1",
@@ -847,7 +999,7 @@
       "claim_atom_support_id": "cas-03-2",
       "scenario_id": "SCN-03",
       "claim_atom_id": "atom-03-2",
-      "canonical_fact_id": "fact-03-2",
+      "canonical_fact_id": "fact-03-1",
       "support_role": "DIRECT",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
@@ -856,6 +1008,15 @@
       "claim_atom_support_id": "cas-03-3",
       "scenario_id": "SCN-03",
       "claim_atom_id": "atom-03-3",
+      "canonical_fact_id": "fact-03-2",
+      "support_role": "DIRECT",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-03-4",
+      "scenario_id": "SCN-03",
+      "claim_atom_id": "atom-03-4",
       "canonical_fact_id": "fact-03-3",
       "support_role": "DIRECT",
       "evaluated_on_claim_version": 1,
@@ -891,7 +1052,7 @@
     {
       "claim_atom_support_id": "cas-05-1",
       "scenario_id": "SCN-05",
-      "claim_atom_id": "atom-05-1",
+      "claim_atom_id": "atom-05-2",
       "canonical_fact_id": "fact-05-1",
       "support_role": "DIRECT",
       "evaluated_on_claim_version": 1,
@@ -900,7 +1061,7 @@
     {
       "claim_atom_support_id": "cas-05-2",
       "scenario_id": "SCN-05",
-      "claim_atom_id": "atom-05-1",
+      "claim_atom_id": "atom-05-2",
       "canonical_fact_id": "fact-05-2",
       "support_role": "CONTRADICTS",
       "evaluated_on_claim_version": 1,
@@ -909,9 +1070,18 @@
     {
       "claim_atom_support_id": "cas-05-3",
       "scenario_id": "SCN-05",
-      "claim_atom_id": "atom-05-2",
+      "claim_atom_id": "atom-05-3",
       "canonical_fact_id": "fact-05-2",
       "support_role": "DIRECT",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-05-4",
+      "scenario_id": "SCN-05",
+      "claim_atom_id": "atom-05-4",
+      "canonical_fact_id": "fact-05-2",
+      "support_role": "CONTEXT",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
     },
@@ -928,6 +1098,24 @@
       "claim_atom_support_id": "cas-06-2",
       "scenario_id": "SCN-06",
       "claim_atom_id": "atom-06-2",
+      "canonical_fact_id": "fact-06-1",
+      "support_role": "DIRECT",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-06-3",
+      "scenario_id": "SCN-06",
+      "claim_atom_id": "atom-06-3",
+      "canonical_fact_id": "fact-06-2",
+      "support_role": "CONTRADICTS",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-06-4",
+      "scenario_id": "SCN-06",
+      "claim_atom_id": "atom-06-4",
       "canonical_fact_id": "fact-06-2",
       "support_role": "CONTRADICTS",
       "evaluated_on_claim_version": 1,
@@ -947,6 +1135,15 @@
       "scenario_id": "SCN-07",
       "claim_atom_id": "atom-07-2",
       "canonical_fact_id": "fact-07-2",
+      "support_role": "CONTRADICTS",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-07-3",
+      "scenario_id": "SCN-07",
+      "claim_atom_id": "atom-07-3",
+      "canonical_fact_id": "fact-07-3",
       "support_role": "CONTRADICTS",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
@@ -974,6 +1171,15 @@
       "scenario_id": "SCN-08",
       "claim_atom_id": "atom-08-2",
       "canonical_fact_id": "fact-08-1",
+      "support_role": "CONTRADICTS",
+      "evaluated_on_claim_version": 1,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-08-4",
+      "scenario_id": "SCN-08",
+      "claim_atom_id": "atom-08-4",
+      "canonical_fact_id": "fact-08-1",
       "support_role": "CONTEXT",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
@@ -991,17 +1197,17 @@
       "claim_atom_support_id": "cas-09-2",
       "scenario_id": "SCN-09",
       "claim_atom_id": "atom-09-2",
-      "canonical_fact_id": "fact-09-1",
-      "support_role": "CONTEXT",
+      "canonical_fact_id": "fact-09-2",
+      "support_role": "CONTRADICTS",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
     },
     {
       "claim_atom_support_id": "cas-09-3",
       "scenario_id": "SCN-09",
-      "claim_atom_id": "atom-09-2",
-      "canonical_fact_id": "fact-09-2",
-      "support_role": "CONTRADICTS",
+      "claim_atom_id": "atom-09-3",
+      "canonical_fact_id": "fact-09-1",
+      "support_role": "CONTEXT",
       "evaluated_on_claim_version": 1,
       "removed_by_user": false
     },
@@ -1046,7 +1252,16 @@
       "scenario_id": "SCN-12",
       "claim_atom_id": "atom-12-1",
       "canonical_fact_id": "fact-12-1",
-      "support_role": "CONTRADICTS",
+      "support_role": "CONTEXT",
+      "evaluated_on_claim_version": 2,
+      "removed_by_user": false
+    },
+    {
+      "claim_atom_support_id": "cas-12-3",
+      "scenario_id": "SCN-12",
+      "claim_atom_id": "atom-12-3",
+      "canonical_fact_id": "fact-12-1",
+      "support_role": "CONTEXT",
       "evaluated_on_claim_version": 2,
       "removed_by_user": false
     },

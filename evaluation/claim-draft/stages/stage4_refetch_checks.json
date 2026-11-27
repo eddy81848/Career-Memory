@@ -1,8 +1,8 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "stage_name": "STAGE_4_REFETCH_VERIFICATION",
-  "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
+  "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (distinguishing body drift vs same-hash locator-only mismatch and HTTP 404 vs transient 429/5xx/timeout failures, with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
   "artifact_role": "STAGE_STUB_OUTPUT",
   "refetch_checks": [
     {
@@ -122,6 +122,61 @@
       ]
     },
     {
+      "fixture_case_id": "refcase-02c",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": null,
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "tested_locator": {
+        "locator_id": "loc-ref-wrong-loc-src02-74_256-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 74,
+        "char_end": 256,
+        "char_length": 182,
+        "utf8_byte_start": 76,
+        "utf8_byte_end": 258,
+        "utf8_byte_length": 182,
+        "utf16_start": 74,
+        "utf16_end": 256,
+        "line_start": 2,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
+      "locator_recheck_matched": false,
+      "hash_recheck_matched": true,
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "observed_content_sha256": "sha256:2cb2537936283cbb5f7527ecbf64b9d65fc849f58004b4828104e7a53cc01c9f",
+        "tested_locator_id": "loc-ref-wrong-loc-src02-74_256-e3bf184f",
+        "stub_status": "STUB_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED"
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ]
+    },
+    {
       "fixture_case_id": "refcase-03a",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-03",
@@ -185,6 +240,135 @@
         "source_revision_id": "rev-src02-v1-2cb25379",
         "stub_status": "STUB_PARTIAL_TRUNCATED_206",
         "http_status": 206
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": []
+    },
+    {
+      "fixture_case_id": "refcase-03c",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_TRANSIENT_RATE_LIMIT_429_RETRY_EXHAUSTED",
+      "locator_recheck_matched": null,
+      "hash_recheck_matched": null,
+      "retry_policy_stub": {
+        "transient_failure_class": "HTTP_429_RATE_LIMIT",
+        "max_retry_attempts": 3,
+        "attempts_exhausted_in_stub": 3,
+        "approval_blocked_while_unavailable": true,
+        "distinguished_from_404": true
+      },
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "stub_status": "STUB_TRANSIENT_RATE_LIMIT_429_RETRY_EXHAUSTED",
+        "http_status": 429,
+        "attempts_exhausted": 3,
+        "approval_blocked": true
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": []
+    },
+    {
+      "fixture_case_id": "refcase-03d",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_TRANSIENT_SERVER_ERROR_5XX_RETRY_EXHAUSTED",
+      "locator_recheck_matched": null,
+      "hash_recheck_matched": null,
+      "retry_policy_stub": {
+        "transient_failure_class": "HTTP_5XX_SERVER_ERROR",
+        "max_retry_attempts": 3,
+        "attempts_exhausted_in_stub": 3,
+        "approval_blocked_while_unavailable": true,
+        "distinguished_from_404": true
+      },
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "stub_status": "STUB_TRANSIENT_SERVER_ERROR_5XX_RETRY_EXHAUSTED",
+        "http_status": 503,
+        "attempts_exhausted": 3,
+        "approval_blocked": true
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": []
+    },
+    {
+      "fixture_case_id": "refcase-03e",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_TRANSIENT_TIMEOUT_RETRY_EXHAUSTED",
+      "locator_recheck_matched": null,
+      "hash_recheck_matched": null,
+      "retry_policy_stub": {
+        "transient_failure_class": "NETWORK_TIMEOUT",
+        "max_retry_attempts": 3,
+        "attempts_exhausted_in_stub": 3,
+        "approval_blocked_while_unavailable": true,
+        "distinguished_from_404": true
+      },
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "stub_status": "STUB_TRANSIENT_TIMEOUT_RETRY_EXHAUSTED",
+        "error_code": "NETWORK_READ_TIMEOUT",
+        "attempts_exhausted": 3,
+        "approval_blocked": true
       },
       "negative_leaky_payload_fixture": null,
       "post_mvp_tags": []

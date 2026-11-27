@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "artifact_role": "SYNTHETIC_REFETCH_STUB_INPUT",
   "refetch_snapshots": [
     {
@@ -22,7 +22,7 @@
       "fixture_case_id": "refcase-02a",
       "official_ref_id": "REF-02",
       "legacy_draft_id": "REF-02",
-      "scenario_title": "Changed content hash and shifted locator offsets blocked (drift)",
+      "scenario_title": "Changed content hash and shifted locator offsets blocked (body drift)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -49,10 +49,25 @@
       "canary_tokens": []
     },
     {
+      "fixture_case_id": "refcase-02c",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": null,
+      "scenario_title": "Identical content hash but wrong/corrupted locator offsets blocked (distinguished from body change refcase-02a/02b)",
+      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": 200,
+      "stub_error_code": null,
+      "is_partial_response": false,
+      "returned_content_sha256": "sha256:2cb2537936283cbb5f7527ecbf64b9d65fc849f58004b4828104e7a53cc01c9f",
+      "returned_body_fixture_only": "PR #418 — Idempotent Retry Queue for Billing Webhooks\nAuthor: Alex Kim (@alexkim-synth)\n\nI implemented an idempotent retry queue with exponential backoff for billing webhooks in Project Aurora, preventing duplicate invoice notifications during transient gateway timeouts.",
+      "canary_tokens": []
+    },
+    {
       "fixture_case_id": "refcase-03a",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-03",
-      "scenario_title": "Source unavailable (HTTP 404 Not Found — distinguished from confirmed deletion and historical falsity)",
+      "scenario_title": "Source unavailable (HTTP 404 Not Found — distinguished from transient failures, confirmed deletion, and historical falsity)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -76,6 +91,51 @@
       "is_partial_response": true,
       "returned_content_sha256": "sha256:2312eafae94d51930334c4aefdab2ef97047b9fa043ae0499b9938e6180de2e6",
       "returned_body_fixture_only": "PR #418 — Idempotent Retry Queue for Billing Webhooks\nAuthor: Alex Kim (@alexkim-synth)\n\nI impl",
+      "canary_tokens": []
+    },
+    {
+      "fixture_case_id": "refcase-03c",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "scenario_title": "Transient rate-limit failure (HTTP 429 Too Many Requests — retry cap reached, approval blocked, distinguished from 404/deletion/falsity)",
+      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": 429,
+      "stub_error_code": "HTTP_429_RATE_LIMITED",
+      "is_partial_response": false,
+      "returned_content_sha256": null,
+      "returned_body_fixture_only": null,
+      "canary_tokens": []
+    },
+    {
+      "fixture_case_id": "refcase-03d",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "scenario_title": "Transient upstream server error (HTTP 503 5xx — retry cap reached, approval blocked, distinguished from 404/deletion/falsity)",
+      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": 503,
+      "stub_error_code": "HTTP_503_UPSTREAM_SERVER_ERROR",
+      "is_partial_response": false,
+      "returned_content_sha256": null,
+      "returned_body_fixture_only": null,
+      "canary_tokens": []
+    },
+    {
+      "fixture_case_id": "refcase-03e",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "scenario_title": "Transient network/read timeout (no HTTP status — retry cap reached, approval blocked, distinguished from 404/deletion/falsity)",
+      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": null,
+      "stub_error_code": "NETWORK_READ_TIMEOUT",
+      "is_partial_response": false,
+      "returned_content_sha256": null,
+      "returned_body_fixture_only": null,
       "canary_tokens": []
     },
     {

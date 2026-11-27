@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "artifact_role": "EXPECTED_REFETCH_ORACLE_DRAFT",
   "oracle_status": "DRAFT",
   "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
@@ -17,7 +17,7 @@
         "refcase-01a"
       ],
       "coverage_gap_details": [
-        "Static synthetic fixture & round-trip locator check only; real external provider HTTP refetch is NOT executed."
+        "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
@@ -31,14 +31,16 @@
       "verified_in_draft": true,
       "linked_fixture_case_ids": [
         "refcase-02a",
-        "refcase-02b"
+        "refcase-02b",
+        "refcase-02c"
       ],
       "coverage_gap_details": [
-        "Static synthetic drift & appended-revision hash mismatch blocked; Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch NOT executed."
+        "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch NOT executed."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP"
+        "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP",
+        "REVIEW_REQUIRED: Confirm distinct error telemetry between upstream content change (refcase-02a/02b) and internal/corrupted locator mismatch (refcase-02c)"
       ]
     },
     {
@@ -48,14 +50,17 @@
       "verified_in_draft": true,
       "linked_fixture_case_ids": [
         "refcase-03a",
-        "refcase-03b"
+        "refcase-03b",
+        "refcase-03c",
+        "refcase-03d",
+        "refcase-03e"
       ],
       "coverage_gap_details": [
-        "Covers synthetic HTTP 404 & HTTP 206 partial responses distinguished from confirmed deletion (contrast SCN-13) and historical falsity; HTTP 410/429/5xx/network timeout runtime retries NOT executed."
+        "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm product status distinction between unavailable (404/206/timeout), confirmed upstream delete (410), and user deletion (SCN-13)"
+        "REVIEW_REQUIRED: Confirm product status distinction between 404, partial 206, transient 429/5xx/timeout retry-cap block, confirmed upstream delete (410), and user deletion (SCN-13)"
       ]
     },
     {
@@ -67,11 +72,11 @@
         "refcase-04a"
       ],
       "coverage_gap_details": [
-        "COVERAGE GAP (runtime): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, and disk temp files are NOT yet tested."
+        "COVERAGE GAP (runtime): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, and traces"
+        "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, queues, and Export"
       ]
     },
     {
@@ -98,7 +103,7 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A static draft. Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
+        "COVERAGE GAP (unverified): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A static draft (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
@@ -112,7 +117,7 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers. Explicitly out of scope for offline T-004A static dataset; requires product API/UI integration QA."
+        "COVERAGE GAP (unverified): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline T-004A static dataset; requires product API/UI integration QA."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
@@ -126,7 +131,7 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (verifying no temp file/DB/queue spill of raw text between pipeline stages)."
+        "COVERAGE GAP (unverified): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
@@ -137,11 +142,13 @@
   "expected_refetch_fixtures": [
     {
       "fixture_case_id": "refcase-01a",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-01",
       "legacy_draft_id": "REF-01",
       "draft_refetch_verdict": "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -153,17 +160,19 @@
       ],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm exact product status name for successful refetch reproduction"
+        "REVIEW_REQUIRED: Confirm exact product status name for successful refetch reproduction (URL-only or partial match must not pass)"
       ],
       "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection and auto-refresh remain disabled."
     },
     {
       "fixture_case_id": "refcase-02a",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-02",
       "legacy_draft_id": "REF-02",
       "draft_refetch_verdict": "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -177,15 +186,17 @@
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm mismatch block UX/status vs Post-MVP re-anchoring"
       ],
-      "rationale": "Inserted header changes content hash and shifts offsets; verification is blocked without claiming historical falsity or auto-updating the claim."
+      "rationale": "Inserted header changes content hash and shifts offsets (body change); verification & approval are blocked without claiming historical falsity or auto-updating the claim."
     },
     {
       "fixture_case_id": "refcase-02b",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-02",
       "legacy_draft_id": "REF-08",
       "draft_refetch_verdict": "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -199,15 +210,41 @@
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm policy when document hash changes via appended text while prefix span still matches"
       ],
-      "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and Post-MVP auto-detect/auto-claim-refresh remains disabled."
+      "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and approval while Post-MVP auto-detect/auto-claim-refresh remains disabled."
+    },
+    {
+      "fixture_case_id": "refcase-02c",
+      "evaluation_family_id": "family-src02",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": null,
+      "draft_refetch_verdict": "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm diagnostic/block handling when content_sha256 matches identically but stored locator offsets/span_sha256 fail round-trip"
+      ],
+      "rationale": "Returned source body has the exact same content_sha256 as baseline, but tested_locator offsets point to the wrong span; blocks verification & approval cleanly distinct from upstream body drift (refcase-02a/02b)."
     },
     {
       "fixture_case_id": "refcase-03a",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-03",
       "draft_refetch_verdict": "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -216,17 +253,19 @@
       "post_mvp_tags": [],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm product status for HTTP 404 (unverifiable now, neither confirmed deletion nor historical falsity)"
+        "REVIEW_REQUIRED: Confirm product status for HTTP 404 (distinct from transient 429/5xx/timeout, confirmed deletion SCN-13, and historical falsity)"
       ],
-      "rationale": "HTTP 404 makes the source currently unverifiable; it MUST be distinguished from confirmed user deletion (SCN-13) and MUST NOT mark the historical fact false."
+      "rationale": "Single HTTP 404 makes the source currently unverifiable and blocks approval; it MUST be distinguished from transient outages (refcase-03c..03e), confirmed user deletion (SCN-13), and historical falsity."
     },
     {
       "fixture_case_id": "refcase-03b",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-03",
       "legacy_draft_id": "REF-04",
       "draft_refetch_verdict": "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -237,15 +276,80 @@
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm truncated HTTP 206 retry/fallback handling"
       ],
-      "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable, neither confirmed deleted nor historically false."
+      "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable and blocks approval, neither confirmed deleted nor historically false."
+    },
+    {
+      "fixture_case_id": "refcase-03c",
+      "evaluation_family_id": "family-src02",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm production max retry cap, Retry-After backoff, and approval-gate block UX for HTTP 429 (runtime retry harness NOT executed)"
+      ],
+      "rationale": "Transient HTTP 429 rate-limit failure exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
+    },
+    {
+      "fixture_case_id": "refcase-03d",
+      "evaluation_family_id": "family-src02",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm production max retry cap and approval-gate block UX for HTTP 5xx transient outages (runtime retry harness NOT executed)"
+      ],
+      "rationale": "Transient HTTP 503 upstream server outage exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
+    },
+    {
+      "fixture_case_id": "refcase-03e",
+      "evaluation_family_id": "family-src02",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": null,
+      "draft_refetch_verdict": "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+      "expected_fetch_attempted": true,
+      "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
+      "expected_source_deleted_confirmed": false,
+      "expected_historical_fact_falsified": false,
+      "expected_claim_auto_mutated": false,
+      "expected_canary_leaked_in_clean_snapshot": false,
+      "expected_canary_detected_in_negative_fixture": null,
+      "post_mvp_tags": [],
+      "oracle_status": "DRAFT",
+      "review_required_items": [
+        "REVIEW_REQUIRED: Confirm production timeout threshold, retry cap, and approval-gate block UX (runtime timeout harness NOT executed)"
+      ],
+      "rationale": "Transient network/read timeout exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
     },
     {
       "fixture_case_id": "refcase-04a",
+      "evaluation_family_id": "family-src_ref07_canary",
       "official_ref_id": "REF-04",
       "legacy_draft_id": "REF-07",
       "draft_refetch_verdict": "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": false,
+      "expected_approval_blocked": false,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -254,17 +358,19 @@
       "post_mvp_tags": [],
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Extend canary audit to live DB/logs/caches/queues in backend QA (PARTIAL_COVERAGE_GAP)"
+        "REVIEW_REQUIRED: Extend canary audit to live DB/logs/caches/queues/Export in backend QA (PARTIAL_COVERAGE_GAP)"
       ],
-      "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture."
+      "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture (not a substitute for runtime leak auditing)."
     },
     {
       "fixture_case_id": "refcase-05a",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-05",
       "legacy_draft_id": "REF-05",
       "draft_refetch_verdict": "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
       "expected_fetch_attempted": true,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,
@@ -275,15 +381,17 @@
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm OAuth scope revocation & tenant permission boundary codes (PARTIAL_COVERAGE_GAP)"
       ],
-      "rationale": "HTTP 403 / revoked OAuth scope blocks access without deleting or falsifying historical facts."
+      "rationale": "HTTP 403 / revoked OAuth scope blocks access and approval without deleting or falsifying historical facts."
     },
     {
       "fixture_case_id": "refcase-05b",
+      "evaluation_family_id": "family-src02",
       "official_ref_id": "REF-05",
       "legacy_draft_id": "REF-06",
       "draft_refetch_verdict": "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH",
       "expected_fetch_attempted": false,
       "expected_unverifiable_now": true,
+      "expected_approval_blocked": true,
       "expected_source_deleted_confirmed": false,
       "expected_historical_fact_falsified": false,
       "expected_claim_auto_mutated": false,

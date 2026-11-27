@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "artifact_role": "SYNTHETIC_SOURCE_INPUT",
   "normalization_policy": "fixture-nfc-lf-v0-draft",
   "convention_scope": "TEST_FIXTURE_ONLY",

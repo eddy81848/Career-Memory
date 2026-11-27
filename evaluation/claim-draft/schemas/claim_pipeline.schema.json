@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.2.0.json",
-  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT v0.2.0)",
-  "description": "Draft structural schema for T-004A synthetic fixtures. Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED. Provisional draft verdict labels (DRAFT_*) are strictly separated from product states.",
+  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.3.0.json",
+  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT v0.3.0)",
+  "description": "Draft structural schema for T-004A synthetic fixtures (round-01 review revision). Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED. Provisional draft verdict labels (DRAFT_*) are strictly separated from product states.",
   "$defs": {
     "Sha256Hash": {
       "type": "string",
@@ -122,8 +122,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_SOURCE_INPUT" },
         "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
         "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
@@ -173,8 +173,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_1_CONTENT_UNIT_SEGMENTATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -241,7 +241,7 @@
         },
         "modality": { "type": "string", "enum": ["COMPLETED", "PLANNED", "NEGATED", "OBSERVED_CORRELATION"] },
         "environment_scope": { "type": "string", "enum": ["PRODUCTION", "STAGING_TEST", "UNSPECIFIED"] },
-        "attribution_scope": { "type": "string", "enum": ["INDIVIDUAL", "TEAM", "AMBIGUOUS"] },
+        "attribution_scope": { "type": "string", "enum": ["INDIVIDUAL", "TEAM", "AMBIGUOUS", "UNSPECIFIED"] },
         "identity_status": { "type": "string", "enum": ["RESOLVED", "AMBIGUOUS"] },
         "deleted_by_user": { "type": "boolean" }
       }
@@ -260,8 +260,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -462,8 +462,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_ASSEMBLY" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -502,7 +502,7 @@
       "properties": {
         "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
         "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
-        "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "legacy_draft_id": { "type": ["string", "null"], "pattern": "^REF-0[1-8]$" },
         "scenario_title": { "type": "string", "minLength": 5 },
         "target_url": { "type": "string", "minLength": 5 },
         "additional_unsafe_urls": {
@@ -532,8 +532,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_REFETCH_STUB_INPUT" },
         "refetch_snapshots": {
           "type": "array",
@@ -561,9 +561,10 @@
       "properties": {
         "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
         "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
-        "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "legacy_draft_id": { "type": ["string", "null"], "pattern": "^REF-0[1-8]$" },
         "baseline_source_revision_id": { "type": "string", "pattern": "^rev-" },
         "baseline_locator": { "$ref": "#/$defs/Locator" },
+        "tested_locator": { "$ref": "#/$defs/Locator" },
         "target_claim_id": { "type": "string", "pattern": "^claim-" },
         "stub_outcome": {
           "type": "string",
@@ -571,8 +572,12 @@
             "STUB_REFETCH_MATCHED",
             "STUB_HASH_LOCATOR_MISMATCH_BLOCKED",
             "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION",
+            "STUB_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
             "STUB_SOURCE_UNAVAILABLE_404",
             "STUB_PARTIAL_TRUNCATED_206",
+            "STUB_TRANSIENT_RATE_LIMIT_429_RETRY_EXHAUSTED",
+            "STUB_TRANSIENT_SERVER_ERROR_5XX_RETRY_EXHAUSTED",
+            "STUB_TRANSIENT_TIMEOUT_RETRY_EXHAUSTED",
             "STUB_CANARY_STATIC_SNAPSHOT_CLEAN",
             "STUB_POLICY_PERMISSION_DENIED_403",
             "STUB_UNSAFE_URL_BLOCKED_PREFETCH"
@@ -580,6 +585,27 @@
         },
         "locator_recheck_matched": { "type": ["boolean", "null"] },
         "hash_recheck_matched": { "type": ["boolean", "null"] },
+        "retry_policy_stub": {
+          "type": ["object", "null"],
+          "required": [
+            "transient_failure_class",
+            "max_retry_attempts",
+            "attempts_exhausted_in_stub",
+            "approval_blocked_while_unavailable",
+            "distinguished_from_404"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "transient_failure_class": {
+              "type": "string",
+              "enum": ["HTTP_429_RATE_LIMIT", "HTTP_5XX_SERVER_ERROR", "NETWORK_TIMEOUT"]
+            },
+            "max_retry_attempts": { "type": "integer", "minimum": 1 },
+            "attempts_exhausted_in_stub": { "type": "integer", "minimum": 1 },
+            "approval_blocked_while_unavailable": { "type": "boolean" },
+            "distinguished_from_404": { "type": "boolean" }
+          }
+        },
         "persisted_payload_snapshot": { "type": "object" },
         "negative_leaky_payload_fixture": { "type": ["object", "null"] },
         "post_mvp_tags": {
@@ -600,8 +626,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_4_REFETCH_VERIFICATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -622,26 +648,47 @@
         "product_status_mapping_policy",
         "frozen_for_golden",
         "requires_human_review_task",
+        "provenance_and_freeze_preconditions",
         "scenarios",
         "expected_atoms",
         "expected_claims"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_DRAFT" },
         "oracle_status": { "type": "string", "const": "DRAFT" },
         "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
         "product_status_mapping_policy": { "type": "string", "minLength": 10 },
         "frozen_for_golden": { "type": "boolean", "const": false },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
+        "provenance_and_freeze_preconditions": {
+          "type": "object",
+          "required": [
+            "base_commit_sha",
+            "review_source_ref",
+            "human_approval_status",
+            "family_split_anti_leakage_rule",
+            "synthetic_semantics_only_not_connector_evidence"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "base_commit_sha": { "type": "string", "minLength": 7 },
+            "review_source_ref": { "type": "string", "minLength": 5 },
+            "human_approval_status": { "type": "string", "const": "PENDING_T004B_HUMAN_SIGNOFF" },
+            "family_split_anti_leakage_rule": { "type": "string", "minLength": 10 },
+            "synthetic_semantics_only_not_connector_evidence": { "type": "boolean", "const": true }
+          }
+        },
         "scenarios": {
           "type": "array",
           "items": {
             "type": "object",
             "required": [
               "scenario_id",
+              "evaluation_family_id",
+              "evaluation_partition",
               "title",
               "coverage_tags",
               "expected_fact_count",
@@ -653,6 +700,8 @@
             "additionalProperties": false,
             "properties": {
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+              "evaluation_family_id": { "type": "string", "pattern": "^family-" },
+              "evaluation_partition": { "type": "string", "const": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER" },
               "title": { "type": "string" },
               "coverage_tags": { "type": "array", "items": { "type": "string" } },
               "expected_fact_count": { "type": "integer", "minimum": 0 },
@@ -798,8 +847,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.2.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
         "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_DRAFT" },
         "oracle_status": { "type": "string", "const": "DRAFT" },
         "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
@@ -851,11 +900,13 @@
             "type": "object",
             "required": [
               "fixture_case_id",
+              "evaluation_family_id",
               "official_ref_id",
               "legacy_draft_id",
               "draft_refetch_verdict",
               "expected_fetch_attempted",
               "expected_unverifiable_now",
+              "expected_approval_blocked",
               "expected_source_deleted_confirmed",
               "expected_historical_fact_falsified",
               "expected_claim_auto_mutated",
@@ -869,16 +920,21 @@
             "additionalProperties": false,
             "properties": {
               "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
+              "evaluation_family_id": { "type": "string", "pattern": "^family-" },
               "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
-              "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+              "legacy_draft_id": { "type": ["string", "null"], "pattern": "^REF-0[1-8]$" },
               "draft_refetch_verdict": {
                 "type": "string",
                 "enum": [
                   "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
                   "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
                   "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
+                  "DRAFT_REFETCH_SAME_HASH_LOCATOR_ONLY_MISMATCH_BLOCKED",
                   "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
                   "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+                  "DRAFT_REFETCH_TRANSIENT_429_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+                  "DRAFT_REFETCH_TRANSIENT_5XX_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
+                  "DRAFT_REFETCH_TRANSIENT_TIMEOUT_BLOCKED_APPROVAL_AFTER_RETRY_CAP",
                   "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
                   "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
                   "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH"
@@ -886,6 +942,7 @@
               },
               "expected_fetch_attempted": { "type": "boolean" },
               "expected_unverifiable_now": { "type": "boolean" },
+              "expected_approval_blocked": { "type": "boolean" },
               "expected_source_deleted_confirmed": { "type": "boolean" },
               "expected_historical_fact_falsified": { "type": "boolean" },
               "expected_claim_auto_mutated": { "type": "boolean" },

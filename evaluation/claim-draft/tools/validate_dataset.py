@@ -1031,8 +1031,9 @@ def validate_bundle(
                         )
                     )
                 if not snap.get("is_partial_response"):
+                    locator_to_recheck = chk.get("tested_locator") or chk["baseline_locator"]
                     _, ref_rt_errs = verify_locator_roundtrip(
-                        ret_norm, chk["baseline_locator"], context_label=f"refetch_recheck[{fcid}]"
+                        ret_norm, locator_to_recheck, context_label=f"refetch_recheck[{fcid}]"
                     )
                     actual_loc_match = len(ref_rt_errs) == 0
                     if chk.get("locator_recheck_matched") != actual_loc_match:
@@ -1043,6 +1044,41 @@ def validate_bundle(
                                 f"Recorded {chk['locator_recheck_matched']} != actual {actual_loc_match}",
                             )
                         )
+
+        if chk.get("tested_locator") is not None:
+            if (
+                chk.get("hash_recheck_matched") is not True
+                or chk.get("locator_recheck_matched") is not False
+                or ro.get("expected_approval_blocked") is not True
+            ):
+                errors.append(
+                    ValidationErrorItem(
+                        "LOCATOR_ONLY_MISMATCH_POLICY_VIOLATION",
+                        f"stage4_refetch_checks[{fcid}].tested_locator",
+                        "Same-hash locator-only mismatch fixture must have hash_recheck_matched=true, "
+                        "locator_recheck_matched=false, and expected_approval_blocked=true",
+                    )
+                )
+
+        retry_stub = chk.get("retry_policy_stub")
+        if retry_stub is not None:
+            if (
+                not isinstance(retry_stub.get("max_retry_attempts"), int)
+                or retry_stub["max_retry_attempts"] < 1
+                or not isinstance(retry_stub.get("attempts_exhausted_in_stub"), int)
+                or retry_stub["attempts_exhausted_in_stub"] < 1
+                or retry_stub.get("approval_blocked_while_unavailable") is not True
+                or retry_stub.get("distinguished_from_404") is not True
+                or ro.get("expected_approval_blocked") is not True
+            ):
+                errors.append(
+                    ValidationErrorItem(
+                        "TRANSIENT_RETRY_POLICY_VIOLATION",
+                        f"stage4_refetch_checks[{fcid}].retry_policy_stub",
+                        "Transient failure fixture must enforce bounded retry (>=1), block approval while unavailable, "
+                        "and distinguish transient failures from HTTP 404",
+                    )
+                )
 
         if chk["target_claim_id"] not in claims_by_id:
             errors.append(
@@ -1066,6 +1102,14 @@ def validate_bundle(
                         f"expected_refetch_fixtures[{fcid}]",
                         f"{official_ref_id} fixture '{fcid}' MUST set expected_unverifiable_now=true, "
                         "expected_source_deleted_confirmed=false, and expected_historical_fact_falsified=false",
+                    )
+                )
+            if ro.get("expected_approval_blocked") is not True:
+                errors.append(
+                    ValidationErrorItem(
+                        "REFETCH_APPROVAL_BLOCK_VIOLATION",
+                        f"expected_refetch_fixtures[{fcid}].expected_approval_blocked",
+                        f"{official_ref_id} fixture '{fcid}' MUST set expected_approval_blocked=true",
                     )
                 )
 
@@ -1143,7 +1187,8 @@ def main() -> int:
     base_dir = Path(__file__).resolve().parent.parent
     schema, docs = load_dataset_bundle(base_dir)
     errors, summary = validate_bundle(schema, docs)
-    print("T-004A Claim Draft Dataset Structural Validation Summary (v0.2.0-draft):")
+    dataset_version = docs.get("sources/source_revisions.json", {}).get("dataset_version", "unknown")
+    print(f"T-004A Claim Draft Dataset Structural Validation Summary (v{dataset_version}):")
     for key, val in summary.items():
         print(f"  {key}: {val}")
     if errors:

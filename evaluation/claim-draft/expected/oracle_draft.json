@@ -1,15 +1,24 @@
 {
-  "schema_version": "0.2.0-draft",
-  "dataset_version": "0.2.0-draft",
+  "schema_version": "0.3.0-draft",
+  "dataset_version": "0.3.0-draft",
   "artifact_role": "EXPECTED_ORACLE_DRAFT",
   "oracle_status": "DRAFT",
   "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
   "product_status_mapping_policy": "REVIEW_REQUIRED — draft_*_verdict values are provisional T-004A evaluation labels and MUST NOT be conflated with finalized product status enums.",
   "frozen_for_golden": false,
   "requires_human_review_task": "T-004B",
+  "provenance_and_freeze_preconditions": {
+    "base_commit_sha": "f90b716036a9392b06b465f8d5545502d8eb18cd",
+    "review_source_ref": "career-memory-round-01/claim-qa-independent-review.md (11 Claim revisions applied; 12 kept Claims & SCN-13 OD-003 preserved)",
+    "human_approval_status": "PENDING_T004B_HUMAN_SIGNOFF",
+    "family_split_anti_leakage_rule": "Keep all cases sharing evaluation_family_id (e.g., family-src02 across SCN-02 & refcase-01a..05b; family-src12 original/edited versions) in the same evaluation split before any golden freeze.",
+    "synthetic_semantics_only_not_connector_evidence": true
+  },
   "scenarios": [
     {
       "scenario_id": "SCN-01",
+      "evaluation_family_id": "family-src01",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
       "title": "Zero facts from standup boilerplate + ungrounded candidate claim",
       "coverage_tags": [
         "zero_facts",
@@ -27,23 +36,28 @@
     },
     {
       "scenario_id": "SCN-02",
-      "title": "Single fact clean individual delivery baseline",
+      "evaluation_family_id": "family-src02",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Single fact clean individual delivery baseline (implementation + conditional effect atoms)",
       "coverage_tags": [
         "single_fact",
         "direct_support",
-        "individual_attribution"
+        "individual_attribution",
+        "effect_with_condition"
       ],
       "expected_fact_count": 1,
-      "expected_atom_count": 1,
+      "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "T-004B human confirmation of baseline SOURCE_VERIFIED candidate criteria"
+        "T-004B human confirmation of baseline SOURCE_VERIFIED candidate criteria (2/2 required atoms: implementation + conditional duplicate-notification prevention)"
       ],
-      "rationale": "Single unambiguous PR authored by verified owner directly supports the single required claim atom."
+      "rationale": "Single unambiguous PR authored by verified owner directly supports both the retry queue implementation (atom-02-1) and the conditional effect preventing duplicate invoice notifications during transient gateway timeouts (atom-02-2)."
     },
     {
       "scenario_id": "SCN-03",
-      "title": "Multiple (N=3) facts from Korean postmortem with multi-byte UTF-8 offsets",
+      "evaluation_family_id": "family-src03",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Multiple (N=3) facts from Korean postmortem with split action/metric atoms and multi-byte UTF-8 offsets",
       "coverage_tags": [
         "n_facts",
         "multi_atom_claim",
@@ -51,16 +65,18 @@
         "direct_support"
       ],
       "expected_fact_count": 3,
-      "expected_atom_count": 3,
+      "expected_atom_count": 4,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm multi-atom aggregation rule when all N required atoms have DIRECT support"
+        "Confirm multi-atom aggregation rule when all 4 required atoms (script action, p95 620->180ms result, 2-min rollback, >300ms alert) have DIRECT support"
       ],
-      "rationale": "Three Korean bullet items yield 3 canonical facts and 3 DIRECT-supported required atoms in one composite claim."
+      "rationale": "Three Korean bullet items yield 3 canonical facts and 4 independently verifiable DIRECT-supported required atoms in claim-03-1 (action separated from p95 measurement)."
     },
     {
       "scenario_id": "SCN-04",
-      "title": "DIRECT+CONTEXT grounding vs CONTEXT-only insufficient grounding",
+      "evaluation_family_id": "family-src04",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "DIRECT+CONTEXT grounding (qualifier-aligned) vs CONTEXT-only insufficient grounding",
       "coverage_tags": [
         "direct_support",
         "context_support",
@@ -70,29 +86,36 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm product state mapping for CONTEXT-only claim-04-2 (must never be SOURCE_VERIFIED)"
+        "Confirm product state mapping for CONTEXT-only claim-04-2 (must never be SOURCE_VERIFIED) and verify tightened claim-04-1 wording"
       ],
-      "rationale": "Background initiative goal provides CONTEXT only; claim-04-2 lacks DIRECT evidence and cannot be SOURCE_VERIFIED."
+      "rationale": "claim-04-1 removes the unverified 'as part of Q3 reliability work' modifier so the Claim aligns strictly with DIRECT fact-04-1 (with fact-04-2 as CONTEXT); claim-04-2 remains CONTEXT-only and cannot be SOURCE_VERIFIED."
     },
     {
       "scenario_id": "SCN-05",
-      "title": "CONTRADICTS across initial incident draft and corrected postmortem addendum",
+      "evaluation_family_id": "family-src05",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "CONTRADICTS across incident draft vs addendum + separation of log-confirmed fact from unverified personal execution/audit claims",
       "coverage_tags": [
         "contradicts",
         "multi_revision",
+        "attribution_split",
+        "partial_support",
         "hard_negative"
       ],
       "expected_fact_count": 2,
-      "expected_atom_count": 2,
+      "expected_atom_count": 4,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm conflict precedence policy when a newer addendum contradicts an older draft"
+        "Confirm conflict precedence policy when a newer addendum contradicts an older draft (distinct draft vs correction scopes)",
+        "Confirm claim-05-2 is blocked from SOURCE_VERIFIED because passive 'Log audit confirmed' verifies 412/503 (atom-05-3) but does NOT verify personal audit/documentation (atom-05-4)"
       ],
-      "rationale": "CONTRADICTS support from addendum blocks SOURCE_VERIFIED on zero-drop claim-05-1 while supporting corrected claim-05-2."
+      "rationale": "claim-05-1 separates ungrounded personal failover execution (atom-05-1) from contradicted zero-drop claim (atom-05-2); claim-05-2 separates log-confirmed 412 HTTP 503s (atom-05-3, DIRECT) from personal log-audit attribution (atom-05-4, CONTEXT-only -> PARTIALLY_GROUNDED, SOURCE_VERIFIED forbidden)."
     },
     {
       "scenario_id": "SCN-06",
-      "title": "Completed delivery vs planned Q4 RFC work (Korean)",
+      "evaluation_family_id": "family-src06",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Completed delivery (split implementation & monitoring atoms) vs planned Q4 RFC work (split sharding & benchmark atoms, observation-time scoped)",
       "coverage_tags": [
         "planned_vs_completed",
         "contradicts",
@@ -100,64 +123,74 @@
         "hard_negative"
       ],
       "expected_fact_count": 2,
-      "expected_atom_count": 2,
+      "expected_atom_count": 4,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm product state mapping (conflicting vs ungrounded) for planned-as-completed claim-06-2"
+        "Confirm product state mapping for planned-as-completed claim-06-2 (observation-time unconfirmed, NOT permanent incompleteness assertion)"
       ],
-      "rationale": "Future Q4 plan cannot verify a completed-delivery claim, while the completed health-check item is directly supported."
+      "rationale": "claim-06-1 splits endpoint implementation and production monitoring integration into 2 DIRECT atoms; claim-06-2 splits sharding completion and benchmark completion into 2 CONTRADICTED atoms scoped to observation time."
     },
     {
       "scenario_id": "SCN-07",
-      "title": "Negation context (not deployed, reverted, cost savings not achieved)",
+      "evaluation_family_id": "family-src07",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Negation context (reverted rollout KEPT; split negated production deployment & negated 30% cost savings)",
       "coverage_tags": [
         "negation_context",
         "contradicts",
         "hard_negative"
       ],
-      "expected_fact_count": 2,
-      "expected_atom_count": 2,
+      "expected_fact_count": 3,
+      "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Verify negation reversal rubric for claim-07-2"
+        "Verify negation reversal rubric for independently negated atoms atom-07-2 (deployment) and atom-07-3 (30% savings)"
       ],
-      "rationale": "Explicit negation refutes positive deployment/savings claim-07-2 while supporting rollback claim-07-1."
+      "rationale": "Explicit negations in src07 independently refute production deployment (fact-07-2 -> atom-07-2) and 30% compute cost savings (fact-07-3 -> atom-07-3) while supporting rollback claim-07-1."
     },
     {
       "scenario_id": "SCN-08",
-      "title": "Team achievement vs individual contribution attribution",
+      "evaluation_family_id": "family-src08",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Team achievement vs individual contribution (KEPT claim-08-1; split solo contradiction, unsupported 'from scratch', and team-only 22->8m metric)",
       "coverage_tags": [
         "team_vs_individual",
+        "contradicts",
         "context_support",
         "hard_negative"
       ],
       "expected_fact_count": 2,
-      "expected_atom_count": 2,
+      "expected_atom_count": 4,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm attribution rubric when team-level achievement is cited only as CONTEXT"
+        "Confirm claim-08-2 CONFLICTING verdict combining solo-attribution contradiction (6-engineer team), unsupported 'from scratch', and team-only 22->8m CONTEXT"
       ],
-      "rationale": "Individual cache layer work is DIRECT-supported; solo-rebuilt overclaim-08-2 has only team CONTEXT and cannot be SOURCE_VERIFIED."
+      "rationale": "claim-08-1 remains DIRECT-supported for individual cache layer work; claim-08-2 separates solo rebuild attribution (CONTRADICTS 6-engineer team fact-08-1), 'from scratch' (UNSUPPORTED), and 22->8m team outcome (CONTEXT-only)."
     },
     {
       "scenario_id": "SCN-09",
-      "title": "Staging/test benchmark vs unstarted production deployment (Korean)",
+      "evaluation_family_id": "family-src09",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "Staging/test benchmark (KEPT claim-09-1) vs unstarted production deployment & staging-only metric split (claim-09-2)",
       "coverage_tags": [
         "test_vs_production",
         "contradicts",
+        "context_support",
         "korean_utf8_offsets",
         "hard_negative"
       ],
       "expected_fact_count": 2,
-      "expected_atom_count": 2,
+      "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm environment-scope conflict product state mapping for claim-09-2"
+        "Confirm environment-scope split on claim-09-2: unstarted production deployment (CONTRADICTED) vs production p95 metric (CONTEXT-only from staging)"
       ],
-      "rationale": "Staging benchmark results cannot verify production impact when production rollout has not started."
+      "rationale": "claim-09-1 accurately describes the local staging sandbox benchmark; claim-09-2 separates unstarted production deployment (CONTRADICTS fact-09-2) from production p95 improvement (CONTEXT-only from staging fact-09-1)."
     },
     {
       "scenario_id": "SCN-10",
+      "evaluation_family_id": "family-src10",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
       "title": "Unverified causation and fabricated metric in a 3-atom partial claim",
       "coverage_tags": [
         "unverified_metric_causation",
@@ -174,6 +207,8 @@
     },
     {
       "scenario_id": "SCN-11",
+      "evaluation_family_id": "family-src11",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
       "title": "Identity ambiguity (unmapped homonym 'Alex') vs verified account author",
       "coverage_tags": [
         "identity_ambiguity",
@@ -189,21 +224,27 @@
     },
     {
       "scenario_id": "SCN-12",
-      "title": "User edit creates new version requiring re-verification against evidence (substantive fail & minor pending)",
+      "evaluation_family_id": "family-src12",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
+      "title": "User edit creates new version requiring re-verification (claim-12-1 split global scope & 60% metric without global-falsity inference; claim-12-2 KEPT)",
       "coverage_tags": [
         "user_edit_new_version_reverification",
+        "scope_mismatch",
         "hard_negative"
       ],
       "expected_fact_count": 1,
-      "expected_atom_count": 2,
+      "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm product state transition when minor paraphrase v2 (claim-12-2) completes re-verification against fact-12-1"
+        "REVIEW_REQUIRED: Confirm product state transition when minor paraphrase v2 (claim-12-2) completes re-verification against fact-12-1",
+        "Confirm claim-12-1 v2 re-verification fails on both global tuning scope (atom-12-1) and global 60% metric (atom-12-3) without inferring 60% is false in every measurement scope"
       ],
-      "rationale": "User edits increment claim_version to v2 and require re-verification against evidence; v2 inflation fails (CONTRADICTS) and v2 paraphrase cannot inherit v1 SOURCE_VERIFIED prior to re-verification."
+      "rationale": "User edits increment claim_version to v2 and forbid v1 auto-promotion; claim-12-1 splits global tuning and global 60% latency claims which fail v2 re-verification against checkout-only 25% evidence without over-inferring universal falsity."
     },
     {
       "scenario_id": "SCN-13",
+      "evaluation_family_id": "family-src13",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
       "title": "OD-003 user source deletion: preview + explicit confirmation -> immediate access block -> full purge of dependent Claims & server copies (even mixed-source), preserving independent Source",
       "coverage_tags": [
         "od003_user_delete",
@@ -223,6 +264,8 @@
     },
     {
       "scenario_id": "SCN-14",
+      "evaluation_family_id": "family-src14",
+      "evaluation_partition": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER",
       "title": "Hard negatives bundle: 10x numeric distortion and cross-project conflation",
       "coverage_tags": [
         "hard_negative",
@@ -257,7 +300,16 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by fact-02-1 from verified owner PR src02."
+      "rationale": "Implementation of idempotent retry queue with exponential backoff for billing webhooks in Project Aurora is directly supported by fact-02-1."
+    },
+    {
+      "claim_atom_id": "atom-02-2",
+      "scenario_id": "SCN-02",
+      "claim_id": "claim-02-1",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Conditional effect (preventing duplicate invoice notifications during transient gateway timeouts) is directly supported by fact-02-1."
     },
     {
       "claim_atom_id": "atom-03-1",
@@ -266,7 +318,7 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 1 (fact-03-1 / fs-03-1)."
+      "rationale": "Shard redistribution script authoring action is directly supported by Korean bullet 1 (fact-03-1 / fs-03-1)."
     },
     {
       "claim_atom_id": "atom-03-2",
@@ -275,7 +327,7 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 2 (fact-03-2 / fs-03-2)."
+      "rationale": "Production cluster p95 latency reduction (620ms -> 180ms) is independently directly supported by Korean bullet 1 (fact-03-1 / fs-03-1)."
     },
     {
       "claim_atom_id": "atom-03-3",
@@ -284,7 +336,16 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 3 (fact-03-3 / fs-03-3)."
+      "rationale": "Automatic rollback within 2 minutes on deployment failure is directly supported by Korean bullet 2 (fact-03-2 / fs-03-2)."
+    },
+    {
+      "claim_atom_id": "atom-03-4",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Slow-query alert rule above 300ms threshold is directly supported by Korean bullet 3 (fact-03-3 / fs-03-3)."
     },
     {
       "claim_atom_id": "atom-04-1",
@@ -293,7 +354,7 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "DIRECT fact-04-1 plus CONTEXT fact-04-2."
+      "rationale": "WorkerPool v2 production migration is directly supported by fact-04-1 with initiative overview fact-04-2 as CONTEXT; unverified qualifier removed from claim-04-1."
     },
     {
       "claim_atom_id": "atom-04-2",
@@ -308,19 +369,37 @@
       "claim_atom_id": "atom-05-1",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-1",
-      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Refuted by postmortem addendum fact-05-2 (412 HTTP 503s)."
+      "rationale": "Neither incident draft (src05a) nor addendum (src05b) states that the user personally executed the database primary failover (0 supports)."
     },
     {
       "claim_atom_id": "atom-05-2",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-1",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Initial draft zero-drop assertion (fact-05-1) is explicitly refuted by postmortem addendum fact-05-2 (412 HTTP 503s during 90s failover window)."
+    },
+    {
+      "claim_atom_id": "atom-05-3",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-2",
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by audited addendum fact-05-2."
+      "rationale": "Postmortem addendum directly confirms that log audit recorded 412 HTTP 503 checkout responses during the 90-second failover window (fact-05-2)."
+    },
+    {
+      "claim_atom_id": "atom-05-4",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-2",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Passive 'Log audit confirmed' in fact-05-2 does NOT directly establish that the user personally performed the log audit and documentation (CONTEXT-only -> SOURCE_VERIFIED forbidden)."
     },
     {
       "claim_atom_id": "atom-06-1",
@@ -329,16 +408,34 @@
       "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by completed section fact-06-1."
+      "rationale": "Read-replica health-check endpoint implementation is directly supported by completed section fact-06-1."
     },
     {
       "claim_atom_id": "atom-06-2",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-1",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Production monitoring integration of the health-check endpoint is independently directly supported by completed section fact-06-1."
+    },
+    {
+      "claim_atom_id": "atom-06-3",
       "scenario_id": "SCN-06",
       "claim_id": "claim-06-2",
       "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Source marks sharding as future Q4 plan (fact-06-2), contradicting completed claim."
+      "rationale": "Source RFC lists user_events sharding as a future Q4 plan at observation time (fact-06-2), contradicting completed claim without asserting permanent future incompleteness."
+    },
+    {
+      "claim_atom_id": "atom-06-4",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-2",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Source RFC lists prototype benchmark as a next-month plan at observation time (fact-06-2), contradicting completed claim without asserting permanent future incompleteness."
     },
     {
       "claim_atom_id": "atom-07-1",
@@ -356,7 +453,16 @@
       "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly contradicted by explicit negation fact-07-2."
+      "rationale": "Production deployment claim is directly contradicted by explicit negation fact-07-2 ('We did not deploy the canary autoscaler to production')."
+    },
+    {
+      "claim_atom_id": "atom-07-3",
+      "scenario_id": "SCN-07",
+      "claim_id": "claim-07-2",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "30% compute cost savings claim is independently contradicted by explicit negation fact-07-3 ('we did not achieve the target 30% compute cost savings')."
     },
     {
       "claim_atom_id": "atom-08-1",
@@ -371,10 +477,28 @@
       "claim_atom_id": "atom-08-2",
       "scenario_id": "SCN-08",
       "claim_id": "claim-08-2",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "Claiming to have single-handedly rebuilt the entire CI pipeline directly contradicts 6-engineer Platform Reliability team attribution in fact-08-1."
+    },
+    {
+      "claim_atom_id": "atom-08-3",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "No source evidence supports the 'from scratch' qualifier (0 supports)."
+    },
+    {
+      "claim_atom_id": "atom-08-4",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
       "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Team-of-6 accomplishment (CONTEXT only) cannot verify solo-rebuilt attribution."
+      "rationale": "22m -> 8m median build duration reduction is preserved strictly as a team-level outcome (CONTEXT-only for an individual solo-rebuild claim)."
     },
     {
       "claim_atom_id": "atom-09-1",
@@ -392,7 +516,16 @@
       "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Source explicitly states production rollout has not started (fact-09-2)."
+      "rationale": "Production database deployment claim directly contradicts fact-09-2 ('운영 환경 배포는 아직 시작하지 않았다')."
+    },
+    {
+      "claim_atom_id": "atom-09-3",
+      "scenario_id": "SCN-09",
+      "claim_id": "claim-09-2",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "840ms -> 95ms p95 improvement was observed only in local staging sandbox (fact-09-1); CONTEXT-only cannot verify a production performance claim."
     },
     {
       "claim_atom_id": "atom-10-1",
@@ -446,7 +579,16 @@
       "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "User edit to v2 inflated 25% checkout reduction to 60% globally; v2 re-verification against fact-12-1 failed (CONTRADICTS)."
+      "rationale": "User edit to v2 expanded scope to global tuning across all services; checkout-only fact-12-1 fails v2 re-verification (CONTEXT-only)."
+    },
+    {
+      "claim_atom_id": "atom-12-3",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-1",
+      "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
+      "oracle_status": "DRAFT",
+      "review_required": true,
+      "rationale": "User edit to v2 claimed 60% global p99 reduction vs 25% checkout peak-load p99 in fact-12-1; different measurement scopes -> v2 re-verification fails without inferring 60% is false in every scope."
     },
     {
       "claim_atom_id": "atom-12-2",
@@ -531,7 +673,7 @@
       "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: 1/1 required atom DIRECT-supported, unedited v1, resolved owner."
+      "rationale": "Draft candidate: 2/2 required atoms DIRECT-supported (retry queue implementation + duplicate invoice notification prevention during transient gateway timeouts), unedited v1, resolved owner."
     },
     {
       "claim_id": "claim-03-1",
@@ -541,7 +683,7 @@
       "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: 3/3 required atoms DIRECT-supported from verified Korean postmortem."
+      "rationale": "Draft candidate: 4/4 required atoms DIRECT-supported (shard script action, p95 620->180ms result, 2-min rollback on deploy failure, >300ms slow-query alert)."
     },
     {
       "claim_id": "claim-04-1",
@@ -551,7 +693,7 @@
       "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: DIRECT + CONTEXT support on unedited required atom."
+      "rationale": "Draft candidate: unverified Q3-initiative modifier removed from claim; DIRECT + CONTEXT support on unedited required atom-04-1."
     },
     {
       "claim_id": "claim-04-2",
@@ -571,17 +713,17 @@
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Contradicted by postmortem addendum; SOURCE_VERIFIED forbidden."
+      "rationale": "Personal failover execution (atom-05-1) is unsupported and zero-drop claim (atom-05-2) is contradicted by postmortem addendum; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-05-2",
       "scenario_id": "SCN-05",
-      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
-      "source_verified_eligible": true,
-      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
+      "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: directly grounded in corrected addendum."
+      "rationale": "1/2 required atoms DIRECT-supported: 412 HTTP 503s/90s confirmed by log audit (atom-05-3), but personal log-audit & documentation attribution (atom-05-4) is CONTEXT-only; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-06-1",
@@ -591,7 +733,7 @@
       "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: completed item directly supported."
+      "rationale": "Draft candidate: 2/2 required atoms DIRECT-supported (health-check endpoint implementation + production monitoring integration)."
     },
     {
       "claim_id": "claim-06-2",
@@ -601,7 +743,7 @@
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Planned work misrepresented as completed; SOURCE_VERIFIED forbidden."
+      "rationale": "Both sharding completion (atom-06-3) and benchmark completion (atom-06-4) contradict RFC plan at observation time (not asserting permanent future incompleteness); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-07-1",
@@ -621,7 +763,7 @@
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Explicitly negated in source; SOURCE_VERIFIED forbidden."
+      "rationale": "Both production deployment (atom-07-2) and 30% compute cost savings (atom-07-3) are independently negated in source; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-08-1",
@@ -636,12 +778,12 @@
     {
       "claim_id": "claim-08-2",
       "scenario_id": "SCN-08",
-      "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
       "source_verified_eligible": false,
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Overclaims team-of-6 rebuild as solo work (CONTEXT-only); SOURCE_VERIFIED forbidden."
+      "rationale": "Solo rebuild attribution contradicts 6-engineer team work (atom-08-2 CONTRADICTED), 'from scratch' is unsupported (atom-08-3), and 22->8m is team-only CONTEXT (atom-08-4); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-09-1",
@@ -661,7 +803,7 @@
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Conflates staging benchmark with unstarted production rollout; SOURCE_VERIFIED forbidden."
+      "rationale": "Production rollout claim contradicts unstarted rollout (atom-09-2 CONTRADICTED) and production p95 metric has only staging CONTEXT (atom-09-3); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-10-1",
@@ -701,7 +843,7 @@
       "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "User edit created v2; v2 re-verification against fact-12-1 failed (CONTRADICTS); SOURCE_VERIFIED forbidden."
+      "rationale": "User edit created v2; both global tuning scope (atom-12-1) and global 60% latency reduction (atom-12-3) fail v2 re-verification against checkout-only 25% evidence (without inferring 60% is false in every scope); v2 auto-promotion & SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-12-2",

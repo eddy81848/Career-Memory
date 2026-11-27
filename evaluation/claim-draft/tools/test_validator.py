@@ -1,4 +1,4 @@
-"""Unit, regression, and deliberate fault-injection test suite for T-004A synthetic dataset (v0.2.0-draft).
+"""Unit, regression, and deliberate fault-injection test suite for T-004A synthetic dataset (v0.3.0-draft).
 
 Run from repo/worktree root:
     python3 -m unittest discover -s evaluation/claim-draft/tools -p "test_*.py" -v
@@ -43,12 +43,15 @@ class ClaimDraftDatasetTests(unittest.TestCase):
         errors, summary = validate_bundle(self.schema, self._clone_docs())
         self.assertEqual(errors, [], f"Expected 0 errors, got: {[e.format() for e in errors]}")
         self.assertEqual(summary["scenarios"], 14)
-        self.assertEqual(summary["claim_atoms"], 30)
-        self.assertEqual(summary["refetch_fixtures_preserved"], 8)
+        self.assertEqual(summary["canonical_facts"], 26)
+        self.assertEqual(summary["fact_supports"], 29)
+        self.assertEqual(summary["claims"], 23)
+        self.assertEqual(summary["claim_atoms"], 41)
+        self.assertEqual(summary["refetch_fixtures_preserved"], 12)
         self.assertEqual(summary["official_ref_covered_stub"], ["REF-01", "REF-02", "REF-03"])
         self.assertEqual(summary["official_ref_partial_coverage_gap"], ["REF-04", "REF-05"])
         self.assertEqual(summary["official_ref_coverage_gap"], ["REF-06", "REF-07", "REF-08"])
-        self.assertGreater(summary["locator_roundtrips_checked"], 50)
+        self.assertGreater(summary["locator_roundtrips_checked"], 60)
 
     def test_02_programmatic_builder_matches_checked_in_files_byte_for_byte(self) -> None:
         generated = build_all_artifacts()
@@ -115,13 +118,14 @@ class ClaimDraftDatasetTests(unittest.TestCase):
         for target_claim_id in (
             "claim-01-1",  # Required atom has 0 supports
             "claim-04-2",  # Required atom has CONTEXT-only support
-            "claim-08-2",  # Team CONTEXT-only support
+            "claim-05-2",  # Log fact DIRECT, but user personal audit atom is CONTEXT-only
+            "claim-08-2",  # Solo attribution CONTRADICTED, from-scratch unsupported, outcome CONTEXT-only
             "claim-10-1",  # 1/3 required atoms supported (1 CONTEXT-only, 1 missing support)
             "claim-11-1",  # Identity ambiguous
-            "claim-12-1",  # User edit v2 failed re-verification (CONTRADICTS)
+            "claim-12-1",  # User edit v2 failed re-verification (CONTEXT-only on both atoms)
             "claim-12-2",  # User edit v2 pending re-verification (stale v1 support)
-            "claim-13-1",  # Source deleted by user
-            "claim-13-2",  # 1 of 2 required atoms deleted by user
+            "claim-13-1",  # Source deleted by user (OD-003)
+            "claim-13-2",  # Mixed-source Claim purged by user deletion (OD-003)
             "claim-14-1",  # Hard negatives (CONTRADICTED + CONTEXT-only)
         ):
             with self.subTest(claim_id=target_claim_id):
@@ -286,6 +290,83 @@ class ClaimDraftDatasetTests(unittest.TestCase):
         )
         src13b["deleted_by_user"] = True
         self.assertIn("OD003_DELETION_POLICY_VIOLATION", self._error_codes(docs))
+
+    def test_25_fault_injection_ref02c_same_hash_locator_only_mismatch(self) -> None:
+        # Subtest A: faking locator_recheck_matched=True when tested_locator offsets are corrupted
+        docs_a = self._clone_docs()
+        chk02c = next(
+            r for r in docs_a["stages/stage4_refetch_checks.json"]["refetch_checks"] if r["fixture_case_id"] == "refcase-02c"
+        )
+        chk02c["locator_recheck_matched"] = True
+        codes_a = self._error_codes(docs_a)
+        self.assertIn("OFFSET_OR_ROUNDTRIP_MISMATCH", codes_a)
+        self.assertIn("LOCATOR_ONLY_MISMATCH_POLICY_VIOLATION", codes_a)
+
+        # Subtest B: failing to block approval on same-hash locator-only mismatch
+        docs_b = self._clone_docs()
+        ro02c = next(
+            r
+            for r in docs_b["expected/refetch_oracle_draft.json"]["expected_refetch_fixtures"]
+            if r["fixture_case_id"] == "refcase-02c"
+        )
+        ro02c["expected_approval_blocked"] = False
+        codes_b = self._error_codes(docs_b)
+        self.assertIn("LOCATOR_ONLY_MISMATCH_POLICY_VIOLATION", codes_b)
+        self.assertIn("REFETCH_APPROVAL_BLOCK_VIOLATION", codes_b)
+
+    def test_26_fault_injection_ref03_transient_failures_distinct_from_404_and_block_approval(self) -> None:
+        for fcid in ("refcase-03c", "refcase-03d", "refcase-03e"):
+            with self.subTest(fixture_case_id=fcid, mode="unblock_approval"):
+                docs = self._clone_docs()
+                chk = next(
+                    r for r in docs["stages/stage4_refetch_checks.json"]["refetch_checks"] if r["fixture_case_id"] == fcid
+                )
+                chk["retry_policy_stub"]["approval_blocked_while_unavailable"] = False
+                self.assertIn("TRANSIENT_RETRY_POLICY_VIOLATION", self._error_codes(docs))
+
+            with self.subTest(fixture_case_id=fcid, mode="conflate_with_404"):
+                docs = self._clone_docs()
+                chk = next(
+                    r for r in docs["stages/stage4_refetch_checks.json"]["refetch_checks"] if r["fixture_case_id"] == fcid
+                )
+                chk["retry_policy_stub"]["distinguished_from_404"] = False
+                self.assertIn("TRANSIENT_RETRY_POLICY_VIOLATION", self._error_codes(docs))
+
+            with self.subTest(fixture_case_id=fcid, mode="oracle_unblock"):
+                docs = self._clone_docs()
+                ro = next(
+                    r
+                    for r in docs["expected/refetch_oracle_draft.json"]["expected_refetch_fixtures"]
+                    if r["fixture_case_id"] == fcid
+                )
+                ro["expected_approval_blocked"] = False
+                codes = self._error_codes(docs)
+                self.assertIn("TRANSIENT_RETRY_POLICY_VIOLATION", codes)
+                self.assertIn("REFETCH_APPROVAL_BLOCK_VIOLATION", codes)
+
+    def test_27_claim02_effect_atom_and_claim05_2_attribution_split_invariants(self) -> None:
+        # claim-02-1 must require BOTH implementation atom-02-1 AND conditional effect atom-02-2
+        docs = self._clone_docs()
+        c02 = next(c for c in docs["stages/stage3_claim_assembly.json"]["claims"] if c["claim_id"] == "claim-02-1")
+        self.assertEqual(c02["claim_atom_ids"], ["atom-02-1", "atom-02-2"])
+        docs["stages/stage3_claim_assembly.json"]["claim_atom_supports"] = [
+            s
+            for s in docs["stages/stage3_claim_assembly.json"]["claim_atom_supports"]
+            if s["claim_atom_id"] != "atom-02-2"
+        ]
+        # Removing support for the conditional-effect atom must reject source_verified_eligible=True
+        self.assertIn("ILLEGAL_SOURCE_VERIFIED", self._error_codes(docs))
+
+        # claim-05-2 must separate log-confirmed atom-05-3 (DIRECT) from user-audit atom-05-4 (CONTEXT-only)
+        clean = self._clone_docs()
+        c05_2 = next(c for c in clean["stages/stage3_claim_assembly.json"]["claims"] if c["claim_id"] == "claim-05-2")
+        self.assertEqual(c05_2["claim_atom_ids"], ["atom-05-3", "atom-05-4"])
+        atoms_by_id = {a["claim_atom_id"]: a for a in clean["expected/oracle_draft.json"]["expected_atoms"]}
+        self.assertEqual(atoms_by_id["atom-05-3"]["draft_atom_verdict"], "DRAFT_ATOM_SUPPORTED_DIRECT")
+        self.assertEqual(atoms_by_id["atom-05-4"]["draft_atom_verdict"], "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT")
+        ec05_2 = next(c for c in clean["expected/oracle_draft.json"]["expected_claims"] if c["claim_id"] == "claim-05-2")
+        self.assertEqual(ec05_2["draft_claim_verdict"], "DRAFT_CLAIM_PARTIALLY_GROUNDED")
+        self.assertFalse(ec05_2["source_verified_eligible"])
 
 
 if __name__ == "__main__":

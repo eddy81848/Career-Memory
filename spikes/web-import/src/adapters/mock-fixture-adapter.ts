@@ -103,12 +103,17 @@ function findRepo(repoId: string): PublicRepositoryOption {
 }
 
 function buildPermissionRevokedRun(run: ImportRunViewModel): ImportRunViewModel {
+  const revokedAt = nowIso();
   return {
     ...run,
+    contractStatus: "FAILED",
     status: "permission_revoked",
-    updatedAt: nowIso(),
+    repositoryVisibility: "PRIVATE_OR_RESTRICTED",
+    failureReason: "SOURCE_PERMISSION_REVOKED",
+    completedAt: revokedAt,
+    updatedAt: revokedAt,
     progressMessage:
-      "가져오기 실행 중 GitHub 수집 권한이 회수되어 작업이 중단되었습니다.",
+      "가져오기 실행 중 GitHub 수집 권한이 회수되거나 공개 상태 확인에 실패해 작업이 중단되었습니다.",
     readiness: {
       importReady: false,
       importReadyState: "failed",
@@ -135,16 +140,16 @@ function buildPermissionRevokedRun(run: ImportRunViewModel): ImportRunViewModel 
     retryPolicy: {
       allowed: false,
       reason:
-        "GitHub 수집 권한이 상실된 상태에서는 재시도할 수 없습니다. 먼저 GitHub 수집 연결을 다시 설정하세요.",
+        "GitHub 수집 권한이 상실된 상태에서는 재시도할 수 없습니다. GitHub 원본이 삭제된 것으로 처리하지 않으며, 먼저 GitHub 수집 연결을 다시 설정하세요.",
       nextAllowedAt: null,
     },
     error: {
       code: "MOCK_GITHUB_PERMISSION_REVOKED",
-      title: "GitHub 수집 권한 상실",
+      title: "GitHub 수집 권한 상실 (POLICY_REVIEW_REQUIRED)",
       message:
-        "Career Memory 서비스 로그인은 유지되고 있으나, 별도 GitHub 수집 연결 권한이 회수되었습니다.",
+        "정책 또는 공개 상태 확인 실패로 원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다(GitHub 원본이 삭제된 것으로 처리하지 않으며 재확인/재연결이 필요합니다).",
       actionGuidance:
-        "상단 'GitHub 수집 연결 다시 설정' 버튼으로 권한을 복구한 뒤 새 가져오기를 요청하세요.",
+        "상단 'GitHub 수집 연결 다시 설정' 버튼으로 scope=\"read:user\" 연결을 복구한 뒤 다시 확인하세요.",
     },
   };
 }

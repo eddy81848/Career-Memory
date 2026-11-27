@@ -1,4 +1,10 @@
+import {
+  buildDefaultPlanScope,
+  DEFAULT_PLAN_MAX_OBJECTS,
+  describeFailureReason,
+} from "@/domain/import-status-presenter";
 import type {
+  ContractImportState,
   DerivedStageViewModel,
   ImportRunViewModel,
   ProcessingStatusViewModel,
@@ -53,14 +59,7 @@ export interface SyncRunAcceptedDto {
   status_url: string;
 }
 
-export type OpenApiImportState =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCESS"
-  | "PARTIAL"
-  | "PARTIAL_WITH_LIMIT"
-  | "FAILED"
-  | "CANCELED";
+export type OpenApiImportState = ContractImportState;
 
 export type OpenApiProcessingStatus = ProcessingStatusViewModel;
 
@@ -425,13 +424,21 @@ export function buildAcceptedPendingRunViewModel(params: {
     planId: params.previousRun?.planId,
     repositoryId: params.repo.repoId,
     repositoryFullName: params.repo.fullName,
+    repositoryVisibility: "PUBLIC",
+    planScope:
+      params.previousRun?.planScope ??
+      buildDefaultPlanScope(params.repo, params.nowIso),
+    contractStatus: "PENDING",
     status: "running",
     attemptNumber: params.attemptNumber,
     startedAt: params.previousRun?.startedAt ?? params.nowIso,
+    observedAt: null,
+    completedAt: null,
     updatedAt: params.nowIso,
     progressMessage: params.isRetry
-      ? "재시도 요청이 접수되었습니다(202 Accepted). 아직 완료되지 않았으며 기존 실행 상태를 다시 조회합니다."
-      : "최초 가져오기 요청이 접수되었습니다(202 Accepted). 아직 완료되지 않았으며 상태 조회를 시작합니다.",
+      ? "재시도 요청이 접수되었습니다(PENDING · 202 Accepted). 아직 완료되지 않았으며 기존 실행 상태를 다시 조회합니다."
+      : "최초 가져오기 요청이 접수되었습니다(PENDING · 202 Accepted). 아직 완료되지 않았으며 상태 조회를 시작합니다.",
+    failureReason: null,
     sourceDrift: false,
     processedRange: params.previousRun?.processedRange ?? null,
     remainingRange: params.previousRun?.remainingRange ?? null,
@@ -447,7 +454,7 @@ export function buildAcceptedPendingRunViewModel(params: {
     },
     retryPolicy: {
       allowed: false,
-      reason: "가져오기 요청이 접수되어 실행 대기/진행 중이므로 재시도할 수 없습니다.",
+      reason: "가져오기 요청이 접수되어 실행 대기 중(PENDING)이므로 재시도할 수 없습니다.",
       nextAllowedAt: null,
     },
     summary: null,
@@ -470,6 +477,7 @@ export function mapImportStatusDtoToViewModel(params: {
   const updatedAt = dto.observed_at ?? nowIso;
   const streams = mapStreams(dto.streams);
   const derived = buildDerivedStagesFromProcessingStatus(dto.processing_status);
+  const isActiveState = dto.status === "PENDING" || dto.status === "RUNNING";
 
   // Enforce contract invariant: PARTIAL / PARTIAL_WITH_LIMIT / FAILED / CANCELED / PENDING / RUNNING => import_ready=false
   const importReady = dto.status === "SUCCESS" ? Boolean(dto.import_ready) : false;
@@ -478,6 +486,13 @@ export function mapImportStatusDtoToViewModel(params: {
     ? dto.run_version
     : undefined;
 
+  const isPolicyOrSourceBlocked =
+    dto.processing_status === "BLOCKED_POLICY" ||
+    dto.processing_status === "BLOCKED_SOURCE" ||
+    dto.failure_reason === "SOURCE_POLICY_BLOCKED" ||
+    dto.failure_reason === "POLICY_REVIEW_REQUIRED" ||
+    dto.failure_reason === "SOURCE_PERMISSION_REVOKED";
+
   const base = {
     runId,
     ...(runVersion !== undefined ? { runVersion } : {}),
@@ -485,9 +500,17 @@ export function mapImportStatusDtoToViewModel(params: {
     planId: dto.plan_id,
     repositoryId: repo.repoId,
     repositoryFullName: repo.fullName,
+    repositoryVisibility: isPolicyOrSourceBlocked
+      ? ("PRIVATE_OR_RESTRICTED" as const)
+      : ("PUBLIC" as const),
+    planScope: buildDefaultPlanScope(repo, dto.observed_at ?? nowIso),
+    contractStatus: dto.status,
     attemptNumber,
     startedAt,
+    observedAt: dto.observed_at ?? null,
+    completedAt: isActiveState ? null : updatedAt,
     updatedAt,
+    failureReason: dto.failure_reason ?? null,
     sourceDrift: dto.source_drift,
     processedRange: dto.processed_range ?? null,
     remainingRange: dto.remaining_range ?? null,
@@ -515,7 +538,10 @@ export function mapImportStatusDtoToViewModel(params: {
       },
       retryPolicy: {
         allowed: false,
-        reason: "가져오기 작업이 진행 중이므로 재시도할 수 없습니다.",
+        reason:
+          dto.status === "PENDING"
+            ? "가져오기 작업이 대기 중(PENDING)이므로 재시도할 수 없습니다."
+            : "가져오기 작업이 실행 중(RUNNING)이므로 재시도할 수 없습니다.",
         nextAllowedAt: null,
       },
       summary: null,
@@ -529,19 +555,19 @@ export function mapImportStatusDtoToViewModel(params: {
     const isBlockedPolicy = dto.processing_status === "BLOCKED_POLICY";
     const isBlockedSource = dto.processing_status === "BLOCKED_SOURCE";
     const processingBlockedMessage = isBlockedPolicy
-      ? "가져온 원본 스냅샷 이력(SUCCESS / import_ready=true)은 보존되어 있지만, 현재 저장소 정책 변경으로 후속 처리가 차단되었습니다(BLOCKED_POLICY)."
+      ? "가져온 원본 스냅샷 이력(SUCCESS / import_ready=true)은 보존되어 있지만, 현재 정책 또는 공개 상태 확인 실패(BLOCKED_POLICY · POLICY_REVIEW_REQUIRED)로 원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다(GitHub 원본이 삭제된 것으로 처리하지 않으며 재확인/재연결이 필요합니다)."
       : isBlockedSource
-        ? "가져온 원본 스냅샷 이력(SUCCESS / import_ready=true)은 보존되어 있지만, 현재 원본 저장소 상태·접근 차단으로 후속 처리가 중단되었습니다(BLOCKED_SOURCE)."
+        ? "가져온 원본 스냅샷 이력(SUCCESS / import_ready=true)은 보존되어 있지만, 현재 원본 저장소 상태·접근 차단(BLOCKED_SOURCE · Public → Private 전환 또는 권한 회수)으로 원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다(GitHub 원본이 삭제된 것으로 처리하지 않으며 재확인/재연결이 필요합니다)."
         : null;
 
     let progressMessage =
       "원본 스냅샷 가져오기(import_ready=true)와 후속 처리(COMPLETE)가 모두 완료되었습니다.";
     if (isBlockedPolicy) {
       progressMessage =
-        "과거 최초 가져오기는 성공(import_ready=true)했으나, 현재 정책 변경으로 후속 처리가 차단(BLOCKED_POLICY)되어 있습니다.";
+        "과거 최초 가져오기는 성공(import_ready=true)했으나, 현재 정책 변경으로 원문 열람·외부 AI 전송·Export가 차단(BLOCKED_POLICY)되어 있습니다.";
     } else if (isBlockedSource) {
       progressMessage =
-        "과거 최초 가져오기는 성공(import_ready=true)했으나, 현재 원본 저장소 차단(BLOCKED_SOURCE)으로 후속 처리가 중단되어 있습니다.";
+        "과거 최초 가져오기는 성공(import_ready=true)했으나, 현재 원본 저장소 차단(BLOCKED_SOURCE)으로 원문 열람·외부 AI 전송·Export가 차단되어 있습니다.";
     } else if (dto.processing_status === "RUNNING") {
       progressMessage =
         "원본 스냅샷 가져오기(import_ready=true)는 완료되었으며, 후속 처리가 진행 중입니다(RUNNING).";
@@ -588,7 +614,7 @@ export function mapImportStatusDtoToViewModel(params: {
       ...base,
       status: "limit_reached",
       progressMessage:
-        "수집 상한에 도달한 부분 결과(PARTIAL_WITH_LIMIT)입니다. 성공이 아니며 같은 계획으로 재시도할 수 없습니다.",
+        "수집 상한에 도달한 부분 결과(PARTIAL_WITH_LIMIT)입니다. 성공이 아니며 같은 실행에서 단순 재개할 수 없고 Event/Claim으로 승격되지 않습니다.",
       readiness: {
         importReady: false,
         importReadyState: "partial",
@@ -601,7 +627,7 @@ export function mapImportStatusDtoToViewModel(params: {
       retryPolicy: {
         allowed: false,
         reason:
-          "PARTIAL_WITH_LIMIT 결과는 서버 정책상 같은 계획에서 재시도가 허용되지 않습니다 (retry.allowed=false).",
+          "PARTIAL_WITH_LIMIT 결과는 같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다 (retry.allowed=false).",
         nextAllowedAt: null,
       },
       summary: null,
@@ -609,13 +635,13 @@ export function mapImportStatusDtoToViewModel(params: {
       limitDetail: {
         kind: "import_cap_reached",
         limitLabel: `수집 상한 도달 (${dto.failure_reason ?? "SYNC_PARTIAL_WITH_LIMIT"})`,
-        capturedCount: 200,
-        capCount: 200,
+        capturedCount: DEFAULT_PLAN_MAX_OBJECTS,
+        capCount: DEFAULT_PLAN_MAX_OBJECTS,
         resetAt: null,
         explanation: [
-          dto.processed_range ? `처리된 범위: ${dto.processed_range}` : null,
-          dto.remaining_range ? `남은 범위: ${dto.remaining_range}` : null,
-          "전체 가져오기가 완료되지 않았으므로 성공으로 표시하지 않습니다.",
+          dto.processed_range ? `가져온 범위: ${dto.processed_range}` : null,
+          dto.remaining_range ? `빠진/남은 범위: ${dto.remaining_range}` : null,
+          "최대 항목 한도(max_objects: 5,000건)에 도달해 전체 가져오기가 완료되지 않았으므로 성공으로 표시하거나 Event/Claim으로 승격하지 않습니다.",
         ]
           .filter(Boolean)
           .join(" · "),
@@ -628,18 +654,23 @@ export function mapImportStatusDtoToViewModel(params: {
     const retryAllowed = dto.retry.allowed === true;
     const fromSafeCheckpoint = dto.retry.from_safe_checkpoint === true;
     const failureReason = dto.failure_reason ?? "PARTIAL";
+    const reasonInfo = describeFailureReason(failureReason, dto.source_drift);
 
-    const omissionReasons: string[] = [`실패 사유 코드: ${failureReason}`];
+    const omissionReasons: string[] = [
+      reasonInfo
+        ? `실패 사유: ${reasonInfo.label} (${reasonInfo.code}) — ${reasonInfo.description}`
+        : `실패 사유 코드: ${failureReason}`,
+    ];
     if (dto.source_drift) {
       omissionReasons.push(
-        "계획 불일치(PLAN_DRIFT / source_drift=true)로 동일 계획 재개가 불가능합니다."
+        "계획 변동(PLAN_DRIFT / source_drift=true): 기본 브랜치·HEAD 변경 또는 2차 PR 열거 변동으로 같은 실행에서 단순 재개할 수 없습니다."
       );
     }
     if (dto.processed_range) {
-      omissionReasons.push(`처리된 범위: ${dto.processed_range}`);
+      omissionReasons.push(`가져온 범위: ${dto.processed_range}`);
     }
     if (dto.remaining_range) {
-      omissionReasons.push(`남은 범위: ${dto.remaining_range}`);
+      omissionReasons.push(`빠진/남은 범위: ${dto.remaining_range}`);
     }
 
     const importedCommits = Math.max(10, Math.floor(repo.estimatedCommits * 0.72));
@@ -651,7 +682,7 @@ export function mapImportStatusDtoToViewModel(params: {
       ...base,
       status: "partial",
       progressMessage:
-        "일부 데이터만 수집된 부분 결과(PARTIAL)입니다. import_ready=false이며 전체 성공으로 처리되지 않습니다.",
+        "일부 데이터만 수집된 부분 결과(PARTIAL)입니다. import_ready=false이며 전체 성공으로 처리되거나 Event/Claim으로 승격되지 않습니다.",
       readiness: {
         importReady: false,
         importReadyState: "partial",
@@ -665,15 +696,15 @@ export function mapImportStatusDtoToViewModel(params: {
             allowed: true,
             fromSafeCheckpoint,
             reason: fromSafeCheckpoint
-              ? "안전한 체크포인트(from_safe_checkpoint=true)에서 동일 실행 재시도가 허용되었습니다."
-              : "서버가 동일 실행 재시도를 허용했습니다.",
+              ? "안전 체크포인트(from_safe_checkpoint=true)가 확인된 일시 실패입니다. 같은 계획·마지막 안전 체크포인트에서 재개할 수 있습니다."
+              : "서버가 동일 실행 재개를 허용했습니다.",
             nextAllowedAt: null,
           }
         : {
             allowed: false,
             reason: dto.source_drift
-              ? "계획 변경(PLAN_DRIFT)으로 같은 계획에서 재시도할 수 없습니다 (retry.allowed=false)."
-              : `서버 정책상 재시도가 허용되지 않습니다 (${failureReason}, retry.allowed=false).`,
+              ? "계획 변동(PLAN_DRIFT)으로 같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다 (retry.allowed=false)."
+              : `같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다 (${failureReason}, retry.allowed=false).`,
             nextAllowedAt: null,
           },
       summary: null,
@@ -689,31 +720,52 @@ export function mapImportStatusDtoToViewModel(params: {
     };
   }
 
-  // FAILED or CANCELED
-  const isCanceled = dto.status === "CANCELED";
-  const failureCode = dto.failure_reason ?? (isCanceled ? "CANCELED" : "FAILED");
+  if (dto.status === "CANCELED") {
+    return {
+      ...base,
+      status: "canceled",
+      progressMessage:
+        "최초 가져오기 작업이 취소(CANCELED)되어 중립 종료되었습니다. import_ready=false이며 부분 수집 결과는 Event/Claim으로 승격되지 않습니다.",
+      readiness: {
+        importReady: false,
+        importReadyState: "failed",
+        importReadySummary: "작업 취소됨 (CANCELED · import_ready=false)",
+        processingStatus: dto.processing_status,
+        processingBlockedMessage: null,
+        ...derived,
+      },
+      retryPolicy: {
+        allowed: false,
+        reason:
+          "취소된 작업(CANCELED)은 같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다 (retry.allowed=false).",
+        nextAllowedAt: null,
+      },
+      summary: null,
+      partialDetail: null,
+      limitDetail: null,
+      error: null,
+    };
+  }
+
+  // FAILED
+  const failureCode = dto.failure_reason ?? "FAILED";
+  const reasonInfo = describeFailureReason(failureCode, dto.source_drift);
 
   return {
     ...base,
     status: "failed",
-    progressMessage: isCanceled
-      ? "최초 가져오기 작업이 취소되었습니다(CANCELED)."
-      : "최초 가져오기에 실패했습니다(FAILED).",
+    progressMessage: "최초 가져오기에 실패했습니다(FAILED).",
     readiness: {
       importReady: false,
       importReadyState: "failed",
-      importReadySummary: isCanceled
-        ? "작업 취소됨 (CANCELED · import_ready=false)"
-        : `가져오기 실패 (FAILED · ${failureCode} · import_ready=false)`,
+      importReadySummary: `가져오기 실패 (FAILED · ${failureCode} · import_ready=false)`,
       processingStatus: dto.processing_status,
       processingBlockedMessage: null,
       ...derived,
     },
     retryPolicy: {
       allowed: false,
-      reason: isCanceled
-        ? "취소된 작업은 재시도할 수 없습니다 (retry.allowed=false)."
-        : `서버가 재시도를 허용하지 않았습니다 (${failureCode}, retry.allowed=false).`,
+      reason: `같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다 (${failureCode}, retry.allowed=false).`,
       nextAllowedAt: null,
     },
     summary: null,
@@ -721,12 +773,12 @@ export function mapImportStatusDtoToViewModel(params: {
     limitDetail: null,
     error: {
       code: failureCode,
-      title: isCanceled ? "가져오기 취소됨" : "가져오기 실패",
-      message: isCanceled
-        ? "작업이 취소 상태로 종료되었습니다."
+      title: reasonInfo ? reasonInfo.label : "가져오기 실패",
+      message: reasonInfo
+        ? reasonInfo.description
         : `서버가 실패 상태(${failureCode})를 반환했습니다.`,
       actionGuidance:
-        "서버 정책상 이 실행에서는 재시도할 수 없습니다. 상태와 저장소 설정을 확인하세요.",
+        "같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 상태와 저장소 정책·연결 설정을 확인하세요.",
     },
   };
 }

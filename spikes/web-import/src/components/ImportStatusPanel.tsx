@@ -2,11 +2,18 @@
 
 import React from "react";
 import {
+  buildDefaultPlanScope,
+  describeFailureReason,
+  isPolicyOrSourceBlockedRun,
+  resolveContractStatus,
+} from "@/domain/import-status-presenter";
+import {
   canExposeRetryAction,
   hasDerivedStageLag,
   isSelectedRepositoryImportSucceeded,
 } from "@/domain/state-machine";
 import type {
+  ContractImportState,
   DerivedStageStatus,
   ImportJourneyState,
   ImportRunStatus,
@@ -23,13 +30,23 @@ interface ImportStatusPanelProps {
   onReAuthenticateService: () => void;
 }
 
-function getRunStatusBanner(status: ImportRunStatus): {
+function getRunStatusBanner(
+  status: ImportRunStatus,
+  contractStatus: ContractImportState
+): {
   badgeText: string;
   headline: string;
-  tone: "info" | "success" | "warning" | "danger";
+  tone: "info" | "success" | "warning" | "danger" | "neutral";
 } {
   switch (status) {
     case "running":
+      if (contractStatus === "PENDING") {
+        return {
+          badgeText: "대기 중",
+          headline: "최초 가져오기 요청이 접수되어 실행 대기 중입니다 (PENDING)",
+          tone: "info",
+        };
+      }
       return {
         badgeText: "실행 중",
         headline: "최초 가져오기 작업이 서버에서 실행 중입니다",
@@ -52,6 +69,12 @@ function getRunStatusBanner(status: ImportRunStatus): {
         badgeText: "한도 도달 — 제한됨",
         headline: "수집 한도에 도달하여 전체 가져오기가 완료되지 않았습니다",
         tone: "warning",
+      };
+    case "canceled":
+      return {
+        badgeText: "가져오기 취소됨",
+        headline: "최초 가져오기 작업이 취소되어 중립 종료되었습니다 (CANCELED)",
+        tone: "neutral",
       };
     case "failed":
       return {
@@ -360,51 +383,155 @@ export function ImportStatusPanel({
       {/* Active / Terminal Server-Reported Run (never rendered when session is unauthenticated/expired or Workspace access revoked) */}
       {activeRun &&
         state.serviceAuth.status === "authenticated" &&
-        !workspaceAccessRevoked && (
-        <div className="run-container" data-testid="import-run-details">
-          {(() => {
-            const banner = getRunStatusBanner(activeRun.status);
-            const isAlert =
-              activeRun.status === "failed" ||
-              activeRun.status === "permission_revoked" ||
-              activeRun.status === "partial" ||
-              activeRun.status === "limit_reached";
+        !workspaceAccessRevoked && (() => {
+        const contractStatus = resolveContractStatus(activeRun);
+        const banner = getRunStatusBanner(activeRun.status, contractStatus);
+        const planScope =
+          activeRun.planScope ??
+          buildDefaultPlanScope(
+            state.repositories.find((repo) => repo.repoId === activeRun.repositoryId) ??
+              null,
+            activeRun.observedAt ?? activeRun.updatedAt
+          );
+        const policyOrSourceBlocked = isPolicyOrSourceBlockedRun(activeRun);
+        const failureReasonInfo = describeFailureReason(
+          activeRun.failureReason ?? activeRun.error?.code ?? null,
+          activeRun.sourceDrift
+        );
+        const isTerminalRun =
+          activeRun.status !== "running";
+        const isNonResumableTerminal =
+          !activeRun.retryPolicy.allowed &&
+          (activeRun.status === "partial" ||
+            activeRun.status === "limit_reached" ||
+            activeRun.status === "failed" ||
+            activeRun.status === "canceled");
+        const isAlert =
+          activeRun.status === "failed" ||
+          activeRun.status === "permission_revoked" ||
+          activeRun.status === "partial" ||
+          activeRun.status === "limit_reached";
 
-            return (
-              <div
-                className={`status-banner status-banner--${banner.tone}`}
-                role={isAlert ? "alert" : "status"}
-                aria-live={isAlert ? "assertive" : "polite"}
-                data-testid="run-status-banner"
-                data-run-status={activeRun.status}
-              >
-                <div className="status-banner__top">
-                  <span
-                    className={`badge badge--${banner.tone}`}
-                    data-testid="run-status-badge"
-                  >
-                    {banner.badgeText}
-                  </span>
-                  <span className="mono run-id-chip">
-                    {activeRun.runId}
-                    {activeRun.runVersion !== undefined
-                      ? ` · v${activeRun.runVersion}`
-                      : ""}
-                    {activeRun.planId ? ` · ${activeRun.planId}` : ""} · 시도 #
-                    {activeRun.attemptNumber}
-                  </span>
-                </div>
-                <p className="status-banner__headline">{banner.headline}</p>
-                <p className="status-banner__detail">
-                  {activeRun.progressMessage}
-                </p>
-                <p className="status-banner__meta mono">
-                  대상 저장소: {activeRun.repositoryFullName} · 최근 갱신:{" "}
-                  {activeRun.updatedAt}
-                </p>
+        return (
+        <div className="run-container" data-testid="import-run-details">
+          <div
+            className={`status-banner status-banner--${banner.tone}`}
+            role={isAlert ? "alert" : "status"}
+            aria-live={isAlert ? "assertive" : "polite"}
+            data-testid="run-status-banner"
+            data-run-status={activeRun.status}
+            data-contract-status={contractStatus}
+          >
+            <div className="status-banner__top">
+              <div className="status-banner__badges">
+                <span
+                  className={`badge badge--${banner.tone}`}
+                  data-testid="run-status-badge"
+                >
+                  {banner.badgeText}
+                </span>
+                <span
+                  className="badge badge--neutral mono"
+                  data-testid="contract-status-badge"
+                >
+                  {contractStatus}
+                </span>
               </div>
-            );
-          })()}
+              <span className="mono run-id-chip">
+                {activeRun.runId}
+                {activeRun.runVersion !== undefined
+                  ? ` · v${activeRun.runVersion}`
+                  : ""}
+                {activeRun.planId ? ` · ${activeRun.planId}` : ""} · 시도 #
+                {activeRun.attemptNumber}
+              </span>
+            </div>
+            <p className="status-banner__headline">{banner.headline}</p>
+            <p className="status-banner__detail">
+              {activeRun.progressMessage}
+            </p>
+            <p className="status-banner__meta mono">
+              대상 저장소: {activeRun.repositoryFullName} · 시작 관찰:{" "}
+              {activeRun.startedAt} ·{" "}
+              {isTerminalRun
+                ? `종료/최신 관찰: ${activeRun.observedAt ?? activeRun.completedAt ?? activeRun.updatedAt}`
+                : `최근 갱신: ${activeRun.observedAt ?? activeRun.updatedAt}`}
+            </p>
+          </div>
+
+          {/* T-205 #1: Repository visibility, fixed plan period, max_objects limit, start/end observation timestamps */}
+          <div
+            className="subcard"
+            data-testid="import-plan-observation-meta"
+          >
+            <div className="subcard__header">
+              <h3 className="subcard__title">
+                저장소 공개 상태 · 고정 계획 범위 · 한도 · 관찰 시각
+              </h3>
+              <span
+                className={`badge ${
+                  policyOrSourceBlocked ||
+                  activeRun.repositoryVisibility === "PRIVATE_OR_RESTRICTED"
+                    ? "badge--danger"
+                    : "badge--success"
+                }`}
+                data-testid="repo-visibility-badge"
+              >
+                {policyOrSourceBlocked ||
+                activeRun.repositoryVisibility === "PRIVATE_OR_RESTRICTED"
+                  ? "POLICY_REVIEW_REQUIRED (공개 확인 실패)"
+                  : "PUBLIC (공개 확인)"}
+              </span>
+            </div>
+            <dl className="plan-meta-grid">
+              <div data-testid="repo-visibility-policy">
+                <dt>공개 여부 및 원문 보관 정책</dt>
+                <dd className="mono">
+                  {policyOrSourceBlocked ||
+                  activeRun.repositoryVisibility === "PRIVATE_OR_RESTRICTED"
+                    ? "공개 상태 확인 실패 / 비공개 전환 의심 (POLICY_REVIEW_REQUIRED)"
+                    : "PUBLIC 확인"}
+                  {" · "}
+                  {planScope.storageClass} · raw_storage_mode:{" "}
+                  {planScope.rawStorageMode} (원문 비보관)
+                </dd>
+              </div>
+              <div data-testid="plan-window-and-limit">
+                <dt>고정 가져오기 계획 기간 및 한도</dt>
+                <dd className="mono">
+                  [{planScope.backfillFrom}, {planScope.cutoffAt}] (
+                  {planScope.windowLabel}) · max_objects:{" "}
+                  {planScope.maxObjects.toLocaleString("en-US")}건
+                </dd>
+              </div>
+              <div data-testid="observation-timestamps">
+                <dt>시작 / 종료(최신) 관찰 시각</dt>
+                <dd className="mono">
+                  시작: {activeRun.startedAt} ·{" "}
+                  {isTerminalRun
+                    ? `종료 관찰: ${activeRun.completedAt ?? activeRun.updatedAt}`
+                    : "종료 관찰: 진행 중 (미종료)"}
+                  {activeRun.observedAt
+                    ? ` · observed_at: ${activeRun.observedAt}`
+                    : ` · updatedAt: ${activeRun.updatedAt}`}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* T-205 #4 & Snapshot Import §1: Always show non-auto-sync snapshot notice after SUCCESS */}
+          {activeRun.status === "succeeded" && (
+            <div
+              className="inline-alert inline-alert--info"
+              role="status"
+              data-testid="snapshot-no-auto-sync-notice"
+            >
+              <strong>일회성 관찰 스냅샷 안내 (자동 동기화 미수행):</strong> 이
+              결과는 가져오기 시점의 일회성 관찰 스냅샷이며, 이후 GitHub에서
+              발생한 새 커밋·PR·수정·삭제와 자동으로 동기화되지 않습니다(원문은
+              저장하지 않으며 근거 검증 시 재조회함).
+            </div>
+          )}
 
           {/* Explicit separation when historical import succeeded (import_ready=true)
               but current downstream processing is BLOCKED_POLICY or BLOCKED_SOURCE */}
@@ -427,13 +554,62 @@ export function ImportStatusPanel({
                 </span>
               </div>
               <p className="status-banner__headline">
-                가져온 스냅샷 이력은 성공이나 현재 후속 처리가 차단되어 있습니다
+                정책 또는 공개 상태 확인 실패로 원문 열람 · 외부 AI 전송 ·
+                Export가 즉시 차단되었습니다
               </p>
               <p className="status-banner__detail">
                 {activeRun.readiness.processingBlockedMessage}
               </p>
+              <div
+                className="blocked-surfaces-row"
+                data-testid="blocked-surfaces-badges"
+              >
+                <span className="badge badge--danger">원문 열람 차단</span>
+                <span className="badge badge--danger">외부 AI 전송 차단</span>
+                <span className="badge badge--danger">Export 차단</span>
+                <span className="badge badge--neutral">
+                  삭제 오판 금지 (POLICY_REVIEW_REQUIRED)
+                </span>
+              </div>
             </div>
           )}
+
+          {/* T-205 #5 & T-201A: Policy/source block notice for non-SUCCESS blocked runs (SOURCE_POLICY_BLOCKED, permission_revoked) */}
+          {policyOrSourceBlocked &&
+            !activeRun.readiness.processingBlockedMessage && (
+              <div
+                className="status-banner status-banner--danger"
+                role="alert"
+                aria-live="assertive"
+                data-testid="policy-export-block-notice"
+              >
+                <div className="status-banner__top">
+                  <span className="badge badge--danger">
+                    정책·공개 상태 확인 실패 (POLICY_REVIEW_REQUIRED)
+                  </span>
+                </div>
+                <p className="status-banner__headline">
+                  정책 또는 공개 상태 확인 실패로 원문 열람 · 외부 AI 전송 ·
+                  Export가 즉시 차단되었습니다
+                </p>
+                <p className="status-banner__detail">
+                  저장소가 <code className="mono">Public → Private</code>로
+                  전환되었거나 GitHub 수집 권한이 회수되었습니다. GitHub 원본이
+                  삭제된 것으로 처리하지 않으며 재확인/재연결이 필요합니다.
+                </p>
+                <div
+                  className="blocked-surfaces-row"
+                  data-testid="blocked-surfaces-badges"
+                >
+                  <span className="badge badge--danger">원문 열람 차단</span>
+                  <span className="badge badge--danger">외부 AI 전송 차단</span>
+                  <span className="badge badge--danger">Export 차단</span>
+                  <span className="badge badge--neutral">
+                    삭제 오판 금지 (POLICY_REVIEW_REQUIRED)
+                  </span>
+                </div>
+              </div>
+            )}
 
           {/* Explicit warning if import_ready is true while derived stages are not ready */}
           {derivedLag && !activeRun.readiness.processingBlockedMessage && (
@@ -482,33 +658,42 @@ export function ImportStatusPanel({
               {(activeRun.processedRange || activeRun.remainingRange) && (
                 <dl className="meta-list meta-list--compact">
                   {activeRun.processedRange && (
-                    <div>
-                      <dt>처리된 범위</dt>
+                    <div data-testid="processed-range">
+                      <dt>가져온 범위 (processed_range)</dt>
                       <dd className="mono">{activeRun.processedRange}</dd>
                     </div>
                   )}
                   {activeRun.remainingRange && (
-                    <div>
-                      <dt>남은 범위</dt>
+                    <div data-testid="remaining-range">
+                      <dt>빠진/남은 범위 (remaining_range)</dt>
                       <dd className="mono">{activeRun.remainingRange}</dd>
                     </div>
                   )}
                 </dl>
               )}
               {activeRun.streams && activeRun.streams.length > 0 && (
-                <ul className="bullet-list" data-testid="stream-progress-list">
-                  {activeRun.streams.map((stream) => (
-                    <li key={`${stream.type}-${stream.status}`} className="mono">
-                      stream {stream.type}: {stream.status}
-                      {stream.lastCommittedPage !== undefined
-                        ? ` · page ${stream.lastCommittedPage}`
-                        : ""}
-                      {stream.unresolvedFailures !== undefined
-                        ? ` · unresolved ${stream.unresolvedFailures}`
-                        : ""}
-                    </li>
-                  ))}
-                </ul>
+                <div className="stream-section">
+                  <span className="field-label">
+                    스트림별 마지막 안전 페이지 (last_committed_page) 및 미해결
+                    실패
+                  </span>
+                  <ul className="bullet-list" data-testid="stream-progress-list">
+                    {activeRun.streams.map((stream, index) => (
+                      <li
+                        key={`${stream.type}-${stream.status}-${index}`}
+                        className="mono"
+                      >
+                        stream {stream.type}: {stream.status}
+                        {stream.lastCommittedPage !== undefined
+                          ? ` · 마지막 확정 커밋 페이지: page ${stream.lastCommittedPage} (last_committed_page=${stream.lastCommittedPage})`
+                          : ""}
+                        {stream.unresolvedFailures !== undefined
+                          ? ` · 미해결 실패: ${stream.unresolvedFailures}건 (unresolved_failures=${stream.unresolvedFailures})`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {activeRun.summary && (
                 <dl className="meta-list meta-list--compact">
@@ -573,6 +758,50 @@ export function ImportStatusPanel({
             </div>
           </div>
 
+          {/* T-205 #3: Structured Failure Reason block */}
+          {failureReasonInfo && (
+            <div
+              className={`detail-box ${
+                failureReasonInfo.isPolicyOrSourceBlock ||
+                activeRun.status === "failed"
+                  ? "detail-box--danger"
+                  : "detail-box--warning"
+              }`}
+              data-testid="failure-reason-summary"
+              data-failure-code={failureReasonInfo.code}
+            >
+              <h3 className="detail-box__title">
+                구조화된 실패·중단 사유: {failureReasonInfo.label}
+              </h3>
+              <p className="detail-box__meta mono">
+                사유 코드: {failureReasonInfo.code}
+                {activeRun.sourceDrift ? " · source_drift: true" : ""}
+              </p>
+              <p className="detail-box__body">
+                {failureReasonInfo.description}
+              </p>
+            </div>
+          )}
+
+          {/* T-205 #2: Dedicated neutral CANCELED detail box */}
+          {activeRun.status === "canceled" && (
+            <div
+              className="detail-box detail-box--neutral"
+              data-testid="canceled-detail-box"
+            >
+              <h3 className="detail-box__title">
+                취소 종료 안내 (CANCELED — 일반 오류 FAILED와 구분됨)
+              </h3>
+              <p className="detail-box__body">
+                이 최초 가져오기 실행은 취소 상태(
+                <code className="mono">CANCELED</code>)로 종료되었습니다.
+                <code className="mono">import_ready=false</code>이며 부분 수집
+                결과는 Event/Claim으로 승격되지 않고, 같은 실행에서 단순
+                재개할 수 없습니다.
+              </p>
+            </div>
+          )}
+
           {/* Partial Detail */}
           {activeRun.partialDetail && (
             <div
@@ -606,8 +835,9 @@ export function ImportStatusPanel({
                 한도 도달 상세: {activeRun.limitDetail.limitLabel}
               </h3>
               <p className="detail-box__summary">
-                수집량 {activeRun.limitDetail.capturedCount} / 기준 상한{" "}
-                {activeRun.limitDetail.capCount}
+                수집량 {activeRun.limitDetail.capturedCount.toLocaleString("en-US")}{" "}
+                / 기준 상한{" "}
+                {activeRun.limitDetail.capCount.toLocaleString("en-US")}
                 {activeRun.limitDetail.resetAt
                   ? ` · 예상 해제 시각: ${activeRun.limitDetail.resetAt}`
                   : ""}
@@ -640,12 +870,21 @@ export function ImportStatusPanel({
           {/* Server-Gated Actions (Retry ONLY exposed when server allows!) */}
           <div className="run-actions-panel" data-testid="run-actions-panel">
             <div className="retry-policy-summary">
-              <span className="field-label">서버 재시도 정책</span>
+              <span className="field-label">서버 재시도 / 같은 실행 재개 정책</span>
               <p className="field-help" data-testid="retry-policy-reason">
                 {activeRun.retryPolicy.allowed
-                  ? `재시도 허용됨: ${activeRun.retryPolicy.reason}`
+                  ? `재개 허용됨: ${activeRun.retryPolicy.reason}`
                   : `재시도 불가: ${activeRun.retryPolicy.reason}`}
               </p>
+              {isNonResumableTerminal && (
+                <p
+                  className="field-help"
+                  data-testid="non-resumable-plan-notice"
+                >
+                  같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간
+                  미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다.
+                </p>
+              )}
             </div>
 
             <div className="action-row">
@@ -677,7 +916,7 @@ export function ImportStatusPanel({
                           ? ` (v${activeRun.runVersion})`
                           : ""
                       }`
-                    : "가져오기 재시도"}
+                    : "같은 계획·마지막 안전 체크포인트에서 재개"}
                 </button>
               )}
 
@@ -697,7 +936,8 @@ export function ImportStatusPanel({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </section>
   );
 }

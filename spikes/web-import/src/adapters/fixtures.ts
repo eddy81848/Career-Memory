@@ -44,7 +44,8 @@ export const SYNTHETIC_CONNECTED_GITHUB: GitHubConnectionViewModel = {
   status: "connected",
   accountHandle: "@seoyeon-lab-demo",
   connectionRef: "gh_collect_demo_902",
-  scopeSummary: "공개 저장소 읽기 전용 스냅샷 수집 (합성 예시)",
+  scopeSummary:
+    'GitHub OAuth App 최소 읽기 연결 · scope="read:user" 단독 요청 (저장소/쓰기 스코프 0개 · 선택한 공개 저장소 1곳 Allowlist 전용)',
   revocationReason: null,
   connectedAt: "2026-11-26T11:58:00+09:00",
 };
@@ -53,7 +54,8 @@ export const SYNTHETIC_DISCONNECTED_GITHUB: GitHubConnectionViewModel = {
   status: "disconnected",
   accountHandle: null,
   connectionRef: null,
-  scopeSummary: "공개 저장소 읽기 전용 스냅샷 수집 (미연결)",
+  scopeSummary:
+    'GitHub OAuth App 최소 읽기 연결 (미연결 · 연결 시 scope="read:user" 단독 요청, 저장소/쓰기 스코프 0개)',
   revocationReason: null,
   connectedAt: null,
 };
@@ -62,9 +64,10 @@ export const SYNTHETIC_REVOKED_GITHUB: GitHubConnectionViewModel = {
   status: "permission_revoked",
   accountHandle: "@seoyeon-lab-demo",
   connectionRef: "gh_collect_demo_902",
-  scopeSummary: "공개 저장소 읽기 전용 스냅샷 수집 (권한 상실)",
+  scopeSummary:
+    'GitHub OAuth App 최소 읽기 연결 (권한 상실 · scope="read:user" 재연결 필요 · 삭제 오판 없이 POLICY_REVIEW_REQUIRED 차단)',
   revocationReason:
-    "GitHub 측에서 수집 연결 권한이 회수되었거나 만료되었습니다. 다시 연결해야 가져오기를 진행할 수 있습니다.",
+    "GitHub 측에서 수집 연결 권한이 회수되었거나 저장소가 비공개(Public → Private)로 전환되었습니다. GitHub 원본이 삭제된 것으로 처리하지 않으며, 원문 열람·외부 AI 전송·Export를 즉시 차단했습니다.",
   connectedAt: "2026-11-26T11:58:00+09:00",
 };
 
@@ -173,6 +176,12 @@ export const PROTOTYPE_SCENARIOS: PrototypeScenarioMeta[] = [
     label: "오류 — FAILED (재시도 거부)",
     shortDescription:
       "FAILED — import_ready=false, retry.allowed=false로 재시도 버튼 숨김",
+  },
+  {
+    id: "canceled_run",
+    label: "취소됨 — CANCELED (중립 종료 · 재시도 비활성)",
+    shortDescription:
+      "CANCELED — 실패(FAILED)와 분리된 취소 상태, import_ready=false, retry.allowed=false",
   },
   {
     id: "permission_revoked",

@@ -1,6 +1,11 @@
 "use client";
 
 import React from "react";
+import {
+  DEFAULT_PLAN_BACKFILL_FROM,
+  DEFAULT_PLAN_CUTOFF_AT,
+  DEFAULT_PLAN_MAX_OBJECTS,
+} from "@/domain/import-status-presenter";
 import type {
   GitHubConnectionViewModel,
   PublicRepositoryOption,
@@ -79,6 +84,23 @@ export function RepositorySelector({
           1곳만 대상으로 합니다. Event 편집·Claim 생성·LLM 연동·삭제는 이 화면의
           범위가 아닙니다.
         </p>
+        <div
+          className="inline-alert inline-alert--info"
+          data-testid="repo-plan-policy-summary"
+        >
+          <strong>고정 가져오기 계획 및 보관 원칙:</strong> 공개 저장소 1곳
+          Allowlist (<code className="mono">PUBLIC</code> 확인 ·{" "}
+          <code className="mono">PUBLIC_CLOUD</code> ·{" "}
+          <code className="mono">raw_storage_mode: NONE</code> 원문 비보관) ·
+          기본 최근 12개월 고정 기간 (
+          <code className="mono">
+            [{DEFAULT_PLAN_BACKFILL_FROM}, {DEFAULT_PLAN_CUTOFF_AT}]
+          </code>
+          ) · 최대 항목 한도{" "}
+          <code className="mono">
+            max_objects: {DEFAULT_PLAN_MAX_OBJECTS.toLocaleString("en-US")}건
+          </code>
+        </div>
       </div>
 
       {!isConnectionReady ? (

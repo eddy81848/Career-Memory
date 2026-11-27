@@ -81,7 +81,8 @@ export function createInitialImportJourneyState(): ImportJourneyState {
       status: "disconnected",
       accountHandle: null,
       connectionRef: null,
-      scopeSummary: "공개 저장소 읽기 전용 수집 (합성 예시)",
+      scopeSummary:
+        'GitHub OAuth App 최소 읽기 연결 (scope="read:user" 단독 · 저장소/쓰기 스코프 0개 · 단일 공개 저장소 Allowlist 전용)',
       revocationReason: null,
       connectedAt: null,
     },
@@ -208,7 +209,11 @@ export function canExposeRetryAction(state: ImportJourneyState): boolean {
   if (state.githubConnection.status !== "connected") {
     return false;
   }
-  if (run.status === "running" || run.status === "permission_revoked") {
+  if (
+    run.status === "running" ||
+    run.status === "canceled" ||
+    run.status === "permission_revoked"
+  ) {
     return false;
   }
   return run.retryPolicy.allowed === true;

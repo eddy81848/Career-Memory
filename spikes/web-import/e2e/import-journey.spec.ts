@@ -297,4 +297,80 @@ test.describe("Career Memory initial import UI prototype (browser E2E)", () => {
       await expect(page.getByTestId("import-run-details")).toHaveCount(0);
     }
   });
+
+  test("verifies T-205 plan/limit/timestamps, non-auto-sync snapshot notice, CANCELED, PLAN_DRIFT, policy block, and OD-011 read:user scope", async ({
+    page,
+  }) => {
+    // 1. OD-011 scope="read:user" & fixed plan policy metadata
+    await expect(page.getByTestId("github-oauth-scope")).toContainText(
+      'scope="read:user"'
+    );
+    await expect(page.getByTestId("github-oauth-scope")).toContainText(
+      "저장소/쓰기 스코프 0개"
+    );
+    await expect(page.getByTestId("repo-plan-policy-summary")).toContainText(
+      "raw_storage_mode: NONE"
+    );
+    await expect(page.getByTestId("repo-plan-policy-summary")).toContainText(
+      "5,000"
+    );
+
+    // 2. SUCCESS -> non-auto-sync notice + visibility/limit/timestamps
+    await page.getByLabel(/응답 시나리오/i).selectOption("success_full");
+    await page.getByTestId("start-import-button").click();
+    await expect(page.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-contract-status",
+      "SUCCESS"
+    );
+    await expect(page.getByTestId("snapshot-no-auto-sync-notice")).toContainText(
+      "자동으로 동기화되지 않습니다"
+    );
+    await expect(page.getByTestId("plan-window-and-limit")).toContainText(
+      "max_objects: 5,000건"
+    );
+    await expect(page.getByTestId("observation-timestamps")).toContainText(
+      "종료 관찰:"
+    );
+
+    // 3. CANCELED -> dedicated neutral banner, retry disabled
+    await page.getByRole("button", { name: "진행 결과 초기화" }).click();
+    await page.getByLabel(/응답 시나리오/i).selectOption("canceled_run");
+    await page.getByTestId("start-import-button").click();
+    await expect(page.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-run-status",
+      "canceled"
+    );
+    await expect(page.getByTestId("contract-status-badge")).toHaveText("CANCELED");
+    await expect(page.getByTestId("canceled-detail-box")).toBeVisible();
+    await expect(page.getByTestId("retry-import-button")).toHaveCount(0);
+
+    // 4. PLAN_DRIFT -> structured failure reason, stream last_committed_page, non-resumable guidance
+    await page.getByRole("button", { name: "진행 결과 초기화" }).click();
+    await page.getByLabel(/응답 시나리오/i).selectOption("partial_plan_drift");
+    await page.getByTestId("start-import-button").click();
+    await expect(page.getByTestId("failure-reason-summary")).toHaveAttribute(
+      "data-failure-code",
+      "PLAN_DRIFT"
+    );
+    await expect(page.getByTestId("stream-progress-list")).toContainText(
+      "last_committed_page=5"
+    );
+    await expect(page.getByTestId("non-resumable-plan-notice")).toContainText(
+      "Event/Claim으로 승격되지 않습니다"
+    );
+    await expect(page.getByTestId("retry-import-button")).toHaveCount(0);
+
+    // 5. BLOCKED_POLICY -> explicit block of raw view / external AI / Export without deletion misclassification
+    await page.getByRole("button", { name: "진행 결과 초기화" }).click();
+    await page
+      .getByLabel(/응답 시나리오/i)
+      .selectOption("success_blocked_policy");
+    await page.getByTestId("start-import-button").click();
+    await expect(page.getByTestId("processing-blocked-notice")).toContainText(
+      "원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다"
+    );
+    await expect(page.getByTestId("processing-blocked-notice")).toContainText(
+      "GitHub 원본이 삭제된 것으로 처리하지 않으며"
+    );
+  });
 });

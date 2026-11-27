@@ -6,6 +6,11 @@ import {
   SYNTHETIC_REVOKED_GITHUB,
 } from "@/adapters/fixtures";
 import {
+  describeFailureReason,
+  isPolicyOrSourceBlockedRun,
+  resolveContractStatus,
+} from "./import-status-presenter";
+import {
   canExposeRetryAction,
   canSubmitInitialImport,
   createInitialImportJourneyState,
@@ -745,5 +750,129 @@ describe("importJourneyReducer & domain guards (UI view-model fixtures)", () => 
     expect(after403Ws.pendingRetry).toBeNull();
     expect(canSubmitInitialImport(after403Ws)).toBe(false);
     expect(canExposeRetryAction(after403Ws)).toBe(false);
+  });
+
+  it("handles T-205 official 7 contract states, CANCELED non-retryable terminal guard, structured failure reasons, and policy/source block classification", () => {
+    const repoA = SYNTHETIC_PUBLIC_REPOSITORIES[0];
+
+    const canceledState = importJourneyReducer(
+      createInitialImportJourneyState(),
+      {
+        type: "BOOTSTRAP_SUCCESS",
+        payload: {
+          serviceAuth: SYNTHETIC_AUTHENTICATED_AUTH,
+          githubConnection: SYNTHETIC_CONNECTED_GITHUB,
+          repositories: SYNTHETIC_PUBLIC_REPOSITORIES,
+          selectedRepoId: repoA.repoId,
+          latestRun: makeRun({
+            contractStatus: "CANCELED",
+            status: "canceled",
+            readiness: {
+              importReady: false,
+              importReadyState: "failed",
+              importReadySummary: "작업 취소됨 (CANCELED · import_ready=false)",
+              derivedAllReady: false,
+              derivedStages: [],
+            },
+            retryPolicy: {
+              allowed: true, // Even if misconfigured, CANCELED must never expose retry
+              reason: "취소됨",
+              nextAllowedAt: null,
+            },
+          }),
+          scenarioId: "canceled_run",
+          recoveredFromReload: false,
+          checkedAt: "2026-11-27T10:00:00Z",
+        },
+      }
+    );
+
+    expect(isFullSuccessRun(canceledState.activeRun)).toBe(false);
+    expect(isImportRequestLocked(canceledState)).toBe(false);
+    expect(isSelectedRepositoryImportSucceeded(canceledState)).toBe(false);
+    expect(canExposeRetryAction(canceledState)).toBe(false);
+    expect(resolveContractStatus(canceledState.activeRun!)).toBe("CANCELED");
+
+    // Verify all 7 contract states resolve cleanly
+    expect(
+      resolveContractStatus(
+        makeRun({
+          status: "running",
+          contractStatus: "PENDING",
+          readiness: {
+            importReady: false,
+            importReadyState: "pending",
+            importReadySummary: "대기 중",
+            derivedAllReady: false,
+            derivedStages: [],
+          },
+        })
+      )
+    ).toBe("PENDING");
+    expect(
+      resolveContractStatus(
+        makeRun({
+          status: "running",
+          contractStatus: "RUNNING",
+          readiness: {
+            importReady: false,
+            importReadyState: "in_progress",
+            importReadySummary: "진행 중",
+            derivedAllReady: false,
+            derivedStages: [],
+          },
+        })
+      )
+    ).toBe("RUNNING");
+    expect(resolveContractStatus(makeRun({ status: "succeeded" }))).toBe("SUCCESS");
+    expect(resolveContractStatus(makeRun({ status: "partial" }))).toBe("PARTIAL");
+    expect(resolveContractStatus(makeRun({ status: "limit_reached" }))).toBe(
+      "PARTIAL_WITH_LIMIT"
+    );
+    expect(resolveContractStatus(makeRun({ status: "failed" }))).toBe("FAILED");
+
+    // Verify structured failure reason descriptions
+    expect(describeFailureReason("PLAN_DRIFT", true)?.label).toContain("PLAN_DRIFT");
+    expect(describeFailureReason("INCOMPLETE_PR_ASSOCIATION")?.label).toContain(
+      "UNKNOWN PR"
+    );
+    expect(describeFailureReason("CURSOR_CYCLE_DETECTED")?.code).toBe(
+      "CURSOR_CYCLE_DETECTED"
+    );
+    expect(describeFailureReason("MALFORMED_OR_PARTIAL_PAGE")?.code).toBe(
+      "MALFORMED_OR_PARTIAL_PAGE"
+    );
+    expect(describeFailureReason("RATE_LIMITED")?.code).toBe("RATE_LIMITED");
+    expect(
+      describeFailureReason("SOURCE_POLICY_BLOCKED")?.isPolicyOrSourceBlock
+    ).toBe(true);
+
+    // Verify policy/source block detection
+    expect(
+      isPolicyOrSourceBlockedRun(
+        makeRun({
+          status: "succeeded",
+          readiness: {
+            importReady: true,
+            importReadyState: "ready",
+            importReadySummary: "완료",
+            processingStatus: "BLOCKED_POLICY",
+            derivedAllReady: false,
+            derivedStages: [],
+          },
+        })
+      )
+    ).toBe(true);
+    expect(
+      isPolicyOrSourceBlockedRun(
+        makeRun({
+          status: "partial",
+          failureReason: "SOURCE_POLICY_BLOCKED",
+        })
+      )
+    ).toBe(true);
+    expect(isPolicyOrSourceBlockedRun(makeRun({ status: "succeeded" }))).toBe(
+      false
+    );
   });
 });

@@ -55,13 +55,32 @@ export interface PublicRepositoryOption {
   advisoryNote?: string;
 }
 
+export type ContractImportState =
+  | "PENDING"
+  | "RUNNING"
+  | "SUCCESS"
+  | "PARTIAL"
+  | "PARTIAL_WITH_LIMIT"
+  | "FAILED"
+  | "CANCELED";
+
 export type ImportRunStatus =
   | "running"
   | "succeeded"
   | "partial"
   | "limit_reached"
   | "failed"
+  | "canceled"
   | "permission_revoked";
+
+export interface ImportPlanScopeViewModel {
+  backfillFrom: string;
+  cutoffAt: string;
+  windowLabel: string;
+  maxObjects: number;
+  storageClass: "PUBLIC_CLOUD";
+  rawStorageMode: "NONE";
+}
 
 export type ImportReadyState =
   | "pending"
@@ -165,11 +184,23 @@ export interface ImportRunViewModel {
   planId?: string;
   repositoryId: string;
   repositoryFullName: string;
+  /** Repository visibility/policy verification status (`PUBLIC` or `PRIVATE_OR_RESTRICTED`). */
+  repositoryVisibility?: "PUBLIC" | "PRIVATE_OR_RESTRICTED";
+  /** Fixed one-time backfill plan window, item cap, and non-storage policy metadata. */
+  planScope?: ImportPlanScopeViewModel;
+  /** Exact server contract state enum (`PENDING | RUNNING | SUCCESS | PARTIAL | PARTIAL_WITH_LIMIT | FAILED | CANCELED`). */
+  contractStatus?: ContractImportState;
   status: ImportRunStatus;
   attemptNumber: number;
   startedAt: string;
+  /** Server-reported observation timestamp (`observed_at`), when available. */
+  observedAt?: string | null;
+  /** Terminal completion/end observation timestamp (null while PENDING or RUNNING). */
+  completedAt?: string | null;
   updatedAt: string;
   progressMessage: string;
+  /** Structured server failure reason code (`PLAN_DRIFT`, `TRANSIENT_PROVIDER_ERROR`, `INCOMPLETE_PR_ASSOCIATION`, etc.). */
+  failureReason?: string | null;
   sourceDrift?: boolean;
   processedRange?: string | null;
   remainingRange?: string | null;
@@ -236,6 +267,7 @@ export type PrototypeScenarioId =
   | "limit_cap_blocked"
   | "error_retryable"
   | "error_non_retryable"
+  | "canceled_run"
   | "permission_revoked"
   | "session_expired_on_submit"
   | "network_error_on_submit"

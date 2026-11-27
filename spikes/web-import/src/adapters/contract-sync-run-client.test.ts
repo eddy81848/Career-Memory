@@ -2030,5 +2030,183 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
 
       window.sessionStorage.clear();
     });
+
+    it("maps all 7 official contract states (PENDING, RUNNING, SUCCESS, PARTIAL, PARTIAL_WITH_LIMIT, FAILED, CANCELED) with timestamps, planScope, streams, and failureReason without loss", async () => {
+      const { transport } = createScriptedTransport([
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            run_version: 1,
+            plan_id: "plan-7states",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            source_drift: false,
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "RUNNING",
+            run_version: 2,
+            plan_id: "plan-7states",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            observed_at: "2026-10-05T08:10:00Z",
+            source_drift: false,
+            streams: [{ type: "PR", status: "RUNNING", last_committed_page: 2 }],
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "CANCELED",
+            run_version: 3,
+            plan_id: "plan-7states",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            observed_at: "2026-10-05T08:15:00Z",
+            source_drift: false,
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL",
+            run_version: 4,
+            plan_id: "plan-7states",
+            failure_reason: "PLAN_DRIFT",
+            streams: [
+              {
+                type: "PR",
+                status: "PARTIAL",
+                last_committed_page: 5,
+                unresolved_failures: 1,
+              },
+            ],
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            observed_at: "2026-10-05T08:20:00Z",
+            source_drift: true,
+            processed_range: "2025-09-23 through 2026-07-31",
+            remaining_range: "2026-08-01 through 2026-10-05",
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL_WITH_LIMIT",
+            run_version: 5,
+            plan_id: "plan-7states",
+            failure_reason: "SYNC_PARTIAL_WITH_LIMIT",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            observed_at: "2026-10-05T08:25:00Z",
+            source_drift: false,
+            processed_range: "2025-09-23 through 2026-08-31",
+            remaining_range: "2026-09-01 through 2026-10-05",
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "FAILED",
+            run_version: 6,
+            plan_id: "plan-7states",
+            failure_reason: "CURSOR_CYCLE_DETECTED",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            observed_at: "2026-10-05T08:30:00Z",
+            source_drift: false,
+            retry: { allowed: false },
+          }),
+        }),
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "SUCCESS",
+            run_version: 7,
+            plan_id: "plan-7states",
+            import_ready: true,
+            processing_status: "COMPLETE",
+            observed_at: "2026-10-05T09:00:00Z",
+            source_drift: false,
+            retry: { allowed: false },
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const pending = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(pending.ok).toBe(true);
+      if (pending.ok) {
+        expect(pending.data.run.contractStatus).toBe("PENDING");
+        expect(pending.data.run.status).toBe("running");
+        expect(pending.data.run.completedAt).toBeNull();
+        expect(pending.data.run.planScope?.maxObjects).toBe(5000);
+        expect(pending.data.run.planScope?.rawStorageMode).toBe("NONE");
+      }
+
+      const running = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(running.ok).toBe(true);
+      if (running.ok) {
+        expect(running.data.run.contractStatus).toBe("RUNNING");
+        expect(running.data.run.status).toBe("running");
+        expect(running.data.run.completedAt).toBeNull();
+        expect(running.data.run.streams?.[0].lastCommittedPage).toBe(2);
+      }
+
+      const canceled = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(canceled.ok).toBe(true);
+      if (canceled.ok) {
+        expect(canceled.data.run.contractStatus).toBe("CANCELED");
+        expect(canceled.data.run.status).toBe("canceled");
+        expect(canceled.data.run.error).toBeNull();
+        expect(canceled.data.run.retryPolicy.allowed).toBe(false);
+        expect(canceled.data.run.completedAt).toBe("2026-10-05T08:15:00Z");
+      }
+
+      const partialDrift = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(partialDrift.ok).toBe(true);
+      if (partialDrift.ok) {
+        expect(partialDrift.data.run.contractStatus).toBe("PARTIAL");
+        expect(partialDrift.data.run.failureReason).toBe("PLAN_DRIFT");
+        expect(partialDrift.data.run.sourceDrift).toBe(true);
+        expect(partialDrift.data.run.streams?.[0].lastCommittedPage).toBe(5);
+        expect(partialDrift.data.run.streams?.[0].unresolvedFailures).toBe(1);
+      }
+
+      const limit = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(limit.ok).toBe(true);
+      if (limit.ok) {
+        expect(limit.data.run.contractStatus).toBe("PARTIAL_WITH_LIMIT");
+        expect(limit.data.run.status).toBe("limit_reached");
+        expect(limit.data.run.limitDetail?.capCount).toBe(5000);
+      }
+
+      const failed = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(failed.ok).toBe(true);
+      if (failed.ok) {
+        expect(failed.data.run.contractStatus).toBe("FAILED");
+        expect(failed.data.run.status).toBe("failed");
+        expect(failed.data.run.failureReason).toBe("CURSOR_CYCLE_DETECTED");
+        expect(failed.data.run.error?.code).toBe("CURSOR_CYCLE_DETECTED");
+      }
+
+      const success = await client.getImportStatus({ runId: "run-7", repo: REPO_A });
+      expect(success.ok).toBe(true);
+      if (success.ok) {
+        expect(success.data.run.contractStatus).toBe("SUCCESS");
+        expect(success.data.run.status).toBe("succeeded");
+        expect(success.data.run.observedAt).toBe("2026-10-05T09:00:00Z");
+        expect(success.data.run.completedAt).toBe("2026-10-05T09:00:00Z");
+      }
+    });
   });
 });

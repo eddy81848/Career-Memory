@@ -691,10 +691,26 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
           run_version: runVersion,
           plan_id: planId,
           failure_reason: "PLAN_DRIFT",
+          streams: [
+            {
+              type: "COMMIT",
+              status: "PARTIAL",
+              last_committed_page: 5,
+              unresolved_failures: 1,
+            },
+            {
+              type: "PR",
+              status: "PARTIAL",
+              last_committed_page: 3,
+              unresolved_failures: 1,
+            },
+          ],
           import_ready: false,
           processing_status: "NOT_STARTED",
           observed_at: observedAt,
           source_drift: true,
+          processed_range: "2025-09-23 through 2026-07-31",
+          remaining_range: "2026-08-01 through 2026-10-05",
           retry: { allowed: false },
         };
 
@@ -754,6 +770,28 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
           processing_status: "NOT_STARTED",
           observed_at: observedAt,
           source_drift: false,
+          retry: { allowed: false },
+        };
+
+      case "canceled_run":
+        return {
+          status: "CANCELED",
+          run_version: runVersion,
+          plan_id: planId,
+          streams: [
+            {
+              type: "PR",
+              status: "CANCELED",
+              last_committed_page: 2,
+              unresolved_failures: 0,
+            },
+          ],
+          import_ready: false,
+          processing_status: "NOT_STARTED",
+          observed_at: observedAt,
+          source_drift: false,
+          processed_range: "2025-09-23 through 2026-03-31",
+          remaining_range: "2026-04-01 through 2026-10-05",
           retry: { allowed: false },
         };
 

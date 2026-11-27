@@ -2458,4 +2458,218 @@ describe("OpenAPI 0.5.0-draft (87f1515) real 127.0.0.1 loopback cross-verificati
     expect(s4.submitted_work_count).toBe(1);
     m4.unmount();
   });
+
+  it("renders T-205 official PENDING -> RUNNING -> CANCELED and SUCCESS (timestamps, fixed plan cap, no-auto-sync notice) over real 127.0.0.1 HTTP", async () => {
+    await resetStub();
+    const user = userEvent.setup();
+    const transport = new LoopbackContractHttpTransport(contractUrl);
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport,
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={40} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // Start REPO_1 -> 202 Accepted starts in PENDING (distinct from RUNNING)
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-contract-status",
+        "PENDING"
+      );
+    });
+    expect(screen.getByTestId("contract-status-badge")).toHaveTextContent("PENDING");
+    expect(screen.getByTestId("run-status-badge")).toHaveTextContent("대기 중");
+
+    // Observe RUNNING with stream last_committed_page
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "RUNNING",
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        observed_at: "2026-10-05T08:30:00Z",
+        source_drift: false,
+        streams: [{ type: "PR", status: "RUNNING", last_committed_page: 3 }],
+        processed_range: "2025-09-23 through 2026-04-30",
+        remaining_range: "2026-05-01 through 2026-10-05",
+        retry: { allowed: false },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-contract-status",
+        "RUNNING"
+      );
+    });
+    expect(screen.getByTestId("run-status-badge")).toHaveTextContent("실행 중");
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "last_committed_page=3"
+    );
+
+    // Observe CANCELED -> neutral banner, distinct from FAILED, retry disabled
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "CANCELED",
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        observed_at: "2026-10-05T08:35:00Z",
+        source_drift: false,
+        streams: [
+          {
+            type: "PR",
+            status: "CANCELED",
+            last_committed_page: 3,
+            unresolved_failures: 0,
+          },
+        ],
+        processed_range: "2025-09-23 through 2026-04-30",
+        remaining_range: "2026-05-01 through 2026-10-05",
+        retry: { allowed: false },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "canceled"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-contract-status",
+      "CANCELED"
+    );
+    expect(screen.getByTestId("canceled-detail-box")).toBeInTheDocument();
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("non-resumable-plan-notice")).toHaveTextContent(
+      "같은 실행에서 단순 재개할 수 없으며"
+    );
+
+    // Now start REPO_2 and observe SUCCESS -> verify observation timestamps, fixed plan cap, and non-auto-sync notice
+    await user.click(screen.getByRole("radio", { name: /design-tokens-kit/i }));
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-2"
+      );
+    });
+
+    await observeRun({
+      runId: "synthetic-run-2",
+      observation: {
+        status: "SUCCESS",
+        import_ready: true,
+        processing_status: "COMPLETE",
+        observed_at: "2026-10-05T09:00:00Z",
+        source_drift: false,
+        processed_range: "2025-09-23 through 2026-10-05",
+        retry: { allowed: false },
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-contract-status",
+        "SUCCESS"
+      );
+    });
+    expect(screen.getByTestId("repo-visibility-policy")).toHaveTextContent(
+      "raw_storage_mode: NONE"
+    );
+    expect(screen.getByTestId("plan-window-and-limit")).toHaveTextContent(
+      "max_objects: 5,000건"
+    );
+    expect(screen.getByTestId("observation-timestamps")).toHaveTextContent(
+      "2026-10-05T09:00:00Z"
+    );
+    expect(screen.getByTestId("snapshot-no-auto-sync-notice")).toHaveTextContent(
+      "자동으로 동기화되지 않습니다"
+    );
+  });
+
+  it("renders T-205 PLAN_DRIFT (source_drift=true), transientPartial stream last_committed_page, and SOURCE_POLICY_BLOCKED / BLOCKED_POLICY export-block over real 127.0.0.1 HTTP", async () => {
+    await resetStub();
+    const user = userEvent.setup();
+    const transport = new LoopbackContractHttpTransport(contractUrl);
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport,
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={40} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // 1. REPO_1: Observe transientPartial -> last_committed_page=7, unresolved_failures=1, safe checkpoint resume CTA
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+    await observeRun({ runId: "synthetic-run-1", example: "transientPartial" });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-contract-status",
+        "PARTIAL"
+      );
+    });
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "last_committed_page=7"
+    );
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "unresolved_failures=1"
+    );
+    expect(screen.getByTestId("retry-import-button")).toHaveTextContent(
+      "같은 계획·마지막 안전 체크포인트에서 재개"
+    );
+
+    // Transition REPO_1 to OpenAPI planDrift example -> source_drift=true, retry disabled, non-resumable guidance
+    await observeRun({ runId: "synthetic-run-1", example: "planDrift" });
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("failure-reason-summary")).toHaveAttribute(
+        "data-failure-code",
+        "PLAN_DRIFT"
+      );
+    });
+    expect(screen.getByTestId("failure-reason-summary")).toHaveTextContent(
+      "source_drift: true"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("non-resumable-plan-notice")).toHaveTextContent(
+      "Event/Claim으로 승격되지 않습니다"
+    );
+
+    // 2. REPO_2: OpenAPI importPolicyBlocked example -> immediate block of 원문 열람 · 외부 AI 전송 · Export
+    await user.click(screen.getByRole("radio", { name: /design-tokens-kit/i }));
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-2"
+      );
+    });
+    await observeRun({
+      runId: "synthetic-run-2",
+      example: "importPolicyBlocked",
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("policy-export-block-notice")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("policy-export-block-notice")).toHaveTextContent(
+      "원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다"
+    );
+    expect(screen.getByTestId("policy-export-block-notice")).toHaveTextContent(
+      "GitHub 원본이 삭제된 것으로 처리하지 않으며"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+  });
 });

@@ -2887,4 +2887,329 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(postCount3).toBe(1);
     r3.unmount();
   });
+
+  it("renders T-205 plan/visibility/limit/observation metadata, post-SUCCESS non-auto-sync notice, and OD-011 read:user scope alignment", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_full",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={20} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+
+    // OD-011: GitHub OAuth App read:user minimal connection (0 repo/write scopes, single public repo allowlist)
+    expect(screen.getByTestId("github-oauth-scope")).toHaveTextContent(
+      'scope="read:user"'
+    );
+    expect(screen.getByTestId("github-oauth-scope")).toHaveTextContent(
+      "저장소/쓰기 스코프 0개"
+    );
+    expect(screen.getByTestId("github-od011-policy")).toHaveTextContent(
+      "Allowlist"
+    );
+    expect(screen.getByTestId("repo-plan-policy-summary")).toHaveTextContent(
+      "raw_storage_mode: NONE"
+    );
+    expect(screen.getByTestId("repo-plan-policy-summary")).toHaveTextContent(
+      "5,000"
+    );
+
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-contract-status",
+        "SUCCESS"
+      );
+    });
+
+    expect(screen.getByTestId("contract-status-badge")).toHaveTextContent(
+      "SUCCESS"
+    );
+    expect(screen.getByTestId("repo-visibility-policy")).toHaveTextContent(
+      "PUBLIC 확인"
+    );
+    expect(screen.getByTestId("repo-visibility-policy")).toHaveTextContent(
+      "PUBLIC_CLOUD"
+    );
+    expect(screen.getByTestId("repo-visibility-policy")).toHaveTextContent(
+      "raw_storage_mode: NONE"
+    );
+    expect(screen.getByTestId("plan-window-and-limit")).toHaveTextContent(
+      "max_objects: 5,000건"
+    );
+    expect(screen.getByTestId("observation-timestamps")).toHaveTextContent(
+      "시작:"
+    );
+    expect(screen.getByTestId("observation-timestamps")).toHaveTextContent(
+      "종료 관찰:"
+    );
+
+    // T-205 #4: Post-SUCCESS non-auto-sync snapshot notice
+    expect(screen.getByTestId("snapshot-no-auto-sync-notice")).toHaveTextContent(
+      "일회성 관찰 스냅샷이며, 이후 GitHub에서 발생한 새 커밋·PR·수정·삭제와 자동으로 동기화되지 않습니다"
+    );
+    expect(screen.getByTestId("snapshot-no-auto-sync-notice")).toHaveTextContent(
+      "원문은 저장하지 않으며 근거 검증 시 재조회함"
+    );
+  });
+
+  it("renders T-205 PENDING/RUNNING/CANCELED distinct states, PLAN_DRIFT & structured failure reasons, stream last_committed_page, and resume eligibility", async () => {
+    const user = userEvent.setup();
+
+    // 1. CANCELED neutral banner + retry disabled (distinct from FAILED)
+    const canceledAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "canceled_run",
+    });
+    const r1 = render(
+      <ImportJourneyApp
+        adapter={canceledAdapter}
+        harness={canceledAdapter}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "canceled"
+      );
+    });
+    expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+      "data-contract-status",
+      "CANCELED"
+    );
+    expect(screen.getByTestId("contract-status-badge")).toHaveTextContent(
+      "CANCELED"
+    );
+    expect(screen.getByTestId("canceled-detail-box")).toBeInTheDocument();
+    expect(screen.queryByTestId("error-detail-box")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("non-resumable-plan-notice")).toHaveTextContent(
+      "같은 실행에서 단순 재개할 수 없으며(계획 폐기/교체는 현 구간 미제공), 부분 수집 결과는 Event/Claim으로 승격되지 않습니다"
+    );
+    r1.unmount();
+
+    // 2. PLAN_DRIFT (source_drift=true), streams last_committed_page, processed/remaining ranges, non-resumable
+    const driftAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "partial_plan_drift",
+    });
+    const r2 = render(
+      <ImportJourneyApp
+        adapter={driftAdapter}
+        harness={driftAdapter}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("failure-reason-summary")).toHaveAttribute(
+        "data-failure-code",
+        "PLAN_DRIFT"
+      );
+    });
+    expect(screen.getByTestId("failure-reason-summary")).toHaveTextContent(
+      "source_drift: true"
+    );
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "last_committed_page=5"
+    );
+    expect(screen.getByTestId("processed-range")).toHaveTextContent(
+      "2025-09-23 through 2026-07-31"
+    );
+    expect(screen.getByTestId("remaining-range")).toHaveTextContent(
+      "2026-08-01 through 2026-10-05"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("non-resumable-plan-notice")).toBeInTheDocument();
+    r2.unmount();
+
+    // 3. Custom transport verifying PENDING -> INCOMPLETE_PR_ASSOCIATION -> retryable TRANSIENT_PROVIDER_ERROR CTA wording
+    let pollStep = 0;
+    const customAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+          }
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_type: "SYNC_RUN",
+                target_id: "run-t205-structured",
+                status_url: "/v1/sync-runs/run-t205-structured",
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === "/v1/sync-runs/run-t205-structured") {
+            pollStep += 1;
+            if (pollStep === 1) {
+              return {
+                status: 200,
+                rawBody: JSON.stringify({
+                  status: "PARTIAL",
+                  run_version: 2,
+                  plan_id: "plan-t205",
+                  failure_reason: "INCOMPLETE_PR_ASSOCIATION",
+                  streams: [
+                    {
+                      type: "PR",
+                      status: "PARTIAL",
+                      last_committed_page: 4,
+                      unresolved_failures: 2,
+                    },
+                  ],
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  observed_at: "2026-10-05T09:10:00Z",
+                  source_drift: false,
+                  processed_range: "2025-09-23 through 2026-07-01",
+                  remaining_range: "2026-07-02 through 2026-10-05",
+                  retry: { allowed: false },
+                }),
+              };
+            }
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "PARTIAL",
+                run_version: 3,
+                plan_id: "plan-t205",
+                failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                streams: [
+                  {
+                    type: "PR",
+                    status: "PARTIAL",
+                    last_committed_page: 7,
+                    unresolved_failures: 1,
+                  },
+                ],
+                import_ready: false,
+                processing_status: "NOT_STARTED",
+                observed_at: "2026-10-05T09:12:00Z",
+                source_drift: false,
+                processed_range: "2025-09-23 through 2026-08-31",
+                remaining_range: "2026-09-01 through 2026-10-05",
+                retry: { allowed: true, from_safe_checkpoint: true },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    const r3 = render(
+      <ImportJourneyApp
+        adapter={customAdapter}
+        harness={customAdapter}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("failure-reason-summary")).toHaveAttribute(
+        "data-failure-code",
+        "INCOMPLETE_PR_ASSOCIATION"
+      );
+    });
+    expect(screen.getByTestId("failure-reason-summary")).toHaveTextContent(
+      "UNKNOWN PR"
+    );
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "last_committed_page=4"
+    );
+    expect(screen.getByTestId("stream-progress-list")).toHaveTextContent(
+      "unresolved_failures=2"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+
+    // Manual refresh moves to retryable TRANSIENT_PROVIDER_ERROR -> exposes safe checkpoint resume button
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("retry-import-button")).toHaveTextContent(
+        "같은 계획·마지막 안전 체크포인트에서 재개"
+      );
+    });
+    r3.unmount();
+  });
+
+  it("explicitly blocks raw view, external AI, and Export on BLOCKED_POLICY, BLOCKED_SOURCE, and SOURCE_POLICY_BLOCKED without GitHub deletion misclassification", async () => {
+    const user = userEvent.setup();
+
+    // 1. SUCCESS + BLOCKED_POLICY
+    const blockedPolicyAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_blocked_policy",
+    });
+    const r1 = render(
+      <ImportJourneyApp
+        adapter={blockedPolicyAdapter}
+        harness={blockedPolicyAdapter}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("processing-blocked-notice")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("processing-blocked-notice")).toHaveTextContent(
+      "원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다"
+    );
+    expect(screen.getByTestId("processing-blocked-notice")).toHaveTextContent(
+      "GitHub 원본이 삭제된 것으로 처리하지 않으며"
+    );
+    expect(screen.getByTestId("blocked-surfaces-badges")).toHaveTextContent(
+      "POLICY_REVIEW_REQUIRED"
+    );
+    r1.unmount();
+
+    // 2. PARTIAL + SOURCE_POLICY_BLOCKED -> dedicated policy-export-block-notice
+    const sourceBlockedAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "partial_non_retryable",
+    });
+    const r2 = render(
+      <ImportJourneyApp
+        adapter={sourceBlockedAdapter}
+        harness={sourceBlockedAdapter}
+        pollIntervalMs={20}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("policy-export-block-notice")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("policy-export-block-notice")).toHaveTextContent(
+      "원문 열람 · 외부 AI 전송 · Export가 즉시 차단되었습니다"
+    );
+    expect(screen.getByTestId("policy-export-block-notice")).toHaveTextContent(
+      "Public → Private"
+    );
+    expect(screen.getByTestId("policy-export-block-notice")).toHaveTextContent(
+      "GitHub 원본이 삭제된 것으로 처리하지 않으며"
+    );
+    r2.unmount();
+  });
 });

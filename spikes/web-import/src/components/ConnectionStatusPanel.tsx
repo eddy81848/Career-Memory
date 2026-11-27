@@ -188,8 +188,16 @@ export function ConnectionStatusPanel({
               </dd>
             </div>
             <div>
-              <dt>수집 권한 범위</dt>
-              <dd>{githubConnection.scopeSummary}</dd>
+              <dt>OAuth 요청 스코프 (OD-011)</dt>
+              <dd className="mono" data-testid="github-oauth-scope">
+                scope=&quot;read:user&quot; 단독 요청 · 저장소/쓰기 스코프 0개
+              </dd>
+            </div>
+            <div>
+              <dt>수집 권한 범위 및 정책</dt>
+              <dd data-testid="github-od011-policy">
+                {githubConnection.scopeSummary}
+              </dd>
             </div>
             {githubConnection.connectionRef && (
               <div>
@@ -198,6 +206,14 @@ export function ConnectionStatusPanel({
               </div>
             )}
           </dl>
+
+          <p className="field-help">
+            서비스 로그인(Supabase)과 분리된 GitHub OAuth App 최소 읽기 연결입니다.
+            선택한 공개 저장소 1곳 Allowlist 전용이며, 저장소가{" "}
+            <code className="mono">Public → Private</code>로 전환되면 삭제 오판
+            없이 <code className="mono">POLICY_REVIEW_REQUIRED</code>로 즉시
+            차단합니다.
+          </p>
 
           {githubConnection.status === "permission_revoked" && (
             <div className="inline-alert inline-alert--danger" role="alert">

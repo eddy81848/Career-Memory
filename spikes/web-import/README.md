@@ -9,9 +9,12 @@
 ### 1. 모의 화면 및 브라우저 E2E (로컬 UI Fixture — 루프백 HTTP와 별개)
 - **코드**: `MockFixtureImportAdapter` + `SyntheticOpenApiTransport` + `ImportJourneyApp` (`src/`), Playwright E2E (`e2e/import-journey.spec.ts`), Vitest 단위/UI 테스트 (`src/**/*.test.ts(x)`).
 - **검증 대상**:
-  - 모의 서비스 로그인 상태와 별도 GitHub 수집 연결 상태 분리 표시
+  - 모의 서비스 로그인(Supabase)과 별도 **GitHub OAuth App 최소 읽기 연결(`OD-011`, `scope="read:user"` 단독 요청 · 저장소/쓰기 스코프 `0`개 · 선택한 공개 저장소 1곳 Allowlist 전용 · `Public → Private` 전환 시 삭제 오판 없는 `POLICY_REVIEW_REQUIRED` 차단)** 분리 표시
   - 합성 공개 저장소 1곳 선택 및 일회성 최초 가져오기 요청
-  - 요청 중(서버 미확정) · 실행 중 · 성공 · 부분 결과(`PARTIAL`) · 한도 도달(`PARTIAL_WITH_LIMIT`) · 오류 · 권한 상실 · 세션 만료 · 네트워크 실패 · 새로고침 복구 경로
+  - **공식 7대 가져오기 상태 전수 표현(`T-205`)**: `PENDING | RUNNING | SUCCESS | PARTIAL | PARTIAL_WITH_LIMIT | FAILED | CANCELED` (`PENDING`/`RUNNING` 구분, `CANCELED` 전용 중립 종료 배너 및 재시도 비활성, `contractStatus` 서버 원문 상태 배지)
+  - **저장소 공개 여부 · 고정 계획 기간 · 한도 · 시작/종료 관찰 시각 상시 표시**: `PUBLIC` / `PUBLIC_CLOUD` / `raw_storage_mode: NONE`(원문 비보관), `[backfill_from, cutoff_at]` 기본 최근 12개월 고정 계획, `max_objects: 5,000`건 한도, 시작/종료(`observed_at` / `completedAt`) 관찰 시각
+  - **스트림별 마지막 확정 커밋 페이지(`last_committed_page`) · 미해결 실패(`unresolved_failures`) · 처리/남은 범위 · 구조화된 실패 사유(`PLAN_DRIFT`, `INCOMPLETE_PR_ASSOCIATION`, `CURSOR_CYCLE_DETECTED`, `MALFORMED_OR_PARTIAL_PAGE`, `RATE_LIMITED`, `TRANSIENT_PROVIDER_ERROR`, `SYNC_PARTIAL_WITH_LIMIT`, `SOURCE_POLICY_BLOCKED`)** 및 같은 실행 재개 가능 여부(`retry.allowed=true`일 때만 안전 체크포인트 재개 CTA 활성화, 불가 시 계획 폐기/교체 미제공 및 Event/Claim 미승격 안내)
+  - **`SUCCESS` 후 자동 동기화 미수행 상시 안내** (일회성 관찰 스냅샷 · 원문 비보관 · 근거 검증 시 재조회) 및 **정책/비공개 전환 시 원문 열람 · 외부 AI 전송 · Export 즉시 차단 안내** (`BLOCKED_POLICY` / `BLOCKED_SOURCE` / `SOURCE_POLICY_BLOCKED` / `permission_revoked`, GitHub 원본 삭제 오판 금지)
   - `import_ready`와 후속 처리 상태(`processing_status` / 파생 단계) 분리 표시 (`PARTIAL`·`PARTIAL_WITH_LIMIT`는 `import_ready=false`)
   - 서버 `retryPolicy.allowed === true`일 때만 새 재시도 버튼 노출, 미확정 이전 재시도는 별도 명시적 재전송 패널/버튼으로 분리
   - 실행 중 중복 클릭 방지, **이 세션에서 성공이 확인된 동일 저장소의 재요청 차단(`A 성공 → B 선택 → A 재선택` 포함, 메모리 기반 UI UX 방어)**, 계정/세션 전환 시 이전 범위 상태 정리, 키보드 전용 조작
@@ -30,7 +33,8 @@
     - `GET /v1/sync-runs?source_resource_id=...&limit=1`
     - `GET /v1/sync-runs/{id}` (`target_id`/`status_url` 일치 검증)
     - `POST /v1/sync-runs/{id}/retry` (`Idempotency-Key` UUID + JSON `{"expected_run_version": <int >= 1>}`)
-- **실제 통과한 `127.0.0.1` 루프백 검증 항목 (18/18 통과)**:
+- **실제 통과한 `127.0.0.1` 루프백 검증 항목 (20/20 통과)**:
+  - **`T-205` 상태·범위·사유·차단 루프백 검증**: `PENDING → RUNNING → CANCELED`(중립 종료·재시도 비활성), `SUCCESS`(고정 계획·`5,000` 한도·관찰 시각·자동 동기화 미수행 안내), `PLAN_DRIFT`(`source_drift=true`, 스트림 `last_committed_page`, 단순 재개 불가·Event/Claim 미승격 안내), `transientPartial`(`last_committed_page=7`, `unresolved_failures=1`, 안전 체크포인트 재개 CTA), `SOURCE_POLICY_BLOCKED` / `BLOCKED_POLICY` / `BLOCKED_SOURCE`(원문 열람·외부 AI 전송·Export 즉시 차단 및 삭제 오판 금지).
   - **버전 전달 및 방어**: 상세 GET의 `run_version`과 복구 GET의 `items[0].import_status.run_version`을 `target_id`별로 귀속해 `{"expected_run_version": N}`으로 전송. 버전 누락·무효·대상 불일치 시 **POST 0건**, 의도적 bodyless 재시도는 stub이 **`422`로 거절**(추가 작업 0건).
   - **응답 유실 → GET → 명시적 재전송 vs 충돌 vs 새 재시도**: 실패 A 재시도 수락 후 `202` 유실 → 서버가 실패 B(최신 버전)로 진행 → 복구는 **GET만** 수행(자동 POST 0건) → 실패 A 명시 재전송(원래 키 + 원래 버전 본문)은 기존 `202`만 복구(**추가 작업 0건**) → 다른 키 + 구버전 A는 **`409 RESOURCE_VERSION_CONFLICT`**(추가 작업 0건, 자동 POST 0건) → 같은 키 + 바뀐 본문은 **`409 IDEMPOTENCY_CONFLICT`**(추가 작업 0건, 자동 POST 0건) → 실패 B에서 새 재시도(새 키 + 최신 버전)만 **추가 작업 +1건** 생성.
   - **승인 오류·권한·장애**: `401 SESSION_TERMINATED`(보호 상태 제거·재인증 안내), `403 WORKSPACE_SCOPE_VIOLATION`(Workspace 저장소·실행 상세·폴링만 닫고 로그인 유지), `404 RESOURCE_NOT_FOUND`(대상 부재/권한 없음 비구별 중립 안내·이전 상세 숨김), `503 AUTH_VERIFICATION_UNAVAILABLE`(`retryable: true`여도 로그인 유지·자동 POST 0건), 일반 빈 `401`/`403`/`409`/`422` 중립 처리, 스푸핑 인증/Workspace 헤더 무시.

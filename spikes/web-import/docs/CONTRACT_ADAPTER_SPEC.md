@@ -4,7 +4,7 @@
 >
 > **계약·검증 기준 구분**:
 > - **이전 검증 기록 (`1d754a5bc33cf166d92b1c1ce8568031859ff0a4`, `OpenAPI 0.3.0-draft`)**: `WEB-06` / `WEB-SPEC-SYNC` 구간에서 body 없는 재시도(`POST /v1/sync-runs/{id}/retry`)와 빈 `403`/`409`/`422` 응답을 기준으로 검증한 과거 기록입니다.
-> - **현재 통과한 교차 검증 기준 (`87f1515cbe74bf02b0aece68904bf9a641c74c60`, `OpenAPI 0.5.0-draft`)**: `contracts/import-v1/openapi.yaml` Git blob **`07594d75425744d6149250a9f7ff95ac24659f80`**. 해당 커밋만 `git archive`로 임시 추출해 `CONTRACT_IMPORT_DIR` + `UV_OFFLINE=1` 환경에서 `127.0.0.1` 실제 루프백 HTTP 테스트 18/18 통과를 확인했습니다.
+> - **현재 통과한 교차 검증 기준 (`87f1515cbe74bf02b0aece68904bf9a641c74c60`, `OpenAPI 0.5.0-draft`)**: `contracts/import-v1/openapi.yaml` Git blob **`07594d75425744d6149250a9f7ff95ac24659f80`**. 해당 커밋만 임시 폴더로 추출해 `CONTRACT_IMPORT_DIR` + `UV_OFFLINE=1` 환경에서 `127.0.0.1` 실제 루프백 HTTP 테스트 20/20 통과를 확인했습니다.
 > - **아직 미검증인 제품 연동**: 실제 제품 백엔드, Supabase Auth/JWT·세션 쿠키·호스팅 로그아웃, GitHub OAuth·저장소 목록 API, PostgreSQL 트랜잭션·재시작 영속 24시간 복구, Worker 실행, 운영 폴링 주기/Transport, Workspace 관리 화면, 계획 폐기(Abandon) API/UI는 본 스파이크에 포함하지 않습니다.
 
 ---
@@ -13,8 +13,8 @@
 
 | 계층 | 실제 파일·명령 | 검증 내용 | 미검증·경계 |
 | --- | --- | --- | --- |
-| **모의 화면 / 단위·UI·브라우저 E2E (로컬 UI Fixture)** | `MockFixtureImportAdapter`, `SyntheticOpenApiTransport`, `ImportJourneyApp`, `npm test` (71/71), `npm run build`, `npm run test:e2e` (7/7) | UI 상태 전이, 키보드 조작, 중복 클릭 방지, 성공 저장소 재요청 UX 차단(`A→B→A` 포함), 계정/세션 전환 범위 정리, `import_ready`/후속 처리 분리, `retryPolicy.allowed` 게이팅, 이전 재시도 재전송 vs 새 재시도 버튼 분리, 브라우저 새로고침 복구 | 로컬 UI Fixture / 합성 HTTP 기반; 실제 루프백 FastAPI stub·백엔드·인증·GitHub API 미호출 (루프백 HTTP 검증과 별개 계층) |
-| **로컬 FastAPI stub 실제 루프백 HTTP 교차 검증 (`87f1515`, `OpenAPI 0.5.0-draft`)** | `src/adapters/contract-sync-run-client.ts`, `tests/contract-http/loopback-http-transport.ts`, `tests/contract-http/run_contract_stub.py`, `tests/contract-http/contract-stub-http.test.tsx`, `CONTRACT_IMPORT_DIR=<87f1515 archive> UV_OFFLINE=1 npm run test:contract-http` (18/18) | `127.0.0.1` 에페메럴 포트에서 CONTRACT `create_app` + Python 주입 `FixtureActor`/`FixtureAuthFailure`에 **sync-run 4개 경로만** 실제 HTTP 연결. 상세/복구 GET `run_version` → `{"expected_run_version": N}` 전달, 버전 누락/대상 불일치 시 POST 0건, 의도적 bodyless 재시도 `422` 거절, 실패 A 응답 유실 → 실패 B GET(자동 POST 0건) → A 명시 재전송(추가 작업 0건) → 구버전 `409 RESOURCE_VERSION_CONFLICT`·키 충돌 `409 IDEMPOTENCY_CONFLICT`(추가 작업 0건) → B 새 재시도(+1 작업), `401 SESSION_TERMINATED`·`403 WORKSPACE_SCOPE_VIOLATION`·`404 RESOURCE_NOT_FOUND`·`503 AUTH_VERIFICATION_UNAVAILABLE`·일반 빈 `401/403/409/422` 처리, 새로고침 복구 및 제어 시계(+25h) `IDEMPOTENCY_KEY_EXPIRED`, 늦은 응답 폐기 | 테스트 전용 루프백 연결(프로덕션 UI 미연결). 브라우저 헤더/본문으로 사용자·Workspace·인증 결과 미전달. 실제 DB·Worker·인증·GitHub API 미포함 |
+| **모의 화면 / 단위·UI·브라우저 E2E (로컬 UI Fixture)** | `MockFixtureImportAdapter`, `SyntheticOpenApiTransport`, `ImportJourneyApp`, `npm test` (76/76), `npm run build`, `npm run test:e2e` (8/8) | UI 상태 전이, 공식 7대 가져오기 상태(`PENDING`~`CANCELED`), 고정 계획·한도(`5,000`)·관찰 시각·스트림 `last_committed_page`·구조화된 실패 사유(`PLAN_DRIFT` 등)·`SUCCESS` 비자동동기화 안내·정책/비공개 전환 시 원문/AI/Export 즉시 차단·`OD-011`(`scope="read:user"`) 정합화, 키보드 조작, 중복 클릭 방지, 성공 저장소 재요청 UX 차단(`A→B→A` 포함), 계정/세션 전환 범위 정리, `import_ready`/후속 처리 분리, `retryPolicy.allowed` 게이팅, 이전 재시도 재전송 vs 새 재시도 버튼 분리, 브라우저 새로고침 복구 | 로컬 UI Fixture / 합성 HTTP 기반; 실제 루프백 FastAPI stub·백엔드·인증·GitHub API 미호출 (루프백 HTTP 검증과 별개 계층) |
+| **로컬 FastAPI stub 실제 루프백 HTTP 교차 검증 (`87f1515`, `OpenAPI 0.5.0-draft`)** | `src/adapters/contract-sync-run-client.ts`, `tests/contract-http/loopback-http-transport.ts`, `tests/contract-http/run_contract_stub.py`, `tests/contract-http/contract-stub-http.test.tsx`, `CONTRACT_IMPORT_DIR=<87f1515 archive> UV_OFFLINE=1 npm run test:contract-http` (20/20) | `127.0.0.1` 에페메럴 포트에서 CONTRACT `create_app` + Python 주입 `FixtureActor`/`FixtureAuthFailure`에 **sync-run 4개 경로만** 실제 HTTP 연결. 상세/복구 GET `run_version` → `{"expected_run_version": N}` 전달, 버전 누락/대상 불일치 시 POST 0건, 의도적 bodyless 재시도 `422` 거절, 실패 A 응답 유실 → 실패 B GET(자동 POST 0건) → A 명시 재전송(추가 작업 0건) → 구버전 `409 RESOURCE_VERSION_CONFLICT`·키 충돌 `409 IDEMPOTENCY_CONFLICT`(추가 작업 0건) → B 새 재시도(+1 작업), `401 SESSION_TERMINATED`·`403 WORKSPACE_SCOPE_VIOLATION`·`404 RESOURCE_NOT_FOUND`·`503 AUTH_VERIFICATION_UNAVAILABLE`·일반 빈 `401/403/409/422` 처리, `PENDING→RUNNING→CANCELED`·`PLAN_DRIFT`·`SOURCE_POLICY_BLOCKED`·`streams.last_committed_page`·관찰 시각·비자동동기화 안내, 새로고침 복구 및 제어 시계(+25h) `IDEMPOTENCY_KEY_EXPIRED`, 늦은 응답 폐기 | 테스트 전용 루프백 연결(프로덕션 UI 미연결). 브라우저 헤더/본문으로 사용자·Workspace·인증 결과 미전달. 실제 DB·Worker·인증·GitHub API 미포함 |
 | **미검증 제품 API·Auth 연동** | (미구현 — 추후 정식 앱·제품 백엔드 연동 단계) | 실제 제품 API 베이스 URL, Supabase Auth/JWT·세션 쿠키·호스팅 로그아웃, 실제 GitHub OAuth·저장소 목록 API, 실제 PostgreSQL 영속 24시간 복구·Worker 실행, 운영 폴링 주기/Transport | 본 스파이크 범위 밖. 서버 측 최종 권한·중복·버전 제약 집행은 반드시 백엔드에서 담당 |
 
 ---
@@ -47,6 +47,11 @@
    - `PARTIAL` 및 `PARTIAL_WITH_LIMIT`는 성공으로 표시하지 않으며 `PARTIAL_WITH_LIMIT`는 재시도를 비활성화한다.
    - 과거 `SUCCESS`(`import_ready=true`) 이력과 현재 후속 처리 차단(`BLOCKED_POLICY`/`BLOCKED_SOURCE`)을 분리 표시한다.
    - 실행 중에는 응답이 동일해도 다음 단일 동시 GET을 예약하며, 종료 상태·세션 만료·Workspace 회수·권한 상실·화면 종료 시 즉시 중단한다.
+6. **`T-205` 초기 가져오기 7대 상태·범위·한도·사유·비자동동기화·정책 차단 및 `OD-011` (`read:user`) 정합화**
+   - 서버 계약 7대 상태(`PENDING | RUNNING | SUCCESS | PARTIAL | PARTIAL_WITH_LIMIT | FAILED | CANCELED`)를 누락·오매핑 없이 `contractStatus` 원문 배지 및 상태별 전용 UI(`PENDING` vs `RUNNING` 구분, `CANCELED` 중립 종료 배너·재시도 비활성)로 구분 표시한다.
+   - 저장소 공개 여부(`PUBLIC` / `PUBLIC_CLOUD` / `raw_storage_mode: NONE`), 고정 계획 기간(`[backfill_from, cutoff_at]`, 기본 최근 12개월), 최대 항목 한도(`max_objects: 5,000`건), 시작/종료 관찰 시각(`startedAt`, `observed_at`, `completedAt`)을 상시 표시한다.
+   - 스트림별 마지막 확정 커밋 페이지(`last_committed_page`)·미해결 실패(`unresolved_failures`), `processed_range`/`remaining_range`, 구조화된 실패 사유(`PLAN_DRIFT`, `INCOMPLETE_PR_ASSOCIATION`, `CURSOR_CYCLE_DETECTED`, `MALFORMED_OR_PARTIAL_PAGE`, `RATE_LIMITED`, `TRANSIENT_PROVIDER_ERROR`, `SYNC_PARTIAL_WITH_LIMIT`, `SOURCE_POLICY_BLOCKED`)를 명시하고, `retry.allowed === true`일 때만 안전 체크포인트 재개 CTA를 활성화한다(불가 시 계획 폐기/교체 미제공 및 Event/Claim 미승격 안내).
+   - `SUCCESS` 후 일회성 관찰 스냅샷·자동 동기화 미수행 안내를 상시 노출하며, `BLOCKED_POLICY`/`BLOCKED_SOURCE`/`SOURCE_POLICY_BLOCKED`/`Public → Private` 전환 시 삭제 오판 없는 `POLICY_REVIEW_REQUIRED` 차단(원문 열람·외부 AI 전송·Export 즉시 차단)과 `OD-011` GitHub OAuth App 최소 읽기 연결(`scope="read:user"` 단독, 저장소/쓰기 스코프 `0`개, 단일 공개 저장소 Allowlist 전용)을 명시한다.
 
 ---
 

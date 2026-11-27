@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://career-memory.example.invalid/schemas/event-draft-manifest.v1.json",
   "title": "Career Memory T-001A Event Synthetic Dataset Draft Manifest",
-  "description": "Manifest schema for T-001A synthetic Event fixtures and draft expected proposals. Logical domain contract only (no OD-007 physical table assumptions).",
+  "description": "Manifest schema for T-001A synthetic Event fixtures and draft expected proposals. Separates local draft tracking IDs from official FR/EVENT traceability refs. Logical domain contract only (no OD-007 physical table assumptions).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -115,7 +115,7 @@
           "url": { "type": "string" },
           "access_status": {
             "type": "string",
-            "enum": ["READ", "UNAVAILABLE_AUTH_REQUIRED", "LOCAL_REPO_ONLY"]
+            "enum": ["READ", "REVIEW_SPEC_BRIEF", "UNAVAILABLE_AUTH_REQUIRED", "LOCAL_REPO_ONLY"]
           },
           "note": { "type": "string" }
         }
@@ -132,8 +132,10 @@
           "path",
           "scope",
           "review_status",
-          "requirement_ids",
-          "test_ids"
+          "draft_requirement_ids",
+          "draft_test_ids",
+          "official_requirement_refs",
+          "official_test_refs"
         ],
         "properties": {
           "case_id": {
@@ -147,15 +149,23 @@
             "type": "string",
             "enum": ["PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED"]
           },
-          "requirement_ids": {
+          "draft_requirement_ids": {
             "type": "array",
             "items": { "type": "string" },
             "minItems": 1
           },
-          "test_ids": {
+          "draft_test_ids": {
             "type": "array",
             "items": { "type": "string" },
             "minItems": 1
+          },
+          "official_requirement_refs": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["FR-006", "FR-007"] }
+          },
+          "official_test_refs": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["EVENT-10", "EVENT-11", "EVENT-12"] }
           }
         }
       }

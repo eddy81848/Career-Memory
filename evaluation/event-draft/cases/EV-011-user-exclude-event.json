@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-011",
   "slug": "user-exclude-event",
-  "title": "User exclude command hides noisy Event from active search and metrics while preserving provenance",
+  "title": "User exclude transitions noisy Event to REJECTED without deleting Source records",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
-    "test_ids": ["T-001A-11"],
-    "scenario_tags": ["user_exclude", "curation_command", "metrics_filtering"]
+    "draft_requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
+    "draft_test_ids": ["T-001A-11"],
+    "official_requirement_refs": ["FR-007"],
+    "official_test_refs": [],
+    "scenario_tags": ["user_exclude", "lifecycle_rejected", "source_preserved", "curation_command"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_011",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T11:30:00Z"
       }
     ],
@@ -79,6 +82,7 @@
         "committed_at": "2026-10-27T07:55:00Z",
         "branch_name": "chore/bump-lint-121",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1101",
@@ -93,6 +97,7 @@
         "committed_at": "2026-10-27T14:30:00Z",
         "branch_name": "feat/timeline-a11y",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1102",
@@ -105,17 +110,20 @@
         "event_id": "ev_init_011_noise",
         "workspace_id": "ws_syn_011",
         "repo_id": "repo_syn_011",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1101",
         "source_commit_ids": ["cmt_syn_1101a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
@@ -124,17 +132,20 @@
         "event_id": "ev_init_011_keep",
         "workspace_id": "ws_syn_011",
         "repo_id": "repo_syn_011",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1102",
         "source_commit_ids": ["cmt_syn_1102a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
@@ -150,6 +161,7 @@
       "workspace_id": "ws_syn_011",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
+      "idempotency_key": "idem_syn_011_exclude_1",
       "target_event_ids": ["ev_init_011_noise"],
       "target_versions": {
         "ev_init_011_noise": 1
@@ -167,10 +179,9 @@
         "event_id": "ev_init_011_noise",
         "workspace_id": "ws_syn_011",
         "repo_id": "repo_syn_011",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "excluded",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "REJECTED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_011_exclude",
@@ -183,16 +194,15 @@
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Chore: bump lint-formatter from 1.2.0 to 1.2.1",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_011_keep",
         "workspace_id": "ws_syn_011",
         "repo_id": "repo_syn_011",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -205,10 +215,11 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Add keyboard navigation for timeline drawer",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [
       {
         "command_id": "cmd_syn_011_exclude",
@@ -220,15 +231,17 @@
         "unconfirmed_fields": ["spec_command_name"]
       }
     ],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "lint-formatter",
+        "workspace_id": "ws_syn_011",
         "expected_event_ids": [],
         "expected_result_count": 0
       },
       {
         "query": "timeline drawer",
+        "workspace_id": "ws_syn_011",
         "expected_event_ids": ["ev_init_011_keep"],
         "expected_result_count": 1
       }
@@ -237,37 +250,36 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 1
+      "total_rejected_events": 1
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0].spec_lifecycle_status",
+        "field_path": "user_commands[0].spec_command_name",
         "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Fill exact exclude command name and excluded lifecycle status name from Notion Event Contract."
+        "question": "Official REJECTED lifecycle status and Source preservation are confirmed; exact wire command route/name remains UNCONFIRMED."
       },
       {
         "field_path": "expected_proposal.events[0]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether exclude is reversible in MVP (restore/include) and whether excluding a USER_COMPOSITE cascades to members."
+        "question": "Separate restore command and Composite-exclude propagation behavior are intentionally not guessed without contract specification."
       }
     ]
   },
   "rationale": {
-    "summary": "User excludes an irrelevant bot dependency bump PR. The Event becomes excluded (version 2), disappears from default search and active metrics, while the sibling Event stays active and source provenance stays intact.",
+    "summary": "User exclude transitions target Event ev_init_011_noise to official lifecycle status REJECTED (version 2, is_active_top_level=false), removing it from default search and active metrics without deleting underlying Source records. Sibling Event remains CANDIDATE.",
     "confirmed_spec_rules": [
-      "USER_EXCLUDE_OMITS_EVENT_FROM_ACTIVE_SEARCH_AND_METRICS",
-      "SOURCE_PROVENANCE_PRESERVED_ON_EXCLUDE"
+      "USER_EXCLUDE_TRANSITIONS_EVENT_TO_REJECTED",
+      "SOURCE_PROVENANCE_PRESERVED_ON_EXCLUDE",
+      "REJECTED_EVENT_OMITTED_FROM_ACTIVE_SEARCH_AND_METRICS"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_command_name for exclude (left UNCONFIRMED)",
-      "spec_lifecycle_status for excluded Event (left UNCONFIRMED)"
+      "spec_command_name for exclude (left UNCONFIRMED)"
     ],
     "truly_undecided_items": [
-      "Whether exclude is reversible in MVP (restore/include command).",
-      "Whether excluding a USER_COMPOSITE excludes only the composite or cascades to members."
+      "Whether a separate restore command or Composite-exclude cascade exists (not guessed)."
     ]
   }
 }

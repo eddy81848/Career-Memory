@@ -2,14 +2,16 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-006",
   "slug": "shared-ticket-no-auto-merge",
-  "title": "Two merged PRs referencing the same Issue/Ticket remain two distinct Events (no automatic merge via Issue/ticket links)",
+  "title": "Two merged PRs sharing a CONTEXT_ONLY ticket remain two distinct PR CANDIDATE Events (no auto-merge)",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
-    "test_ids": ["T-001A-06"],
+    "draft_requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
+    "draft_test_ids": ["T-001A-06"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": [],
     "scenario_tags": ["context_only", "no_auto_multi_pr_merge", "multi_pr_separation", "mvp_core"]
   },
   "synthetic_sources": {
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_006",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:50:00Z"
       }
     ],
@@ -79,6 +82,7 @@
         "committed_at": "2026-10-25T09:15:00Z",
         "branch_name": "feat/syn-202-schema",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_601",
@@ -93,6 +97,7 @@
         "committed_at": "2026-10-25T13:20:00Z",
         "branch_name": "feat/syn-202-api",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_602",
@@ -120,10 +125,9 @@
         "event_id": "ev_exp_006_1",
         "workspace_id": "ws_syn_006",
         "repo_id": "repo_syn_006",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -136,16 +140,15 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Add SKU deprecation flags to catalog schema (SYN-202)",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_exp_006_2",
         "workspace_id": "ws_syn_006",
         "repo_id": "repo_syn_006",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -158,15 +161,17 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Expose SKU deprecation filter on catalog endpoint (SYN-202)",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "SKU deprecation",
+        "workspace_id": "ws_syn_006",
         "expected_event_ids": ["ev_exp_006_1", "ev_exp_006_2"],
         "expected_result_count": 2
       }
@@ -175,36 +180,29 @@
       "total_countable_events": 2,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[*].spec_event_type",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact Event type & lifecycle status names from Notion Event Contract."
-      },
-      {
         "field_path": "expected_proposal.events",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether Event Builder emits zero UI merge hints for shared tickets in MVP, or a non-binding suggestion."
+        "question": "Zero automatic multi-PR merging via shared ticket is confirmed; confirm only whether non-binding UI hints or ticket-word search ranking are outside MVP scope."
       }
     ]
   },
   "rationale": {
-    "summary": "Two merged PRs referencing the exact same Issue/Ticket SYN-202 within the same repository MUST NOT be auto-merged via Issue/ticket links. Combining them into one USER_COMPOSITE requires an explicit user manual merge command (see EV-009).",
+    "summary": "Two merged PRs sharing CONTEXT_ONLY ticket SYN-202 within the same repository MUST remain two separate PR CANDIDATE Events (total_user_composite_events=0). Combining them requires an explicit user manual merge (EV-009). Ticket-word search ranking is kept separate from membership judgment.",
     "confirmed_spec_rules": [
-      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+      "ANCHOR_MODE_PR_AUTO_GENERATED_FOR_MERGED_PR",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE",
       "NO_AUTO_MERGE_VIA_ISSUE_TICKET_LINKS",
       "USER_COMPOSITE_CREATED_ONLY_BY_USER_MANUAL_MERGE"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_event_type and spec_lifecycle_status (left UNCONFIRMED)"
-    ],
+    "unconfirmed_spec_tokens": [],
     "truly_undecided_items": [
-      "Whether a non-binding UI suggestion for shared tickets is allowed in MVP (automatic merging itself is confirmed forbidden)."
+      "Whether non-binding UI hints or ticket-only keyword search ranking exist in MVP (membership separation itself is confirmed)."
     ]
   }
 }

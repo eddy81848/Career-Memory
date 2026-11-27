@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-003",
   "slug": "unknown-association-hold",
-  "title": "Commit with UNKNOWN PR association is held for classification and never treated as NO_MATCH_OBSERVED",
+  "title": "Incomplete PR association yields PARTIAL import run with 0 promoted Events and 0 default search results",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-ASSOC-01"],
-    "test_ids": ["T-001A-03"],
-    "scenario_tags": ["unknown_association", "classification_held", "never_interpret_as_no_pr", "mvp_core"]
+    "draft_requirement_ids": ["REQ-EV-ASSOC-01"],
+    "draft_test_ids": ["T-001A-03"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": ["EVENT-10"],
+    "scenario_tags": ["unknown_association", "partial_import_run", "zero_events_promoted", "never_interpret_as_no_pr", "mvp_core"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -35,8 +37,10 @@
         "workspace_id": "ws_syn_003",
         "repo_id": "repo_syn_003",
         "run_type": "INITIAL_BACKFILL",
-        "status": "PARTIAL_SUCCESS",
-        "completed_at": "2026-11-01T10:20:00Z"
+        "status": "PARTIAL",
+        "promotes_events": false,
+        "completed_at": "2026-11-01T10:20:00Z",
+        "note": "Required PR association lookup did not complete; official Import Run status is PARTIAL (never PARTIAL_SUCCESS) and promotes 0 Events."
       }
     ],
     "pull_requests": [],
@@ -50,10 +54,12 @@
         "committed_at": "2026-10-22T09:10:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/billing/proration.py"]
+        "changed_paths": ["src/billing/proration.py"],
+        "source_sync_run_id": "sync_syn_003"
       }
     ],
     "issues_tickets": [],
@@ -68,20 +74,23 @@
     "held_items": [
       {
         "held_id": "hold_exp_003_1",
+        "record_kind": "OBSERVATION_RECORD",
         "source_type": "COMMIT",
         "source_id": "cmt_syn_301",
         "logical_disposition": "hold_classification_unknown_assoc",
         "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "PR association lookup did not complete normally and status is UNKNOWN; classification must be held and MUST NOT be interpreted as NO_MATCH_OBSERVED or emitted as a direct-commit Event.",
+        "hold_reason": "Required PR association lookup was incomplete (UNKNOWN); Import Run is PARTIAL and promotes 0 Events. Recording this observation is separate from creating an Event or Claim, and UNKNOWN MUST NOT be interpreted as NO_MATCH_OBSERVED.",
         "interpreted_as_no_pr": false,
         "unconfirmed_fields": ["spec_hold_status"]
       }
     ],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "invoice proration",
+        "workspace_id": "ws_syn_003",
         "expected_event_ids": [],
         "expected_result_count": 0
       }
@@ -90,36 +99,33 @@
       "total_countable_events": 0,
       "total_user_composite_events": 0,
       "total_held_items": 1,
-      "total_excluded_events": 0
+      "total_rejected_events": 0,
+      "promoted_events_from_partial_runs": 0
     },
-    "post_mvp_transition_note": "Late source association recovery for held UNKNOWN commits is tracked separately under B-003 (POST_MVP, see EV-018).",
+    "post_mvp_transition_note": null,
     "review_required_items": [
       {
         "field_path": "expected_proposal.held_items[0].spec_hold_status",
         "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Fill exact official hold/unclassified status name from Notion Event Contract (left UNCONFIRMED without guessing)."
-      },
-      {
-        "field_path": "expected_proposal.search_checks[0]",
-        "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether held UNKNOWN commits are omitted from default Event search (count=0) and shown only in a separate pending bucket."
+        "question": "Keep observation record storage status token unconfirmed unless a specific diagnostic enum is needed; diagnostic UI presentation is out of this oracle's scope."
       }
     ]
   },
   "rationale": {
-    "summary": "Because PR association lookup did not finish normally and pr_association_status is UNKNOWN, Event classification must be held. Treating UNKNOWN as no-PR (NO_MATCH_OBSERVED) violates confirmed rules.",
+    "summary": "When required PR association lookup is incomplete (UNKNOWN), the Import Run ends in official status PARTIAL (not PARTIAL_SUCCESS) and promotes 0 Events. Even though a status/observation record remains, default Event search returns 0 results and no Event or Claim is created.",
     "confirmed_spec_rules": [
-      "UNKNOWN_ASSOCIATION_HOLDS_CLASSIFICATION",
+      "INCOMPLETE_PR_ASSOCIATION_MAKES_IMPORT_RUN_PARTIAL_NOT_PARTIAL_SUCCESS",
+      "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
       "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
-      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED"
+      "OBSERVATION_RECORD_SEPARATE_FROM_EVENT_AND_CLAIM_CREATION",
+      "DEFAULT_EVENT_SEARCH_RETURNS_ZERO_FOR_PARTIAL_RUN_OBSERVATIONS"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_hold_status for held UNKNOWN commit (left UNCONFIRMED; Notion original spec inaccessible)"
+      "Diagnostic observation record status token (left UNCONFIRMED)"
     ],
     "truly_undecided_items": [
-      "Whether held UNKNOWN commits are stored as a distinct Event lifecycle state or in a separate held collection, and whether default search excludes them completely."
+      "Diagnostic UI shape for surfacing PARTIAL run observation records (intentionally not prescribed by this oracle)."
     ]
   }
 }

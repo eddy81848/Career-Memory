@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-013",
   "slug": "cannot-link-context-and-unknown",
-  "title": "CANNOT_LINK rejects merging a CONTEXT_ONLY ticket or UNKNOWN-association held commit into a USER_COMPOSITE",
+  "title": "Manual merge rejects non-Event CONTEXT_ONLY ticket and UNKNOWN-association observation with zero mutation",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
-    "test_ids": ["T-001A-13"],
-    "scenario_tags": ["cannot_link", "context_only", "unknown_association", "error_rejection"]
+    "draft_requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
+    "draft_test_ids": ["T-001A-13"],
+    "official_requirement_refs": ["FR-007"],
+    "official_test_refs": ["EVENT-12"],
+    "scenario_tags": ["cannot_link_semantics", "context_only", "unknown_association", "partial_import_run", "error_rejection"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -31,12 +33,24 @@
     ],
     "sync_runs": [
       {
-        "sync_run_id": "sync_syn_013",
+        "sync_run_id": "sync_syn_1301_pre",
         "workspace_id": "ws_syn_013",
         "repo_id": "repo_syn_013",
         "run_type": "INITIAL_BACKFILL",
-        "status": "PARTIAL_SUCCESS",
-        "completed_at": "2026-11-01T12:00:00Z"
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-10-31T12:00:00Z",
+        "note": "Independent completed precondition import run that produced ev_init_013_pr."
+      },
+      {
+        "sync_run_id": "sync_syn_1302_partial",
+        "workspace_id": "ws_syn_013",
+        "repo_id": "repo_syn_013",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "PARTIAL",
+        "promotes_events": false,
+        "completed_at": "2026-11-01T12:00:00Z",
+        "note": "Separate incomplete import run containing UNKNOWN-association commit cmt_syn_1302; PARTIAL run promotes 0 Events."
       }
     ],
     "pull_requests": [
@@ -52,7 +66,8 @@
         "state": "MERGED",
         "merged_at": "2026-10-25T10:00:00Z",
         "commit_ids": ["cmt_syn_1301a"],
-        "referenced_ticket_ids": ["tkt_syn_1301"]
+        "referenced_ticket_ids": ["tkt_syn_1301"],
+        "source_sync_run_id": "sync_syn_1301_pre"
       }
     ],
     "commits": [
@@ -65,10 +80,12 @@
         "committed_at": "2026-10-25T09:00:00Z",
         "branch_name": "feat/jwks-jitter",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1301",
-        "changed_paths": ["src/auth/jwks_cache.py"]
+        "changed_paths": ["src/auth/jwks_cache.py"],
+        "source_sync_run_id": "sync_syn_1301_pre"
       },
       {
         "commit_id": "cmt_syn_1302",
@@ -79,10 +96,12 @@
         "committed_at": "2026-10-25T12:00:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/auth/jwks_cache.py"]
+        "changed_paths": ["src/auth/jwks_cache.py"],
+        "source_sync_run_id": "sync_syn_1302_partial"
       }
     ],
     "issues_tickets": [
@@ -99,18 +118,23 @@
         "event_id": "ev_init_013_pr",
         "workspace_id": "ws_syn_013",
         "repo_id": "repo_syn_013",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1301",
         "source_commit_ids": ["cmt_syn_1301a"],
         "context_ticket_ids": ["tkt_syn_1301"],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
+        "source_sync_run_id": "sync_syn_1301_pre",
+        "precondition_note": "Independent precondition Event promoted by prior SUCCESS run sync_syn_1301_pre; NOT promoted from PARTIAL run sync_syn_1302_partial.",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       }
@@ -157,10 +181,9 @@
         "event_id": "ev_init_013_pr",
         "workspace_id": "ws_syn_013",
         "repo_id": "repo_syn_013",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -173,42 +196,44 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Rotate signing key cache cleanly",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [
       {
         "held_id": "hold_exp_013_1",
+        "record_kind": "OBSERVATION_RECORD",
         "source_type": "COMMIT",
         "source_id": "cmt_syn_1302",
         "logical_disposition": "hold_classification_unknown_assoc",
         "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "PR association is UNKNOWN; remains held (never NO_MATCH_OBSERVED) and non-linkable into USER_COMPOSITE.",
+        "hold_reason": "PR association lookup in sync_syn_1302_partial is INCOMPLETE_OR_FAILED (UNKNOWN); PARTIAL run promotes 0 Events and cmt_syn_1302 cannot be merged as a USER_COMPOSITE member.",
         "interpreted_as_no_pr": false,
         "unconfirmed_fields": ["spec_hold_status"]
       }
     ],
+    "unpersisted_external_observations": [],
     "command_results": [
       {
         "command_id": "cmd_syn_013_link_ticket",
         "outcome": "REJECTED",
-        "rejection_category": "cannot_link_non_event_or_unknown",
-        "spec_error_code": "CANNOT_LINK",
+        "rejection_category": "non_event_or_unknown_member_rejected",
+        "spec_error_code": "UNCONFIRMED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "http_status"]
+        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
       },
       {
         "command_id": "cmd_syn_013_link_unknown",
         "outcome": "REJECTED",
-        "rejection_category": "cannot_link_non_event_or_unknown",
-        "spec_error_code": "CANNOT_LINK",
+        "rejection_category": "non_event_or_unknown_member_rejected",
+        "spec_error_code": "UNCONFIRMED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "unconfirmed_fields": ["spec_command_name", "http_status"]
+        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
       }
     ],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "signing key cache",
@@ -220,7 +245,8 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 1,
-      "total_excluded_events": 0
+      "total_rejected_events": 0,
+      "promoted_events_from_partial_runs": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
@@ -228,29 +254,31 @@
         "field_path": "expected_proposal.held_items[0].spec_hold_status",
         "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Fill exact hold status name and HTTP status for CANNOT_LINK from Notion Event Contract."
+        "question": "Fill exact observation/hold status token if exposed on Snapshot Import diagnostic API."
       },
       {
         "field_path": "expected_proposal.command_results[*].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether non-Event entity IDs (ticket / held UNKNOWN commit) reach domain CANNOT_LINK rejection or fail earlier at request validation."
+        "question": "Confirm whether passing non-Event IDs (CONTEXT_ONLY ticket or unpromoted UNKNOWN commit) fails at request validation/not-found or returns a specific Event API code (e.g. CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE); do NOT assume both map to a single catch-all CANNOT_LINK wire code."
       }
     ]
   },
   "rationale": {
-    "summary": "Both manual_merge commands target non-linkable entities (a CONTEXT_ONLY ticket and a commit held due to UNKNOWN PR association). Both commands must be rejected with CANNOT_LINK and zero mutation.",
+    "summary": "A CONTEXT_ONLY ticket and an unpromoted UNKNOWN-association commit from a separate PARTIAL run (sync_syn_1302_partial) cannot become manual_merge members; both commands are rejected with zero mutation. ev_init_013_pr is explicitly scoped as an independent precondition Event from prior SUCCESS run sync_syn_1301_pre so the PARTIAL run promotes 0 Events. Because CANNOT_LINK is a relation semantic rather than a catch-all wire code, exact wire error codes for non-Event IDs remain UNCONFIRMED.",
     "confirmed_spec_rules": [
       "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT",
       "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
-      "CANNOT_LINK_REJECTS_INVALID_LINK_TARGETS_WITHOUT_MUTATION"
+      "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+      "ONLY_ELIGIBLE_PR_PR_SEGMENT_OR_DIRECT_COMMIT_EVENTS_ARE_MERGEABLE",
+      "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_hold_status and HTTP status code for CANNOT_LINK (left UNCONFIRMED)",
-      "spec_command_name for manual merge (left UNCONFIRMED)"
+      "spec_hold_status and spec_command_name (left UNCONFIRMED)",
+      "Exact wire spec_error_code and HTTP status when non-Event IDs (ticket / unpromoted UNKNOWN commit) are submitted to manual_merge"
     ],
     "truly_undecided_items": [
-      "Whether passing a non-Event ID (ticket or UNKNOWN commit) returns CANNOT_LINK directly vs a pre-domain validation/not-found error."
+      "Whether non-Event IDs fail at request validation / 404 or reach domain codes such as CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE."
     ]
   }
 }

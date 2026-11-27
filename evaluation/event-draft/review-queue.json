@@ -5,15 +5,15 @@
   "approval_status": "DRAFT",
   "human_approval_required": true,
   "confirmed_spec_rules_summary": [
-    "Merged PR is the default Event candidate.",
-    "Default-branch direct commit is a candidate ONLY when PR association lookup completed normally (COMPLETED) and observed NO_MATCH_OBSERVED.",
-    "UNKNOWN PR association is NEVER interpreted as NO_MATCH_OBSERVED (no PR).",
-    "Issue/ticket links attach as CONTEXT_ONLY and NEVER trigger automatic merging.",
-    "User manual merge is allowed ONLY within the same repository (and workspace) and is counted as a single USER_COMPOSITE without member double counting.",
-    "USER_COMPOSITE nesting is strictly forbidden (neither a USER_COMPOSITE root nor an already-subsumed member may be merged into another USER_COMPOSITE).",
-    "Dissolving a USER_COMPOSITE restores its constituent members and marks dependent Claims as stale."
+    "Anchor modes: PR, PR_SEGMENT, DIRECT_COMMIT, USER_COMPOSITE (only PR and DIRECT_COMMIT auto-generated; 1 DIRECT_COMMIT per verified default-branch NO_MATCH_OBSERVED commit; multi-commit clustering out of MVP).",
+    "Import runs: UNKNOWN != no PR; incomplete PR association sets Import Run status='PARTIAL' (PARTIAL_SUCCESS is not official) and promotes 0 Events; default Event search returns 0.",
+    "Lifecycle statuses: CANDIDATE, CONFIRMED, REJECTED, SUPERSEDED, STALE separated from top-level visibility is_active_top_level (no arbitrary ACTIVE/EXCLUDED/DISSOLVED).",
+    "Split: Mixed-purpose PR stays 1 CANDIDATE with review flag (0 auto-split); explicit user split requires disjoint evidence scopes, yields PR_SEGMENT (or DIRECT_COMMIT), and marks parent SUPERSEDED.",
+    "Merge: Same workspace and same repository across eligible PR, PR_SEGMENT, DIRECT_COMMIT (PR+DIRECT_COMMIT allowed); checks each member Event version; preserves snapshots; marks members SUPERSEDED; rolls up member-only search hits once to USER_COMPOSITE; no auto-inheritance of member Fact/Claim.",
+    "Dissolve: Requires expected_version, reason, idempotency_key; sets Composite SUPERSEDED + composite_membership_status='REMOVED'; re-evaluates members (CANDIDATE/CONFIRMED/STALE); marks Composite FACT/CLAIM/EXPORT STALE without deletion or auto-transfer.",
+    "Event API error codes: EVENT_VERSION_CONFLICT, CROSS_WORKSPACE_MEMBER, CROSS_REPOSITORY_MEMBER, DUPLICATE_COMPOSITE_MEMBER, NESTED_COMPOSITE_NOT_ALLOWED, CANNOT_LINK_CONFLICT, MEMBER_NOT_ACTIVE, MEMBER_ALREADY_COMPOSED, PR_ASSOCIATION_INCOMPLETE. CANNOT_LINK is a relation semantic, not a catch-all wire code."
   ],
-  "unconfirmed_tokens_notice": "Original Notion pages (T-001A, AI 합성 Dataset 가이드, Snapshot Import, ADR-018) require authentication and could not be read. Rather than guessing exact wire status names or error codes, all unverified tokens are explicitly encoded as 'UNCONFIRMED' and enforced by lint rule NO_GUESSED_UNCONFIRMED_SPEC_TOKENS.",
+  "unconfirmed_tokens_notice": "Official anchor modes, lifecycle statuses, Import Run statuses, and Event API error codes from the reviewer spec correction brief have been applied across all 18 cases. Only wire tokens and behavioral contracts not fixed by that brief (command wire names, exact review flag string, HTTP status codes / If-Match, multi-violation precedence, unauthorized foreign-workspace HTTP exposure, and detail GET history shape) remain UNCONFIRMED / REVIEW_REQUIRED for T-001B human sign-off.",
   "queue": [
     {
       "review_id": "RQ-001",
@@ -22,17 +22,14 @@
       "scope": "MVP",
       "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006", "EVENT-10"],
       "confirmed_spec_rules": [
-        "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+        "ANCHOR_MODE_PR_CANDIDATE_FOR_MERGED_PR",
         "ASSOCIATED_COMMITS_NOT_DUPLICATED_AS_DIRECT_COMMIT_EVENTS"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_event_type (merged PR Event): UNCONFIRMED",
-        "spec_lifecycle_status (active): UNCONFIRMED",
-        "official T-001A Requirement/Test IDs (provisional REQ-EV-PR-01 / T-001A-01)"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Should merge-commit SHAs generated on default branch (main) belong in source_commit_ids alongside PR head commits?"
+        "Should merge-commit SHAs generated on default branch belong in source_commit_ids alongside PR branch commits?"
       ]
     },
     {
@@ -40,18 +37,17 @@
       "case_id": "EV-002",
       "case_path": "cases/EV-002-default-branch-direct-commit.json",
       "scope": "MVP",
-      "priority": "P1",
+      "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006", "EVENT-10"],
       "confirmed_spec_rules": [
-        "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-        "UNKNOWN_MUST_NOT_BE_TREATED_AS_NO_MATCH_OBSERVED"
+        "ANCHOR_MODE_DIRECT_COMMIT_CANDIDATE_ONE_PER_COMMIT",
+        "DEFAULT_BRANCH_VERIFIED_AT_START_AND_END_WITH_COMPLETED_NO_MATCH_OBSERVED",
+        "MULTI_COMMIT_AUTO_CLUSTERING_OUT_OF_MVP"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_event_type (direct commit Event): UNCONFIRMED",
-        "spec_lifecycle_status (active): UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Do consecutive default-branch NO_MATCH_OBSERVED commits stay strictly 1-per-commit in MVP or follow any automatic grouping rule?"
+        "Independent human verification of synthetic fixture and expected_proposal prior to T-001B golden freeze (no open spec ambiguity)."
       ]
     },
     {
@@ -59,18 +55,20 @@
       "case_id": "EV-003",
       "case_path": "cases/EV-003-unknown-association-hold.json",
       "scope": "MVP",
-      "priority": "P0",
+      "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006", "EVENT-10"],
       "confirmed_spec_rules": [
-        "UNKNOWN_ASSOCIATION_HOLDS_CLASSIFICATION",
         "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
-        "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED"
+        "INCOMPLETE_PR_ASSOCIATION_SETS_IMPORT_RUN_PARTIAL",
+        "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+        "OBSERVATION_RECORD_SEPARATE_FROM_DEFAULT_EVENT_SEARCH"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_hold_status (held UNKNOWN commit): UNCONFIRMED"
+        "Diagnostic observation record status token (spec_hold_status='UNCONFIRMED')"
       ],
       "truly_undecided_questions": [
-        "Are held UNKNOWN commits omitted from default Event search (expected_result_count=0) and surfaced only in a dedicated pending/unclassified bucket?"
+        "Diagnostic UI presentation for PARTIAL run observation records (intentionally kept separate from this Event oracle)."
       ]
     },
     {
@@ -78,17 +76,17 @@
       "case_id": "EV-004",
       "case_path": "cases/EV-004-non-default-branch-no-pr.json",
       "scope": "MVP",
-      "priority": "P1",
+      "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006", "EVENT-10"],
       "confirmed_spec_rules": [
-        "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-        "NON_DEFAULT_BRANCH_COMMIT_WITHOUT_PR_NOT_CANDIDATE"
+        "NON_DEFAULT_BRANCH_ONLY_COMMIT_PRODUCES_ZERO_DIRECT_COMMIT_CANDIDATES"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_hold_status (non-default branch commit disposition): UNCONFIRMED"
+        "Non-eligible source record status token if persisted (spec_hold_status='UNCONFIRMED')"
       ],
       "truly_undecided_questions": [
-        "Does Snapshot Import filter out non-default branch orphan commits upstream before Event Builder, or does Event Builder receive and skip/hold them?"
+        "Physical collection stage placement (upstream Snapshot Import filter vs downstream Event Builder skip), kept separate from the confirmed semantic verdict of 0 candidates."
       ]
     },
     {
@@ -96,19 +94,16 @@
       "case_id": "EV-005",
       "case_path": "cases/EV-005-issue-ticket-context-only.json",
       "scope": "MVP",
-      "priority": "P1",
+      "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
       "confirmed_spec_rules": [
-        "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+        "ANCHOR_MODE_PR_CANDIDATE_FOR_MERGED_PR",
         "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_event_type (merged PR Event): UNCONFIRMED",
-        "spec_lifecycle_status (active): UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Should searching by a CONTEXT_ONLY ticket key ('SYN-101') match the attached merged PR Event in MVP?",
-        "Confirm unreferenced issues/tickets with zero linked PRs/commits produce zero Events and zero held items."
+        "Technical search indexing/ranking expectations for ticket-only keywords (separated from confirmed CONTEXT_ONLY membership checks)."
       ]
     },
     {
@@ -116,19 +111,16 @@
       "case_id": "EV-006",
       "case_path": "cases/EV-006-shared-ticket-no-auto-merge.json",
       "scope": "MVP",
-      "priority": "P1",
+      "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
       "confirmed_spec_rules": [
-        "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
-        "NO_AUTO_MERGE_VIA_ISSUE_TICKET_LINKS",
+        "NO_AUTO_MERGE_VIA_SHARED_ISSUE_TICKET",
         "USER_COMPOSITE_CREATED_ONLY_BY_USER_MANUAL_MERGE"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_event_type (merged PR Event): UNCONFIRMED",
-        "spec_lifecycle_status (active): UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Automatic merging via Issue/ticket links is confirmed forbidden; confirm whether Event Builder emits zero UI merge hints or a non-binding suggestion in MVP."
+        "Whether non-binding UI hints or ticket-only keyword ranking exist in MVP (membership separation itself is confirmed)."
       ]
     },
     {
@@ -136,39 +128,37 @@
       "case_id": "EV-007",
       "case_path": "cases/EV-007-mixed-purpose-pr.json",
       "scope": "MVP",
-      "priority": "P0",
+      "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006", "FR-007"],
       "confirmed_spec_rules": [
-        "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
-        "PR_BOUNDARY_PRESERVED_BEFORE_USER_SPLIT"
+        "MIXED_PURPOSE_PR_STAYS_SINGLE_CANDIDATE_WITH_REVIEW_FLAG",
+        "NO_AUTOMATIC_SPLIT_OF_MIXED_PURPOSE_PR"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_event_type (merged PR Event): UNCONFIRMED",
-        "spec_lifecycle_status (active): UNCONFIRMED"
+        "Exact review flag string token and UI presentation details (exact_flag_token='UNCONFIRMED')"
       ],
-      "truly_undecided_questions": [
-        "Confirm whether MVP emits a non-destructive mixed-purpose hint flag on EV-007 or strictly 1 unflagged Event until explicit user split."
-      ]
+      "truly_undecided_questions": []
     },
     {
       "review_id": "RQ-008",
       "case_id": "EV-008",
       "case_path": "cases/EV-008-user-split-mixed-pr.json",
       "scope": "MVP",
-      "priority": "P0",
+      "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007"],
       "confirmed_spec_rules": [
-        "USER_SPLIT_PARTITIONS_MIXED_PR_EVENT",
-        "SPLIT_PARENT_NOT_DOUBLE_COUNTED"
+        "USER_SPLIT_BY_DISJOINT_APPROVED_EVIDENCE_SCOPES",
+        "PR_SPLIT_PRODUCES_PR_SEGMENT_CANDIDATES",
+        "SPLIT_PARENT_BECOMES_SUPERSEDED",
+        "OVERLAPPING_SPLIT_SCOPES_REJECTED"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_command_name (split): UNCONFIRMED",
-        "spec_lifecycle_status (split parent superseded): UNCONFIRMED",
-        "spec_event_type (split child): UNCONFIRMED"
+        "spec_command_name for split (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "How should split partition a single-commit squash-merged PR (file-path scopes vs manual notes)?",
-        "Is a dedicated undo-split command part of MVP?"
+        "Whether a dedicated undo-split command exists in MVP."
       ]
     },
     {
@@ -176,39 +166,37 @@
       "case_id": "EV-009",
       "case_path": "cases/EV-009-user-manual-merge-composite.json",
       "scope": "MVP",
-      "priority": "P0",
+      "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-11"],
       "confirmed_spec_rules": [
-        "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY",
-        "USER_MANUAL_MERGE_AGGREGATED_AS_SINGLE_USER_COMPOSITE",
-        "USER_COMPOSITE_CREATED_ONLY_BY_USER_MANUAL_MERGE"
+        "USER_MANUAL_MERGE_SAME_WORKSPACE_AND_REPOSITORY_ELIGIBLE_ANCHORS",
+        "PR_PLUS_DIRECT_COMMIT_MIXED_MERGE_ALLOWED",
+        "PER_MEMBER_EVENT_VERSION_CHECK_AND_IMMUTABLE_SNAPSHOTS",
+        "MERGED_MEMBERS_BECOME_SUPERSEDED_AND_OMITTED_FROM_DEFAULT_AGGREGATION",
+        "MEMBER_FACT_AND_CLAIM_NOT_AUTO_INHERITED_BY_COMPOSITE"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_command_name (manual merge): UNCONFIRMED",
-        "spec_lifecycle_status (active USER_COMPOSITE & subsumed members): UNCONFIRMED"
+        "spec_command_name for manual merge (UNCONFIRMED)"
       ],
-      "truly_undecided_questions": [
-        "Can same-repository user manual merge combine a merged PR Event with a default-branch NO_MATCH_OBSERVED direct-commit Event?"
-      ]
+      "truly_undecided_questions": []
     },
     {
       "review_id": "RQ-010",
       "case_id": "EV-010",
       "case_path": "cases/EV-010-composite-no-double-counting.json",
       "scope": "MVP",
-      "priority": "P0",
+      "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-11"],
       "confirmed_spec_rules": [
-        "USER_MANUAL_MERGE_AGGREGATED_AS_SINGLE_USER_COMPOSITE",
         "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH_OR_METRICS",
-        "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY"
+        "MERGED_MEMBERS_ARE_SUPERSEDED_HISTORY",
+        "MEMBER_ONLY_SEARCH_HIT_ROLLS_UP_ONCE_TO_USER_COMPOSITE"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_lifecycle_status (active USER_COMPOSITE & subsumed members): UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Does a search query matching text unique to one member PR ('replay CLI') roll up to the owning USER_COMPOSITE once in MVP?",
-        "What does direct GET of a subsumed member Event ID return (member + parent pointer vs redirect)?"
+        "Direct detail GET response shape for a historical SUPERSEDED member Event ID (requires separate API contract)."
       ]
     },
     {
@@ -218,17 +206,16 @@
       "scope": "MVP",
       "priority": "P1",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007"],
       "confirmed_spec_rules": [
-        "USER_EXCLUDE_OMITS_EVENT_FROM_ACTIVE_SEARCH_AND_METRICS",
+        "USER_EXCLUDE_SETS_LIFECYCLE_STATUS_REJECTED",
         "SOURCE_PROVENANCE_PRESERVED_ON_EXCLUDE"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_command_name (exclude): UNCONFIRMED",
-        "spec_lifecycle_status (excluded): UNCONFIRMED"
+        "spec_command_name for exclude (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "Is exclude reversible in MVP (restore/include command)?",
-        "Does excluding a USER_COMPOSITE exclude only the composite or cascade to constituent members?"
+        "Whether a separate restore command or Composite-exclude cascade exists (not guessed)."
       ]
     },
     {
@@ -238,18 +225,18 @@
       "scope": "MVP",
       "priority": "P0",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-12"],
       "confirmed_spec_rules": [
-        "DISSOLVE_RESTORES_CONSTITUENT_MEMBERS_WITHOUT_DOUBLE_COUNTING",
-        "DISSOLVE_MARKS_DEPENDENT_CLAIMS_STALE"
+        "DISSOLVE_REQUIRES_EXPECTED_VERSION_REASON_AND_IDEMPOTENCY_KEY",
+        "DISSOLVED_COMPOSITE_BECOMES_SUPERSEDED_WITH_MEMBERSHIP_REMOVED",
+        "MEMBERS_REEVALUATED_TO_CANDIDATE_CONFIRMED_OR_STALE",
+        "COMPOSITE_FACT_CLAIM_EXPORT_MARKED_STALE_NO_DELETE_OR_AUTO_TRANSFER"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_command_name (dissolve): UNCONFIRMED",
-        "spec_lifecycle_status (dissolved USER_COMPOSITE): UNCONFIRMED",
-        "spec_claim_status (stale Claim status enum/field name): UNCONFIRMED"
+        "spec_command_name for dissolve (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "Does dissolve validate expected_version only on the USER_COMPOSITE or also on each constituent member?",
-        "What exact error applies if dissolve targets a non-USER_COMPOSITE Event?"
+        "Exact error code when dissolve targets a non-USER_COMPOSITE Event."
       ]
     },
     {
@@ -259,18 +246,20 @@
       "scope": "MVP",
       "priority": "P0",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-12"],
       "confirmed_spec_rules": [
         "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT",
         "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
-        "CANNOT_LINK_REJECTS_INVALID_LINK_TARGETS_WITHOUT_MUTATION"
+        "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+        "ONLY_ELIGIBLE_PR_PR_SEGMENT_OR_DIRECT_COMMIT_EVENTS_ARE_MERGEABLE",
+        "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_hold_status (held UNKNOWN commit): UNCONFIRMED",
-        "spec_command_name (manual merge): UNCONFIRMED",
-        "HTTP status code for CANNOT_LINK: UNCONFIRMED"
+        "spec_hold_status and spec_command_name (UNCONFIRMED)",
+        "Exact wire spec_error_code and HTTP status for non-Event IDs (ticket / unpromoted UNKNOWN commit)"
       ],
       "truly_undecided_questions": [
-        "Does passing a non-Event entity ID (CONTEXT_ONLY ticket or held UNKNOWN commit) reach domain CANNOT_LINK rejection or fail earlier at request validation?"
+        "Whether submitting non-Event IDs fails at request validation/404 or reaches domain codes such as CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE."
       ]
     },
     {
@@ -280,17 +269,19 @@
       "scope": "MVP",
       "priority": "P0",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-12"],
       "confirmed_spec_rules": [
-        "USER_COMPOSITE_NESTING_FORBIDDEN",
-        "EXCLUDED_EVENT_CANNOT_BE_LINKED",
-        "CANNOT_LINK_REJECTS_INVALID_LINK_TARGETS_WITHOUT_MUTATION"
+        "USER_COMPOSITE_NESTING_FORBIDDEN_WITH_NESTED_COMPOSITE_NOT_ALLOWED",
+        "REJECTED_EVENT_MERGE_FORBIDDEN_WITH_MEMBER_NOT_ACTIVE",
+        "SUBSUMED_COMPOSITE_MEMBERS_ARE_SUPERSEDED",
+        "CANNOT_LINK_IS_RELATION_SEMANTIC_NOT_CATCH_ALL_WIRE_CODE",
+        "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
       ],
       "unconfirmed_spec_tokens": [
-        "HTTP status code for CANNOT_LINK: UNCONFIRMED",
-        "Whether excluded-target merge uses CANNOT_LINK or a distinct error code in Notion Event Contract: UNCONFIRMED"
+        "spec_command_name and HTTP status codes for NESTED_COMPOSITE_NOT_ALLOWED / MEMBER_NOT_ACTIVE / MEMBER_ALREADY_COMPOSED (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "Nesting is confirmed forbidden; does adding a third PR to an existing USER_COMPOSITE require dissolve-then-merge in MVP or is there a separate non-nesting append-member command?"
+        "Multi-violation error precedence when a member is simultaneously already composed (MEMBER_ALREADY_COMPOSED) and SUPERSEDED (MEMBER_NOT_ACTIVE)."
       ]
     },
     {
@@ -300,16 +291,16 @@
       "scope": "MVP",
       "priority": "P0",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-12"],
       "confirmed_spec_rules": [
-        "VERSION_CONFLICT_REJECTS_STALE_COMMAND_WITHOUT_MUTATION"
+        "PER_EVENT_VERSION_CHECK_REQUIRED",
+        "EVENT_VERSION_CONFLICT_REJECTS_STALE_COMMAND_WITHOUT_MUTATION"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_error_code (version conflict): UNCONFIRMED (not guessed)",
-        "HTTP status code (409 vs 412): UNCONFIRMED",
-        "spec_command_name: UNCONFIRMED"
+        "HTTP status code (409 vs 412), If-Match header usage, and spec_command_name (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "Is optimistic lock granularity per-Event version, per-Workspace version, or HTTP If-Match/ETag?"
+        "HTTP status code (409 vs 412) and whether If-Match header is used alongside request-body expected_version."
       ]
     },
     {
@@ -319,17 +310,20 @@
       "scope": "MVP",
       "priority": "P0",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-007", "EVENT-12"],
       "confirmed_spec_rules": [
+        "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY_WITH_CROSS_REPOSITORY_MEMBER",
         "WORKSPACE_BOUNDARY_STRICTLY_ENFORCED",
-        "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY",
+        "CROSS_WORKSPACE_MERGE_POLICY_SEPARATED_FROM_EXTERNAL_HTTP_EXPOSURE",
+        "NON_MERGE_CROSS_WORKSPACE_REJECT_DOES_NOT_USE_MERGE_ONLY_ERROR",
         "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
       ],
       "unconfirmed_spec_tokens": [
-        "spec_error_code & HTTP status (workspace boundary conflict): UNCONFIRMED (not guessed)",
-        "spec_error_code & HTTP status (same-workspace cross-repository manual merge; CANNOT_LINK vs dedicated code): UNCONFIRMED"
+        "External HTTP error/status for unauthorized cross-workspace objects on merge and exclude (UNCONFIRMED)",
+        "HTTP status for CROSS_REPOSITORY_MEMBER and spec_command_name (UNCONFIRMED)"
       ],
       "truly_undecided_questions": [
-        "Per OD-010, when the caller lacks membership in the foreign workspace (ws_syn_016_b), should foreign-workspace rejection hide existence via 403/404?"
+        "Final external HTTP error code/status (403 vs 404 vs CROSS_WORKSPACE_MEMBER) exposed when caller targets an unauthorized foreign-workspace object."
       ]
     },
     {
@@ -339,15 +333,15 @@
       "scope": "POST_MVP",
       "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
       "confirmed_spec_rules": [
         "POST_MVP_B003_EXPLICITLY_TAGGED",
+        "NO_AUTO_INGESTION_AFTER_SUCCESS_SNAPSHOT_IMPORT_IN_MVP",
         "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_event_type / spec_lifecycle_status / spec_hold_status: UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Should POST_MVP fixtures in T-001A assert MVP non-ingestion (current draft) or target B-003 post-sync Event state behind a POST_MVP harness flag?"
+        "Whether downstream B-003 evaluation will execute this fixture behind a POST_MVP harness flag."
       ]
     },
     {
@@ -357,17 +351,15 @@
       "scope": "POST_MVP",
       "priority": "P2",
       "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
       "confirmed_spec_rules": [
-        "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
         "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-        "POST_MVP_B003_EXPLICITLY_TAGGED"
+        "POST_MVP_B003_EXPLICITLY_TAGGED",
+        "SEPARATE_PARTIAL_IMPORT_RETRY_FROM_POST_SUCCESS_B003_RECLASSIFICATION"
       ],
-      "unconfirmed_spec_tokens": [
-        "spec_hold_status (held UNKNOWN commit & deferred POST_MVP observation): UNCONFIRMED"
-      ],
+      "unconfirmed_spec_tokens": [],
       "truly_undecided_questions": [
-        "Are held UNKNOWN items locked from user curation until B-003 recovery?",
-        "Should T-001B add a companion POST_MVP case where late recovery completes lookup with NO_MATCH_OBSERVED?"
+        "Post-MVP B-003 transition mechanics for superseding a DIRECT_COMMIT Event once late PR association is observed."
       ]
     }
   ]

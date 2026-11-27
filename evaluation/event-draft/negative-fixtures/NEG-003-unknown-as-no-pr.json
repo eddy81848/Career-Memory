@@ -2,14 +2,16 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "NEG-003",
   "slug": "unknown-as-no-pr",
-  "title": "[NEGATIVE VARIANT] Forbidden interpretation of UNKNOWN association as direct-commit candidate (NO_MATCH_OBSERVED)",
+  "title": "[NEGATIVE VARIANT] Forbidden interpretation of UNKNOWN association as DIRECT_COMMIT candidate (and PARTIAL run promotion)",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-ASSOC-01"],
-    "test_ids": ["T-001A-NEG-03"],
+    "draft_requirement_ids": ["REQ-EV-ASSOC-01"],
+    "draft_test_ids": ["T-001A-NEG-03"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": ["EVENT-10"],
     "scenario_tags": ["negative_variant", "unknown_as_no_pr_violation"]
   },
   "synthetic_sources": {
@@ -35,7 +37,8 @@
         "workspace_id": "ws_syn_neg3",
         "repo_id": "repo_syn_neg3",
         "run_type": "INITIAL_BACKFILL",
-        "status": "PARTIAL_SUCCESS",
+        "status": "PARTIAL",
+        "promotes_events": false,
         "completed_at": "2026-11-01T10:00:00Z"
       }
     ],
@@ -50,10 +53,12 @@
         "committed_at": "2026-10-22T09:10:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/billing/rounding.py"]
+        "changed_paths": ["src/billing/rounding.py"],
+        "source_sync_run_id": "sync_syn_neg3"
       }
     ],
     "issues_tickets": [],
@@ -69,10 +74,9 @@
         "event_id": "ev_neg_003_bad_direct",
         "workspace_id": "ws_syn_neg3",
         "repo_id": "repo_syn_neg3",
-        "logical_kind": "direct_commit_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -84,25 +88,26 @@
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": []
   },
   "rationale": {
-    "summary": "Intentionally broken fixture classifying an UNKNOWN commit as a direct_commit_event.",
-    "confirmed_spec_rules": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
+    "summary": "Intentionally broken fixture classifying an UNKNOWN commit from a PARTIAL run as a DIRECT_COMMIT candidate.",
+    "confirmed_spec_rules": ["INVARIANT_UNKNOWN_NOT_NO_PR", "INVARIANT_PARTIAL_RUN_NO_PROMOTION"],
     "unconfirmed_spec_tokens": [],
     "truly_undecided_items": []
   }

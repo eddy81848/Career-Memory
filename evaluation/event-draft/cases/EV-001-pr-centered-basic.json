@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-001",
   "slug": "pr-centered-basic",
-  "title": "Single merged PR creates one merged-PR Event candidate without duplicating commit Events",
+  "title": "Single merged PR creates one PR CANDIDATE Event without duplicating direct-commit Events",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-PR-01"],
-    "test_ids": ["T-001A-01"],
-    "scenario_tags": ["merged_pr_candidate", "default_branch_merge", "mvp_core"]
+    "draft_requirement_ids": ["REQ-EV-PR-01"],
+    "draft_test_ids": ["T-001A-01"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": ["EVENT-10"],
+    "scenario_tags": ["merged_pr_candidate", "anchor_mode_pr", "default_branch_merge", "mvp_core"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_001",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:00:00Z"
       }
     ],
@@ -65,6 +68,7 @@
         "committed_at": "2026-10-20T12:00:00Z",
         "branch_name": "feat/payment-retry-guard",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_101",
@@ -79,6 +83,7 @@
         "committed_at": "2026-10-20T13:15:00Z",
         "branch_name": "feat/payment-retry-guard",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_101",
@@ -98,10 +103,9 @@
         "event_id": "ev_exp_001_1",
         "workspace_id": "ws_syn_001",
         "repo_id": "repo_syn_001",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -114,15 +118,17 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Add idempotent payment retry guard",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "payment retry guard",
+        "workspace_id": "ws_syn_001",
         "expected_event_ids": ["ev_exp_001_1"],
         "expected_result_count": 1
       }
@@ -131,35 +137,26 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0].spec_event_type",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact official Event type & active lifecycle status names from Notion Event Contract (left UNCONFIRMED without original spec access)."
-      },
-      {
         "field_path": "expected_proposal.events[0].source_commit_ids",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Should merge commits created on main during merge-commit strategy also be included in source_commit_ids or only PR head commits?"
+        "question": "Should merge commits created on main during merge-commit strategy also be listed in source_commit_ids or only PR branch commits?"
       }
     ]
   },
   "rationale": {
-    "summary": "A single merged PR with two associated commits produces exactly one top-level Event candidate. Associated commits attach as supporting source commits rather than spawning separate direct-commit Events.",
+    "summary": "A single merged PR with two associated commits in a successful INITIAL_BACKFILL produces exactly one active top-level PR CANDIDATE Event. Associated commits attach as evidence rather than spawning DIRECT_COMMIT Events.",
     "confirmed_spec_rules": [
-      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+      "ANCHOR_MODE_PR_AUTO_GENERATED_FOR_MERGED_PR",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE",
       "ASSOCIATED_COMMITS_NOT_DUPLICATED_AS_DIRECT_COMMIT_EVENTS"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_event_type for merged PR Event (left UNCONFIRMED; Notion original spec inaccessible)",
-      "spec_lifecycle_status for active Event (left UNCONFIRMED; Notion original spec inaccessible)",
-      "Official T-001A requirement/test IDs (provisional REQ-EV-PR-01 / T-001A-01)"
-    ],
+    "unconfirmed_spec_tokens": [],
     "truly_undecided_items": [
       "Whether merge-commit SHAs generated on default branch belong in source_commit_ids alongside PR branch commits."
     ]

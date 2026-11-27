@@ -7,35 +7,36 @@ This directory contains **AI-authored synthetic Event fixtures, DRAFT expected p
 - **Included**:
   - 18 synthetic fixture cases (`cases/EV-001` through `cases/EV-018`: 16 `MVP` + 2 `POST_MVP` tagged `B-003`).
   - 6 isolated intentionally broken negative variants (`negative-fixtures/NEG-001` through `NEG-006`).
-  - Strict separation of `synthetic_sources`, `user_commands`, `expected_proposal` (`approval_status="DRAFT"`), and `rationale` (`confirmed_spec_rules` / `unconfirmed_spec_tokens` / `truly_undecided_items`).
+  - Strict separation of `synthetic_sources`, `user_commands`, `expected_proposal` (`approval_status="DRAFT"`, `approved_by=null`), and `rationale` (`confirmed_spec_rules` / `unconfirmed_spec_tokens` / `truly_undecided_items`).
   - JSON Schemas (`schemas/manifest.schema.json`, `schemas/case.schema.json`).
-  - Coverage matrix (`coverage-matrix.json`, `coverage-matrix.md`) and T-001B human review queue (`review-queue.json`, `review-queue.md`).
+  - Coverage matrix (`coverage-matrix.json`, `coverage-matrix.md`) separating draft local IDs (`REQ-EV-*`, `T-001A-*`) from official refs (`FR-006`, `FR-007`, `EVENT-10`, `EVENT-11`, `EVENT-12`) and explicitly deferring `EVAL-EVENT` to M3.
+  - T-001B human review queue (`review-queue.json`, `review-queue.md`).
   - Zero-dependency Python fixture linter (`lint/lint_fixtures.py`) and regression test suite (`lint/test_lint_fixtures.py`).
 - **Excluded (explicitly NOT in T-001A)**:
   - Event Builder runtime implementation.
   - Human ground-truth review, approval, or golden dataset freeze (**T-001B**).
-  - Real Event Builder quality evaluation (**M3 / T-306A**).
+  - Real Event Builder runtime quality evaluation (**M3 / T-306A / EVAL-EVENT** — never marked passed by fixture lint).
   - Any CLAIM-QA files, shared schemas, CI workflows, or physical database table assumptions (**OD-007**).
   - Any real repository text, real accounts, GitHub/LLM API calls, or billable runs.
 
-## Confirmed Rules vs. Unconfirmed Tokens
+## Official Spec Rules Applied vs. Open Items
 
-- **Confirmed official spec rules applied across all 18 cases**:
-  - Merged PR is the default Event candidate.
-  - Default-branch direct commit is a candidate **only** when PR association lookup completed normally (`COMPLETED`) and observed `NO_MATCH_OBSERVED`.
-  - `UNKNOWN` is **never** interpreted as `NO_MATCH_OBSERVED` (no PR).
-  - Issue/ticket links attach as `CONTEXT_ONLY` and **never** auto-merge.
-  - User manual merge is permitted **only within the same repository** (and workspace) and is counted as **one `USER_COMPOSITE`** without double-counting members.
-  - `USER_COMPOSITE` nesting is strictly forbidden (neither a `USER_COMPOSITE` root nor a subsumed member may be merged into another `USER_COMPOSITE`).
-  - Dissolving a `USER_COMPOSITE` restores its constituent members and marks dependent Claims as **`stale`**.
-- **Unconfirmed wire tokens (`UNCONFIRMED`, never guessed)**:
-  - Because the linked Notion pages (`T-001A`, `AI 합성 Dataset 가이드`, `Snapshot Import`, `ADR-018`) require authentication and could not be accessed via HTTP, exact wire status names, error codes, and command names not explicitly confirmed are stored as `"UNCONFIRMED"` (enforced by lint rule `NO_GUESSED_UNCONFIRMED_SPEC_TOKENS`) and listed in `review-queue.md`.
+- **Official rules applied across all 18 cases**:
+  - **Anchor modes**: `PR`, `PR_SEGMENT`, `DIRECT_COMMIT`, `USER_COMPOSITE` (`PR` and `DIRECT_COMMIT` auto-generated; default-branch direct commit = 1 candidate per commit when `SUCCESS` initial import + `COMPLETED` lookup `NO_MATCH_OBSERVED` + start/end default-branch verified).
+  - **Import runs**: `PARTIAL` (never `PARTIAL_SUCCESS`) promotes `0` Events; `UNKNOWN` is never `NO_MATCH_OBSERVED`; default Event search returns `0`.
+  - **Lifecycle statuses**: `CANDIDATE`, `CONFIRMED`, `REJECTED`, `SUPERSEDED`, `STALE` separated from top-level visibility (`is_active_top_level`). No arbitrary `ACTIVE`, `EXCLUDED`, or `DISSOLVED`.
+  - **Split**: Mixed-purpose PR stays 1 `CANDIDATE` with a review flag (`auto_split_count=0`); user split requires disjoint `evidence_scope` (`file_paths`, `diff_hunks`, `review_thread_ids`, `content_unit_ids`), emits `PR_SEGMENT` (or `DIRECT_COMMIT`), and marks parent `SUPERSEDED`.
+  - **Merge**: Same workspace & same repository across `PR`, `PR_SEGMENT`, `DIRECT_COMMIT` (PR + direct commit allowed); checks each member's Event version; preserves snapshots; marks members `SUPERSEDED`; rolls up member-only search hits once to parent `USER_COMPOSITE`; no auto-inheritance of member Fact/Claim.
+  - **Dissolve**: Requires `expected_version`, `reason`, `idempotency_key`; sets Composite `SUPERSEDED` + `composite_membership_status='REMOVED'`; re-evaluates members (`CANDIDATE`/`CONFIRMED`/`STALE`); marks dependent `FACT`, `CLAIM`, and `EXPORT` as `STALE` without deletion or auto-transfer.
+  - **Official Event API error codes**: `EVENT_VERSION_CONFLICT`, `CROSS_WORKSPACE_MEMBER`, `CROSS_REPOSITORY_MEMBER`, `DUPLICATE_COMPOSITE_MEMBER`, `NESTED_COMPOSITE_NOT_ALLOWED`, `CANNOT_LINK_CONFLICT`, `MEMBER_NOT_ACTIVE`, `MEMBER_ALREADY_COMPOSED`, `PR_ASSOCIATION_INCOMPLETE`. `CANNOT_LINK` is a relation semantic, not a catch-all wire code.
+- **Unconfirmed details (`UNCONFIRMED` / `REVIEW_REQUIRED`)**:
+  - Command wire names, exact review flag string/UI, diagnostic record status tokens, HTTP status codes (`409` vs `412`, `If-Match`, unauthorized `403` vs `404`), multi-violation precedence (`MEMBER_ALREADY_COMPOSED` vs `MEMBER_NOT_ACTIVE`), detail GET shape for historical `SUPERSEDED` members, and post-MVP `B-003` transition mechanics remain open in `review-queue.md`.
 
 ## Provenance & Reproducibility Limits
 
 - **Base commit**: `efe251071fbee1be9a2ffee680a73f3ca3cd8084` (`main`; note `AGENTS.md` was not present at this commit).
 - **Branch / Worktree**: `qa/event-fixtures` (`.worktrees/qa-event-fixtures`).
-- **Generation method**: Interactive AI authoring and spec-alignment pass by the EVENT-QA agent; `0` external GitHub, Notion, or scripted LLM API calls.
+- **Generation method**: Interactive AI authoring and official-spec correction pass by the EVENT-QA agent; `0` external GitHub, Notion, or scripted LLM API calls.
 - **Model / Seed limitation**: The local workspace environment does not expose the underlying model build/checkpoint identifier or a deterministic sampling seed/temperature. Token-for-token regeneration via seed is **not reproducible**; draft reproducibility relies on immutable git commits and deterministic lint checks.
 
 ## Running the Fixture Lint & Regression Tests
@@ -54,13 +55,15 @@ python3 -B evaluation/event-draft/lint/lint_fixtures.py --dataset-dir evaluation
 
 # 4. Run full automated unit & regression test suite
 python3 -B -m unittest discover -s evaluation/event-draft/lint -v
+
+# 5. Check whitespace cleanliness
+git diff --check
 ```
 
-> **Note**: These tests validate **synthetic dataset format, referential integrity, governance rules, unconfirmed-token discipline, and Event-domain safety invariants only**. Passing lint does **not** constitute ground-truth approval / golden freeze (T-001B) or Event Builder quality verification (M3/T-306A).
+> **Note**: These tests validate **synthetic dataset format, referential integrity, governance rules, official-token discipline, and Event-domain safety invariants only**. Passing lint does **not** constitute ground-truth approval / golden freeze (**T-001B**) or Event Builder runtime quality evaluation (**M3 / T-306A / EVAL-EVENT**).
 
 ## T-001B Handoff Checklist
 
-1. Open `review-queue.md` Section 2 and fill exact official wire tokens (`spec_event_type`, `spec_lifecycle_status`, `spec_hold_status`, `spec_command_name`, `spec_error_code`, `spec_claim_status`, Requirement/Test IDs) from the canonical Notion docs.
-2. Resolve the truly undecided behavioral items in `review-queue.md` Section 3 (P0/P1/P2).
-3. Independently verify every `expected_proposal` against human engineering judgment before transitioning `approval_status` from `DRAFT` to frozen golden truth in T-001B.
-4. Keep `negative-fixtures/` strictly isolated from the frozen evaluation set.
+1. Review `review-queue.md` Sections 2–3 to fill remaining wire details (`spec_command_name`, HTTP status codes / `If-Match`, exact review flag string) and resolve open contract decisions (multi-violation precedence, unauthorized foreign-workspace HTTP exposure, detail GET history shape).
+2. Independently verify all 18 `expected_proposal` objects against human engineering judgment before transitioning `approval_status` from `DRAFT` to frozen golden truth in **T-001B**.
+3. Keep `negative-fixtures/` strictly isolated from the frozen evaluation set.

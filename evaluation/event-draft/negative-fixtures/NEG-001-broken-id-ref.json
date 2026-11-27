@@ -8,8 +8,10 @@
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-LINT-NEG-01"],
-    "test_ids": ["T-001A-NEG-01"],
+    "draft_requirement_ids": ["REQ-EV-LINT-NEG-01"],
+    "draft_test_ids": ["T-001A-NEG-01"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": [],
     "scenario_tags": ["negative_variant", "broken_id_reference"]
   },
   "synthetic_sources": {
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_neg1",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:00:00Z"
       }
     ],
@@ -65,6 +68,7 @@
         "committed_at": "2026-10-20T12:00:00Z",
         "branch_name": "feat/valid",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_neg101",
@@ -84,10 +88,9 @@
         "event_id": "ev_neg_001_1",
         "workspace_id": "ws_syn_neg1",
         "repo_id": "repo_syn_neg1",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -99,18 +102,19 @@
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": []

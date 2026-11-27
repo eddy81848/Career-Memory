@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-018",
   "slug": "post-mvp-b003-late-association-recovery",
-  "title": "[POST_MVP / B-003] Late source association recovery resolves a previously UNKNOWN held commit",
+  "title": "[POST_MVP / B-003] Post-success late PR association observation for a DIRECT_COMMIT candidate created from completed NO_MATCH_OBSERVED",
   "scope": "POST_MVP",
   "backlog_ref": "B-003",
-  "post_mvp_reason": "Late source association recovery for commits initially held with pr_association_status='UNKNOWN' is deferred to B-003 (POST_MVP).",
+  "post_mvp_reason": "Post-success late PR association reclassification (B-003) after a completed Snapshot Import is POST_MVP and strictly separated from incomplete PARTIAL import retries.",
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
-    "test_ids": ["T-001A-18"],
-    "scenario_tags": ["post_mvp", "b_003", "late_association_recovery", "unknown_association"]
+    "draft_requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
+    "draft_test_ids": ["T-001A-18"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": [],
+    "scenario_tags": ["post_mvp", "b_003", "late_association_recovery", "direct_commit_reclassification"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -35,8 +37,10 @@
         "workspace_id": "ws_syn_018",
         "repo_id": "repo_syn_018",
         "run_type": "INITIAL_BACKFILL",
-        "status": "PARTIAL_SUCCESS",
-        "completed_at": "2026-11-01T10:20:00Z"
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T10:20:00Z",
+        "note": "Completed initial Snapshot Import where PR association lookup finished with NO_MATCH_OBSERVED (NOT an incomplete PARTIAL run)."
       }
     ],
     "pull_requests": [],
@@ -50,8 +54,9 @@
         "committed_at": "2026-10-22T09:10:00Z",
         "branch_name": "main",
         "on_default_branch": true,
-        "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
-        "pr_association_status": "UNKNOWN",
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
         "changed_paths": ["src/billing/tax_rounding.py"]
       }
@@ -65,6 +70,7 @@
         "observed_at": "2026-11-06T09:00:00Z",
         "details": {
           "target_commit_id": "cmt_syn_1801",
+          "initial_association_status": "NO_MATCH_OBSERVED",
           "recovered_pr_number": 1805,
           "recovered_pr_title": "Fix multi-currency tax rounding edge case",
           "recovered_association_status": "ASSOCIATED",
@@ -77,73 +83,73 @@
   "expected_proposal": {
     "approval_status": "DRAFT",
     "approved_by": null,
-    "events": [],
-    "held_items": [
+    "events": [
       {
-        "held_id": "hold_exp_018_unknown",
-        "source_type": "COMMIT",
-        "source_id": "cmt_syn_1801",
-        "logical_disposition": "hold_classification_unknown_assoc",
-        "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "In MVP snapshot, cmt_syn_1801 has pr_association_status='UNKNOWN' (lookup incomplete) and MUST remain held rather than treated as NO_MATCH_OBSERVED.",
-        "interpreted_as_no_pr": false,
-        "unconfirmed_fields": ["spec_hold_status"]
-      },
+        "event_id": "ev_exp_018_1",
+        "workspace_id": "ws_syn_018",
+        "repo_id": "repo_syn_018",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": ["cmt_syn_1801"],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Fix multi-currency tax rounding edge case",
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [
       {
-        "held_id": "hold_exp_018_recovery",
-        "source_type": "OBSERVATION",
-        "source_id": "obs_syn_1801",
-        "logical_disposition": "deferred_post_mvp",
-        "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "Late source association recovery linking cmt_syn_1801 to PR #1805 is deferred to B-003 (POST_MVP).",
-        "interpreted_as_no_pr": false,
-        "unconfirmed_fields": ["spec_hold_status"]
+        "observation_id": "obs_syn_1801",
+        "backlog_ref": "B-003",
+        "persisted_in_mvp": false,
+        "reason": "After SUCCESS snapshot import created DIRECT_COMMIT candidate ev_exp_018_1 from completed NO_MATCH_OBSERVED, later external observation of PR #1805 association is deferred to B-003 (POST_MVP) and not ingested in MVP."
       }
     ],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "multi-currency tax rounding",
-        "expected_event_ids": [],
-        "expected_result_count": 0
+        "expected_event_ids": ["ev_exp_018_1"],
+        "expected_result_count": 1
       }
     ],
     "aggregation_check": {
-      "total_countable_events": 0,
+      "total_countable_events": 1,
       "total_user_composite_events": 0,
-      "total_held_items": 2,
-      "total_excluded_events": 0
+      "total_held_items": 0,
+      "total_rejected_events": 0
     },
-    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying obs_syn_1801 resolves cmt_syn_1801 from held UNKNOWN to a merged-PR Event for PR #1805 without ever having misclassified it as NO_MATCH_OBSERVED.",
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying late PR association observation obs_syn_1801 governs reclassifying/superseding DIRECT_COMMIT candidate ev_exp_018_1 into a PR Event for PR #1805 without mixing incomplete PARTIAL import retries.",
     "review_required_items": [
-      {
-        "field_path": "expected_proposal.held_items[*].spec_hold_status",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact hold/deferred status names from Notion Event Contract."
-      },
       {
         "field_path": "expected_proposal.post_mvp_transition_note",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether held UNKNOWN items are locked from user curation until B-003 recovery, and whether T-001B should also add a late NO_MATCH_OBSERVED recovery case."
+        "question": "When B-003 is designed post-MVP, define how a previously promoted DIRECT_COMMIT Event is superseded or migrated when late PR association is observed after a SUCCESS import."
       }
     ]
   },
   "rationale": {
-    "summary": "Shows why UNKNOWN commits must never be classified as NO_MATCH_OBSERVED direct-commit Events: late association recovery (B-003, POST_MVP) can later resolve cmt_syn_1801 cleanly into PR #1805 without false direct-commit history.",
+    "summary": "Separates post-SUCCESS B-003 late PR association reclassification from incomplete PARTIAL import retries: sync_syn_018 succeeded with completed NO_MATCH_OBSERVED and start/end default-branch verification, emitting DIRECT_COMMIT CANDIDATE ev_exp_018_1, while later PR #1805 association observation obs_syn_1801 stays unpersisted_external_observations in MVP.",
     "confirmed_spec_rules": [
-      "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
       "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-      "POST_MVP_B003_EXPLICITLY_TAGGED"
+      "POST_MVP_B003_EXPLICITLY_TAGGED",
+      "SEPARATE_PARTIAL_IMPORT_RETRY_FROM_POST_SUCCESS_B003_RECLASSIFICATION"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_hold_status for held UNKNOWN commit and deferred POST_MVP observation (left UNCONFIRMED)"
-    ],
+    "unconfirmed_spec_tokens": [],
     "truly_undecided_items": [
-      "Whether held UNKNOWN items are locked from curation until B-003 recovery.",
-      "Whether to add a companion POST_MVP case where late recovery completes lookup with NO_MATCH_OBSERVED."
+      "Post-MVP B-003 transition mechanics for superseding a DIRECT_COMMIT Event once late PR association is observed."
     ]
   }
 }

@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-007",
   "slug": "mixed-purpose-pr",
-  "title": "Single merged PR mixing two unrelated purposes stays one merged-PR Event until explicit user split",
+  "title": "Mixed-purpose merged PR stays one PR CANDIDATE with mixed-purpose review flag and 0 auto-splits",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-MIXED-01"],
-    "test_ids": ["T-001A-07"],
-    "scenario_tags": ["mixed_purpose_pr", "merged_pr_candidate", "no_unsolicited_auto_split"]
+    "draft_requirement_ids": ["REQ-EV-MIXED-01"],
+    "draft_test_ids": ["T-001A-07"],
+    "official_requirement_refs": ["FR-006", "FR-007"],
+    "official_test_refs": [],
+    "scenario_tags": ["mixed_purpose_pr", "review_flag_present", "anchor_mode_pr", "no_unsolicited_auto_split"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_007",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T11:00:00Z"
       }
     ],
@@ -65,6 +68,7 @@
         "committed_at": "2026-10-26T14:00:00Z",
         "branch_name": "feat/auth-and-csv-export",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
@@ -79,6 +83,7 @@
         "committed_at": "2026-10-26T16:30:00Z",
         "branch_name": "feat/auth-and-csv-export",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
@@ -98,10 +103,9 @@
         "event_id": "ev_exp_007_1",
         "workspace_id": "ws_syn_007",
         "repo_id": "repo_syn_007",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -111,18 +115,25 @@
         "member_event_ids": [],
         "parent_event_id": null,
         "membership_role": "standalone",
+        "review_flags": {
+          "mixed_purpose_hint_present": true,
+          "exact_flag_token": "UNCONFIRMED",
+          "auto_split_count": 0
+        },
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Refactor auth header parser and add monthly CSV export",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": ["review_flags.exact_flag_token"]
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "CSV export",
+        "workspace_id": "ws_syn_007",
         "expected_event_ids": ["ev_exp_007_1"],
         "expected_result_count": 1
       }
@@ -131,35 +142,28 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0].spec_event_type",
+        "field_path": "expected_proposal.events[0].review_flags.exact_flag_token",
         "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Fill exact Event type & lifecycle status names from Notion Event Contract."
-      },
-      {
-        "field_path": "expected_proposal.events[0]",
-        "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether MVP emits a non-destructive mixed-purpose hint flag on EV-007 or strictly 1 unflagged Event until explicit user split."
+        "question": "Both keeping 1 PR CANDIDATE (auto_split_count=0) and surfacing a mixed-purpose review flag are confirmed; exact wire flag string and UI presentation remain unconfirmed."
       }
     ]
   },
   "rationale": {
-    "summary": "A merged PR bundling two distinct purposes (auth middleware refactor + CSV export) starts as one merged-PR Event candidate. Splitting into separate work units requires an explicit user split command (see EV-008).",
+    "summary": "A mixed-purpose merged PR MUST remain one PR CANDIDATE Event with 0 automatic splits AND display a mixed-purpose review flag to guide user review. Splitting requires explicit user-approved disjoint evidence scopes (see EV-008).",
     "confirmed_spec_rules": [
-      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
-      "PR_BOUNDARY_PRESERVED_BEFORE_USER_SPLIT"
+      "ANCHOR_MODE_PR_AUTO_GENERATED_FOR_MERGED_PR",
+      "MIXED_PURPOSE_SURFACED_VIA_REVIEW_FLAG_NO_AUTO_SPLIT",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_event_type and spec_lifecycle_status (left UNCONFIRMED)"
+      "Exact review flag string token and UI presentation details (left UNCONFIRMED)"
     ],
-    "truly_undecided_items": [
-      "Whether MVP Event Builder annotates mixed-purpose PRs with a non-destructive split hint or emits no hint."
-    ]
+    "truly_undecided_items": []
   }
 }

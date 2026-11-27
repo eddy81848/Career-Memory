@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-005",
   "slug": "issue-ticket-context-only",
-  "title": "Referenced Issue/Ticket attaches as CONTEXT_ONLY to merged PR Event and never spawns a standalone Event",
+  "title": "Referenced Issue/Ticket attaches as CONTEXT_ONLY to PR CANDIDATE Event and never spawns a standalone Event",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-CONTEXT-01"],
-    "test_ids": ["T-001A-05"],
-    "scenario_tags": ["context_only", "issue_ticket", "merged_pr_candidate", "mvp_core"]
+    "draft_requirement_ids": ["REQ-EV-CONTEXT-01"],
+    "draft_test_ids": ["T-001A-05"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": [],
+    "scenario_tags": ["context_only", "issue_ticket", "anchor_mode_pr", "mvp_core"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_005",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:40:00Z"
       }
     ],
@@ -65,6 +68,7 @@
         "committed_at": "2026-10-24T09:30:00Z",
         "branch_name": "fix/webhook-burst-syn-101",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_501",
@@ -92,10 +96,9 @@
         "event_id": "ev_exp_005_1",
         "workspace_id": "ws_syn_005",
         "repo_id": "repo_syn_005",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -108,15 +111,17 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Throttle webhook burst retries for SYN-101",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
-        "query": "SYN-101",
+        "query": "webhook burst retries",
+        "workspace_id": "ws_syn_005",
         "expected_event_ids": ["ev_exp_005_1"],
         "expected_result_count": 1
       }
@@ -125,36 +130,28 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0].spec_event_type",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact Event type & lifecycle status names from Notion Event Contract."
-      },
-      {
-        "field_path": "expected_proposal.search_checks[0]",
+        "field_path": "expected_proposal.search_checks",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether searching by a CONTEXT_ONLY ticket key ('SYN-101') is required to match the attached merged PR Event in MVP, and confirm unreferenced tickets emit zero Events."
+        "question": "Ticket membership/context attachment (CONTEXT_ONLY, 0 standalone ticket Events) is confirmed; whether search indexes/ranks ticket-only keywords ('SYN-101' or ticket title words) is separated from this membership oracle."
       }
     ]
   },
   "rationale": {
-    "summary": "Issues and tickets attach strictly as CONTEXT_ONLY enrichment to code-backed merged PR Events. Ticket SYN-101 attaches to ev_exp_005_1 without generating a standalone ticket Event.",
+    "summary": "Issues and tickets attach strictly as CONTEXT_ONLY enrichment to code-backed PR CANDIDATE Events and never spawn standalone Events. Search check focuses on PR text so undecided ticket-keyword indexing/ranking stays separated from membership judgment.",
     "confirmed_spec_rules": [
-      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+      "ANCHOR_MODE_PR_AUTO_GENERATED_FOR_MERGED_PR",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE",
       "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_event_type and spec_lifecycle_status (left UNCONFIRMED)"
-    ],
+    "unconfirmed_spec_tokens": [],
     "truly_undecided_items": [
-      "Whether MVP search indexes attached CONTEXT_ONLY ticket keys onto the Event.",
-      "Exact handling of unreferenced tickets with zero linked PRs/commits."
+      "Technical search indexing/ranking behavior for ticket-only keywords (separated from confirmed CONTEXT_ONLY membership rules)."
     ]
   }
 }

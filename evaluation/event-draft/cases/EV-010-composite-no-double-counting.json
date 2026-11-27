@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-010",
   "slug": "composite-no-double-counting",
-  "title": "Search and workspace metrics count one USER_COMPOSITE and never double-count its subsumed members",
+  "title": "Search and workspace metrics count one USER_COMPOSITE, keep members SUPERSEDED, and roll up member search hits once",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-COMP-01"],
-    "test_ids": ["T-001A-10"],
-    "scenario_tags": ["composite_double_count_prevention", "user_composite", "search_deduplication", "aggregation_integrity"]
+    "draft_requirement_ids": ["REQ-EV-COMP-01"],
+    "draft_test_ids": ["T-001A-10"],
+    "official_requirement_refs": ["FR-007"],
+    "official_test_refs": ["EVENT-11"],
+    "scenario_tags": ["composite_double_count_prevention", "user_composite", "members_superseded", "member_search_rollup", "aggregation_integrity"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_010",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T11:20:00Z"
       }
     ],
@@ -93,6 +96,7 @@
         "committed_at": "2026-10-20T09:00:00Z",
         "branch_name": "feat/dlq-backoff",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1001",
@@ -107,6 +111,7 @@
         "committed_at": "2026-10-21T09:00:00Z",
         "branch_name": "feat/dlq-replay-cli",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1002",
@@ -121,6 +126,7 @@
         "committed_at": "2026-10-22T09:00:00Z",
         "branch_name": "perf/heartbeat-size",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1003",
@@ -133,18 +139,23 @@
         "event_id": "ev_init_010_comp",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "user_composite_event",
-        "spec_event_type": "USER_COMPOSITE",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "USER_COMPOSITE",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
         "source_commit_ids": ["cmt_syn_1001a", "cmt_syn_1002a"],
         "context_ticket_ids": [],
         "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "user_composite_root",
+        "composite_membership_status": "ACTIVE",
+        "member_snapshots_preserved": true,
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       },
@@ -152,17 +163,20 @@
         "event_id": "ev_init_010_m1",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1001",
         "source_commit_ids": ["cmt_syn_1001a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
@@ -171,17 +185,20 @@
         "event_id": "ev_init_010_m2",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1002",
         "source_commit_ids": ["cmt_syn_1002a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
@@ -190,17 +207,20 @@
         "event_id": "ev_init_010_solo",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1003",
         "source_commit_ids": ["cmt_syn_1003a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
@@ -217,10 +237,9 @@
         "event_id": "ev_init_010_comp",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "user_composite_event",
-        "spec_event_type": "USER_COMPOSITE",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "USER_COMPOSITE",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
@@ -230,19 +249,20 @@
         "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
         "parent_event_id": null,
         "membership_role": "user_composite_root",
+        "composite_membership_status": "ACTIVE",
+        "member_snapshots_preserved": true,
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Deadletter queue reliability and replay tooling",
-        "unconfirmed_fields": ["spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_010_m1",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -255,16 +275,15 @@
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Add deadletter queue backoff policy",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_010_m2",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -277,16 +296,15 @@
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Add deadletter queue replay CLI",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_010_solo",
         "workspace_id": "ws_syn_010",
         "repo_id": "repo_syn_010",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -299,25 +317,29 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Optimize worker heartbeat telemetry",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "deadletter queue",
+        "workspace_id": "ws_syn_010",
         "expected_event_ids": ["ev_init_010_comp"],
         "expected_result_count": 1
       },
       {
         "query": "replay CLI",
+        "workspace_id": "ws_syn_010",
         "expected_event_ids": ["ev_init_010_comp"],
         "expected_result_count": 1
       },
       {
         "query": "heartbeat",
+        "workspace_id": "ws_syn_010",
         "expected_event_ids": ["ev_init_010_solo"],
         "expected_result_count": 1
       }
@@ -326,37 +348,29 @@
       "total_countable_events": 2,
       "total_user_composite_events": 1,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[*].spec_lifecycle_status",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact lifecycle status names for USER_COMPOSITE and subsumed member Events from Notion Event Contract."
-      },
-      {
-        "field_path": "expected_proposal.search_checks[1]",
+        "field_path": "expected_proposal.events[1..2]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm that searching text appearing only in one member PR ('replay CLI') resolves to the owning USER_COMPOSITE once, and clarify direct GET behavior for a subsumed member Event ID."
+        "question": "Single-count aggregation, SUPERSEDED member history, and rolling up member-only search hits ('replay CLI') to parent USER_COMPOSITE once are confirmed; direct detail GET response shape for historical SUPERSEDED member IDs remains unconfirmed."
       }
     ]
   },
   "rationale": {
-    "summary": "Workspace contains 1 same-repo USER_COMPOSITE (composed of 2 PR members) plus 1 standalone PR. Searching 'deadletter queue' returns only ev_init_010_comp once (count=1); total countable Events equals 2 (1 USER_COMPOSITE + 1 standalone), never 3 or 4.",
+    "summary": "Workspace contains 1 same-repo USER_COMPOSITE (whose 2 constituent members are SUPERSEDED history and excluded from default list/metrics) plus 1 standalone PR. Both shared ('deadletter queue') and member-only ('replay CLI') search hits resolve to ev_init_010_comp exactly once; total countable Events is 2.",
     "confirmed_spec_rules": [
       "USER_MANUAL_MERGE_AGGREGATED_AS_SINGLE_USER_COMPOSITE",
-      "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH_OR_METRICS",
-      "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY"
+      "SUBSUMED_MEMBERS_TRANSITION_TO_SUPERSEDED_HISTORY",
+      "MEMBER_ONLY_SEARCH_HIT_ROLLS_UP_TO_PARENT_USER_COMPOSITE_ONCE",
+      "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH_OR_METRICS"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_lifecycle_status for active USER_COMPOSITE and subsumed members (left UNCONFIRMED)"
-    ],
+    "unconfirmed_spec_tokens": [],
     "truly_undecided_items": [
-      "Whether text unique to a single member PR rolls up to USER_COMPOSITE search index in MVP.",
-      "Whether direct GET of a subsumed member ID returns the member with parent pointer or redirects to USER_COMPOSITE."
+      "Direct detail GET response shape for a historical SUPERSEDED member Event ID (separate contract required)."
     ]
   }
 }

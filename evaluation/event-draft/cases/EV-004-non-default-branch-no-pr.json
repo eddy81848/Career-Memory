@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-004",
   "slug": "non-default-branch-no-pr",
-  "title": "Commit on non-default branch with NO_MATCH_OBSERVED is not a default-branch direct-commit Event candidate",
+  "title": "Commit reachable only on a non-default branch yields 0 DIRECT_COMMIT candidates",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-BRANCH-01"],
-    "test_ids": ["T-001A-04"],
-    "scenario_tags": ["non_default_branch", "branch_boundary", "no_match_observed"]
+    "draft_requirement_ids": ["REQ-EV-BRANCH-01"],
+    "draft_test_ids": ["T-001A-04"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": ["EVENT-10"],
+    "scenario_tags": ["non_default_branch", "branch_boundary", "no_match_observed", "zero_direct_commit_candidates"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_004",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:30:00Z"
       }
     ],
@@ -50,6 +53,7 @@
         "committed_at": "2026-10-23T16:00:00Z",
         "branch_name": "exp/trigram-prototype",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
@@ -68,20 +72,23 @@
     "held_items": [
       {
         "held_id": "hold_exp_004_1",
+        "record_kind": "NON_ELIGIBLE_SOURCE_RECORD",
         "source_type": "COMMIT",
         "source_id": "cmt_syn_401",
         "logical_disposition": "not_direct_commit_candidate_non_default_branch",
         "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "Even with COMPLETED lookup and NO_MATCH_OBSERVED, commit is on non-default branch 'exp/trigram-prototype'; direct-commit candidacy applies only to default-branch commits.",
+        "hold_reason": "Semantic oracle verdict: commit is reachable only on non-default branch 'exp/trigram-prototype', so DIRECT_COMMIT candidate count is 0. Physical collection stage placement (filtered during import vs skipped by Event Builder) is separated from this semantic verdict.",
         "interpreted_as_no_pr": false,
         "unconfirmed_fields": ["spec_hold_status"]
       }
     ],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "trigram shard balancer",
+        "workspace_id": "ws_syn_004",
         "expected_event_ids": [],
         "expected_result_count": 0
       }
@@ -90,35 +97,29 @@
       "total_countable_events": 0,
       "total_user_composite_events": 0,
       "total_held_items": 1,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.held_items[0].spec_hold_status",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact disposition/status token (or confirm silent skip with empty held_items) from Notion Snapshot Import / Event Contract."
-      },
-      {
-        "field_path": "synthetic_sources.commits[0]",
+        "field_path": "expected_proposal.held_items[0]",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Does Snapshot Import ingest non-default orphan commits at all, or filter them out before Event Builder?"
+        "question": "Semantic oracle verdict (0 DIRECT_COMMIT candidates) is confirmed; confirm only whether physical collection filters non-default commits before persistence (held_items=[]) or records a non-eligible source entry."
       }
     ]
   },
   "rationale": {
-    "summary": "Direct-commit Event candidacy requires BOTH default branch membership AND normal PR-association lookup completion yielding NO_MATCH_OBSERVED. Non-default branch commits without a PR must not become direct-commit Events.",
+    "summary": "A commit reachable only on a non-default branch yields 0 DIRECT_COMMIT candidates even when PR association lookup completed with NO_MATCH_OBSERVED. Whether physical collection drops the commit upstream or skips it downstream is separated from the semantic verdict (0 candidates).",
     "confirmed_spec_rules": [
-      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-      "NON_DEFAULT_BRANCH_COMMIT_WITHOUT_PR_NOT_CANDIDATE"
+      "NON_DEFAULT_BRANCH_ONLY_COMMIT_YIELDS_ZERO_DIRECT_COMMIT_CANDIDATES",
+      "DEFAULT_BRANCH_DIRECT_COMMIT_REQUIRES_SUCCESS_IMPORT_COMPLETED_LOOKUP_NO_MATCH_OBSERVED_AND_START_END_VERIFICATION"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_hold_status for non-default branch commit (left UNCONFIRMED; may be ignored silently instead of held)"
+      "Non-eligible source record status token if persisted (left UNCONFIRMED)"
     ],
     "truly_undecided_items": [
-      "Whether Snapshot Import excludes non-default branch orphan commits upstream or Event Builder ignores/records them."
+      "Physical collection stage placement (upstream Snapshot Import filtering vs downstream Event Builder skip), kept distinct from the confirmed semantic verdict of 0 candidates."
     ]
   }
 }

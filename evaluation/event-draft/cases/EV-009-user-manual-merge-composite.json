@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-009",
   "slug": "user-manual-merge-composite",
-  "title": "User manual merge within the same repository combines two PR Events into one USER_COMPOSITE",
+  "title": "User manual merge within same Workspace & repo creates one USER_COMPOSITE and marks members SUPERSEDED",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
-    "test_ids": ["T-001A-09"],
-    "scenario_tags": ["user_manual_merge", "user_composite", "same_repository_only", "distinguish_manual_vs_auto", "curation_command"]
+    "draft_requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
+    "draft_test_ids": ["T-001A-09"],
+    "official_requirement_refs": ["FR-007"],
+    "official_test_refs": ["EVENT-11"],
+    "scenario_tags": ["user_manual_merge", "user_composite", "same_repository_only", "members_superseded", "curation_command"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_009",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T11:10:00Z"
       }
     ],
@@ -79,6 +82,7 @@
         "committed_at": "2026-10-25T09:15:00Z",
         "branch_name": "feat/sku-dep-model",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_901",
@@ -93,6 +97,7 @@
         "committed_at": "2026-10-25T13:20:00Z",
         "branch_name": "feat/sku-dep-api",
         "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_902",
@@ -113,17 +118,20 @@
         "event_id": "ev_init_009_1",
         "workspace_id": "ws_syn_009",
         "repo_id": "repo_syn_009",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_901",
         "source_commit_ids": ["cmt_syn_901a"],
         "context_ticket_ids": ["tkt_syn_901"],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
@@ -132,17 +140,20 @@
         "event_id": "ev_init_009_2",
         "workspace_id": "ws_syn_009",
         "repo_id": "repo_syn_009",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_902",
         "source_commit_ids": ["cmt_syn_902a"],
         "context_ticket_ids": ["tkt_syn_901"],
         "member_event_ids": [],
-        "dependent_claim_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
         "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
@@ -158,6 +169,7 @@
       "workspace_id": "ws_syn_009",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
+      "idempotency_key": "idem_syn_009_merge_1",
       "target_event_ids": ["ev_init_009_1", "ev_init_009_2"],
       "target_versions": {
         "ev_init_009_1": 1,
@@ -176,10 +188,9 @@
         "event_id": "ev_exp_009_composite",
         "workspace_id": "ws_syn_009",
         "repo_id": "repo_syn_009",
-        "logical_kind": "user_composite_event",
-        "spec_event_type": "USER_COMPOSITE",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "USER_COMPOSITE",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": "cmd_syn_009_merge",
@@ -189,19 +200,20 @@
         "member_event_ids": ["ev_init_009_1", "ev_init_009_2"],
         "parent_event_id": null,
         "membership_role": "user_composite_root",
+        "composite_membership_status": "ACTIVE",
+        "member_snapshots_preserved": true,
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Ship end-to-end SKU deprecation model and API filter",
-        "unconfirmed_fields": ["spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_009_1",
         "workspace_id": "ws_syn_009",
         "repo_id": "repo_syn_009",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_009_merge",
@@ -214,16 +226,15 @@
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Add SKU deprecation field to catalog model",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       },
       {
         "event_id": "ev_init_009_2",
         "workspace_id": "ws_syn_009",
         "repo_id": "repo_syn_009",
-        "logical_kind": "merged_pr_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "PR",
+        "lifecycle_status": "SUPERSEDED",
+        "is_active_top_level": false,
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": "cmd_syn_009_merge",
@@ -236,10 +247,11 @@
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Expose SKU deprecation filter on catalog endpoint",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [
       {
         "command_id": "cmd_syn_009_merge",
@@ -251,10 +263,11 @@
         "unconfirmed_fields": ["spec_command_name"]
       }
     ],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "SKU deprecation",
+        "workspace_id": "ws_syn_009",
         "expected_event_ids": ["ev_exp_009_composite"],
         "expected_result_count": 1
       }
@@ -263,37 +276,31 @@
       "total_countable_events": 1,
       "total_user_composite_events": 1,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[*].spec_lifecycle_status",
+        "field_path": "user_commands[0].spec_command_name",
         "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Fill exact manual-merge command name and exact lifecycle status name for subsumed member Events from Notion Event Contract."
-      },
-      {
-        "field_path": "user_commands[0].target_event_ids",
-        "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether same-repository manual merge allows combining a merged PR Event with a default-branch NO_MATCH_OBSERVED direct-commit Event."
+        "question": "Same-repo USER_COMPOSITE merge, SUPERSEDED member history, immutable snapshots, per-member version checks, and PR+DIRECT_COMMIT eligibility are confirmed; only exact wire command route/name remains UNCONFIRMED."
       }
     ]
   },
   "rationale": {
-    "summary": "Unlike EV-006 where shared Issue/ticket links never auto-merge PRs, here the user explicitly merges two Events within the SAME repository (repo_syn_009). This emits one USER_COMPOSITE counted as a single unit while subsuming both members.",
+    "summary": "User explicitly merges two eligible PR Events in the same Workspace and repository after verifying each member's Event version. This creates one active top-level USER_COMPOSITE with immutable member snapshots preserved and transitions both constituent members to SUPERSEDED history (not active/top-level). Eligible anchors include PR, PR_SEGMENT, and DIRECT_COMMIT (including mixed PR + DIRECT_COMMIT), and existing member Fact/Claim records are NOT auto-inherited by the Composite.",
     "confirmed_spec_rules": [
-      "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY",
+      "USER_MANUAL_MERGE_SAME_WORKSPACE_AND_REPOSITORY_ONLY",
+      "ELIGIBLE_MERGE_ANCHORS_PR_PR_SEGMENT_DIRECT_COMMIT_INCLUDING_MIXED_PR_AND_DIRECT_COMMIT",
+      "MERGE_CHECKS_EACH_MEMBER_EVENT_VERSION_AND_PRESERVES_IMMUTABLE_SNAPSHOT",
+      "SUBSUMED_MEMBERS_TRANSITION_TO_SUPERSEDED_HISTORY",
       "USER_MANUAL_MERGE_AGGREGATED_AS_SINGLE_USER_COMPOSITE",
-      "USER_COMPOSITE_CREATED_ONLY_BY_USER_MANUAL_MERGE"
+      "MEMBER_FACT_AND_CLAIM_NOT_AUTO_INHERITED_BY_COMPOSITE"
     ],
     "unconfirmed_spec_tokens": [
-      "spec_command_name for manual merge (left UNCONFIRMED)",
-      "spec_lifecycle_status for active USER_COMPOSITE and subsumed members (left UNCONFIRMED)"
+      "spec_command_name for manual merge (left UNCONFIRMED)"
     ],
-    "truly_undecided_items": [
-      "Whether same-repo manual merge can combine a merged PR Event with a default-branch NO_MATCH_OBSERVED direct-commit Event."
-    ]
+    "truly_undecided_items": []
   }
 }

@@ -8,8 +8,10 @@
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-POST-01"],
-    "test_ids": ["T-001A-NEG-06"],
+    "draft_requirement_ids": ["REQ-EV-POST-01"],
+    "draft_test_ids": ["T-001A-NEG-06"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": [],
     "scenario_tags": ["negative_variant", "b_003", "governance_violation"]
   },
   "synthetic_sources": {
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_neg6",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:00:00Z"
       }
     ],
@@ -52,14 +55,15 @@
     "physical_table": "event_members_tbl",
     "events": [],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 0,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": []

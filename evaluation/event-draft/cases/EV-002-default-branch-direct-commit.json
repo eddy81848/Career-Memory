@@ -2,15 +2,17 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-002",
   "slug": "default-branch-direct-commit",
-  "title": "Direct commit on default branch is a candidate only when PR association lookup completed normally with NO_MATCH_OBSERVED",
+  "title": "Default-branch direct commit with completed NO_MATCH_OBSERVED lookup emits one DIRECT_COMMIT CANDIDATE per commit",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
   "review_status": "REVIEW_REQUIRED",
   "coverage": {
-    "requirement_ids": ["REQ-EV-COMMIT-01"],
-    "test_ids": ["T-001A-02"],
-    "scenario_tags": ["direct_commit", "default_branch", "no_match_observed", "mvp_core"]
+    "draft_requirement_ids": ["REQ-EV-COMMIT-01"],
+    "draft_test_ids": ["T-001A-02"],
+    "official_requirement_refs": ["FR-006"],
+    "official_test_refs": ["EVENT-10"],
+    "scenario_tags": ["direct_commit", "anchor_mode_direct_commit", "default_branch", "no_match_observed", "mvp_core"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -36,6 +38,7 @@
         "repo_id": "repo_syn_002",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
+        "promotes_events": true,
         "completed_at": "2026-11-01T10:10:00Z"
       }
     ],
@@ -50,6 +53,7 @@
         "committed_at": "2026-10-21T03:45:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
         "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
@@ -69,10 +73,9 @@
         "event_id": "ev_exp_002_1",
         "workspace_id": "ws_syn_002",
         "repo_id": "repo_syn_002",
-        "logical_kind": "direct_commit_event",
-        "spec_event_type": "UNCONFIRMED",
-        "logical_state": "active",
-        "spec_lifecycle_status": "UNCONFIRMED",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -85,15 +88,17 @@
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Hotfix: raise circuit breaker timeout from 2s to 5s on edge router",
-        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
+        "unconfirmed_fields": []
       }
     ],
     "held_items": [],
+    "unpersisted_external_observations": [],
     "command_results": [],
-    "claim_side_effects": [],
+    "downstream_side_effects": [],
     "search_checks": [
       {
         "query": "circuit breaker timeout",
+        "workspace_id": "ws_syn_002",
         "expected_event_ids": ["ev_exp_002_1"],
         "expected_result_count": 1
       }
@@ -102,36 +107,20 @@
       "total_countable_events": 1,
       "total_user_composite_events": 0,
       "total_held_items": 0,
-      "total_excluded_events": 0
+      "total_rejected_events": 0
     },
     "post_mvp_transition_note": null,
-    "review_required_items": [
-      {
-        "field_path": "expected_proposal.events[0].spec_event_type",
-        "category": "UNCONFIRMED_SPEC_TOKEN",
-        "status": "REVIEW_REQUIRED",
-        "question": "Fill exact official Event type & active lifecycle status names for default-branch direct-commit Events from Notion Event Contract."
-      },
-      {
-        "field_path": "expected_proposal.events",
-        "category": "TRULY_UNDECIDED_BEHAVIOR",
-        "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether consecutive default-branch NO_MATCH_OBSERVED commits remain strictly 1-per-commit in MVP or follow any grouping rule."
-      }
-    ]
+    "review_required_items": []
   },
   "rationale": {
-    "summary": "A commit on the repository default branch qualifies as a direct-commit Event candidate only because PR association lookup completed normally (COMPLETED) and observed NO_MATCH_OBSERVED.",
+    "summary": "In a successful INITIAL_BACKFILL, a commit verified on the default branch at start and end with completed PR association lookup observing NO_MATCH_OBSERVED produces exactly one DIRECT_COMMIT CANDIDATE Event per commit. Automatic multi-commit clustering is confirmed out of MVP scope.",
     "confirmed_spec_rules": [
-      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
-      "UNKNOWN_MUST_NOT_BE_TREATED_AS_NO_MATCH_OBSERVED"
+      "ANCHOR_MODE_DIRECT_COMMIT_ONE_CANDIDATE_PER_ELIGIBLE_COMMIT",
+      "DEFAULT_BRANCH_DIRECT_COMMIT_REQUIRES_SUCCESS_IMPORT_COMPLETED_LOOKUP_NO_MATCH_OBSERVED_AND_START_END_VERIFICATION",
+      "MULTI_DIRECT_COMMIT_AUTO_CLUSTERING_OUT_OF_MVP",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE"
     ],
-    "unconfirmed_spec_tokens": [
-      "spec_event_type for default-branch direct commit Event (left UNCONFIRMED)",
-      "spec_lifecycle_status for active Event (left UNCONFIRMED)"
-    ],
-    "truly_undecided_items": [
-      "Whether multiple consecutive default-branch NO_MATCH_OBSERVED commits remain strictly 1:1 with Events in MVP or have any grouping rule."
-    ]
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": []
   }
 }

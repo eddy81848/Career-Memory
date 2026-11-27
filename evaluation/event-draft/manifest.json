@@ -6,17 +6,17 @@
   "base_commit_sha": "efe251071fbee1be9a2ffee680a73f3ca3cd8084",
   "scope_boundary": {
     "includes": [
-      "Synthetic Event source fixtures (workspaces, repositories, sync runs, PRs, commits with PR-association lookup status, context-only tickets, initial events with repo_id & dependent_claim_ids, post-sync observations)",
-      "Synthetic user curation commands (split, manual_merge, exclude, dissolve with unconfirmed wire names left UNCONFIRMED)",
-      "DRAFT expected proposals separated from inputs and rationale (confirmed rules, unconfirmed tokens, and truly undecided items separated)",
+      "Synthetic Event source fixtures (workspaces, repositories, sync runs with official SUCCESS/PARTIAL/PENDING statuses, PRs, commits with start/end default-branch verification & PR-association lookup status, CONTEXT_ONLY tickets, initial events with official anchor_mode/lifecycle_status/dependent_artifacts, post-sync observations)",
+      "Synthetic user curation commands (split with disjoint evidence scopes, manual_merge with per-Event version checks, exclude, dissolve with expected_version/reason/idempotency_key)",
+      "DRAFT expected proposals separated from inputs and rationale (official tokens applied; genuinely unconfirmed wire details left UNCONFIRMED)",
       "Isolated intentionally broken negative fixtures (NEG-001..NEG-006)",
-      "Automated format, referential, scope, unconfirmed-token, and Event-invariant fixture linter",
-      "Coverage matrix and T-001B human review queue"
+      "Automated format, referential, scope, official-token, and Event-invariant fixture linter",
+      "Coverage matrix separating draft local IDs from official FR-006/FR-007/EVENT-10/EVENT-11/EVENT-12 refs, plus T-001B human review queue"
     ],
     "excludes": [
       "Event Builder runtime implementation",
       "Human ground-truth approval and golden dataset freeze (T-001B)",
-      "Actual Event Builder quality evaluation (M3/T-306A)",
+      "Actual Event Builder quality evaluation (M3 / T-306A / EVAL-EVENT — NOT passed by fixture lint)",
       "CLAIM-QA fixtures, shared schemas, CI workflows, and main branch merge/push",
       "OD-007 physical database table or SQL schema assumptions"
     ],
@@ -24,11 +24,11 @@
     "synthetic_only": true
   },
   "generation_provenance": {
-    "generation_method": "AI-assisted structured authoring & official-spec alignment pass by EVENT-QA agent without external API calls (continued from commit 8af2199 without adding new cases)",
+    "generation_method": "AI-assisted structured authoring & official-spec correction pass by EVENT-QA agent without external API calls (applied CHANGES REQUESTED correction table from commit 817eb23 without creating new cases or freezing golden)",
     "agent_role": "EVENT-QA (T-001A)",
     "model_identifier": "UNEXPOSED_IN_RUNTIME_METADATA (Antigravity interactive session; exact model build/checkpoint ID not readable from local environment)",
-    "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 + follow-up official spec alignment briefing on qa/event-fixtures (base main SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084, prior draft 8af2199)",
-    "generated_at_utc": "2026-11-27T02:55:00Z",
+    "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 + EVENT-QA 공식 명세 대조 및 수정표 (CHANGES REQUESTED) on qa/event-fixtures (base main SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084, prior draft 817eb23)",
+    "generated_at_utc": "2026-11-27T03:20:00Z",
     "external_api_calls": {
       "github_api": 0,
       "llm_api_from_script": 0,
@@ -41,28 +41,40 @@
   },
   "reference_docs": [
     {
-      "name": "T-001A",
-      "url": "https://app.notion.com/p/3f1f86591b5f8101b185fe047eee825a",
-      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page requires authentication (only generic marketing shell returned via HTTP). Confirmed behavioral rules from the user spec briefing are applied across all 18 cases; exact wire status names, error codes, and official Requirement/Test IDs are left UNCONFIRMED / REVIEW_REQUIRED rather than guessed."
+      "name": "Work Event Domain & Annotation Guide",
+      "url": "https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f",
+      "access_status": "REVIEW_SPEC_BRIEF",
+      "note": "Direct Notion HTTP fetch requires auth; official anchor modes (PR, PR_SEGMENT, DIRECT_COMMIT, USER_COMPOSITE), lifecycle statuses (CANDIDATE, CONFIRMED, REJECTED, SUPERSEDED, STALE), split/merge/dissolve rules supplied via reviewer spec correction brief."
     },
     {
-      "name": "AI 합성 Dataset 가이드",
-      "url": "https://app.notion.com/p/3f1f86591b5f81649267ee498a576d5c",
-      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Applied synthetic-only, separation-of-concerns, provenance recording, and DRAFT-only (non-golden) rules from prompt."
+      "name": "Direct Commit Fallback & USER_COMPOSITE Event Contract",
+      "url": "https://app.notion.com/p/3f0f86591b5f81a3ab49dc7aef5bc028",
+      "access_status": "REVIEW_SPEC_BRIEF",
+      "note": "Direct Notion HTTP fetch requires auth; official direct-commit 1-per-commit fallback, USER_COMPOSITE snapshot/SUPERSEDED member history, member search roll-up, dissolve idempotency_key & Fact/Claim/Export STALE rules supplied via reviewer spec correction brief."
     },
     {
       "name": "Snapshot Import",
       "url": "https://app.notion.com/p/3f0f86591b5f8170940fe98da87609aa",
-      "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Cross-referenced read-only local branch contract/t-106-import-v1 README for INITIAL_BACKFILL/SUCCESS/OD-010 terminology and applied confirmed NO_MATCH_OBSERVED / UNKNOWN lookup rules."
+      "access_status": "REVIEW_SPEC_BRIEF",
+      "note": "Direct Notion HTTP fetch requires auth; official PARTIAL run (0 Events promoted, PARTIAL_SUCCESS invalid), UNKNOWN != no PR, and post-SUCCESS B-003 separation supplied via reviewer spec correction brief."
     },
     {
-      "name": "ADR-018",
-      "url": "https://app.notion.com/p/3f1f86591b5f81618267f1e7034902d9",
+      "name": "MVP API 명세",
+      "url": "https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa",
+      "access_status": "REVIEW_SPEC_BRIEF",
+      "note": "Direct Notion HTTP fetch requires auth; official Event API error codes (EVENT_VERSION_CONFLICT, CROSS_WORKSPACE_MEMBER, CROSS_REPOSITORY_MEMBER, DUPLICATE_COMPOSITE_MEMBER, NESTED_COMPOSITE_NOT_ALLOWED, CANNOT_LINK_CONFLICT, MEMBER_NOT_ACTIVE, MEMBER_ALREADY_COMPOSED, PR_ASSOCIATION_INCOMPLETE) supplied via reviewer spec correction brief; multi-violation precedence, unauthorized HTTP status, and detail GET shape remain unconfirmed."
+    },
+    {
+      "name": "T-001B / EVENT-10 / EVENT-11 / EVENT-12 / EVAL-EVENT",
+      "url": "https://app.notion.com/p/3f1f86591b5f813a91cbde08a573a246",
+      "access_status": "REVIEW_SPEC_BRIEF",
+      "note": "Official traceability refs: FR-006 (Source-based candidates), FR-007 (Event review/curation), EVENT-10 (EV-001..004), EVENT-11 (EV-009..010), EVENT-12 (EV-012..016). EVAL-EVENT is M3 downstream evaluation and is NOT passed by fixture lint. T-001B human review and golden freeze remain pending."
+    },
+    {
+      "name": "T-001A / AI 합성 Dataset 가이드 / ADR-018",
+      "url": "https://app.notion.com/p/3f1f86591b5f8101b185fe047eee825a",
       "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Enforced confirmed behavioral rules (Merged PR default candidate, default-branch direct commit only on completed lookup with NO_MATCH_OBSERVED, UNKNOWN != NO_MATCH_OBSERVED, no Issue/ticket auto-merge, same-repository-only USER_COMPOSITE counted once, no nesting, dissolve marks dependent Claims stale, OD-007 neutrality); unverified wire enums/error codes left UNCONFIRMED."
+      "note": "Original Notion pages require authentication; synthetic-only, DRAFT-only, provenance, and OD-007 neutrality constraints applied from prompt and reviewer brief."
     },
     {
       "name": "Base commit AGENTS.md check",
@@ -78,8 +90,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-PR-01"],
-      "test_ids": ["T-001A-01"]
+      "draft_requirement_ids": ["REQ-EV-PR-01"],
+      "draft_test_ids": ["T-001A-01"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": ["EVENT-10"]
     },
     {
       "case_id": "EV-002",
@@ -87,8 +101,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-COMMIT-01"],
-      "test_ids": ["T-001A-02"]
+      "draft_requirement_ids": ["REQ-EV-COMMIT-01"],
+      "draft_test_ids": ["T-001A-02"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": ["EVENT-10"]
     },
     {
       "case_id": "EV-003",
@@ -96,8 +112,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ASSOC-01"],
-      "test_ids": ["T-001A-03"]
+      "draft_requirement_ids": ["REQ-EV-ASSOC-01"],
+      "draft_test_ids": ["T-001A-03"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": ["EVENT-10"]
     },
     {
       "case_id": "EV-004",
@@ -105,8 +123,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-BRANCH-01"],
-      "test_ids": ["T-001A-04"]
+      "draft_requirement_ids": ["REQ-EV-BRANCH-01"],
+      "draft_test_ids": ["T-001A-04"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": ["EVENT-10"]
     },
     {
       "case_id": "EV-005",
@@ -114,8 +134,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CONTEXT-01"],
-      "test_ids": ["T-001A-05"]
+      "draft_requirement_ids": ["REQ-EV-CONTEXT-01"],
+      "draft_test_ids": ["T-001A-05"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-006",
@@ -123,8 +145,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
-      "test_ids": ["T-001A-06"]
+      "draft_requirement_ids": ["REQ-EV-CONTEXT-02", "REQ-EV-MERGE-01"],
+      "draft_test_ids": ["T-001A-06"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-007",
@@ -132,8 +156,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-MIXED-01"],
-      "test_ids": ["T-001A-07"]
+      "draft_requirement_ids": ["REQ-EV-MIXED-01"],
+      "draft_test_ids": ["T-001A-07"],
+      "official_requirement_refs": ["FR-006", "FR-007"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-008",
@@ -141,8 +167,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CMD-SPLIT-01", "REQ-EV-MIXED-01"],
-      "test_ids": ["T-001A-08"]
+      "draft_requirement_ids": ["REQ-EV-CMD-SPLIT-01", "REQ-EV-MIXED-01"],
+      "draft_test_ids": ["T-001A-08"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-009",
@@ -150,8 +178,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
-      "test_ids": ["T-001A-09"]
+      "draft_requirement_ids": ["REQ-EV-CMD-MERGE-01", "REQ-EV-MERGE-01"],
+      "draft_test_ids": ["T-001A-09"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-11"]
     },
     {
       "case_id": "EV-010",
@@ -159,8 +189,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-COMP-01"],
-      "test_ids": ["T-001A-10"]
+      "draft_requirement_ids": ["REQ-EV-COMP-01"],
+      "draft_test_ids": ["T-001A-10"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-11"]
     },
     {
       "case_id": "EV-011",
@@ -168,8 +200,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
-      "test_ids": ["T-001A-11"]
+      "draft_requirement_ids": ["REQ-EV-CMD-EXCLUDE-01"],
+      "draft_test_ids": ["T-001A-11"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-012",
@@ -177,8 +211,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-CMD-DISSOLVE-01", "REQ-EV-COMP-01"],
-      "test_ids": ["T-001A-12"]
+      "draft_requirement_ids": ["REQ-EV-CMD-DISSOLVE-01", "REQ-EV-COMP-01"],
+      "draft_test_ids": ["T-001A-12"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-12"]
     },
     {
       "case_id": "EV-013",
@@ -186,8 +222,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
-      "test_ids": ["T-001A-13"]
+      "draft_requirement_ids": ["REQ-EV-ERR-LINK-01", "REQ-EV-CONTEXT-01", "REQ-EV-ASSOC-01"],
+      "draft_test_ids": ["T-001A-13"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-12"]
     },
     {
       "case_id": "EV-014",
@@ -195,8 +233,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
-      "test_ids": ["T-001A-14"]
+      "draft_requirement_ids": ["REQ-EV-ERR-LINK-02", "REQ-EV-COMP-01"],
+      "draft_test_ids": ["T-001A-14"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-12"]
     },
     {
       "case_id": "EV-015",
@@ -204,8 +244,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ERR-VER-01"],
-      "test_ids": ["T-001A-15"]
+      "draft_requirement_ids": ["REQ-EV-ERR-VER-01"],
+      "draft_test_ids": ["T-001A-15"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-12"]
     },
     {
       "case_id": "EV-016",
@@ -213,8 +255,10 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ERR-WS-01", "REQ-EV-CMD-MERGE-01"],
-      "test_ids": ["T-001A-16"]
+      "draft_requirement_ids": ["REQ-EV-ERR-WS-01", "REQ-EV-CMD-MERGE-01"],
+      "draft_test_ids": ["T-001A-16"],
+      "official_requirement_refs": ["FR-007"],
+      "official_test_refs": ["EVENT-12"]
     },
     {
       "case_id": "EV-017",
@@ -222,8 +266,10 @@
       "scope": "POST_MVP",
       "backlog_ref": "B-003",
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-POST-01"],
-      "test_ids": ["T-001A-17"]
+      "draft_requirement_ids": ["REQ-EV-POST-01"],
+      "draft_test_ids": ["T-001A-17"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": []
     },
     {
       "case_id": "EV-018",
@@ -231,8 +277,10 @@
       "scope": "POST_MVP",
       "backlog_ref": "B-003",
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
-      "test_ids": ["T-001A-18"]
+      "draft_requirement_ids": ["REQ-EV-POST-02", "REQ-EV-ASSOC-01"],
+      "draft_test_ids": ["T-001A-18"],
+      "official_requirement_refs": ["FR-006"],
+      "official_test_refs": []
     }
   ],
   "negative_variants": [
@@ -251,14 +299,14 @@
     {
       "variant_id": "NEG-003",
       "path": "negative-fixtures/NEG-003-unknown-as-no-pr.json",
-      "expected_rule_codes": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
-      "purpose": "Verifies linter rejects interpreting a commit with pr_association_status='UNKNOWN' as NO_MATCH_OBSERVED / direct-commit candidate."
+      "expected_rule_codes": ["INVARIANT_UNKNOWN_NOT_NO_PR", "INVARIANT_PARTIAL_RUN_NO_PROMOTION"],
+      "purpose": "Verifies linter rejects classifying an UNKNOWN commit from a PARTIAL run as a DIRECT_COMMIT candidate."
     },
     {
       "variant_id": "NEG-004",
       "path": "negative-fixtures/NEG-004-composite-double-count.json",
       "expected_rule_codes": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
-      "purpose": "Verifies linter rejects double-counting USER_COMPOSITE members in search results and metrics."
+      "purpose": "Verifies linter rejects double-counting SUPERSEDED USER_COMPOSITE members in search results and metrics."
     },
     {
       "variant_id": "NEG-005",

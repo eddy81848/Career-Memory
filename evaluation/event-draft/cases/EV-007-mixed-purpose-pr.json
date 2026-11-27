@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-007",
   "slug": "mixed-purpose-pr",
-  "title": "Single PR mixing two unrelated purposes stays one PR-centered Event until explicit user split",
+  "title": "Single merged PR mixing two unrelated purposes stays one merged-PR Event until explicit user split",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -10,7 +10,7 @@
   "coverage": {
     "requirement_ids": ["REQ-EV-MIXED-01"],
     "test_ids": ["T-001A-07"],
-    "scenario_tags": ["mixed_purpose_pr", "pr_centered", "no_unsolicited_auto_split"]
+    "scenario_tags": ["mixed_purpose_pr", "merged_pr_candidate", "no_unsolicited_auto_split"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -65,6 +65,7 @@
         "committed_at": "2026-10-26T14:00:00Z",
         "branch_name": "feat/auth-and-csv-export",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
         "changed_paths": ["src/middleware/auth_header.py"]
@@ -78,6 +79,7 @@
         "committed_at": "2026-10-26T16:30:00Z",
         "branch_name": "feat/auth-and-csv-export",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_701",
         "changed_paths": ["src/export/csv_stream.py"]
@@ -95,8 +97,11 @@
       {
         "event_id": "ev_exp_007_1",
         "workspace_id": "ws_syn_007",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_007",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -105,15 +110,16 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Refactor auth header parser and add monthly CSV export",
-        "review_required_tokens": ["mixed_purpose_flag:REVIEW_REQUIRED"]
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "CSV export",
@@ -123,31 +129,37 @@
     ],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0]",
-        "proposed_value": "Single PR_CENTERED Event without auto-split",
+        "field_path": "expected_proposal.events[0].spec_event_type",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Should a mixed-purpose PR in MVP stay as 1 PR_CENTERED Event (with or without a split-candidate advisory flag), or is automated sub-PR splitting allowed in the Notion Event Contract?"
+        "question": "Fill exact Event type & lifecycle status names from Notion Event Contract."
+      },
+      {
+        "field_path": "expected_proposal.events[0]",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether MVP emits a non-destructive mixed-purpose hint flag on EV-007 or strictly 1 unflagged Event until explicit user split."
       }
     ]
   },
   "rationale": {
-    "summary": "A PR bundling two distinct purposes (auth middleware refactor + CSV export) starts as one PR-centered Event so Event Builder remains grounded in PR boundaries. Splitting into separate work units is an explicit user curation action (see EV-008).",
-    "invariants_exercised": [
-      "PR_BOUNDARY_PRESERVED_BEFORE_USER_SPLIT",
-      "NO_UNGROUNDED_AUTO_SPLIT"
+    "summary": "A merged PR bundling two distinct purposes (auth middleware refactor + CSV export) starts as one merged-PR Event candidate. Splitting into separate work units requires an explicit user split command (see EV-008).",
+    "confirmed_spec_rules": [
+      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE",
+      "PR_BOUNDARY_PRESERVED_BEFORE_USER_SPLIT"
     ],
-    "assumptions_without_notion": [
-      "Assumes MVP Event Builder does not auto-split a single PR without user SPLIT command; whether a 'mixed_purpose_hint' metadata flag should be emitted is open for T-001B review."
+    "unconfirmed_spec_tokens": [
+      "spec_event_type and spec_lifecycle_status (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Does T-001A expect a non-destructive 'mixed_purpose_detected' annotation on EV-007, or purely 1 PR-centered Event?"
+    "truly_undecided_items": [
+      "Whether MVP Event Builder annotates mixed-purpose PRs with a non-destructive split hint or emits no hint."
     ]
   }
 }

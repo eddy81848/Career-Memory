@@ -6,16 +6,16 @@
   "base_commit_sha": "efe251071fbee1be9a2ffee680a73f3ca3cd8084",
   "scope_boundary": {
     "includes": [
-      "Synthetic Event source fixtures (workspaces, repositories, sync runs, PRs, commits, context-only tickets, initial events, post-sync observations)",
-      "Synthetic user curation commands (SPLIT, MANUAL_MERGE, EXCLUDE, DISSOLVE)",
-      "DRAFT expected proposals separated from inputs and rationale",
+      "Synthetic Event source fixtures (workspaces, repositories, sync runs, PRs, commits with PR-association lookup status, context-only tickets, initial events with repo_id & dependent_claim_ids, post-sync observations)",
+      "Synthetic user curation commands (split, manual_merge, exclude, dissolve with unconfirmed wire names left UNCONFIRMED)",
+      "DRAFT expected proposals separated from inputs and rationale (confirmed rules, unconfirmed tokens, and truly undecided items separated)",
       "Isolated intentionally broken negative fixtures (NEG-001..NEG-006)",
-      "Automated format, referential, scope, and Event-invariant fixture linter",
+      "Automated format, referential, scope, unconfirmed-token, and Event-invariant fixture linter",
       "Coverage matrix and T-001B human review queue"
     ],
     "excludes": [
       "Event Builder runtime implementation",
-      "Human ground-truth approval and dataset freeze (T-001B)",
+      "Human ground-truth approval and golden dataset freeze (T-001B)",
       "Actual Event Builder quality evaluation (M3/T-306A)",
       "CLAIM-QA fixtures, shared schemas, CI workflows, and main branch merge/push",
       "OD-007 physical database table or SQL schema assumptions"
@@ -24,11 +24,11 @@
     "synthetic_only": true
   },
   "generation_provenance": {
-    "generation_method": "AI-assisted structured authoring by EVENT-QA agent without external API calls",
+    "generation_method": "AI-assisted structured authoring & official-spec alignment pass by EVENT-QA agent without external API calls (continued from commit 8af2199 without adding new cases)",
     "agent_role": "EVENT-QA (T-001A)",
     "model_identifier": "UNEXPOSED_IN_RUNTIME_METADATA (Antigravity interactive session; exact model build/checkpoint ID not readable from local environment)",
-    "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 (user prompt with base SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084)",
-    "generated_at_utc": "2026-11-26T17:45:00Z",
+    "prompt_source": "05 EVENT-QA — T-001A Event 합성 데이터셋 초안 + follow-up official spec alignment briefing on qa/event-fixtures (base main SHA efe251071fbee1be9a2ffee680a73f3ca3cd8084, prior draft 8af2199)",
+    "generated_at_utc": "2026-11-27T02:55:00Z",
     "external_api_calls": {
       "github_api": 0,
       "llm_api_from_script": 0,
@@ -44,25 +44,25 @@
       "name": "T-001A",
       "url": "https://app.notion.com/p/3f1f86591b5f8101b185fe047eee825a",
       "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page requires authentication (only generic marketing shell returned via HTTP). Requirements followed from task brief; unverified tokens flagged REVIEW_REQUIRED."
+      "note": "Notion page requires authentication (only generic marketing shell returned via HTTP). Confirmed behavioral rules from the user spec briefing are applied across all 18 cases; exact wire status names, error codes, and official Requirement/Test IDs are left UNCONFIRMED / REVIEW_REQUIRED rather than guessed."
     },
     {
       "name": "AI 합성 Dataset 가이드",
       "url": "https://app.notion.com/p/3f1f86591b5f81649267ee498a576d5c",
       "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Applied synthetic-only, separation-of-concerns, provenance recording, and DRAFT-only rules from prompt."
+      "note": "Notion page unreadable without authentication. Applied synthetic-only, separation-of-concerns, provenance recording, and DRAFT-only (non-golden) rules from prompt."
     },
     {
       "name": "Snapshot Import",
       "url": "https://app.notion.com/p/3f0f86591b5f8170940fe98da87609aa",
       "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Cross-referenced read-only local branch contract/t-106-import-v1 README for INITIAL_BACKFILL/SUCCESS/OD-010 terminology."
+      "note": "Notion page unreadable without authentication. Cross-referenced read-only local branch contract/t-106-import-v1 README for INITIAL_BACKFILL/SUCCESS/OD-010 terminology and applied confirmed NO_MATCH_OBSERVED / UNKNOWN lookup rules."
     },
     {
       "name": "ADR-018",
       "url": "https://app.notion.com/p/3f1f86591b5f81618267f1e7034902d9",
       "access_status": "UNAVAILABLE_AUTH_REQUIRED",
-      "note": "Notion page unreadable without authentication. Key invariants (UNKNOWN != NO_PR, context-only tickets, no auto multi-PR merge, no composite double counting, OD-007 neutrality) enforced from prompt; exact enum strings marked REVIEW_REQUIRED."
+      "note": "Notion page unreadable without authentication. Enforced confirmed behavioral rules (Merged PR default candidate, default-branch direct commit only on completed lookup with NO_MATCH_OBSERVED, UNKNOWN != NO_MATCH_OBSERVED, no Issue/ticket auto-merge, same-repository-only USER_COMPOSITE counted once, no nesting, dissolve marks dependent Claims stale, OD-007 neutrality); unverified wire enums/error codes left UNCONFIRMED."
     },
     {
       "name": "Base commit AGENTS.md check",
@@ -213,7 +213,7 @@
       "scope": "MVP",
       "backlog_ref": null,
       "review_status": "REVIEW_REQUIRED",
-      "requirement_ids": ["REQ-EV-ERR-WS-01"],
+      "requirement_ids": ["REQ-EV-ERR-WS-01", "REQ-EV-CMD-MERGE-01"],
       "test_ids": ["T-001A-16"]
     },
     {
@@ -252,19 +252,19 @@
       "variant_id": "NEG-003",
       "path": "negative-fixtures/NEG-003-unknown-as-no-pr.json",
       "expected_rule_codes": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
-      "purpose": "Verifies linter rejects classifying a commit with UNKNOWN association as DIRECT_COMMIT / NO_PR."
+      "purpose": "Verifies linter rejects interpreting a commit with pr_association_status='UNKNOWN' as NO_MATCH_OBSERVED / direct-commit candidate."
     },
     {
       "variant_id": "NEG-004",
       "path": "negative-fixtures/NEG-004-composite-double-count.json",
       "expected_rule_codes": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
-      "purpose": "Verifies linter rejects double-counting Composite members in search results and metrics."
+      "purpose": "Verifies linter rejects double-counting USER_COMPOSITE members in search results and metrics."
     },
     {
       "variant_id": "NEG-005",
       "path": "negative-fixtures/NEG-005-context-only-auto-merge.json",
       "expected_rule_codes": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
-      "purpose": "Verifies linter rejects automatic multi-PR merges triggered by CONTEXT_ONLY tickets."
+      "purpose": "Verifies linter rejects automatic multi-PR merges triggered by Issue/ticket CONTEXT_ONLY links."
     },
     {
       "variant_id": "NEG-006",
@@ -274,7 +274,7 @@
         "SCOPE_TAG_POLICY",
         "OD007_NO_PHYSICAL_TABLE"
       ],
-      "purpose": "Verifies linter blocks self-approval, mistagged B-003 MVP scope, and OD-007 physical table fields."
+      "purpose": "Verifies linter blocks self-approval/golden freeze, mistagged B-003 MVP scope, and OD-007 physical table fields."
     }
   ]
 }

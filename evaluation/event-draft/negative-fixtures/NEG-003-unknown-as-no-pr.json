@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "NEG-003",
   "slug": "unknown-as-no-pr",
-  "title": "[NEGATIVE VARIANT] Forbidden interpretation of UNKNOWN association as DIRECT_COMMIT / NO_PR",
+  "title": "[NEGATIVE VARIANT] Forbidden interpretation of UNKNOWN association as direct-commit candidate (NO_MATCH_OBSERVED)",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -50,6 +50,7 @@
         "committed_at": "2026-10-22T09:10:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
         "changed_paths": ["src/billing/rounding.py"]
@@ -67,8 +68,11 @@
       {
         "event_id": "ev_neg_003_bad_direct",
         "workspace_id": "ws_syn_neg3",
-        "event_kind": "DIRECT_COMMIT",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg3",
+        "logical_kind": "direct_commit_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -77,18 +81,19 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
@@ -96,9 +101,9 @@
     "review_required_items": []
   },
   "rationale": {
-    "summary": "Intentionally broken fixture classifying an UNKNOWN commit as DIRECT_COMMIT.",
-    "invariants_exercised": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
-    "assumptions_without_notion": [],
-    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+    "summary": "Intentionally broken fixture classifying an UNKNOWN commit as a direct_commit_event.",
+    "confirmed_spec_rules": ["INVARIANT_UNKNOWN_NOT_NO_PR"],
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": []
   }
 }

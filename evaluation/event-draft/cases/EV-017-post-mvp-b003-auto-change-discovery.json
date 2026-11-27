@@ -65,6 +65,7 @@
         "committed_at": "2026-10-30T09:00:00Z",
         "branch_name": "feat/initial-snapshot",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1701",
         "changed_paths": ["src/ledger/snapshot.py"]
@@ -94,8 +95,11 @@
       {
         "event_id": "ev_exp_017_1",
         "workspace_id": "ws_syn_017",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_017",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -104,11 +108,11 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Initial snapshot PR before backfill completion",
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [
@@ -116,13 +120,15 @@
         "held_id": "hold_exp_017_post_mvp",
         "source_type": "OBSERVATION",
         "source_id": "obs_syn_1701",
-        "hold_status": "DEFERRED_POST_MVP",
+        "logical_disposition": "deferred_post_mvp",
+        "spec_hold_status": "UNCONFIRMED",
         "hold_reason": "B-003 automatic change discovery after INITIAL_BACKFILL SUCCESS is POST_MVP; MVP snapshot does not auto-discover or auto-ingest post-success PR #1702.",
         "interpreted_as_no_pr": false,
-        "review_required_tokens": ["hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"]
+        "unconfirmed_fields": ["spec_hold_status"]
       }
     ],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "initial snapshot",
@@ -132,31 +138,37 @@
     ],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 1,
       "total_excluded_events": 0
     },
-    "post_mvp_transition_note": "Under B-003 (POST_MVP), incremental sync or webhook delivery will discover PR #1702 and emit a second PR_CENTERED Event without re-running INITIAL_BACKFILL.",
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), incremental sync or webhook delivery will discover PR #1702 and emit a second merged-PR Event without re-running INITIAL_BACKFILL.",
     "review_required_items": [
       {
-        "field_path": "expected_proposal.held_items[0]",
-        "proposed_value": "DEFERRED_POST_MVP (B-003)",
+        "field_path": "expected_proposal.held_items[0].spec_hold_status",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether POST_MVP cases in T-001A should assert MVP non-ingestion behavior (as drafted here) or assert the future B-003 post-sync Event state behind a POST_MVP harness flag."
+        "question": "Fill exact Event type/status tokens from Notion Event Contract."
+      },
+      {
+        "field_path": "expected_proposal.held_items[0]",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether POST_MVP fixtures in T-001A should assert MVP non-ingestion (current draft) or target B-003 post-sync Event state behind a POST_MVP harness flag."
       }
     ]
   },
   "rationale": {
-    "summary": "Explicitly marks B-003 post-success automatic change discovery as POST_MVP so MVP evaluators do not conflate Snapshot Import one-shot backfill with ongoing incremental synchronization.",
-    "invariants_exercised": [
+    "summary": "Explicitly marks B-003 post-success automatic change discovery as POST_MVP so MVP evaluation keeps Snapshot Import one-shot backfill separate from incremental synchronization.",
+    "confirmed_spec_rules": [
       "POST_MVP_B003_EXPLICITLY_TAGGED",
-      "MVP_SNAPSHOT_DOES_NOT_AUTO_POLL_POST_SUCCESS"
+      "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE"
     ],
-    "assumptions_without_notion": [
-      "Follows prompt instruction to tag B-003 post-success change discovery as POST_MVP."
+    "unconfirmed_spec_tokens": [
+      "spec_event_type, spec_lifecycle_status, and spec_hold_status (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Confirm how M3/T-306A test runner will filter scope='POST_MVP' cases (skip in MVP gate vs run in B-003 suite)."
+    "truly_undecided_items": [
+      "Whether M3/T-306A runner expects POST_MVP fixtures to assert MVP non-ingestion or B-003 post-sync output."
     ]
   }
 }

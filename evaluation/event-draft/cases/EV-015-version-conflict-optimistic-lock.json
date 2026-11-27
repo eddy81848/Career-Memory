@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-015",
   "slug": "version-conflict-optimistic-lock",
-  "title": "Stale expected_version on curation command is rejected with VERSION_CONFLICT and zero mutation",
+  "title": "Stale expected_version on curation command is rejected with zero mutation (exact error code UNCONFIRMED)",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -65,6 +65,7 @@
         "committed_at": "2026-10-28T09:00:00Z",
         "branch_name": "feat/reconcile-drift",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1501",
         "changed_paths": ["src/ledger/reconcile.py"]
@@ -75,15 +76,19 @@
       {
         "event_id": "ev_init_015_1",
         "workspace_id": "ws_syn_015",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_015",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1501",
         "source_commit_ids": ["cmt_syn_1501a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "STANDALONE",
+        "dependent_claim_ids": [],
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       }
@@ -93,7 +98,8 @@
   "user_commands": [
     {
       "command_id": "cmd_syn_015_stale_exclude",
-      "command_type": "EXCLUDE",
+      "command_action": "exclude",
+      "spec_command_name": "UNCONFIRMED",
       "workspace_id": "ws_syn_015",
       "actor_id": "usr_syn_owner_1",
       "expected_version": 1,
@@ -113,8 +119,11 @@
       {
         "event_id": "ev_init_015_1",
         "workspace_id": "ws_syn_015",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_015",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -123,11 +132,11 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Add ledger reconciliation drift check",
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
@@ -135,12 +144,14 @@
       {
         "command_id": "cmd_syn_015_stale_exclude",
         "outcome": "REJECTED",
-        "error_code": "VERSION_CONFLICT",
+        "rejection_category": "version_conflict",
+        "spec_error_code": "UNCONFIRMED",
         "state_mutated": false,
         "resulting_event_ids": [],
-        "review_required_tokens": ["error_code:VERSION_CONFLICT"]
+        "unconfirmed_fields": ["spec_command_name", "spec_error_code", "http_status"]
       }
     ],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "reconciliation drift",
@@ -150,31 +161,37 @@
     ],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.command_results[0].error_code",
-        "proposed_value": "VERSION_CONFLICT",
+        "field_path": "expected_proposal.command_results[0].spec_error_code",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm exact HTTP status (409 vs 412) and canonical error_code (VERSION_CONFLICT vs STALE_VERSION vs OPTIMISTIC_LOCK_CONFLICT) plus whether multi-target MANUAL_MERGE requires per-target versions or a workspace version."
+        "question": "Fill exact version-conflict error code name and HTTP status (409 vs 412) from Notion Event Contract (left UNCONFIRMED without guessing)."
+      },
+      {
+        "field_path": "user_commands[0].expected_version",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether optimistic concurrency uses per-Event version, per-Workspace version, or HTTP If-Match/ETag."
       }
     ]
   },
   "rationale": {
-    "summary": "Command supplies expected_version=1 against ev_init_015_1 which is already at version=2. Optimistic concurrency control must reject the stale command with VERSION_CONFLICT and leave ev_init_015_1 ACTIVE at version=2.",
-    "invariants_exercised": [
-      "OPTIMISTIC_LOCK_REJECTS_STALE_VERSION",
-      "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+    "summary": "Command supplies expected_version=1 against ev_init_015_1 which is already at version=2. Optimistic concurrency control must reject the stale command with zero mutation. Exact wire error code is left UNCONFIRMED because Notion original spec is inaccessible.",
+    "confirmed_spec_rules": [
+      "VERSION_CONFLICT_REJECTS_STALE_COMMAND_WITHOUT_MUTATION"
     ],
-    "assumptions_without_notion": [
-      "Assumes Event aggregate carries monotonically increasing integer version checked before applying any curation command."
+    "unconfirmed_spec_tokens": [
+      "spec_error_code for version conflict (left UNCONFIRMED; not guessed)",
+      "HTTP status code (409 vs 412) and spec_command_name (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Confirm whether optimistic locking is per-Event version, per-Workspace version, or ETag/If-Match header."
+    "truly_undecided_items": [
+      "Whether optimistic lock granularity is per-Event version, per-Workspace version, or HTTP If-Match/ETag."
     ]
   }
 }

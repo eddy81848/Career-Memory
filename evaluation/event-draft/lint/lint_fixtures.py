@@ -19,12 +19,33 @@ from typing import Any
 
 ALLOWED_SCOPES = {"MVP", "POST_MVP"}
 ALLOWED_REVIEW_STATUSES = {"PENDING_HUMAN_REVIEW", "REVIEW_REQUIRED"}
-ALLOWED_PR_ASSOC = {"ASSOCIATED", "NONE", "UNKNOWN"}
-ALLOWED_COMMAND_TYPES = {"SPLIT", "MANUAL_MERGE", "EXCLUDE", "DISSOLVE"}
-ALLOWED_EVENT_KINDS = {"PR_CENTERED", "DIRECT_COMMIT", "COMPOSITE", "SPLIT_CHILD"}
-ALLOWED_LIFECYCLE = {"ACTIVE", "EXCLUDED", "DISSOLVED", "SUPERSEDED"}
+ALLOWED_LOOKUP_STATUS = {"COMPLETED", "INCOMPLETE_OR_FAILED"}
+ALLOWED_PR_ASSOC = {"ASSOCIATED", "NO_MATCH_OBSERVED", "UNKNOWN"}
+ALLOWED_COMMAND_ACTIONS = {"split", "manual_merge", "exclude", "dissolve"}
+ALLOWED_LOGICAL_KINDS = {
+    "merged_pr_event",
+    "direct_commit_event",
+    "user_composite_event",
+    "split_child_event",
+}
+ALLOWED_SPEC_EVENT_TYPES = {"USER_COMPOSITE", "UNCONFIRMED"}
+ALLOWED_LOGICAL_STATES = {"active", "excluded", "dissolved", "superseded"}
 ALLOWED_MERGE_ORIGINS = {"NONE", "USER_MANUAL_MERGE"}
-ALLOWED_ERROR_CODES = {None, "CANNOT_LINK", "VERSION_CONFLICT", "WORKSPACE_CONFLICT"}
+ALLOWED_SPEC_ERROR_CODES = {None, "CANNOT_LINK", "UNCONFIRMED"}
+ALLOWED_REJECTION_CATEGORIES = {
+    None,
+    "cannot_link_non_event_or_unknown",
+    "cannot_link_nested_user_composite",
+    "cannot_link_excluded_event",
+    "cannot_link_cross_repository",
+    "version_conflict",
+    "workspace_boundary_conflict",
+}
+ALLOWED_DISPOSITIONS = {
+    "hold_classification_unknown_assoc",
+    "not_direct_commit_candidate_non_default_branch",
+    "deferred_post_mvp",
+}
 FORBIDDEN_OD007_KEYS = {
     "physical_table",
     "table_name",
@@ -67,6 +88,7 @@ REQUIRED_EXPECTED_KEYS = {
     "events",
     "held_items",
     "command_results",
+    "claim_side_effects",
     "search_checks",
     "aggregation_check",
     "review_required_items",
@@ -74,7 +96,8 @@ REQUIRED_EXPECTED_KEYS = {
 
 REQUIRED_COMMAND_KEYS = {
     "command_id",
-    "command_type",
+    "command_action",
+    "spec_command_name",
     "workspace_id",
     "actor_id",
     "expected_version",
@@ -120,11 +143,7 @@ def _load_json(path: Path) -> tuple[Any | None, list[LintIssue]]:
         return None, [LintIssue("JSON_PARSE_ERROR", str(path), f"Invalid JSON: {exc}")]
 
 
-def _walk_keys_and_strings(
-    obj: Any,
-    location: str,
-    issues: list[LintIssue],
-) -> None:
+def _walk_keys_and_strings(obj: Any, location: str, issues: list[LintIssue]) -> None:
     if isinstance(obj, dict):
         for key, value in obj.items():
             child_loc = f"{location}.{key}"
@@ -173,14 +192,12 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
     if not isinstance(case, dict):
         return [LintIssue("SCHEMA_REQUIRED_FIELD", location, "Case root must be a JSON object.")]
 
-    # 1. Required top-level keys
-    missing_top = sorted(REQUIRED_CASE_KEYS - set(case.keys()))
-    for key in missing_top:
+    # 1. Top-level required keys
+    for key in sorted(REQUIRED_CASE_KEYS - set(case.keys())):
         issues.append(
             LintIssue("SCHEMA_REQUIRED_FIELD", f"{location}.{key}", f"Missing required top-level field '{key}'.")
         )
 
-    # 2. OD-007 physical table & synthetic privacy scan
     _walk_keys_and_strings(case, location, issues)
 
     if case.get("schema_version") != "event-draft-case.v1":
@@ -192,7 +209,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             )
         )
 
-    # 3. Scope & B-003 policy
+    # 2. Scope & B-003 policy
     scope = case.get("scope")
     backlog_ref = case.get("backlog_ref")
     post_mvp_reason = case.get("post_mvp_reason")
@@ -203,7 +220,6 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
         issues.append(
             LintIssue("SCOPE_TAG_POLICY", f"{location}.scope", f"Invalid scope {scope!r}; must be MVP or POST_MVP.")
         )
-
     if case.get("review_status") not in ALLOWED_REVIEW_STATUSES:
         issues.append(
             LintIssue(
@@ -258,19 +274,19 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 )
             )
 
-    # 4. Rationale check
+    # 3. Rationale separation (confirmed rules vs unconfirmed tokens vs truly undecided)
     rationale = case.get("rationale")
     if not isinstance(rationale, dict):
         if "rationale" in case:
             issues.append(LintIssue("SCHEMA_REQUIRED_FIELD", f"{location}.rationale", "rationale must be an object."))
     else:
-        for rk in ("summary", "invariants_exercised", "assumptions_without_notion", "reviewer_questions"):
+        for rk in ("summary", "confirmed_spec_rules", "unconfirmed_spec_tokens", "truly_undecided_items"):
             if rk not in rationale:
                 issues.append(
                     LintIssue("SCHEMA_REQUIRED_FIELD", f"{location}.rationale.{rk}", f"Missing rationale field '{rk}'.")
                 )
 
-    # 5. Collect and validate synthetic_sources
+    # 4. Collect and validate synthetic_sources
     workspaces = sources.get("workspaces") if isinstance(sources.get("workspaces"), list) else []
     repos = sources.get("repositories") if isinstance(sources.get("repositories"), list) else []
     sync_runs = sources.get("sync_runs") if isinstance(sources.get("sync_runs"), list) else []
@@ -458,17 +474,35 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                         f"on_default_branch={cmt.get('on_default_branch')} disagrees with branch_name={cmt.get('branch_name')!r} vs repo default_branch={default_branch!r}.",
                     )
                 )
+
+        lookup_status = cmt.get("pr_association_lookup_status")
         assoc = cmt.get("pr_association_status")
         assoc_pr = cmt.get("associated_pr_id")
+        if lookup_status not in ALLOWED_LOOKUP_STATUS:
+            issues.append(
+                LintIssue(
+                    "BRANCH_ASSOCIATION_RULES",
+                    f"{location}.synthetic_sources.commits[{idx}].pr_association_lookup_status",
+                    f"Invalid pr_association_lookup_status {lookup_status!r}; must be COMPLETED or INCOMPLETE_OR_FAILED.",
+                )
+            )
         if assoc not in ALLOWED_PR_ASSOC:
             issues.append(
                 LintIssue(
                     "BRANCH_ASSOCIATION_RULES",
                     f"{location}.synthetic_sources.commits[{idx}].pr_association_status",
-                    f"Invalid pr_association_status {assoc!r}.",
+                    f"Invalid pr_association_status {assoc!r}; must be ASSOCIATED, NO_MATCH_OBSERVED, or UNKNOWN.",
                 )
             )
         elif assoc == "ASSOCIATED":
+            if lookup_status != "COMPLETED":
+                issues.append(
+                    LintIssue(
+                        "BRANCH_ASSOCIATION_RULES",
+                        f"{location}.synthetic_sources.commits[{idx}].pr_association_lookup_status",
+                        "ASSOCIATED commit must have pr_association_lookup_status='COMPLETED'.",
+                    )
+                )
             if not assoc_pr or assoc_pr not in pr_map:
                 issues.append(
                     LintIssue(
@@ -477,16 +511,33 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                         f"ASSOCIATED commit must reference an existing PR; got {assoc_pr!r}.",
                     )
                 )
-        else:
+        elif assoc == "NO_MATCH_OBSERVED":
+            if lookup_status != "COMPLETED":
+                issues.append(
+                    LintIssue(
+                        "INVARIANT_DIRECT_COMMIT_REQUIRES_NO_MATCH_OBSERVED",
+                        f"{location}.synthetic_sources.commits[{idx}].pr_association_lookup_status",
+                        "NO_MATCH_OBSERVED is only valid when pr_association_lookup_status='COMPLETED'.",
+                    )
+                )
             if assoc_pr is not None:
                 issues.append(
                     LintIssue(
                         "BRANCH_ASSOCIATION_RULES",
                         f"{location}.synthetic_sources.commits[{idx}].associated_pr_id",
-                        f"Commit with pr_association_status={assoc!r} must have associated_pr_id=null.",
+                        "Commit with NO_MATCH_OBSERVED must have associated_pr_id=null.",
                     )
                 )
-            if assoc == "UNKNOWN" and cid:
+        else:  # UNKNOWN
+            if assoc_pr is not None:
+                issues.append(
+                    LintIssue(
+                        "BRANCH_ASSOCIATION_RULES",
+                        f"{location}.synthetic_sources.commits[{idx}].associated_pr_id",
+                        "Commit with UNKNOWN must have associated_pr_id=null.",
+                    )
+                )
+            if cid:
                 unknown_commit_ids.add(cid)
 
         if not str(cmt.get("author_handle", "")).startswith("syn-"):
@@ -499,7 +550,6 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             )
     _check_unique(commit_ids, "CASE_UNIQUENESS", f"{location}.synthetic_sources.commits", "commit_id", issues)
 
-    # Cross-check PR -> commits and PR -> tickets
     for idx, pr in enumerate(prs):
         if not isinstance(pr, dict):
             continue
@@ -554,6 +604,23 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     f"Unknown workspace_id '{ev.get('workspace_id')}'.",
                 )
             )
+        rid = ev.get("repo_id")
+        if rid not in repo_map:
+            issues.append(
+                LintIssue(
+                    "ID_REFERENCE_INTEGRITY",
+                    f"{location}.synthetic_sources.initial_events[{idx}].repo_id",
+                    f"Unknown repo_id '{rid}'.",
+                )
+            )
+        elif repo_map[rid].get("workspace_id") != ev.get("workspace_id"):
+            issues.append(
+                LintIssue(
+                    "ID_REFERENCE_INTEGRITY",
+                    f"{location}.synthetic_sources.initial_events[{idx}]",
+                    "initial_event.workspace_id does not match repo.workspace_id.",
+                )
+            )
         if ev.get("primary_pr_id") is not None and ev.get("primary_pr_id") not in pr_map:
             issues.append(
                 LintIssue(
@@ -595,7 +662,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     )
                 )
 
-    # 6. Validate expected_proposal top-level & governance
+    # 5. Validate expected_proposal top-level & DRAFT governance
     expected = case.get("expected_proposal")
     if not isinstance(expected, dict):
         issues.append(LintIssue("SCHEMA_REQUIRED_FIELD", f"{location}.expected_proposal", "Must be an object."))
@@ -615,7 +682,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             LintIssue(
                 "APPROVAL_STATUS_MUST_BE_DRAFT",
                 f"{location}.expected_proposal.approval_status",
-                f"Expected approval_status='DRAFT' (agent cannot approve/freeze); got {expected.get('approval_status')!r}.",
+                f"Expected approval_status='DRAFT' (must never be frozen as golden by agent); got {expected.get('approval_status')!r}.",
             )
         )
     if expected.get("approved_by") is not None:
@@ -627,7 +694,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             )
         )
 
-    # 7. Validate user_commands & command_results
+    # 6. Validate user_commands & command_results
     commands = case.get("user_commands") if isinstance(case.get("user_commands"), list) else []
     cmd_results = expected.get("command_results") if isinstance(expected.get("command_results"), list) else []
 
@@ -649,13 +716,21 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
         if cid:
             cmd_ids.append(cid)
             cmd_map[cid] = cmd
-        ctype = cmd.get("command_type")
-        if ctype not in ALLOWED_COMMAND_TYPES:
+        action = cmd.get("command_action")
+        if action not in ALLOWED_COMMAND_ACTIONS:
             issues.append(
                 LintIssue(
                     "COMMAND_VERSION_RULES",
-                    f"{location}.user_commands[{idx}].command_type",
-                    f"Invalid command_type {ctype!r}.",
+                    f"{location}.user_commands[{idx}].command_action",
+                    f"Invalid command_action {action!r}.",
+                )
+            )
+        if "spec_command_name" in cmd and cmd.get("spec_command_name") != "UNCONFIRMED":
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.user_commands[{idx}].spec_command_name",
+                    f"Unconfirmed command wire name must be 'UNCONFIRMED', not guessed as {cmd.get('spec_command_name')!r}.",
                 )
             )
         if cmd.get("workspace_id") not in ws_id_set:
@@ -684,15 +759,15 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     "target_event_ids must contain at least one ID.",
                 )
             )
-        if ctype == "MANUAL_MERGE" and len(set(targets)) < 2:
+        if action == "manual_merge" and len(set(targets)) < 2:
             issues.append(
                 LintIssue(
                     "COMMAND_VERSION_RULES",
                     f"{location}.user_commands[{idx}].target_event_ids",
-                    "MANUAL_MERGE requires at least 2 distinct target_event_ids.",
+                    "manual_merge requires at least 2 distinct target_event_ids.",
                 )
             )
-        if ctype == "SPLIT":
+        if action == "split":
             payload = cmd.get("payload") if isinstance(cmd.get("payload"), dict) else {}
             parts = payload.get("partitions") if isinstance(payload.get("partitions"), list) else []
             if len(parts) < 2:
@@ -700,7 +775,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     LintIssue(
                         "COMMAND_VERSION_RULES",
                         f"{location}.user_commands[{idx}].payload.partitions",
-                        "SPLIT command payload must specify at least 2 partitions.",
+                        "split command payload must specify at least 2 partitions.",
                     )
                 )
     _check_unique(cmd_ids, "CASE_UNIQUENESS", f"{location}.user_commands", "command_id", issues)
@@ -723,32 +798,42 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 )
             )
         outcome = res.get("outcome")
-        err = res.get("error_code")
+        rej_cat = res.get("rejection_category")
+        spec_err = res.get("spec_error_code")
         mutated = res.get("state_mutated")
-        if err not in ALLOWED_ERROR_CODES:
+
+        if rej_cat not in ALLOWED_REJECTION_CATEGORIES:
             issues.append(
                 LintIssue(
                     "COMMAND_VERSION_RULES",
-                    f"{location}.expected_proposal.command_results[{idx}].error_code",
-                    f"Unsupported error_code {err!r}.",
+                    f"{location}.expected_proposal.command_results[{idx}].rejection_category",
+                    f"Invalid rejection_category {rej_cat!r}.",
+                )
+            )
+        if spec_err not in ALLOWED_SPEC_ERROR_CODES:
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.command_results[{idx}].spec_error_code",
+                    f"Unsupported or guessed spec_error_code {spec_err!r}; only null, 'CANNOT_LINK', or 'UNCONFIRMED' permitted without Notion access.",
                 )
             )
         if outcome == "ACCEPTED":
-            if err is not None or mutated is not True:
+            if rej_cat is not None or spec_err is not None or mutated is not True:
                 issues.append(
                     LintIssue(
                         "COMMAND_VERSION_RULES",
                         f"{location}.expected_proposal.command_results[{idx}]",
-                        "ACCEPTED command must have error_code=null and state_mutated=true.",
+                        "ACCEPTED command must have rejection_category=null, spec_error_code=null, and state_mutated=true.",
                     )
                 )
         elif outcome == "REJECTED":
-            if err is None or mutated is not False:
+            if rej_cat is None or spec_err is None or mutated is not False:
                 issues.append(
                     LintIssue(
                         "COMMAND_VERSION_RULES",
                         f"{location}.expected_proposal.command_results[{idx}]",
-                        "REJECTED command must have non-null error_code and state_mutated=false.",
+                        "REJECTED command must have non-null rejection_category, spec_error_code ('CANNOT_LINK' or 'UNCONFIRMED'), and state_mutated=false.",
                     )
                 )
         else:
@@ -771,30 +856,36 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 )
             )
 
-    # Check target ID references, workspace boundaries, and version conflicts
+    # Check target references, workspace/repo boundaries, nesting prohibition, and version conflicts
     all_source_entity_ids = set(init_event_map) | set(ticket_map) | set(commit_map) | set(pr_map)
     accepted_manual_merge_cmd_ids: set[str] = set()
     for cid, cmd in cmd_map.items():
         res = cmd_result_map.get(cid, {})
         outcome = res.get("outcome")
-        err = res.get("error_code")
-        if cmd.get("command_type") == "MANUAL_MERGE" and outcome == "ACCEPTED":
+        rej_cat = res.get("rejection_category")
+        spec_err = res.get("spec_error_code")
+        action = cmd.get("command_action")
+        if action == "manual_merge" and outcome == "ACCEPTED":
             accepted_manual_merge_cmd_ids.add(cid)
 
         targets = cmd.get("target_event_ids") if isinstance(cmd.get("target_event_ids"), list) else []
         target_ws: set[str] = set()
+        target_repos: set[str] = set()
         version_mismatch = False
+        includes_composite_or_subsumed = False
         target_versions = cmd.get("target_versions") if isinstance(cmd.get("target_versions"), dict) else {}
 
         for tid in targets:
             if tid in init_event_map:
                 ev = init_event_map[tid]
                 target_ws.add(ev["workspace_id"])
+                target_repos.add(ev["repo_id"])
                 supplied_v = target_versions.get(tid, cmd.get("expected_version"))
                 if isinstance(supplied_v, int) and supplied_v != ev.get("version"):
                     version_mismatch = True
-            elif outcome == "REJECTED" and err == "CANNOT_LINK" and tid in all_source_entity_ids:
-                # Allowed: intentionally passing a non-Event synthetic entity (e.g., ticket or UNKNOWN commit) to test CANNOT_LINK
+                if ev.get("logical_kind") == "user_composite_event" or ev.get("membership_role") == "subsumed_by_user_composite":
+                    includes_composite_or_subsumed = True
+            elif outcome == "REJECTED" and spec_err == "CANNOT_LINK" and tid in all_source_entity_ids:
                 continue
             else:
                 issues.append(
@@ -806,6 +897,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 )
 
         ws_mismatch = bool(target_ws) and (target_ws != {cmd.get("workspace_id")})
+        cross_repo_merge = action == "manual_merge" and len(target_repos) > 1
         if ws_mismatch and (outcome != "REJECTED" or res.get("state_mutated") is not False):
             issues.append(
                 LintIssue(
@@ -814,19 +906,37 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     "Cross-workspace command MUST be REJECTED with state_mutated=false.",
                 )
             )
+        if cross_repo_merge and (outcome != "REJECTED" or res.get("state_mutated") is not False):
+            issues.append(
+                LintIssue(
+                    "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                    f"{location}.expected_proposal.command_results[{cid}]",
+                    "Cross-repository manual_merge MUST be REJECTED with state_mutated=false (USER_COMPOSITE is same-repository only).",
+                )
+            )
+        if action == "manual_merge" and includes_composite_or_subsumed:
+            if outcome != "REJECTED" or res.get("state_mutated") is not False:
+                issues.append(
+                    LintIssue(
+                        "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                        f"{location}.expected_proposal.command_results[{cid}]",
+                        "Nesting USER_COMPOSITE (merging composite root or already-subsumed member) is forbidden and MUST be REJECTED.",
+                    )
+                )
         if version_mismatch and not ws_mismatch:
-            if outcome != "REJECTED" or err != "VERSION_CONFLICT":
+            if outcome != "REJECTED" or rej_cat != "version_conflict":
                 issues.append(
                     LintIssue(
                         "COMMAND_VERSION_RULES",
                         f"{location}.expected_proposal.command_results[{cid}]",
-                        "Stale version command MUST be REJECTED with error_code='VERSION_CONFLICT'.",
+                        "Stale version command MUST be REJECTED with rejection_category='version_conflict'.",
                     )
                 )
 
-    # 8. Validate expected events & invariants
+    # 7. Validate expected events & all confirmed domain invariants
     exp_events = expected.get("events") if isinstance(expected.get("events"), list) else []
     held_items = expected.get("held_items") if isinstance(expected.get("held_items"), list) else []
+    claim_effects = expected.get("claim_side_effects") if isinstance(expected.get("claim_side_effects"), list) else []
     search_checks = expected.get("search_checks") if isinstance(expected.get("search_checks"), list) else []
     agg = expected.get("aggregation_check") if isinstance(expected.get("aggregation_check"), dict) else {}
 
@@ -848,31 +958,85 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     f"Unknown workspace_id '{ev.get('workspace_id')}'.",
                 )
             )
+        ev_repo = ev.get("repo_id")
+        if ev_repo not in repo_map:
+            issues.append(
+                LintIssue(
+                    "ID_REFERENCE_INTEGRITY",
+                    f"{location}.expected_proposal.events[{idx}].repo_id",
+                    f"Unknown repo_id '{ev_repo}'.",
+                )
+            )
+        elif repo_map[ev_repo].get("workspace_id") != ev.get("workspace_id"):
+            issues.append(
+                LintIssue(
+                    "ID_REFERENCE_INTEGRITY",
+                    f"{location}.expected_proposal.events[{idx}]",
+                    "Event workspace_id does not match repo.workspace_id.",
+                )
+            )
 
-        kind = ev.get("event_kind")
-        if kind in {"ISSUE", "TICKET", "CONTEXT"}:
+        lkind = ev.get("logical_kind")
+        spec_type = ev.get("spec_event_type")
+        lstate = ev.get("logical_state")
+        spec_status = ev.get("spec_lifecycle_status")
+
+        if lkind in {"issue", "ticket", "context"}:
             issues.append(
                 LintIssue(
                     "INVARIANT_NO_CONTEXT_AUTO_MERGE",
-                    f"{location}.expected_proposal.events[{idx}].event_kind",
-                    f"Issue/ticket cannot be a standalone Event kind ({kind!r}).",
+                    f"{location}.expected_proposal.events[{idx}].logical_kind",
+                    f"Issue/ticket cannot be a standalone Event ({lkind!r}).",
                 )
             )
-        elif kind not in ALLOWED_EVENT_KINDS:
+        elif lkind not in ALLOWED_LOGICAL_KINDS:
             issues.append(
                 LintIssue(
                     "SCHEMA_REQUIRED_FIELD",
-                    f"{location}.expected_proposal.events[{idx}].event_kind",
-                    f"Invalid event_kind {kind!r}.",
+                    f"{location}.expected_proposal.events[{idx}].logical_kind",
+                    f"Invalid logical_kind {lkind!r}.",
                 )
             )
 
-        if ev.get("lifecycle_status") not in ALLOWED_LIFECYCLE:
+        if spec_type not in ALLOWED_SPEC_EVENT_TYPES:
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.events[{idx}].spec_event_type",
+                    f"Guessed spec_event_type {spec_type!r}; must be 'USER_COMPOSITE' or 'UNCONFIRMED'.",
+                )
+            )
+        elif lkind == "user_composite_event" and spec_type != "USER_COMPOSITE":
+            issues.append(
+                LintIssue(
+                    "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                    f"{location}.expected_proposal.events[{idx}].spec_event_type",
+                    "user_composite_event must use confirmed spec_event_type='USER_COMPOSITE'.",
+                )
+            )
+        elif lkind != "user_composite_event" and spec_type != "UNCONFIRMED":
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.events[{idx}].spec_event_type",
+                    f"Non-composite Event '{eid}' must leave spec_event_type='UNCONFIRMED', got {spec_type!r}.",
+                )
+            )
+
+        if lstate not in ALLOWED_LOGICAL_STATES:
             issues.append(
                 LintIssue(
                     "SCHEMA_REQUIRED_FIELD",
-                    f"{location}.expected_proposal.events[{idx}].lifecycle_status",
-                    f"Invalid lifecycle_status {ev.get('lifecycle_status')!r}.",
+                    f"{location}.expected_proposal.events[{idx}].logical_state",
+                    f"Invalid logical_state {lstate!r}.",
+                )
+            )
+        if spec_status != "UNCONFIRMED":
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.events[{idx}].spec_lifecycle_status",
+                    f"Unconfirmed lifecycle status must be 'UNCONFIRMED', not guessed as {spec_status!r}.",
                 )
             )
 
@@ -887,16 +1051,44 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             )
 
         ppr = ev.get("primary_pr_id")
-        if ppr is not None and ppr not in pr_map:
+        if ppr is not None:
+            if ppr not in pr_map:
+                issues.append(
+                    LintIssue(
+                        "ID_REFERENCE_INTEGRITY",
+                        f"{location}.expected_proposal.events[{idx}].primary_pr_id",
+                        f"Unknown primary_pr_id '{ppr}'.",
+                    )
+                )
+            else:
+                if lkind == "merged_pr_event" and pr_map[ppr].get("state") != "MERGED":
+                    issues.append(
+                        LintIssue(
+                            "INVARIANT_MERGED_PR_CANDIDATE",
+                            f"{location}.expected_proposal.events[{idx}].primary_pr_id",
+                            f"Merged PR candidate Event '{eid}' references non-MERGED PR '{ppr}' (state={pr_map[ppr].get('state')!r}).",
+                        )
+                    )
+                if pr_map[ppr].get("repo_id") != ev_repo:
+                    issues.append(
+                        LintIssue(
+                            "ID_REFERENCE_INTEGRITY",
+                            f"{location}.expected_proposal.events[{idx}].repo_id",
+                            f"Event repo_id '{ev_repo}' disagrees with primary PR repo_id '{pr_map[ppr].get('repo_id')}'.",
+                        )
+                    )
+
+        src_commits = ev.get("source_commit_ids", [])
+        if lkind == "direct_commit_event" and not src_commits:
             issues.append(
                 LintIssue(
-                    "ID_REFERENCE_INTEGRITY",
-                    f"{location}.expected_proposal.events[{idx}].primary_pr_id",
-                    f"Unknown primary_pr_id '{ppr}'.",
+                    "INVARIANT_DIRECT_COMMIT_REQUIRES_NO_MATCH_OBSERVED",
+                    f"{location}.expected_proposal.events[{idx}].source_commit_ids",
+                    "direct_commit_event must reference at least one default-branch NO_MATCH_OBSERVED commit.",
                 )
             )
 
-        for cid in ev.get("source_commit_ids", []):
+        for cid in src_commits:
             if cid not in commit_map:
                 issues.append(
                     LintIssue(
@@ -905,14 +1097,37 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                         f"Unknown commit_id '{cid}'.",
                     )
                 )
-            elif cid in unknown_commit_ids:
-                issues.append(
-                    LintIssue(
-                        "INVARIANT_UNKNOWN_NOT_NO_PR",
-                        f"{location}.expected_proposal.events[{idx}].source_commit_ids",
-                        f"Commit '{cid}' has pr_association_status='UNKNOWN' and MUST NOT be classified into Event '{eid}' ({kind}).",
+            else:
+                cmt = commit_map[cid]
+                if cid in unknown_commit_ids:
+                    issues.append(
+                        LintIssue(
+                            "INVARIANT_UNKNOWN_NOT_NO_PR",
+                            f"{location}.expected_proposal.events[{idx}].source_commit_ids",
+                            f"Commit '{cid}' has pr_association_status='UNKNOWN' and MUST NOT be classified into Event '{eid}' ({lkind}).",
+                        )
                     )
-                )
+                elif lkind == "direct_commit_event":
+                    if (
+                        cmt.get("on_default_branch") is not True
+                        or cmt.get("pr_association_lookup_status") != "COMPLETED"
+                        or cmt.get("pr_association_status") != "NO_MATCH_OBSERVED"
+                    ):
+                        issues.append(
+                            LintIssue(
+                                "INVARIANT_DIRECT_COMMIT_REQUIRES_NO_MATCH_OBSERVED",
+                                f"{location}.expected_proposal.events[{idx}].source_commit_ids",
+                                f"Direct-commit Event '{eid}' commit '{cid}' requires on_default_branch=true, pr_association_lookup_status='COMPLETED', and pr_association_status='NO_MATCH_OBSERVED'.",
+                            )
+                        )
+                if cmt.get("repo_id") != ev_repo:
+                    issues.append(
+                        LintIssue(
+                            "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                            f"{location}.expected_proposal.events[{idx}].source_commit_ids",
+                            f"Commit '{cid}' belongs to repo '{cmt.get('repo_id')}', which differs from Event repo '{ev_repo}'.",
+                        )
+                    )
 
         for tid in ev.get("context_ticket_ids", []):
             if tid not in ticket_map:
@@ -931,21 +1146,21 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 LintIssue(
                     "INVARIANT_NO_CONTEXT_AUTO_MERGE",
                     f"{location}.expected_proposal.events[{idx}].merge_origin",
-                    f"Forbidden merge_origin {merge_origin!r}; automatic multi-PR or context-only merges are prohibited.",
+                    f"Forbidden merge_origin {merge_origin!r}; automatic multi-PR or Issue/ticket-link merges are prohibited.",
                 )
             )
-        if kind == "COMPOSITE":
+        if lkind == "user_composite_event":
             if merge_origin != "USER_MANUAL_MERGE":
                 issues.append(
                     LintIssue(
                         "INVARIANT_NO_CONTEXT_AUTO_MERGE",
                         f"{location}.expected_proposal.events[{idx}].merge_origin",
-                        "COMPOSITE Event MUST have merge_origin='USER_MANUAL_MERGE'.",
+                        "USER_COMPOSITE MUST have merge_origin='USER_MANUAL_MERGE'.",
                     )
                 )
             preexisted_manual = (
                 eid in init_event_map
-                and init_event_map[eid].get("event_kind") == "COMPOSITE"
+                and init_event_map[eid].get("logical_kind") == "user_composite_event"
                 and init_event_map[eid].get("merge_origin") == "USER_MANUAL_MERGE"
             )
             created_by_manual_cmd = origin_cmd in accepted_manual_merge_cmd_ids
@@ -954,25 +1169,25 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     LintIssue(
                         "INVARIANT_NO_CONTEXT_AUTO_MERGE",
                         f"{location}.expected_proposal.events[{idx}]",
-                        f"COMPOSITE Event '{eid}' has neither a pre-existing USER_MANUAL_MERGE state nor an accepted MANUAL_MERGE command.",
+                        f"USER_COMPOSITE '{eid}' has neither a pre-existing USER_MANUAL_MERGE state nor an accepted manual_merge command.",
                     )
                 )
 
-        # Inactive / superseded / dissolved / excluded events must not be top-level searchable or counted
-        if ev.get("lifecycle_status") in {"EXCLUDED", "DISSOLVED", "SUPERSEDED"}:
+        if lstate in {"excluded", "dissolved", "superseded"}:
             if ev.get("searchable_as_top_level") is not False or ev.get("counted_in_metrics") is not False:
                 issues.append(
                     LintIssue(
                         "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT",
                         f"{location}.expected_proposal.events[{idx}]",
-                        f"Event '{eid}' with lifecycle_status={ev.get('lifecycle_status')!r} must have searchable_as_top_level=false and counted_in_metrics=false.",
+                        f"Event '{eid}' with logical_state={lstate!r} must have searchable_as_top_level=false and counted_in_metrics=false.",
                     )
                 )
 
     _check_unique(exp_event_ids, "CASE_UNIQUENESS", f"{location}.expected_proposal.events", "event_id", issues)
 
-    # Cross-check member_event_ids, parent_event_id, and composite double-counting prevention
+    # Cross-check member_event_ids, same-repo, no-nesting, and composite double-counting prevention
     active_composite_members: dict[str, set[str]] = {}
+    member_to_active_composite: dict[str, str] = {}
     for idx, ev in enumerate(exp_events):
         if not isinstance(ev, dict):
             continue
@@ -996,9 +1211,40 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                         f"Unknown member_event_id '{mid}'.",
                     )
                 )
-        if ev.get("event_kind") == "COMPOSITE" and ev.get("lifecycle_status") == "ACTIVE":
+            else:
+                mem = exp_event_map[mid]
+                if ev.get("logical_kind") == "user_composite_event":
+                    # Same-workspace and same-repository check
+                    if mem.get("workspace_id") != ev.get("workspace_id") or mem.get("repo_id") != ev.get("repo_id"):
+                        issues.append(
+                            LintIssue(
+                                "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                                f"{location}.expected_proposal.events[{idx}].member_event_ids",
+                                f"USER_COMPOSITE '{eid}' member '{mid}' has workspace/repo ({mem.get('workspace_id')}/{mem.get('repo_id')}) != ({ev.get('workspace_id')}/{ev.get('repo_id')}).",
+                            )
+                        )
+                    # Nesting prohibition
+                    if mem.get("logical_kind") == "user_composite_event" or mem.get("spec_event_type") == "USER_COMPOSITE":
+                        issues.append(
+                            LintIssue(
+                                "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                                f"{location}.expected_proposal.events[{idx}].member_event_ids",
+                                f"USER_COMPOSITE '{eid}' nests another USER_COMPOSITE '{mid}'; nesting is forbidden.",
+                            )
+                        )
+
+        if ev.get("logical_kind") == "user_composite_event" and ev.get("logical_state") == "active":
             active_composite_members[eid] = set(members)
             for mid in members:
+                if mid in member_to_active_composite:
+                    issues.append(
+                        LintIssue(
+                            "INVARIANT_USER_COMPOSITE_SAME_REPO_AND_NO_NESTING",
+                            f"{location}.expected_proposal.events[{idx}].member_event_ids",
+                            f"Member '{mid}' belongs to multiple active USER_COMPOSITEs ('{member_to_active_composite[mid]}' and '{eid}').",
+                        )
+                    )
+                member_to_active_composite[mid] = eid
                 if mid in exp_event_map:
                     mem = exp_event_map[mid]
                     if mem.get("searchable_as_top_level") is not False or mem.get("counted_in_metrics") is not False:
@@ -1006,17 +1252,68 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                             LintIssue(
                                 "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT",
                                 f"{location}.expected_proposal.events[{mid}]",
-                                f"Composite '{eid}' member '{mid}' must have searchable_as_top_level=false and counted_in_metrics=false to prevent double counting.",
+                                f"USER_COMPOSITE '{eid}' member '{mid}' must have searchable_as_top_level=false and counted_in_metrics=false.",
                             )
                         )
-                    if mem.get("membership_state") != "SUBSUMED_BY_COMPOSITE":
+                    if mem.get("membership_role") != "subsumed_by_user_composite":
                         issues.append(
                             LintIssue(
                                 "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT",
-                                f"{location}.expected_proposal.events[{mid}].membership_state",
-                                f"Active Composite member '{mid}' must have membership_state='SUBSUMED_BY_COMPOSITE'.",
+                                f"{location}.expected_proposal.events[{mid}].membership_role",
+                                f"Active USER_COMPOSITE member '{mid}' must have membership_role='subsumed_by_user_composite'.",
                             )
                         )
+
+    # Check dissolve -> dependent Claims marked STALE
+    claim_effect_index: dict[tuple[str, str], dict[str, Any]] = {}
+    for idx, ce in enumerate(claim_effects):
+        if not isinstance(ce, dict):
+            continue
+        ce_claim = ce.get("claim_id", "")
+        ce_comp = ce.get("source_composite_event_id", "")
+        claim_effect_index[(ce_comp, ce_claim)] = ce
+        if ce_comp not in exp_event_map:
+            issues.append(
+                LintIssue(
+                    "ID_REFERENCE_INTEGRITY",
+                    f"{location}.expected_proposal.claim_side_effects[{idx}].source_composite_event_id",
+                    f"Unknown source_composite_event_id '{ce_comp}'.",
+                )
+            )
+        if ce.get("expected_effect") != "STALE":
+            issues.append(
+                LintIssue(
+                    "INVARIANT_DISSOLVE_MARKS_DEPENDENT_CLAIMS_STALE",
+                    f"{location}.expected_proposal.claim_side_effects[{idx}].expected_effect",
+                    f"Expected 'STALE' for claim side effect, got {ce.get('expected_effect')!r}.",
+                )
+            )
+        if ce.get("spec_claim_status") != "UNCONFIRMED":
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.claim_side_effects[{idx}].spec_claim_status",
+                    f"Unconfirmed Claim status token must be 'UNCONFIRMED', got {ce.get('spec_claim_status')!r}.",
+                )
+            )
+
+    for init_id, init_ev in init_event_map.items():
+        if init_ev.get("logical_kind") != "user_composite_event":
+            continue
+        dep_claims = init_ev.get("dependent_claim_ids", [])
+        if not dep_claims:
+            continue
+        exp_ev = exp_event_map.get(init_id)
+        if exp_ev and exp_ev.get("logical_state") == "dissolved":
+            for clm_id in dep_claims:
+                if (init_id, clm_id) not in claim_effect_index:
+                    issues.append(
+                        LintIssue(
+                            "INVARIANT_DISSOLVE_MARKS_DEPENDENT_CLAIMS_STALE",
+                            f"{location}.expected_proposal.claim_side_effects",
+                            f"Dissolved USER_COMPOSITE '{init_id}' has dependent claim '{clm_id}' that MUST be marked STALE in claim_side_effects.",
+                        )
+                    )
 
     # Check command_results resulting_event_ids
     for idx, res in enumerate(cmd_results):
@@ -1032,7 +1329,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     )
                 )
 
-    # 9. Validate held_items and UNKNOWN commit coverage
+    # 8. Validate held_items and UNKNOWN commit coverage
     held_ids: list[str] = []
     held_commit_ids: set[str] = set()
     for idx, item in enumerate(held_items):
@@ -1043,6 +1340,22 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
             held_ids.append(hid)
         stype = item.get("source_type")
         sid = item.get("source_id")
+        if item.get("logical_disposition") not in ALLOWED_DISPOSITIONS:
+            issues.append(
+                LintIssue(
+                    "SCHEMA_REQUIRED_FIELD",
+                    f"{location}.expected_proposal.held_items[{idx}].logical_disposition",
+                    f"Invalid logical_disposition {item.get('logical_disposition')!r}.",
+                )
+            )
+        if item.get("spec_hold_status") != "UNCONFIRMED":
+            issues.append(
+                LintIssue(
+                    "NO_GUESSED_UNCONFIRMED_SPEC_TOKENS",
+                    f"{location}.expected_proposal.held_items[{idx}].spec_hold_status",
+                    f"Unconfirmed hold status must be 'UNCONFIRMED', not guessed as {item.get('spec_hold_status')!r}.",
+                )
+            )
         if stype == "COMMIT":
             if sid not in commit_map:
                 issues.append(
@@ -1092,7 +1405,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 )
             )
 
-    # 10. Validate search_checks & aggregation_check (double-counting guard)
+    # 9. Validate search_checks & aggregation_check (double-counting guard)
     for idx, sc in enumerate(search_checks):
         if not isinstance(sc, dict):
             continue
@@ -1138,7 +1451,7 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                     LintIssue(
                         "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT",
                         f"{location}.expected_proposal.search_checks[{idx}].expected_event_ids",
-                        f"Search check double-counts Composite '{comp_id}' alongside its member(s) {sorted(overlap)}.",
+                        f"Search check double-counts USER_COMPOSITE '{comp_id}' alongside its member(s) {sorted(overlap)}.",
                     )
                 )
 
@@ -1147,11 +1460,11 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
         1
         for ev in exp_events
         if isinstance(ev, dict)
-        and ev.get("event_kind") == "COMPOSITE"
-        and ev.get("lifecycle_status") == "ACTIVE"
+        and ev.get("logical_kind") == "user_composite_event"
+        and ev.get("logical_state") == "active"
         and ev.get("counted_in_metrics") is True
     )
-    actual_excluded = sum(1 for ev in exp_events if isinstance(ev, dict) and ev.get("lifecycle_status") == "EXCLUDED")
+    actual_excluded = sum(1 for ev in exp_events if isinstance(ev, dict) and ev.get("logical_state") == "excluded")
     actual_held = len(held_items)
 
     if agg.get("total_countable_events") != actual_countable:
@@ -1162,12 +1475,12 @@ def lint_case_data(case: Any, location: str) -> list[LintIssue]:
                 f"Expected total_countable_events={actual_countable}, got {agg.get('total_countable_events')!r}.",
             )
         )
-    if agg.get("total_composite_events") != actual_composites:
+    if agg.get("total_user_composite_events") != actual_composites:
         issues.append(
             LintIssue(
                 "INVARIANT_NO_COMPOSITE_DOUBLE_COUNT",
-                f"{location}.expected_proposal.aggregation_check.total_composite_events",
-                f"Expected total_composite_events={actual_composites}, got {agg.get('total_composite_events')!r}.",
+                f"{location}.expected_proposal.aggregation_check.total_user_composite_events",
+                f"Expected total_user_composite_events={actual_composites}, got {agg.get('total_user_composite_events')!r}.",
             )
         )
     if agg.get("total_held_items") != actual_held:
@@ -1294,7 +1607,6 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                     )
                 )
 
-    # Check for unlisted stray JSON files under cases/
     cases_dir = dataset_dir / "cases"
     if cases_dir.is_dir():
         for json_file in sorted(cases_dir.glob("*.json")):
@@ -1307,7 +1619,6 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                     )
                 )
 
-    # Verify negative variants exist and stay isolated from cases/
     neg_entries = manifest.get("negative_variants") if isinstance(manifest.get("negative_variants"), list) else []
     for idx, nentry in enumerate(neg_entries):
         if not isinstance(nentry, dict):
@@ -1330,7 +1641,6 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                 )
             )
 
-    # Verify coverage-matrix.json sync
     cov_data, cov_issues = _load_json(dataset_dir / "coverage-matrix.json")
     issues.extend(cov_issues)
     if isinstance(cov_data, dict):
@@ -1355,7 +1665,6 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
                 )
             )
 
-    # Verify review-queue.json sync
     rq_data, rq_issues = _load_json(dataset_dir / "review-queue.json")
     issues.extend(rq_issues)
     if isinstance(rq_data, dict):
@@ -1394,8 +1703,6 @@ def lint_dataset(dataset_dir: Path) -> list[LintIssue]:
 
 
 def verify_negative_variants(dataset_dir: Path) -> tuple[bool, list[str]]:
-    """Run linter on every isolated negative variant and confirm each fails
-    with all of its expected rule codes."""
     manifest, m_issues = _load_json(dataset_dir / "manifest.json")
     if m_issues or not isinstance(manifest, dict):
         return False, [i.format() for i in m_issues]
@@ -1425,16 +1732,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Lint T-001A Event synthetic dataset draft fixtures and negative variants."
     )
-    parser.add_argument(
-        "--dataset-dir",
-        type=Path,
-        help="Path to evaluation/event-draft directory.",
-    )
-    parser.add_argument(
-        "--case-file",
-        type=Path,
-        help="Lint a single case JSON file (useful for negative fixtures).",
-    )
+    parser.add_argument("--dataset-dir", type=Path, help="Path to evaluation/event-draft directory.")
+    parser.add_argument("--case-file", type=Path, help="Lint a single case JSON file.")
     parser.add_argument(
         "--verify-negatives",
         action="store_true",

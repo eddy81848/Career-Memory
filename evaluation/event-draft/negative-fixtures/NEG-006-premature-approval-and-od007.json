@@ -53,10 +53,11 @@
     "events": [],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 0,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
@@ -65,12 +66,12 @@
   },
   "rationale": {
     "summary": "Intentionally broken fixture violating DRAFT-only rule, B-003 POST_MVP scope tagging, and OD-007 physical table neutrality.",
-    "invariants_exercised": [
+    "confirmed_spec_rules": [
       "APPROVAL_STATUS_MUST_BE_DRAFT",
       "SCOPE_TAG_POLICY",
       "OD007_NO_PHYSICAL_TABLE"
     ],
-    "assumptions_without_notion": [],
-    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": []
   }
 }

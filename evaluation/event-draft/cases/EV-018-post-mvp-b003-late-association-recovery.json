@@ -50,6 +50,7 @@
         "committed_at": "2026-10-22T09:10:00Z",
         "branch_name": "main",
         "on_default_branch": true,
+        "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
         "changed_paths": ["src/billing/tax_rounding.py"]
@@ -82,22 +83,25 @@
         "held_id": "hold_exp_018_unknown",
         "source_type": "COMMIT",
         "source_id": "cmt_syn_1801",
-        "hold_status": "CLASSIFICATION_HELD",
-        "hold_reason": "In MVP snapshot, cmt_syn_1801 has pr_association_status='UNKNOWN' and MUST remain held (never DIRECT_COMMIT / NO_PR).",
+        "logical_disposition": "hold_classification_unknown_assoc",
+        "spec_hold_status": "UNCONFIRMED",
+        "hold_reason": "In MVP snapshot, cmt_syn_1801 has pr_association_status='UNKNOWN' (lookup incomplete) and MUST remain held rather than treated as NO_MATCH_OBSERVED.",
         "interpreted_as_no_pr": false,
-        "review_required_tokens": ["hold_status:CLASSIFICATION_HELD"]
+        "unconfirmed_fields": ["spec_hold_status"]
       },
       {
         "held_id": "hold_exp_018_recovery",
         "source_type": "OBSERVATION",
         "source_id": "obs_syn_1801",
-        "hold_status": "DEFERRED_POST_MVP",
+        "logical_disposition": "deferred_post_mvp",
+        "spec_hold_status": "UNCONFIRMED",
         "hold_reason": "Late source association recovery linking cmt_syn_1801 to PR #1805 is deferred to B-003 (POST_MVP).",
         "interpreted_as_no_pr": false,
-        "review_required_tokens": ["hold_status:DEFERRED_POST_MVP", "backlog_ref:B-003"]
+        "unconfirmed_fields": ["spec_hold_status"]
       }
     ],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "multi-currency tax rounding",
@@ -107,32 +111,39 @@
     ],
     "aggregation_check": {
       "total_countable_events": 0,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 2,
       "total_excluded_events": 0
     },
-    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying obs_syn_1801 resolves cmt_syn_1801 from CLASSIFICATION_HELD to a PR_CENTERED Event for PR #1805 without ever having misclassified it as DIRECT_COMMIT.",
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying obs_syn_1801 resolves cmt_syn_1801 from held UNKNOWN to a merged-PR Event for PR #1805 without ever having misclassified it as NO_MATCH_OBSERVED.",
     "review_required_items": [
       {
-        "field_path": "expected_proposal.post_mvp_transition_note",
-        "proposed_value": "MVP holds UNKNOWN; B-003 recovers to PR_CENTERED",
+        "field_path": "expected_proposal.held_items[*].spec_hold_status",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether B-003 late association recovery must preserve user curation edits if a user manually acted on a held item, or whether held UNKNOWN items are locked from user curation until recovered (as modeled in EV-013)."
+        "question": "Fill exact hold/deferred status names from Notion Event Contract."
+      },
+      {
+        "field_path": "expected_proposal.post_mvp_transition_note",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether held UNKNOWN items are locked from user curation until B-003 recovery, and whether T-001B should also add a late NO_MATCH_OBSERVED recovery case."
       }
     ]
   },
   "rationale": {
-    "summary": "Demonstrates why EV-003 holds UNKNOWN commits instead of emitting DIRECT_COMMIT: late association recovery (B-003, POST_MVP) can later resolve cmt_syn_1801 cleanly into PR #1805 without creating false direct-commit Events or duplicate history.",
-    "invariants_exercised": [
-      "UNKNOWN_NEVER_INTERPRETED_AS_NO_PR",
-      "POST_MVP_B003_EXPLICITLY_TAGGED",
-      "LATE_ASSOCIATION_RECOVERY_BOUNDARY"
+    "summary": "Shows why UNKNOWN commits must never be classified as NO_MATCH_OBSERVED direct-commit Events: late association recovery (B-003, POST_MVP) can later resolve cmt_syn_1801 cleanly into PR #1805 without false direct-commit history.",
+    "confirmed_spec_rules": [
+      "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
+      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
+      "POST_MVP_B003_EXPLICITLY_TAGGED"
     ],
-    "assumptions_without_notion": [
-      "Follows prompt instruction to tag late source association recovery as POST_MVP (B-003)."
+    "unconfirmed_spec_tokens": [
+      "spec_hold_status for held UNKNOWN commit and deferred POST_MVP observation (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Should T-001A include a second POST_MVP variant where late association recovery confirms pr_association_status='NONE' and promotes the held commit to DIRECT_COMMIT?"
+    "truly_undecided_items": [
+      "Whether held UNKNOWN items are locked from curation until B-003 recovery.",
+      "Whether to add a companion POST_MVP case where late recovery completes lookup with NO_MATCH_OBSERVED."
     ]
   }
 }

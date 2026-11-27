@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://career-memory.example.invalid/schemas/event-draft-case.v1.json",
   "title": "Career Memory T-001A Event Synthetic Fixture Case",
-  "description": "Strict separation of synthetic_sources, user_commands, expected_proposal (DRAFT), and rationale. Avoids OD-007 physical table assumptions.",
+  "description": "Strict separation of synthetic_sources, user_commands, expected_proposal (DRAFT), and rationale. Separates spec-confirmed rules/tokens from UNCONFIRMED status/error names and truly undecided questions. Avoids OD-007 physical table assumptions.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -182,6 +182,7 @@
               "committed_at",
               "branch_name",
               "on_default_branch",
+              "pr_association_lookup_status",
               "pr_association_status",
               "associated_pr_id",
               "changed_paths"
@@ -195,7 +196,16 @@
               "committed_at": { "type": "string" },
               "branch_name": { "type": "string", "minLength": 1 },
               "on_default_branch": { "type": "boolean" },
-              "pr_association_status": { "type": "string", "enum": ["ASSOCIATED", "NONE", "UNKNOWN"] },
+              "pr_association_lookup_status": {
+                "type": "string",
+                "enum": ["COMPLETED", "INCOMPLETE_OR_FAILED"],
+                "description": "Default-branch direct commit is only a candidate when lookup completed normally (COMPLETED) and observed NO_MATCH_OBSERVED."
+              },
+              "pr_association_status": {
+                "type": "string",
+                "enum": ["ASSOCIATED", "NO_MATCH_OBSERVED", "UNKNOWN"],
+                "description": "NO_MATCH_OBSERVED and UNKNOWN are spec-confirmed tokens; ASSOCIATED denotes a matched PR in synthetic input."
+              },
               "associated_pr_id": { "type": ["string", "null"] },
               "changed_paths": { "type": "array", "items": { "type": "string" } }
             }
@@ -230,28 +240,41 @@
             "required": [
               "event_id",
               "workspace_id",
-              "event_kind",
-              "lifecycle_status",
+              "repo_id",
+              "logical_kind",
+              "spec_event_type",
+              "logical_state",
+              "spec_lifecycle_status",
               "version",
               "merge_origin",
               "primary_pr_id",
               "source_commit_ids",
               "context_ticket_ids",
               "member_event_ids",
-              "membership_state",
+              "dependent_claim_ids",
+              "membership_role",
               "searchable_as_top_level",
               "counted_in_metrics"
             ],
             "properties": {
               "event_id": { "type": "string", "pattern": "^ev_init_[a-z0-9_]+$" },
               "workspace_id": { "type": "string" },
-              "event_kind": {
+              "repo_id": { "type": "string" },
+              "logical_kind": {
                 "type": "string",
-                "enum": ["PR_CENTERED", "DIRECT_COMMIT", "COMPOSITE", "SPLIT_CHILD"]
+                "enum": ["merged_pr_event", "direct_commit_event", "user_composite_event", "split_child_event"]
               },
-              "lifecycle_status": {
+              "spec_event_type": {
                 "type": "string",
-                "enum": ["ACTIVE", "EXCLUDED", "DISSOLVED", "SUPERSEDED"]
+                "enum": ["USER_COMPOSITE", "UNCONFIRMED"]
+              },
+              "logical_state": {
+                "type": "string",
+                "enum": ["active", "excluded", "dissolved", "superseded"]
+              },
+              "spec_lifecycle_status": {
+                "type": "string",
+                "enum": ["UNCONFIRMED"]
               },
               "version": { "type": "integer", "minimum": 1 },
               "merge_origin": { "type": "string", "enum": ["NONE", "USER_MANUAL_MERGE"] },
@@ -259,9 +282,13 @@
               "source_commit_ids": { "type": "array", "items": { "type": "string" } },
               "context_ticket_ids": { "type": "array", "items": { "type": "string" } },
               "member_event_ids": { "type": "array", "items": { "type": "string" } },
-              "membership_state": {
+              "dependent_claim_ids": {
+                "type": "array",
+                "items": { "type": "string", "pattern": "^clm_syn_[a-z0-9_]+$" }
+              },
+              "membership_role": {
                 "type": "string",
-                "enum": ["STANDALONE", "COMPOSITE_ROOT", "SUBSUMED_BY_COMPOSITE", "SPLIT_PARENT", "SPLIT_CHILD"]
+                "enum": ["standalone", "user_composite_root", "subsumed_by_user_composite", "split_parent", "split_child"]
               },
               "searchable_as_top_level": { "type": "boolean" },
               "counted_in_metrics": { "type": "boolean" }
@@ -294,7 +321,8 @@
         "additionalProperties": false,
         "required": [
           "command_id",
-          "command_type",
+          "command_action",
+          "spec_command_name",
           "workspace_id",
           "actor_id",
           "expected_version",
@@ -304,9 +332,13 @@
         ],
         "properties": {
           "command_id": { "type": "string", "pattern": "^cmd_syn_[a-z0-9_]+$" },
-          "command_type": {
+          "command_action": {
             "type": "string",
-            "enum": ["SPLIT", "MANUAL_MERGE", "EXCLUDE", "DISSOLVE"]
+            "enum": ["split", "manual_merge", "exclude", "dissolve"]
+          },
+          "spec_command_name": {
+            "type": "string",
+            "enum": ["UNCONFIRMED"]
           },
           "workspace_id": { "type": "string" },
           "actor_id": { "type": "string", "pattern": "^usr_syn_[a-z0-9_]+$" },
@@ -333,6 +365,7 @@
         "events",
         "held_items",
         "command_results",
+        "claim_side_effects",
         "search_checks",
         "aggregation_check",
         "review_required_items"
@@ -340,7 +373,7 @@
       "properties": {
         "approval_status": {
           "const": "DRAFT",
-          "description": "Must stay DRAFT in T-001A; agent cannot self-approve."
+          "description": "Must stay DRAFT in T-001A; never frozen as golden by agent."
         },
         "approved_by": {
           "const": null
@@ -353,8 +386,11 @@
             "required": [
               "event_id",
               "workspace_id",
-              "event_kind",
-              "lifecycle_status",
+              "repo_id",
+              "logical_kind",
+              "spec_event_type",
+              "logical_state",
+              "spec_lifecycle_status",
               "version",
               "merge_origin",
               "origin_command_id",
@@ -363,21 +399,30 @@
               "context_ticket_ids",
               "member_event_ids",
               "parent_event_id",
-              "membership_state",
+              "membership_role",
               "searchable_as_top_level",
               "counted_in_metrics",
-              "review_required_tokens"
+              "unconfirmed_fields"
             ],
             "properties": {
               "event_id": { "type": "string", "minLength": 1 },
               "workspace_id": { "type": "string" },
-              "event_kind": {
+              "repo_id": { "type": "string" },
+              "logical_kind": {
                 "type": "string",
-                "enum": ["PR_CENTERED", "DIRECT_COMMIT", "COMPOSITE", "SPLIT_CHILD"]
+                "enum": ["merged_pr_event", "direct_commit_event", "user_composite_event", "split_child_event"]
               },
-              "lifecycle_status": {
+              "spec_event_type": {
                 "type": "string",
-                "enum": ["ACTIVE", "EXCLUDED", "DISSOLVED", "SUPERSEDED"]
+                "enum": ["USER_COMPOSITE", "UNCONFIRMED"]
+              },
+              "logical_state": {
+                "type": "string",
+                "enum": ["active", "excluded", "dissolved", "superseded"]
+              },
+              "spec_lifecycle_status": {
+                "type": "string",
+                "enum": ["UNCONFIRMED"]
               },
               "version": { "type": "integer", "minimum": 1 },
               "merge_origin": { "type": "string", "enum": ["NONE", "USER_MANUAL_MERGE"] },
@@ -387,14 +432,14 @@
               "context_ticket_ids": { "type": "array", "items": { "type": "string" } },
               "member_event_ids": { "type": "array", "items": { "type": "string" } },
               "parent_event_id": { "type": ["string", "null"] },
-              "membership_state": {
+              "membership_role": {
                 "type": "string",
-                "enum": ["STANDALONE", "COMPOSITE_ROOT", "SUBSUMED_BY_COMPOSITE", "SPLIT_PARENT", "SPLIT_CHILD"]
+                "enum": ["standalone", "user_composite_root", "subsumed_by_user_composite", "split_parent", "split_child"]
               },
               "searchable_as_top_level": { "type": "boolean" },
               "counted_in_metrics": { "type": "boolean" },
               "title_hint": { "type": "string" },
-              "review_required_tokens": { "type": "array", "items": { "type": "string" } }
+              "unconfirmed_fields": { "type": "array", "items": { "type": "string" } }
             }
           }
         },
@@ -407,22 +452,31 @@
               "held_id",
               "source_type",
               "source_id",
-              "hold_status",
+              "logical_disposition",
+              "spec_hold_status",
               "hold_reason",
               "interpreted_as_no_pr",
-              "review_required_tokens"
+              "unconfirmed_fields"
             ],
             "properties": {
               "held_id": { "type": "string", "minLength": 1 },
               "source_type": { "type": "string", "enum": ["COMMIT", "PR", "OBSERVATION"] },
               "source_id": { "type": "string", "minLength": 1 },
-              "hold_status": {
+              "logical_disposition": {
                 "type": "string",
-                "enum": ["CLASSIFICATION_HELD", "NON_ELIGIBLE_BRANCH", "DEFERRED_POST_MVP"]
+                "enum": [
+                  "hold_classification_unknown_assoc",
+                  "not_direct_commit_candidate_non_default_branch",
+                  "deferred_post_mvp"
+                ]
+              },
+              "spec_hold_status": {
+                "type": "string",
+                "enum": ["UNCONFIRMED"]
               },
               "hold_reason": { "type": "string", "minLength": 1 },
               "interpreted_as_no_pr": { "const": false },
-              "review_required_tokens": { "type": "array", "items": { "type": "string" } }
+              "unconfirmed_fields": { "type": "array", "items": { "type": "string" } }
             }
           }
         },
@@ -434,21 +488,55 @@
             "required": [
               "command_id",
               "outcome",
-              "error_code",
+              "rejection_category",
+              "spec_error_code",
               "state_mutated",
               "resulting_event_ids",
-              "review_required_tokens"
+              "unconfirmed_fields"
             ],
             "properties": {
               "command_id": { "type": "string", "minLength": 1 },
               "outcome": { "type": "string", "enum": ["ACCEPTED", "REJECTED"] },
-              "error_code": {
+              "rejection_category": {
                 "type": ["string", "null"],
-                "enum": [null, "CANNOT_LINK", "VERSION_CONFLICT", "WORKSPACE_CONFLICT"]
+                "enum": [
+                  null,
+                  "cannot_link_non_event_or_unknown",
+                  "cannot_link_nested_user_composite",
+                  "cannot_link_excluded_event",
+                  "cannot_link_cross_repository",
+                  "version_conflict",
+                  "workspace_boundary_conflict"
+                ]
+              },
+              "spec_error_code": {
+                "type": ["string", "null"],
+                "enum": [null, "CANNOT_LINK", "UNCONFIRMED"]
               },
               "state_mutated": { "type": "boolean" },
               "resulting_event_ids": { "type": "array", "items": { "type": "string" } },
-              "review_required_tokens": { "type": "array", "items": { "type": "string" } }
+              "unconfirmed_fields": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "claim_side_effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "source_composite_event_id",
+              "expected_effect",
+              "spec_claim_status",
+              "reason"
+            ],
+            "properties": {
+              "claim_id": { "type": "string", "pattern": "^clm_syn_[a-z0-9_]+$" },
+              "source_composite_event_id": { "type": "string", "minLength": 1 },
+              "expected_effect": { "const": "STALE" },
+              "spec_claim_status": { "const": "UNCONFIRMED" },
+              "reason": { "type": "string", "minLength": 1 }
             }
           }
         },
@@ -470,13 +558,13 @@
           "additionalProperties": false,
           "required": [
             "total_countable_events",
-            "total_composite_events",
+            "total_user_composite_events",
             "total_held_items",
             "total_excluded_events"
           ],
           "properties": {
             "total_countable_events": { "type": "integer", "minimum": 0 },
-            "total_composite_events": { "type": "integer", "minimum": 0 },
+            "total_user_composite_events": { "type": "integer", "minimum": 0 },
             "total_held_items": { "type": "integer", "minimum": 0 },
             "total_excluded_events": { "type": "integer", "minimum": 0 }
           }
@@ -487,10 +575,13 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["field_path", "proposed_value", "status", "question"],
+            "required": ["field_path", "category", "status", "question"],
             "properties": {
               "field_path": { "type": "string", "minLength": 1 },
-              "proposed_value": { "type": "string" },
+              "category": {
+                "type": "string",
+                "enum": ["UNCONFIRMED_SPEC_TOKEN", "TRULY_UNDECIDED_BEHAVIOR"]
+              },
               "status": { "const": "REVIEW_REQUIRED" },
               "question": { "type": "string", "minLength": 1 }
             }
@@ -503,25 +594,24 @@
       "additionalProperties": false,
       "required": [
         "summary",
-        "invariants_exercised",
-        "assumptions_without_notion",
-        "reviewer_questions"
+        "confirmed_spec_rules",
+        "unconfirmed_spec_tokens",
+        "truly_undecided_items"
       ],
       "properties": {
         "summary": { "type": "string", "minLength": 1 },
-        "invariants_exercised": {
+        "confirmed_spec_rules": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "minItems": 1
         },
-        "assumptions_without_notion": {
+        "unconfirmed_spec_tokens": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
-        "reviewer_questions": {
+        "truly_undecided_items": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "minItems": 1
+          "items": { "type": "string", "minLength": 1 }
         }
       }
     }

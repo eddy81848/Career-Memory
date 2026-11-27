@@ -2,25 +2,65 @@
   "schema_version": "event-draft-coverage.v1",
   "task_ref": "T-001A",
   "approval_status": "DRAFT",
+  "spec_separation": {
+    "confirmed_official_spec_rules": [
+      "Merged PR is the default Event candidate (associated commits attach as evidence without spawning direct-commit Events).",
+      "Default-branch direct commit is a candidate ONLY when PR association lookup completed normally (COMPLETED) and observed NO_MATCH_OBSERVED.",
+      "UNKNOWN PR association is NEVER interpreted as NO_MATCH_OBSERVED (no PR); classification is held.",
+      "Issue/ticket links attach strictly as CONTEXT_ONLY and NEVER trigger automatic merging.",
+      "User manual merge is allowed ONLY within the same repository (and same workspace) and is aggregated/counted as a single USER_COMPOSITE (no member double counting).",
+      "USER_COMPOSITE nesting is strictly forbidden (neither an existing USER_COMPOSITE root nor an already-subsumed member may be merged into another USER_COMPOSITE).",
+      "Dissolving a USER_COMPOSITE restores its constituent members and marks dependent Claims as stale.",
+      "B-003 (post-success automatic change discovery and late source association recovery) is tagged POST_MVP.",
+      "Dataset remains DRAFT (never frozen as golden by agent) and assumes no OD-007 physical database tables."
+    ],
+    "unconfirmed_spec_tokens_left_unconfirmed": [
+      "Exact official Event type names for merged PR, direct commit, and split child Events (spec_event_type='UNCONFIRMED'; only USER_COMPOSITE is confirmed).",
+      "Exact official lifecycle status names for active, excluded, dissolved, superseded, and subsumed Events (spec_lifecycle_status='UNCONFIRMED').",
+      "Exact official hold/deferred status names for UNKNOWN commits, non-default orphan commits, and POST_MVP observations (spec_hold_status='UNCONFIRMED').",
+      "Exact official command wire names for split, manual_merge, exclude, and dissolve (spec_command_name='UNCONFIRMED').",
+      "Exact official error codes & HTTP status codes for version conflict, workspace boundary conflict, and cross-repository manual merge (spec_error_code='UNCONFIRMED'; only CANNOT_LINK is confirmed).",
+      "Exact official Claim status enum/field name representing stale Claim state (spec_claim_status='UNCONFIRMED').",
+      "Official Notion T-001A Requirement IDs and Test IDs (current REQ-EV-* / T-001A-* are provisional draft placeholders)."
+    ],
+    "truly_undecided_behavioral_items": [
+      "EV-001: Whether merge-commit SHAs generated on main belong in source_commit_ids alongside PR head commits.",
+      "EV-002: Whether consecutive default-branch NO_MATCH_OBSERVED commits stay strictly 1-per-commit in MVP or follow any grouping rule.",
+      "EV-003: Whether held UNKNOWN commits are completely hidden from default search (count=0) and surfaced only in a pending bucket.",
+      "EV-004: Whether Snapshot Import filters non-default orphan commits upstream before Event Builder or Event Builder skips/records them.",
+      "EV-005: Whether MVP search indexes CONTEXT_ONLY ticket keys onto the attached Event, and exact handling of unreferenced tickets.",
+      "EV-006 / EV-007: Whether non-binding UI hints (shared ticket / mixed-purpose PR) exist in MVP (auto-merge and auto-split themselves are excluded).",
+      "EV-008: How split partitions a single-commit squash-merged PR, and whether split is reversible in MVP.",
+      "EV-009: Whether same-repository manual merge permits combining a merged PR Event with a default-branch NO_MATCH_OBSERVED direct-commit Event.",
+      "EV-010: Whether member-only text rolls up to USER_COMPOSITE search index and what direct GET of a subsumed member Event ID returns.",
+      "EV-011: Whether exclude is reversible in MVP (restore/include) and whether excluding a USER_COMPOSITE cascades to members.",
+      "EV-012: Whether dissolve checks expected_version only on the USER_COMPOSITE or also on each member, and what error applies to non-composite dissolve.",
+      "EV-013: Whether passing a non-Event ID (ticket / held UNKNOWN commit) reaches domain CANNOT_LINK or fails earlier at request validation.",
+      "EV-014: Whether MVP provides a separate non-nesting append-member command for an existing USER_COMPOSITE or requires dissolve-then-merge.",
+      "EV-015: Whether optimistic lock granularity is per-Event version, per-Workspace version, or HTTP If-Match/ETag.",
+      "EV-016: Per OD-010, whether foreign-workspace commands return existence-hiding 403/404 when caller lacks workspace membership.",
+      "EV-017 / EV-018: Whether POST_MVP fixtures in M3/T-306A assert MVP non-ingestion (current draft) or B-003 post-sync state behind a flag, and whether to add a late NO_MATCH_OBSERVED recovery case."
+    ]
+  },
   "matrix": [
     {
       "requirement_id": "REQ-EV-PR-01",
       "test_ids": ["T-001A-01"],
       "scope": "MVP",
-      "scenario_area": "PR-centered primary Event",
+      "scenario_area": "Merged PR default Event candidate",
       "input_cases": ["EV-001"],
       "negative_variants": ["NEG-001"],
-      "observable_outcome": "1 merged PR with 2 associated commits emits exactly 1 ACTIVE PR_CENTERED Event; associated commits attach as evidence without spawning direct-commit Events.",
+      "observable_outcome": "1 merged PR with 2 associated commits emits 1 active merged-PR Event (spec_event_type/spec_lifecycle_status='UNCONFIRMED'); associated commits attach as evidence without spawning direct-commit Events.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-COMMIT-01",
       "test_ids": ["T-001A-02"],
       "scope": "MVP",
-      "scenario_area": "Default-branch direct commit",
+      "scenario_area": "Default-branch direct commit (completed lookup + NO_MATCH_OBSERVED)",
       "input_cases": ["EV-002"],
       "negative_variants": [],
-      "observable_outcome": "Default-branch commit with confirmed pr_association_status='NONE' emits 1 ACTIVE DIRECT_COMMIT Event.",
+      "observable_outcome": "Default-branch commit with pr_association_lookup_status='COMPLETED' and pr_association_status='NO_MATCH_OBSERVED' emits 1 active direct-commit Event (spec_event_type/spec_lifecycle_status='UNCONFIRMED').",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -30,7 +70,7 @@
       "scenario_area": "UNKNOWN PR association classification hold",
       "input_cases": ["EV-003", "EV-013", "EV-018"],
       "negative_variants": ["NEG-003"],
-      "observable_outcome": "Commit with pr_association_status='UNKNOWN' is placed in held_items (CLASSIFICATION_HELD, interpreted_as_no_pr=false), excluded from active search/metrics, and rejected with CANNOT_LINK if targeted for merge.",
+      "observable_outcome": "Commit with pr_association_lookup_status='INCOMPLETE_OR_FAILED' and pr_association_status='UNKNOWN' is placed in held_items (interpreted_as_no_pr=false, spec_hold_status='UNCONFIRMED'), never treated as NO_MATCH_OBSERVED, and rejected with CANNOT_LINK if targeted for merge.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -40,7 +80,7 @@
       "scenario_area": "Non-default branch orphan commit boundary",
       "input_cases": ["EV-004"],
       "negative_variants": [],
-      "observable_outcome": "Unmerged commit on non-default branch without PR does not create a DIRECT_COMMIT Event; held as NON_ELIGIBLE_BRANCH pending Snapshot Import filter confirmation.",
+      "observable_outcome": "Unmerged commit on a non-default branch with COMPLETED lookup + NO_MATCH_OBSERVED does NOT become a direct-commit Event candidate (held as not_direct_commit_candidate_non_default_branch, spec_hold_status='UNCONFIRMED').",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -50,87 +90,87 @@
       "scenario_area": "Issue/Ticket context-only attachment",
       "input_cases": ["EV-005", "EV-013"],
       "negative_variants": [],
-      "observable_outcome": "Referenced ticket attaches strictly as CONTEXT_ONLY metadata on the PR Event, never spawns a standalone Event, and cannot be merged as a peer Event (CANNOT_LINK).",
+      "observable_outcome": "Referenced Issue/ticket attaches strictly as CONTEXT_ONLY metadata on the merged PR Event, never spawns a standalone Event, and is rejected with CANNOT_LINK if targeted for manual merge.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-CONTEXT-02",
       "test_ids": ["T-001A-06"],
       "scope": "MVP",
-      "scenario_area": "Shared context-only ticket does not auto-merge PRs",
+      "scenario_area": "Issue/ticket link never triggers automatic merge",
       "input_cases": ["EV-006"],
       "negative_variants": ["NEG-005"],
-      "observable_outcome": "Two PRs referencing the same SYN-202 ticket remain 2 separate STANDALONE PR_CENTERED Events (total_countable_events=2, total_composite_events=0).",
+      "observable_outcome": "Two merged PRs referencing the same CONTEXT_ONLY ticket remain 2 separate standalone merged-PR Events (total_countable_events=2, total_user_composite_events=0).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-MERGE-01",
       "test_ids": ["T-001A-06", "T-001A-09"],
       "scope": "MVP",
-      "scenario_area": "Distinction between prohibited auto multi-PR merge and user MANUAL_MERGE",
+      "scenario_area": "Distinction between prohibited auto multi-PR merge and user manual merge",
       "input_cases": ["EV-006", "EV-009"],
       "negative_variants": ["NEG-005"],
-      "observable_outcome": "Without a MANUAL_MERGE command, multi-PR inputs stay separate (EV-006); only an explicit user MANUAL_MERGE creates a COMPOSITE Event with merge_origin='USER_MANUAL_MERGE' (EV-009).",
+      "observable_outcome": "Without a user manual_merge command, multi-PR inputs stay separate (EV-006); only an explicit same-repository user manual_merge creates 1 USER_COMPOSITE with merge_origin='USER_MANUAL_MERGE' (EV-009).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-MIXED-01",
       "test_ids": ["T-001A-07", "T-001A-08"],
       "scope": "MVP",
-      "scenario_area": "Mixed-purpose single PR",
+      "scenario_area": "Mixed-purpose single merged PR",
       "input_cases": ["EV-007", "EV-008"],
       "negative_variants": [],
-      "observable_outcome": "Initial ingestion preserves 1 PR_CENTERED Event without ungrounded auto-split (EV-007); explicit user SPLIT partitions commits into 2 active SPLIT_CHILD Events (EV-008).",
+      "observable_outcome": "Initial ingestion preserves 1 merged-PR Event without ungrounded auto-split (EV-007); explicit user split partitions commits into 2 active split-child Events without double counting (EV-008).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-CMD-SPLIT-01",
       "test_ids": ["T-001A-08"],
       "scope": "MVP",
-      "scenario_area": "User SPLIT curation command",
+      "scenario_area": "User split curation command",
       "input_cases": ["EV-008"],
       "negative_variants": ["NEG-002"],
-      "observable_outcome": "SPLIT supersedes parent Event (searchable_as_top_level=false, counted_in_metrics=false, version=2) and creates 2 active SPLIT_CHILD Events (total_countable_events=2).",
+      "observable_outcome": "User split supersedes parent Event (searchable_as_top_level=false, counted_in_metrics=false, version=2) and creates 2 active split-child Events (total_countable_events=2; wire command/status tokens UNCONFIRMED).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-CMD-MERGE-01",
-      "test_ids": ["T-001A-09"],
+      "test_ids": ["T-001A-09", "T-001A-16"],
       "scope": "MVP",
-      "scenario_area": "User MANUAL_MERGE curation command",
-      "input_cases": ["EV-009"],
+      "scenario_area": "User manual merge (same-repository only -> single USER_COMPOSITE)",
+      "input_cases": ["EV-009", "EV-016"],
       "negative_variants": ["NEG-005"],
-      "observable_outcome": "MANUAL_MERGE creates 1 ACTIVE COMPOSITE Event (merge_origin='USER_MANUAL_MERGE') and subsumes both member PR Events (total_countable_events=1, total_composite_events=1).",
+      "observable_outcome": "Same-repository manual merge creates 1 active USER_COMPOSITE (merge_origin='USER_MANUAL_MERGE') and subsumes both member Events (EV-009: total_countable_events=1, total_user_composite_events=1); cross-repository manual merge even within the same workspace is rejected with zero mutation (EV-016).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-COMP-01",
       "test_ids": ["T-001A-10", "T-001A-12", "T-001A-14"],
       "scope": "MVP",
-      "scenario_area": "Composite double-counting prevention in search & metrics",
+      "scenario_area": "USER_COMPOSITE single-count & anti-nesting invariants",
       "input_cases": ["EV-010", "EV-012", "EV-014"],
       "negative_variants": ["NEG-004"],
-      "observable_outcome": "Subsumed Composite members have searchable_as_top_level=false and counted_in_metrics=false; queries matching member text return Composite once; total_countable_events never counts both Composite and members.",
+      "observable_outcome": "Subsumed USER_COMPOSITE members have searchable_as_top_level=false and counted_in_metrics=false (EV-010); nesting a USER_COMPOSITE root or subsumed member is strictly forbidden (EV-014); dissolving restores members without double counting (EV-012).",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-CMD-EXCLUDE-01",
       "test_ids": ["T-001A-11"],
       "scope": "MVP",
-      "scenario_area": "User EXCLUDE curation command",
+      "scenario_area": "User exclude curation command",
       "input_cases": ["EV-011"],
       "negative_variants": ["NEG-002"],
-      "observable_outcome": "EXCLUDE transitions target Event to EXCLUDED (version=2), removes it from default search and active counts while keeping sibling Events active and source provenance intact.",
+      "observable_outcome": "User exclude transitions target Event to logical_state='excluded' (spec_lifecycle_status='UNCONFIRMED', version=2), removes it from active search/metrics while keeping sibling Events active and source provenance intact.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-CMD-DISSOLVE-01",
       "test_ids": ["T-001A-12"],
       "scope": "MVP",
-      "scenario_area": "User DISSOLVE curation command",
+      "scenario_area": "User dissolve curation command (restores members + marks dependent Claims stale)",
       "input_cases": ["EV-012"],
       "negative_variants": [],
-      "observable_outcome": "DISSOLVE marks Composite DISSOLVED (not searchable/counted) and restores member PR Events to STANDALONE top-level active Events (total_countable_events: 1 -> 2).",
+      "observable_outcome": "User dissolve marks USER_COMPOSITE dissolved (not searchable/counted), restores member Events to standalone active (total_countable_events: 1 -> 2), and emits claim_side_effects marking dependent Claim clm_syn_012_1 as expected_effect='STALE' (spec_claim_status='UNCONFIRMED').",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -140,17 +180,17 @@
       "scenario_area": "CANNOT_LINK rejection (context-only ticket / UNKNOWN commit)",
       "input_cases": ["EV-013"],
       "negative_variants": [],
-      "observable_outcome": "MANUAL_MERGE targeting a CONTEXT_ONLY ticket or UNKNOWN-held commit returns REJECTED with CANNOT_LINK and state_mutated=false.",
+      "observable_outcome": "Manual merge targeting a CONTEXT_ONLY ticket or UNKNOWN-held commit returns REJECTED with CANNOT_LINK and state_mutated=false.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-ERR-LINK-02",
       "test_ids": ["T-001A-14"],
       "scope": "MVP",
-      "scenario_area": "CANNOT_LINK rejection (nested Composite / EXCLUDED target)",
+      "scenario_area": "CANNOT_LINK rejection (forbidden USER_COMPOSITE nesting / excluded target)",
       "input_cases": ["EV-014"],
       "negative_variants": [],
-      "observable_outcome": "MANUAL_MERGE targeting an already-subsumed Composite member or an EXCLUDED Event returns REJECTED with CANNOT_LINK and state_mutated=false.",
+      "observable_outcome": "Manual merge targeting an already-subsumed USER_COMPOSITE member, an existing USER_COMPOSITE root, or an excluded Event returns REJECTED with CANNOT_LINK and state_mutated=false.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -160,17 +200,17 @@
       "scenario_area": "Optimistic concurrency / version conflict",
       "input_cases": ["EV-015"],
       "negative_variants": [],
-      "observable_outcome": "Command with stale expected_version=1 against current version=2 returns REJECTED with VERSION_CONFLICT and state_mutated=false.",
+      "observable_outcome": "Command with stale expected_version=1 against current version=2 returns REJECTED (rejection_category='version_conflict', spec_error_code='UNCONFIRMED') and state_mutated=false.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
       "requirement_id": "REQ-EV-ERR-WS-01",
       "test_ids": ["T-001A-16"],
       "scope": "MVP",
-      "scenario_area": "Workspace boundary conflict",
+      "scenario_area": "Workspace boundary & cross-repository merge rejection",
       "input_cases": ["EV-016"],
       "negative_variants": [],
-      "observable_outcome": "Cross-workspace MANUAL_MERGE and mismatched-workspace EXCLUDE return REJECTED with WORKSPACE_CONFLICT (OD-010 hiding policy REVIEW_REQUIRED) and state_mutated=false.",
+      "observable_outcome": "Cross-workspace manual merge, foreign-workspace exclude, and same-workspace cross-repository manual merge return REJECTED (spec_error_code='UNCONFIRMED') with state_mutated=false.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -181,7 +221,7 @@
       "scenario_area": "Post-success automatic change discovery (B-003)",
       "input_cases": ["EV-017"],
       "negative_variants": ["NEG-006"],
-      "observable_outcome": "Explicitly tagged POST_MVP (B-003); post-INITIAL_BACKFILL PR observation is recorded as DEFERRED_POST_MVP rather than auto-ingested in MVP.",
+      "observable_outcome": "Explicitly tagged POST_MVP (B-003); post-INITIAL_BACKFILL PR observation is recorded as deferred_post_mvp (spec_hold_status='UNCONFIRMED') rather than auto-ingested in MVP.",
       "review_status": "REVIEW_REQUIRED"
     },
     {
@@ -192,7 +232,7 @@
       "scenario_area": "Late source association recovery (B-003)",
       "input_cases": ["EV-018"],
       "negative_variants": ["NEG-003", "NEG-006"],
-      "observable_outcome": "Explicitly tagged POST_MVP (B-003); UNKNOWN commit remains held in MVP and late PR recovery transition is deferred to B-003.",
+      "observable_outcome": "Explicitly tagged POST_MVP (B-003); UNKNOWN commit remains held in MVP (never interpreted as NO_MATCH_OBSERVED) and late PR recovery transition is deferred to B-003.",
       "review_status": "REVIEW_REQUIRED"
     }
   ]

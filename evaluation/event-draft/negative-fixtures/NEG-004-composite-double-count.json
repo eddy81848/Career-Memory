@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "NEG-004",
   "slug": "composite-double-count",
-  "title": "[NEGATIVE VARIANT] Composite members double-counted in search and metrics",
+  "title": "[NEGATIVE VARIANT] USER_COMPOSITE members double-counted in search and metrics",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -79,6 +79,7 @@
         "committed_at": "2026-10-20T09:00:00Z",
         "branch_name": "feat/p1",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_neg401",
         "changed_paths": ["src/a.py"]
@@ -92,6 +93,7 @@
         "committed_at": "2026-10-21T09:00:00Z",
         "branch_name": "feat/p2",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_neg402",
         "changed_paths": ["src/b.py"]
@@ -102,45 +104,57 @@
       {
         "event_id": "ev_init_neg4_comp",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "COMPOSITE",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "user_composite_event",
+        "spec_event_type": "USER_COMPOSITE",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
         "source_commit_ids": ["cmt_syn_neg401a", "cmt_syn_neg402a"],
         "context_ticket_ids": [],
         "member_event_ids": ["ev_init_neg4_m1", "ev_init_neg4_m2"],
-        "membership_state": "COMPOSITE_ROOT",
+        "dependent_claim_ids": [],
+        "membership_role": "user_composite_root",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       },
       {
         "event_id": "ev_init_neg4_m1",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_neg401",
         "source_commit_ids": ["cmt_syn_neg401a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "dependent_claim_ids": [],
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
       },
       {
         "event_id": "ev_init_neg4_m2",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_neg402",
         "source_commit_ids": ["cmt_syn_neg402a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "dependent_claim_ids": [],
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
       }
@@ -155,8 +169,11 @@
       {
         "event_id": "ev_init_neg4_comp",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "COMPOSITE",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "user_composite_event",
+        "spec_event_type": "USER_COMPOSITE",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
@@ -165,16 +182,19 @@
         "context_ticket_ids": [],
         "member_event_ids": ["ev_init_neg4_m1", "ev_init_neg4_m2"],
         "parent_event_id": null,
-        "membership_state": "COMPOSITE_ROOT",
+        "membership_role": "user_composite_root",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_lifecycle_status"]
       },
       {
         "event_id": "ev_init_neg4_m1",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -183,16 +203,19 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_neg4_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       },
       {
         "event_id": "ev_init_neg4_m2",
         "workspace_id": "ws_syn_neg4",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg4",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -201,14 +224,15 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_neg4_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "PR 1",
@@ -218,7 +242,7 @@
     ],
     "aggregation_check": {
       "total_countable_events": 2,
-      "total_composite_events": 1,
+      "total_user_composite_events": 1,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
@@ -226,9 +250,9 @@
     "review_required_items": []
   },
   "rationale": {
-    "summary": "Intentionally broken fixture double-counting Composite member ev_init_neg4_m1.",
-    "invariants_exercised": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
-    "assumptions_without_notion": [],
-    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+    "summary": "Intentionally broken fixture double-counting USER_COMPOSITE member ev_init_neg4_m1.",
+    "confirmed_spec_rules": ["INVARIANT_NO_COMPOSITE_DOUBLE_COUNT"],
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": []
   }
 }

@@ -79,6 +79,7 @@
         "committed_at": "2026-10-20T09:00:00Z",
         "branch_name": "feat/s1",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_neg501",
         "changed_paths": ["src/s1.py"]
@@ -92,6 +93,7 @@
         "committed_at": "2026-10-20T11:00:00Z",
         "branch_name": "feat/s2",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_neg502",
         "changed_paths": ["src/s2.py"]
@@ -117,8 +119,11 @@
       {
         "event_id": "ev_neg_005_bad_auto_comp",
         "workspace_id": "ws_syn_neg5",
-        "event_kind": "COMPOSITE",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg5",
+        "logical_kind": "user_composite_event",
+        "spec_event_type": "USER_COMPOSITE",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "AUTO_CONTEXT_LINK",
         "origin_command_id": null,
@@ -127,16 +132,19 @@
         "context_ticket_ids": ["tkt_syn_neg505"],
         "member_event_ids": ["ev_neg_005_m1", "ev_neg_005_m2"],
         "parent_event_id": null,
-        "membership_state": "COMPOSITE_ROOT",
+        "membership_role": "user_composite_root",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_lifecycle_status"]
       },
       {
         "event_id": "ev_neg_005_m1",
         "workspace_id": "ws_syn_neg5",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg5",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -145,16 +153,19 @@
         "context_ticket_ids": ["tkt_syn_neg505"],
         "member_event_ids": [],
         "parent_event_id": "ev_neg_005_bad_auto_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       },
       {
         "event_id": "ev_neg_005_m2",
         "workspace_id": "ws_syn_neg5",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_neg5",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -163,18 +174,19 @@
         "context_ticket_ids": ["tkt_syn_neg505"],
         "member_event_ids": [],
         "parent_event_id": "ev_neg_005_bad_auto_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 1,
+      "total_user_composite_events": 1,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
@@ -182,9 +194,9 @@
     "review_required_items": []
   },
   "rationale": {
-    "summary": "Intentionally broken fixture auto-merging two PRs through a shared CONTEXT_ONLY ticket without a MANUAL_MERGE command.",
-    "invariants_exercised": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
-    "assumptions_without_notion": [],
-    "reviewer_questions": ["Negative test fixture only; must fail lint."]
+    "summary": "Intentionally broken fixture auto-merging two PRs through a shared CONTEXT_ONLY ticket without a manual_merge command.",
+    "confirmed_spec_rules": ["INVARIANT_NO_CONTEXT_AUTO_MERGE"],
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": []
   }
 }

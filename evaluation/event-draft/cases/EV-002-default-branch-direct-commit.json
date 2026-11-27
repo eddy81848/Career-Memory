@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-002",
   "slug": "default-branch-direct-commit",
-  "title": "Direct commit on default branch with confirmed NONE PR association creates direct-commit Event",
+  "title": "Direct commit on default branch is a candidate only when PR association lookup completed normally with NO_MATCH_OBSERVED",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -10,7 +10,7 @@
   "coverage": {
     "requirement_ids": ["REQ-EV-COMMIT-01"],
     "test_ids": ["T-001A-02"],
-    "scenario_tags": ["direct_commit", "default_branch", "association_none", "mvp_core"]
+    "scenario_tags": ["direct_commit", "default_branch", "no_match_observed", "mvp_core"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -50,7 +50,8 @@
         "committed_at": "2026-10-21T03:45:00Z",
         "branch_name": "main",
         "on_default_branch": true,
-        "pr_association_status": "NONE",
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
         "associated_pr_id": null,
         "changed_paths": ["config/router_timeouts.yaml"]
       }
@@ -67,8 +68,11 @@
       {
         "event_id": "ev_exp_002_1",
         "workspace_id": "ws_syn_002",
-        "event_kind": "DIRECT_COMMIT",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_002",
+        "logical_kind": "direct_commit_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -77,15 +81,16 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Hotfix: raise circuit breaker timeout from 2s to 5s on edge router",
-        "review_required_tokens": ["event_kind:DIRECT_COMMIT"]
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "circuit breaker timeout",
@@ -95,31 +100,38 @@
     ],
     "aggregation_check": {
       "total_countable_events": 1,
-      "total_composite_events": 0,
+      "total_user_composite_events": 0,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.events[0].event_kind",
-        "proposed_value": "DIRECT_COMMIT",
+        "field_path": "expected_proposal.events[0].spec_event_type",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm exact enum name for default-branch direct commit Events and whether consecutive direct commits by the same author are ever grouped automatically or remain 1-per-commit in MVP."
+        "question": "Fill exact official Event type & active lifecycle status names for default-branch direct-commit Events from Notion Event Contract."
+      },
+      {
+        "field_path": "expected_proposal.events",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether consecutive default-branch NO_MATCH_OBSERVED commits remain strictly 1-per-commit in MVP or follow any grouping rule."
       }
     ]
   },
   "rationale": {
-    "summary": "A commit pushed directly to the repository default branch with positively verified pr_association_status='NONE' qualifies as a Direct Commit Event.",
-    "invariants_exercised": [
-      "DEFAULT_BRANCH_DIRECT_COMMIT_ELIGIBLE",
-      "REQUIRES_CONFIRMED_NONE_NOT_UNKNOWN"
+    "summary": "A commit on the repository default branch qualifies as a direct-commit Event candidate only because PR association lookup completed normally (COMPLETED) and observed NO_MATCH_OBSERVED.",
+    "confirmed_spec_rules": [
+      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
+      "UNKNOWN_MUST_NOT_BE_TREATED_AS_NO_MATCH_OBSERVED"
     ],
-    "assumptions_without_notion": [
-      "Assumes 1 direct commit on default branch maps to 1 DIRECT_COMMIT Event in MVP without time-window auto-clustering."
+    "unconfirmed_spec_tokens": [
+      "spec_event_type for default-branch direct commit Event (left UNCONFIRMED)",
+      "spec_lifecycle_status for active Event (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Confirm whether direct commits on the default branch are strictly 1:1 with Events in MVP or subject to any same-day grouping rule."
+    "truly_undecided_items": [
+      "Whether multiple consecutive default-branch NO_MATCH_OBSERVED commits remain strictly 1:1 with Events in MVP or have any grouping rule."
     ]
   }
 }

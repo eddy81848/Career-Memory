@@ -2,7 +2,7 @@
   "schema_version": "event-draft-case.v1",
   "case_id": "EV-010",
   "slug": "composite-no-double-counting",
-  "title": "Search and workspace metrics never double-count Composite members alongside the Composite Event",
+  "title": "Search and workspace metrics count one USER_COMPOSITE and never double-count its subsumed members",
   "scope": "MVP",
   "backlog_ref": null,
   "post_mvp_reason": null,
@@ -10,7 +10,7 @@
   "coverage": {
     "requirement_ids": ["REQ-EV-COMP-01"],
     "test_ids": ["T-001A-10"],
-    "scenario_tags": ["composite_double_count_prevention", "search_deduplication", "aggregation_integrity"]
+    "scenario_tags": ["composite_double_count_prevention", "user_composite", "search_deduplication", "aggregation_integrity"]
   },
   "synthetic_sources": {
     "workspaces": [
@@ -93,6 +93,7 @@
         "committed_at": "2026-10-20T09:00:00Z",
         "branch_name": "feat/dlq-backoff",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1001",
         "changed_paths": ["src/dlq/backoff.py"]
@@ -106,6 +107,7 @@
         "committed_at": "2026-10-21T09:00:00Z",
         "branch_name": "feat/dlq-replay-cli",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1002",
         "changed_paths": ["src/dlq/replay_cli.py"]
@@ -119,6 +121,7 @@
         "committed_at": "2026-10-22T09:00:00Z",
         "branch_name": "perf/heartbeat-size",
         "on_default_branch": false,
+        "pr_association_lookup_status": "COMPLETED",
         "pr_association_status": "ASSOCIATED",
         "associated_pr_id": "pr_syn_1003",
         "changed_paths": ["src/worker/heartbeat.py"]
@@ -129,60 +132,76 @@
       {
         "event_id": "ev_init_010_comp",
         "workspace_id": "ws_syn_010",
-        "event_kind": "COMPOSITE",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "user_composite_event",
+        "spec_event_type": "USER_COMPOSITE",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
         "source_commit_ids": ["cmt_syn_1001a", "cmt_syn_1002a"],
         "context_ticket_ids": [],
         "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
-        "membership_state": "COMPOSITE_ROOT",
+        "dependent_claim_ids": [],
+        "membership_role": "user_composite_root",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       },
       {
         "event_id": "ev_init_010_m1",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1001",
         "source_commit_ids": ["cmt_syn_1001a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "dependent_claim_ids": [],
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
       },
       {
         "event_id": "ev_init_010_m2",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1002",
         "source_commit_ids": ["cmt_syn_1002a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "dependent_claim_ids": [],
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false
       },
       {
         "event_id": "ev_init_010_solo",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1003",
         "source_commit_ids": ["cmt_syn_1003a"],
         "context_ticket_ids": [],
         "member_event_ids": [],
-        "membership_state": "STANDALONE",
+        "dependent_claim_ids": [],
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       }
@@ -197,8 +216,11 @@
       {
         "event_id": "ev_init_010_comp",
         "workspace_id": "ws_syn_010",
-        "event_kind": "COMPOSITE",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "user_composite_event",
+        "spec_event_type": "USER_COMPOSITE",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
@@ -207,17 +229,20 @@
         "context_ticket_ids": [],
         "member_event_ids": ["ev_init_010_m1", "ev_init_010_m2"],
         "parent_event_id": null,
-        "membership_state": "COMPOSITE_ROOT",
+        "membership_role": "user_composite_root",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Deadletter queue reliability and replay tooling",
-        "review_required_tokens": ["composite_search_roll_up:REVIEW_REQUIRED"]
+        "unconfirmed_fields": ["spec_lifecycle_status"]
       },
       {
         "event_id": "ev_init_010_m1",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -226,17 +251,20 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_010_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Add deadletter queue backoff policy",
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       },
       {
         "event_id": "ev_init_010_m2",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -245,17 +273,20 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": "ev_init_010_comp",
-        "membership_state": "SUBSUMED_BY_COMPOSITE",
+        "membership_role": "subsumed_by_user_composite",
         "searchable_as_top_level": false,
         "counted_in_metrics": false,
         "title_hint": "Add deadletter queue replay CLI",
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       },
       {
         "event_id": "ev_init_010_solo",
         "workspace_id": "ws_syn_010",
-        "event_kind": "PR_CENTERED",
-        "lifecycle_status": "ACTIVE",
+        "repo_id": "repo_syn_010",
+        "logical_kind": "merged_pr_event",
+        "spec_event_type": "UNCONFIRMED",
+        "logical_state": "active",
+        "spec_lifecycle_status": "UNCONFIRMED",
         "version": 1,
         "merge_origin": "NONE",
         "origin_command_id": null,
@@ -264,15 +295,16 @@
         "context_ticket_ids": [],
         "member_event_ids": [],
         "parent_event_id": null,
-        "membership_state": "STANDALONE",
+        "membership_role": "standalone",
         "searchable_as_top_level": true,
         "counted_in_metrics": true,
         "title_hint": "Optimize worker heartbeat telemetry",
-        "review_required_tokens": []
+        "unconfirmed_fields": ["spec_event_type", "spec_lifecycle_status"]
       }
     ],
     "held_items": [],
     "command_results": [],
+    "claim_side_effects": [],
     "search_checks": [
       {
         "query": "deadletter queue",
@@ -292,32 +324,39 @@
     ],
     "aggregation_check": {
       "total_countable_events": 2,
-      "total_composite_events": 1,
+      "total_user_composite_events": 1,
       "total_held_items": 0,
       "total_excluded_events": 0
     },
     "post_mvp_transition_note": null,
     "review_required_items": [
       {
-        "field_path": "expected_proposal.search_checks[1]",
-        "proposed_value": "Member-specific query ('replay CLI') returns parent Composite once",
+        "field_path": "expected_proposal.events[*].spec_lifecycle_status",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm that searching text appearing only in a member PR ('replay CLI') resolves to the owning Composite Event exactly once without also returning the subsumed member."
+        "question": "Fill exact lifecycle status names for USER_COMPOSITE and subsumed member Events from Notion Event Contract."
+      },
+      {
+        "field_path": "expected_proposal.search_checks[1]",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm that searching text appearing only in one member PR ('replay CLI') resolves to the owning USER_COMPOSITE once, and clarify direct GET behavior for a subsumed member Event ID."
       }
     ]
   },
   "rationale": {
-    "summary": "Workspace contains 1 Composite (composed of 2 PR members) plus 1 standalone PR. Searching 'deadletter queue' matches both members' text yet must return only ev_init_010_comp once (count=1). Workspace canonical count must be 2, never 3 or 4.",
-    "invariants_exercised": [
-      "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH",
-      "NO_COMPOSITE_DOUBLE_COUNTING_IN_METRICS",
-      "MEMBER_TEXT_ROLLS_UP_TO_COMPOSITE"
+    "summary": "Workspace contains 1 same-repo USER_COMPOSITE (composed of 2 PR members) plus 1 standalone PR. Searching 'deadletter queue' returns only ev_init_010_comp once (count=1); total countable Events equals 2 (1 USER_COMPOSITE + 1 standalone), never 3 or 4.",
+    "confirmed_spec_rules": [
+      "USER_MANUAL_MERGE_AGGREGATED_AS_SINGLE_USER_COMPOSITE",
+      "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH_OR_METRICS",
+      "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY"
     ],
-    "assumptions_without_notion": [
-      "Assumes search index rolls member PR titles/bodies up to the Composite root while suppressing subsumed member rows from top-level search."
+    "unconfirmed_spec_tokens": [
+      "spec_lifecycle_status for active USER_COMPOSITE and subsumed members (left UNCONFIRMED)"
     ],
-    "reviewer_questions": [
-      "Should direct lookup by a subsumed member Event ID return the member with a pointer to its Composite parent, or redirect to the Composite?"
+    "truly_undecided_items": [
+      "Whether text unique to a single member PR rolls up to USER_COMPOSITE search index in MVP.",
+      "Whether direct GET of a subsumed member ID returns the member with parent pointer or redirects to USER_COMPOSITE."
     ]
   }
 }

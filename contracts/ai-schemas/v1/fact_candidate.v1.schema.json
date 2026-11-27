@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "CmLocatorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalization_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "char_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "char_length": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "char_start": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "line_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "line_start": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "locator_spec_version": {
+          "const": "cm-locator-v1",
+          "type": "string"
+        },
+        "span_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "utf16_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf16_start": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "utf8_byte_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf8_byte_length": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf8_byte_start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "locator_spec_version",
+        "canonicalization_version",
+        "char_start",
+        "char_end",
+        "char_length",
+        "utf8_byte_start",
+        "utf8_byte_end",
+        "utf8_byte_length",
+        "utf16_start",
+        "utf16_end",
+        "line_start",
+        "line_end",
+        "span_sha256"
+      ],
+      "type": "object"
+    },
+    "MetricDetails": {
+      "additionalProperties": false,
+      "properties": {
+        "environment_scope": {
+          "enum": [
+            "PRODUCTION",
+            "STAGING_TEST",
+            "UNSPECIFIED"
+          ],
+          "type": "string"
+        },
+        "measurement_scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "period": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_basis": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "source_basis",
+        "environment_scope",
+        "measurement_scope"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://career-memory.local/schemas/ai/v1/fact_candidate.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stage 2A FactCandidateExtractor structured output. Always starts in CANDIDATE status, carries cm-locator-v1 offsets/hashes, and strictly forbids raw source quotes or direct SUPPORTED/SOURCE_VERIFIED status assignment.",
+  "properties": {
+    "content_unit_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "extractor_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "extractor_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "fact_type": {
+      "enum": [
+        "PROBLEM",
+        "ACTION",
+        "TECHNOLOGY",
+        "RESULT",
+        "ROLE",
+        "METRIC"
+      ],
+      "type": "string"
+    },
+    "locator": {
+      "$ref": "#/$defs/CmLocatorV1"
+    },
+    "metric_details": {
+      "$ref": "#/$defs/MetricDetails"
+    },
+    "normalized_value": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "object_text": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "predicate": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "source_object_revision_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "status": {
+      "const": "CANDIDATE",
+      "type": "string"
+    },
+    "subject_identity_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "uncertainty_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "extractor_run_id",
+    "extractor_version",
+    "source_object_revision_id",
+    "content_unit_id",
+    "locator",
+    "fact_type",
+    "predicate",
+    "object_text",
+    "normalized_value",
+    "status"
+  ],
+  "title": "FactCandidate Stage 2A Output (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "FactCandidateExtractor",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "STAGE_2A_FACT_CANDIDATE_EXTRACTION"
+}

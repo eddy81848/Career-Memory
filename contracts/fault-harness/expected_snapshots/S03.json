@@ -1,0 +1,1185 @@
+{
+  "default_branch": "trunk",
+  "injection_points": [
+    "INSIDE_PAGE_TX_BEFORE_COMMIT"
+  ],
+  "logical_snapshot": {
+    "content_units": [
+      {
+        "content_hash": "sha256:2a435f7329b3caf1ae7b13d1247e6e7e6a8281528a86b5f8b0031fa93c9ec392",
+        "object_type": "COMMENT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "7101",
+        "raw_null_compliant": true,
+        "unit_type": "COMMENT"
+      },
+      {
+        "content_hash": "sha256:4b124f7f743fd67eb730488c96798c2e771974c6f382c33411b864984ceec0fd",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b100000000000000000000000000000000000065",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:2a377dfc2f6599ad0c72ae912d02548aa08117471c8a5e892de3908d497ad9ba",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b100000000000000000000000000000000000066",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:ad6ba34e8f2c49a70e255199a44564299522cd65f52a4e2b1d9593a1af396dd1",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b100000000000000000000000000000000000067",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:e2ee99ae94185573ad7d0204a499670531aabc2c3a8a79c899dd00dfe9e8a285",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b100000000000000000000000000000000000068",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:0afaa9ae8ca9aff5a1fb089270a16c4a1e448f0aca49db8c9b28dac07ab8215a",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b10000000000000000000000000000000000006a",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:066392deb63bdbdc1939340b6cfaa684cd4b738ef5971bea4ce71b30f01ef2ad",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b10000000000000000000000000000000000006b",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:10ca82b9190ed1b62ce2cdbfa50142b91fe751f8e964d6e2d0d2d8134741b7c5",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b10000000000000000000000000000000000006c",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:b89e393e2141234bc8c71cfb8f621d886df824d285336b2e94c48f46ae757702",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b10000000000000000000000000000000000006d",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:c69efc03af16e8c75399154f5102bf26d70918ecf838f7df94e48481325682c5",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "b10000000000000000000000000000000000006e",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:7de12ff4a2c001e6ef462d5abb66f69aaecf3cab0cee9d43b1f131fad1c576a6",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "c100000000000000000000000000000000000069",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:47a2bfb6049ccccfead207a57decb6fe237591d48438039ad51a42921fcfe362",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "e100000000000000000000000000000000000001",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:bf98b75a0bd1ac3e812527ee771eb384d2f5c96374a6b3047cf5e54eef56e7cd",
+        "object_type": "COMMIT",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "f100000000000000000000000000000000000001",
+        "raw_null_compliant": true,
+        "unit_type": "COMMIT_MESSAGE"
+      },
+      {
+        "content_hash": "sha256:d01a66bb1b0960f3e59a3c8010d415f5c3ff675884f0f6ab290ef1f9decfcd19",
+        "object_type": "ISSUE",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "501",
+        "raw_null_compliant": true,
+        "unit_type": "ISSUE_SECTION"
+      },
+      {
+        "content_hash": "sha256:87ad0c088ce8fc69406a38d08326fa6e0d1abb47d985e840dd46175543e5a278",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "101",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:d1f925c696bb11115a3cd40da2e116b2e14fcd45c4c1d9c7b47c3a179fe420a2",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "102",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:92742ad9ded0ed4ca696c2019c35127e715acf10cb862164780d4541b0dd6a46",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "103",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:3279a72c631c4efa51e0d7fb67720af9f368b450546594e8350688ab63e88256",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "104",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:4397c9d63489a5778154fd214a213bfbe35e451d9c16ace0306a7ecbaa80c1fb",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "105",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:5e898ce2697cbd57c872e409701d5d8f8c236facff0baf6e231a1c1a39bc5c81",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "106",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:464deb87e3ed7e93f2ee5115059aa13f38ff0fa507a27fc558ce9516385e29f1",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "107",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:b5ce1c06bd093fd914087b8b124c10d2aa788e27e377222698c639b2591ea645",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "108",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:3b31bd26ae46489acffb5f5ad833ed9c80a8a8849cecf4b1fe2a1d5109e29707",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "109",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:953cc4a5e9e0bf3c8f6f819001345c13dc2d8e9c7534f1451e4cd3b21435ec35",
+        "object_type": "PR",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "110",
+        "raw_null_compliant": true,
+        "unit_type": "PR_BODY_SECTION"
+      },
+      {
+        "content_hash": "sha256:28cdb7287e64778124e6dd1ef7fdc2cd9baba114d69bb87abd6188ae49878191",
+        "object_type": "REVIEW",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "5101",
+        "raw_null_compliant": true,
+        "unit_type": "REVIEW_COMMENT"
+      },
+      {
+        "content_hash": "sha256:7e797cf87946d8ab3d1c49762eac534a4cb6507a2225ca9f3e3deca33fe70bda",
+        "object_type": "REVIEW",
+        "ordinal": 0,
+        "policy_state": "ACTIVE",
+        "provider_object_id": "6101",
+        "raw_null_compliant": true,
+        "unit_type": "REVIEW_COMMENT"
+      }
+    ],
+    "event_memberships_count": 23,
+    "gate_checks": {
+      "claim_approval_gate_allowed": true,
+      "concurrent_stale_fence_discarded": 0,
+      "export_gate_allowed": true,
+      "external_ai_gate_allowed": true,
+      "extra": {
+        "post_rollback_last_committed_page": 4,
+        "rolled_back_page": 5
+      },
+      "refetch_content_allowed": true,
+      "refetch_resolution_status": "MATCHED"
+    },
+    "outbox_summary": {
+      "import_ready_count": 1,
+      "outbox_consumed_effects_count": 0
+    },
+    "resource_and_account_policy": {
+      "account_status": "ACTIVE",
+      "deletion_fence_active": false,
+      "resource_status": "ACTIVE",
+      "resource_visibility": "PUBLIC"
+    },
+    "source_object_revisions": [
+      {
+        "content_hash": "sha256:2a435f7329b3caf1ae7b13d1247e6e7e6a8281528a86b5f8b0031fa93c9ec392",
+        "is_tombstone": false,
+        "object_type": "COMMENT",
+        "provider_object_id": "7101",
+        "provider_revision_id": "\"etag-b004-repo900400010-_repositories_900400010_issues_101_comments_page_1-v1\""
+      },
+      {
+        "content_hash": "sha256:4b124f7f743fd67eb730488c96798c2e771974c6f382c33411b864984ceec0fd",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b100000000000000000000000000000000000065",
+        "provider_revision_id": "b100000000000000000000000000000000000065"
+      },
+      {
+        "content_hash": "sha256:2a377dfc2f6599ad0c72ae912d02548aa08117471c8a5e892de3908d497ad9ba",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b100000000000000000000000000000000000066",
+        "provider_revision_id": "b100000000000000000000000000000000000066"
+      },
+      {
+        "content_hash": "sha256:ad6ba34e8f2c49a70e255199a44564299522cd65f52a4e2b1d9593a1af396dd1",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b100000000000000000000000000000000000067",
+        "provider_revision_id": "b100000000000000000000000000000000000067"
+      },
+      {
+        "content_hash": "sha256:e2ee99ae94185573ad7d0204a499670531aabc2c3a8a79c899dd00dfe9e8a285",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b100000000000000000000000000000000000068",
+        "provider_revision_id": "b100000000000000000000000000000000000068"
+      },
+      {
+        "content_hash": "sha256:0afaa9ae8ca9aff5a1fb089270a16c4a1e448f0aca49db8c9b28dac07ab8215a",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b10000000000000000000000000000000000006a",
+        "provider_revision_id": "b10000000000000000000000000000000000006a"
+      },
+      {
+        "content_hash": "sha256:066392deb63bdbdc1939340b6cfaa684cd4b738ef5971bea4ce71b30f01ef2ad",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b10000000000000000000000000000000000006b",
+        "provider_revision_id": "b10000000000000000000000000000000000006b"
+      },
+      {
+        "content_hash": "sha256:10ca82b9190ed1b62ce2cdbfa50142b91fe751f8e964d6e2d0d2d8134741b7c5",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b10000000000000000000000000000000000006c",
+        "provider_revision_id": "b10000000000000000000000000000000000006c"
+      },
+      {
+        "content_hash": "sha256:b89e393e2141234bc8c71cfb8f621d886df824d285336b2e94c48f46ae757702",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b10000000000000000000000000000000000006d",
+        "provider_revision_id": "b10000000000000000000000000000000000006d"
+      },
+      {
+        "content_hash": "sha256:c69efc03af16e8c75399154f5102bf26d70918ecf838f7df94e48481325682c5",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b10000000000000000000000000000000000006e",
+        "provider_revision_id": "b10000000000000000000000000000000000006e"
+      },
+      {
+        "content_hash": "sha256:7de12ff4a2c001e6ef462d5abb66f69aaecf3cab0cee9d43b1f131fad1c576a6",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "c100000000000000000000000000000000000069",
+        "provider_revision_id": "c100000000000000000000000000000000000069"
+      },
+      {
+        "content_hash": "sha256:47a2bfb6049ccccfead207a57decb6fe237591d48438039ad51a42921fcfe362",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "e100000000000000000000000000000000000001",
+        "provider_revision_id": "e100000000000000000000000000000000000001"
+      },
+      {
+        "content_hash": "sha256:bf98b75a0bd1ac3e812527ee771eb384d2f5c96374a6b3047cf5e54eef56e7cd",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "f100000000000000000000000000000000000001",
+        "provider_revision_id": "f100000000000000000000000000000000000001"
+      },
+      {
+        "content_hash": "sha256:d01a66bb1b0960f3e59a3c8010d415f5c3ff675884f0f6ab290ef1f9decfcd19",
+        "is_tombstone": false,
+        "object_type": "ISSUE",
+        "provider_object_id": "501",
+        "provider_revision_id": "\"etag-b004-repo900400010-_repositories_900400010_issues_501-v1\""
+      },
+      {
+        "content_hash": "sha256:87ad0c088ce8fc69406a38d08326fa6e0d1abb47d985e840dd46175543e5a278",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "101",
+        "provider_revision_id": "a100000000000000000000000000000000000065"
+      },
+      {
+        "content_hash": "sha256:d1f925c696bb11115a3cd40da2e116b2e14fcd45c4c1d9c7b47c3a179fe420a2",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "102",
+        "provider_revision_id": "a100000000000000000000000000000000000066"
+      },
+      {
+        "content_hash": "sha256:92742ad9ded0ed4ca696c2019c35127e715acf10cb862164780d4541b0dd6a46",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "103",
+        "provider_revision_id": "a100000000000000000000000000000000000067"
+      },
+      {
+        "content_hash": "sha256:3279a72c631c4efa51e0d7fb67720af9f368b450546594e8350688ab63e88256",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "104",
+        "provider_revision_id": "a100000000000000000000000000000000000068"
+      },
+      {
+        "content_hash": "sha256:4397c9d63489a5778154fd214a213bfbe35e451d9c16ace0306a7ecbaa80c1fb",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "105",
+        "provider_revision_id": "a100000000000000000000000000000000000069"
+      },
+      {
+        "content_hash": "sha256:5e898ce2697cbd57c872e409701d5d8f8c236facff0baf6e231a1c1a39bc5c81",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "106",
+        "provider_revision_id": "a10000000000000000000000000000000000006a"
+      },
+      {
+        "content_hash": "sha256:464deb87e3ed7e93f2ee5115059aa13f38ff0fa507a27fc558ce9516385e29f1",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "107",
+        "provider_revision_id": "a10000000000000000000000000000000000006b"
+      },
+      {
+        "content_hash": "sha256:b5ce1c06bd093fd914087b8b124c10d2aa788e27e377222698c639b2591ea645",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "108",
+        "provider_revision_id": "a10000000000000000000000000000000000006c"
+      },
+      {
+        "content_hash": "sha256:3b31bd26ae46489acffb5f5ad833ed9c80a8a8849cecf4b1fe2a1d5109e29707",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "109",
+        "provider_revision_id": "a10000000000000000000000000000000000006d"
+      },
+      {
+        "content_hash": "sha256:953cc4a5e9e0bf3c8f6f819001345c13dc2d8e9c7534f1451e4cd3b21435ec35",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "110",
+        "provider_revision_id": "a10000000000000000000000000000000000006e"
+      },
+      {
+        "content_hash": "sha256:28cdb7287e64778124e6dd1ef7fdc2cd9baba114d69bb87abd6188ae49878191",
+        "is_tombstone": false,
+        "object_type": "REVIEW",
+        "provider_object_id": "5101",
+        "provider_revision_id": "a100000000000000000000000000000000000065"
+      },
+      {
+        "content_hash": "sha256:7e797cf87946d8ab3d1c49762eac534a4cb6507a2225ca9f3e3deca33fe70bda",
+        "is_tombstone": false,
+        "object_type": "REVIEW",
+        "provider_object_id": "6101",
+        "provider_revision_id": "a100000000000000000000000000000000000065"
+      }
+    ],
+    "source_objects": [
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMENT",
+        "pr_association_state": null,
+        "provider_object_id": "7101"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b100000000000000000000000000000000000065"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b100000000000000000000000000000000000066"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b100000000000000000000000000000000000067"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b100000000000000000000000000000000000068"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b10000000000000000000000000000000000006a"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b10000000000000000000000000000000000006b"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b10000000000000000000000000000000000006c"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b10000000000000000000000000000000000006d"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b10000000000000000000000000000000000006e"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "c100000000000000000000000000000000000069"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "NO_MATCH_OBSERVED",
+        "provider_object_id": "e100000000000000000000000000000000000001"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "f100000000000000000000000000000000000001"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "ISSUE",
+        "pr_association_state": null,
+        "provider_object_id": "501"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "101"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "102"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "103"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "104"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "105"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "106"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "107"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "108"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "109"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "110"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "REVIEW",
+        "pr_association_state": null,
+        "provider_object_id": "5101"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "REVIEW",
+        "pr_association_state": null,
+        "provider_object_id": "6101"
+      }
+    ],
+    "sync_checkpoints": [
+      {
+        "current_cursor": null,
+        "last_committed_page": 1,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 1,
+        "stream_name": "CONTEXT_ISSUES",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 3,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 10,
+        "stream_name": "PRS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 30,
+        "stream_name": "PR_REVIEWS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      }
+    ],
+    "sync_commit_pr_associations": [
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b100000000000000000000000000000000000065",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          101
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          101
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b100000000000000000000000000000000000066",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          102
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          102
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b100000000000000000000000000000000000067",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          103
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          103
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b100000000000000000000000000000000000068",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          104
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          104
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b10000000000000000000000000000000000006a",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          106
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          106
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b10000000000000000000000000000000000006b",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          107
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          107
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b10000000000000000000000000000000000006c",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          108
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          108
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b10000000000000000000000000000000000006d",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          109
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          109
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b10000000000000000000000000000000000006e",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          110
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          110
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "c100000000000000000000000000000000000069",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [
+          105
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PROVIDER_COMMIT_PR_API",
+        "matched_pr_numbers": [
+          105
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "NO_MATCH_OBSERVED",
+        "commit_sha": "e100000000000000000000000000000000000001",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [],
+        "excluded_reason": null,
+        "match_mechanism": null,
+        "matched_pr_numbers": [],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "f100000000000000000000000000000000000001",
+        "default_branch_name": "trunk",
+        "eligible_in_window_pr_numbers": [],
+        "excluded_reason": "OUT_OF_WINDOW_PR_LINKED",
+        "match_mechanism": "OUT_OF_WINDOW_PR_API",
+        "matched_pr_numbers": [
+          4
+        ],
+        "unknown_reason_code": null
+      }
+    ],
+    "sync_item_outcomes": [
+      {
+        "object_type": "COMMIT",
+        "outcome_kind": "EXCLUDED",
+        "provider_object_id": "f100000000000000000000000000000000000001",
+        "reason_code": "OUT_OF_WINDOW_PR_LINKED",
+        "retryable": false,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS"
+      },
+      {
+        "object_type": "ISSUE",
+        "outcome_kind": "EXCLUDED",
+        "provider_object_id": "999",
+        "reason_code": "OPTIONAL_CONTEXT_UNAVAILABLE",
+        "retryable": false,
+        "stream_name": "CONTEXT_ISSUES"
+      }
+    ],
+    "sync_run_page_observations": [
+      {
+        "item_count": 0,
+        "page_number": 1,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "CONTEXT_ISSUES",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 4,
+        "page_number": 1,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 4
+      },
+      {
+        "item_count": 4,
+        "page_number": 2,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 4
+      },
+      {
+        "item_count": 4,
+        "page_number": 3,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 4
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 2,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 3,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 4,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 5,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 6,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 7,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 8,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 9,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 10,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 2,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 3,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 0,
+        "page_number": 4,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 5,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 6,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 7,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 8,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 9,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 10,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 11,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 12,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 13,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 14,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 15,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 16,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 17,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 18,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 19,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 20,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 21,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 22,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 23,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 24,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 25,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 26,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 27,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 28,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 29,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 30,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      }
+    ],
+    "sync_runs": [
+      {
+        "failure_reason_code": null,
+        "has_safe_checkpoint": true,
+        "import_ready": true,
+        "is_abandoned": false,
+        "processing_status": "COMPLETE",
+        "remaining_range_present": false,
+        "retry_allowed": false,
+        "source_drift": false,
+        "status": "SUCCESS"
+      }
+    ],
+    "work_events": [
+      {
+        "anchor_mode": "DIRECT_COMMIT",
+        "primary_provider_object_id": "e100000000000000000000000000000000000001",
+        "requires_user_confirmation": true,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "101",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "102",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "103",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "104",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "105",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "106",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "107",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "108",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "109",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      },
+      {
+        "anchor_mode": "PR",
+        "primary_provider_object_id": "110",
+        "requires_user_confirmation": false,
+        "status": "CANDIDATE"
+      }
+    ]
+  },
+  "observed_at_iso": "2026-11-27T12:00:00Z",
+  "scenario_id": "S03",
+  "schema_version": "cm-b004-expected-v1",
+  "title": "Worker crash inside PostgreSQL page TX before COMMIT then resume equivalence"
+}

@@ -1,0 +1,531 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-016",
+  "slug": "workspace-boundary-conflict",
+  "title": "Same-workspace cross-repository merge returns CROSS_REPOSITORY_MEMBER; cross-workspace merge and exclude are rejected with zero mutation and isolated workspace visibility",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_multi_workspace",
+    "source_lineage_group": "src_multi_workspace_services",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-016"
+    ]
+  },
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-ERR-WS-01",
+      "REQ-EV-CMD-MERGE-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-16"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [
+      "EVENT-12"
+    ],
+    "scenario_tags": [
+      "workspace_conflict",
+      "same_repository_only",
+      "cross_repo_merge_rejected",
+      "tenant_isolation",
+      "error_rejection"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_016_a",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      },
+      {
+        "workspace_id": "ws_syn_016_b",
+        "name": "Synthetic Workspace Beta",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_016_a",
+        "workspace_id": "ws_syn_016_a",
+        "full_name": "acme-syn-alpha/service-a",
+        "default_branch": "main",
+        "synthetic": true
+      },
+      {
+        "repo_id": "repo_syn_016_a2",
+        "workspace_id": "ws_syn_016_a",
+        "full_name": "acme-syn-alpha/service-a-worker",
+        "default_branch": "main",
+        "synthetic": true
+      },
+      {
+        "repo_id": "repo_syn_016_b",
+        "workspace_id": "ws_syn_016_b",
+        "full_name": "acme-syn-beta/service-b",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_016_a",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T12:30:00Z"
+      },
+      {
+        "sync_run_id": "sync_syn_016_a2",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a2",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T12:30:30Z"
+      },
+      {
+        "sync_run_id": "sync_syn_016_b",
+        "workspace_id": "ws_syn_016_b",
+        "repo_id": "repo_syn_016_b",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T12:31:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1601",
+        "repo_id": "repo_syn_016_a",
+        "number": 1601,
+        "title": "Add alpha cache warming job",
+        "body": "Warms alpha cache.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/alpha-warm",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-28T10:00:00Z",
+        "commit_ids": [
+          "cmt_syn_1601a"
+        ],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1603",
+        "repo_id": "repo_syn_016_a2",
+        "number": 1603,
+        "title": "Add alpha worker retry metrics",
+        "body": "Tracks worker retry counts in second repository within same workspace.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/alpha-worker-metrics",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-28T10:30:00Z",
+        "commit_ids": [
+          "cmt_syn_1603a"
+        ],
+        "referenced_ticket_ids": []
+      },
+      {
+        "pr_id": "pr_syn_1602",
+        "repo_id": "repo_syn_016_b",
+        "number": 1602,
+        "title": "Add beta cache invalidation hook",
+        "body": "Invalidates beta cache.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "feat/beta-invalidate",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-28T11:00:00Z",
+        "commit_ids": [
+          "cmt_syn_1602a"
+        ],
+        "referenced_ticket_ids": []
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1601a",
+        "repo_id": "repo_syn_016_a",
+        "sha": "1601a00000000000000000000000000000000001",
+        "message": "Implement alpha cache warmer",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-28T09:00:00Z",
+        "branch_name": "feat/alpha-warm",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1601",
+        "changed_paths": [
+          "src/alpha/cache.py"
+        ]
+      },
+      {
+        "commit_id": "cmt_syn_1603a",
+        "repo_id": "repo_syn_016_a2",
+        "sha": "1603a00000000000000000000000000000000003",
+        "message": "Expose alpha worker retry counter",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-28T10:00:00Z",
+        "branch_name": "feat/alpha-worker-metrics",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1603",
+        "changed_paths": [
+          "src/worker/metrics.py"
+        ]
+      },
+      {
+        "commit_id": "cmt_syn_1602a",
+        "repo_id": "repo_syn_016_b",
+        "sha": "1602a00000000000000000000000000000000002",
+        "message": "Implement beta cache invalidator",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-28T10:30:00Z",
+        "branch_name": "feat/beta-invalidate",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1602",
+        "changed_paths": [
+          "src/beta/cache.py"
+        ]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_016_a",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1601",
+        "source_commit_ids": [
+          "cmt_syn_1601a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_016_a2",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a2",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1603",
+        "source_commit_ids": [
+          "cmt_syn_1603a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_016_b",
+        "workspace_id": "ws_syn_016_b",
+        "repo_id": "repo_syn_016_b",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_1602",
+        "source_commit_ids": [
+          "cmt_syn_1602a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_016_cross_merge",
+      "command_action": "manual_merge",
+      "spec_command_name": "UNCONFIRMED",
+      "workspace_id": "ws_syn_016_a",
+      "actor_id": "usr_syn_owner_a",
+      "expected_version": 1,
+      "target_event_ids": [
+        "ev_init_016_a",
+        "ev_init_016_b"
+      ],
+      "target_versions": {
+        "ev_init_016_a": 1,
+        "ev_init_016_b": 1
+      },
+      "payload": {
+        "composite_title": "Invalid cross-workspace composite attempt"
+      }
+    },
+    {
+      "command_id": "cmd_syn_016_wrong_ws",
+      "command_action": "exclude",
+      "spec_command_name": "UNCONFIRMED",
+      "workspace_id": "ws_syn_016_a",
+      "actor_id": "usr_syn_owner_a",
+      "expected_version": 1,
+      "target_event_ids": [
+        "ev_init_016_b"
+      ],
+      "target_versions": {
+        "ev_init_016_b": 1
+      },
+      "payload": {
+        "reason": "Invalid exclude targeting an Event in another Workspace"
+      }
+    },
+    {
+      "command_id": "cmd_syn_016_cross_repo_same_ws",
+      "command_action": "manual_merge",
+      "spec_command_name": "UNCONFIRMED",
+      "workspace_id": "ws_syn_016_a",
+      "actor_id": "usr_syn_owner_a",
+      "expected_version": 1,
+      "target_event_ids": [
+        "ev_init_016_a",
+        "ev_init_016_a2"
+      ],
+      "target_versions": {
+        "ev_init_016_a": 1,
+        "ev_init_016_a2": 1
+      },
+      "payload": {
+        "composite_title": "Invalid same-workspace cross-repository USER_COMPOSITE attempt"
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status (unauthorized 403 vs 404 vs external error mapping)",
+          "user_commands[*].spec_command_name",
+          "command_results[0].spec_error_code (cross-workspace merge external wire error)",
+          "command_results[1].spec_error_code (cross-workspace exclude external wire error)"
+        ]
+      }
+    },
+    "events": [
+      {
+        "event_id": "ev_init_016_a",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1601",
+        "source_commit_ids": [
+          "cmt_syn_1601a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add alpha cache warming job",
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_init_016_a2",
+        "workspace_id": "ws_syn_016_a",
+        "repo_id": "repo_syn_016_a2",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1603",
+        "source_commit_ids": [
+          "cmt_syn_1603a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add alpha worker retry metrics",
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_init_016_b",
+        "workspace_id": "ws_syn_016_b",
+        "repo_id": "repo_syn_016_b",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1602",
+        "source_commit_ids": [
+          "cmt_syn_1602a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add beta cache invalidation hook",
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_016_cross_merge",
+        "outcome": "REJECTED",
+        "rejection_category": "cross_workspace_merge_rejected",
+        "spec_error_code": "UNCONFIRMED",
+        "internal_policy_code": "CROSS_WORKSPACE_MEMBER",
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
+      },
+      {
+        "command_id": "cmd_syn_016_wrong_ws",
+        "outcome": "REJECTED",
+        "rejection_category": "cross_workspace_non_merge_rejected",
+        "spec_error_code": "UNCONFIRMED",
+        "internal_policy_code": null,
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "spec_error_code",
+          "http_status"
+        ]
+      },
+      {
+        "command_id": "cmd_syn_016_cross_repo_same_ws",
+        "outcome": "REJECTED",
+        "rejection_category": "cross_repository_member",
+        "spec_error_code": "CROSS_REPOSITORY_MEMBER",
+        "state_mutated": false,
+        "resulting_event_ids": [],
+        "unconfirmed_fields": [
+          "spec_command_name",
+          "http_status"
+        ]
+      }
+    ],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "alpha cache",
+        "workspace_id": "ws_syn_016_a",
+        "expected_event_ids": [
+          "ev_init_016_a"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 3,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0,
+      "per_workspace_countable_events": {
+        "ws_syn_016_a": 2,
+        "ws_syn_016_b": 1
+      },
+      "aggregation_scope_note": "total_countable_events=3 is the internal fixture-store sum across both workspaces; per-workspace API visibility is strictly isolated (ws_syn_016_a=2, ws_syn_016_b=1)."
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.command_results[0].spec_error_code",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
+        "question": "Internal domain policy for cross-workspace merge is CROSS_WORKSPACE_MEMBER; confirm whether external HTTP response exposes CROSS_WORKSPACE_MEMBER or hides unauthorized foreign-workspace objects via 403/404."
+      },
+      {
+        "field_path": "expected_proposal.command_results[1].spec_error_code",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
+        "question": "Confirm external error code and HTTP status (e.g., 403 vs 404) for non-merge cross-workspace exclude without attaching merge-only CROSS_WORKSPACE_MEMBER."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Same-workspace cross-repository manual merge (repo_syn_016_a + repo_syn_016_a2) is rejected with official code CROSS_REPOSITORY_MEMBER. Cross-workspace manual merge records internal_policy_code=CROSS_WORKSPACE_MEMBER separately from external HTTP error exposure (UNCONFIRMED), while cross-workspace exclude (cmd_syn_016_wrong_ws) is rejected with zero mutation without attaching merge-only errors. Aggregation explicitly separates internal cross-workspace fixture total (3) from per-workspace API-visible counts (ws_syn_016_a=2, ws_syn_016_b=1).",
+    "confirmed_spec_rules": [
+      "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY_WITH_CROSS_REPOSITORY_MEMBER",
+      "WORKSPACE_BOUNDARY_STRICTLY_ENFORCED",
+      "CROSS_WORKSPACE_MERGE_POLICY_SEPARATED_FROM_EXTERNAL_HTTP_EXPOSURE",
+      "NON_MERGE_CROSS_WORKSPACE_REJECT_DOES_NOT_USE_MERGE_ONLY_ERROR",
+      "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+    ],
+    "unconfirmed_spec_tokens": [
+      "External HTTP error/status for unauthorized cross-workspace objects on merge and exclude (left UNCONFIRMED)",
+      "HTTP status for CROSS_REPOSITORY_MEMBER and spec_command_name (left UNCONFIRMED)"
+    ],
+    "truly_undecided_items": [
+      "Final external HTTP error code/status (403 vs 404 vs CROSS_WORKSPACE_MEMBER) exposed when caller targets an unauthorized foreign-workspace object."
+    ]
+  }
+}

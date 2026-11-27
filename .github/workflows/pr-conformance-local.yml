@@ -1,0 +1,62 @@
+# Local / PR Conformance & Drift CI Workflow (T-106 + T-106A)
+#
+# Hosting Boundary Notice:
+#   Per owner decision, hosted staging/cloud deployment (T-106B: Cloud Run,
+#   Artifact Registry, WIF, and hosted Supabase staging deployment) is
+#   DEFERRED / WAIVED for the current M1 gate (not executed).
+#   This workflow intentionally contains ZERO cloud credentials, ZERO paid
+#   scanners, and ZERO deployment steps. It enforces pure contract, enum,
+#   AI JSON Schema, OpenAPI, and local PostgreSQL 18 conformance checks.
+
+name: M1 PR Conformance & Drift Gate (Local / No Cloud Deploy)
+
+on:
+  pull_request:
+    branches: [main, "foundation/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance-and-tests:
+    name: M1 Unit, Contract, AI Schema & PostgreSQL 18 Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify M0 immutable OpenAPI snapshot blob hash
+        run: |
+          ACTUAL="$(git rev-parse HEAD:contracts/import-v1/openapi.yaml)"
+          EXPECTED="07594d75425744d6149250a9f7ff95ac24659f80"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: contracts/import-v1/openapi.yaml was mutated ($ACTUAL != $EXPECTED)" >&2
+            exit 1
+          fi
+
+      - name: Install PostgreSQL 18 client/server binaries (ephemeral local cluster)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run M1 Integrated API & PostgreSQL 18 Test Suite
+        working-directory: apps/api
+        run: uv run pytest -v -m ""
+
+      - name: Run T-106 / T-106A Conformance & Drift CI Gate (Static + Fresh/Staged PG18)
+        working-directory: apps/api
+        run: uv run python ../../scripts/run_conformance_ci.py --with-postgres
+
+      - name: Run M0 CONTRACT-06 Initial Import Regression Suite (38 tests)
+        working-directory: apps/api
+        run: >-
+          uv run --with-requirements ../../spikes/import-contract/requirements.txt
+          python -m pytest -v ../../spikes/import-contract/test_contract.py

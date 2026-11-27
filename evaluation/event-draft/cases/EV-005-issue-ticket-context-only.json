@@ -1,0 +1,202 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-005",
+  "slug": "issue-ticket-context-only",
+  "title": "Referenced Issue/Ticket attaches as CONTEXT_ONLY to PR CANDIDATE Event and never spawns a standalone Event",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "APPROVED_MVP_REGRESSION",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_notification_hub",
+    "source_lineage_group": "src_notification_hub",
+    "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+    "derived_from_same_source_cases": [
+      "EV-005"
+    ]
+  },
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-CONTEXT-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-05"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [],
+    "scenario_tags": [
+      "context_only",
+      "issue_ticket",
+      "anchor_mode_pr",
+      "mvp_core"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_005",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_005",
+        "workspace_id": "ws_syn_005",
+        "full_name": "acme-syn-lab/notification-hub",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_005",
+        "workspace_id": "ws_syn_005",
+        "repo_id": "repo_syn_005",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T10:40:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_501",
+        "repo_id": "repo_syn_005",
+        "number": 501,
+        "title": "Throttle webhook burst retries for SYN-101",
+        "body": "Implements per-tenant token bucket for webhook retries. Refs SYN-101.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "fix/webhook-burst-syn-101",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-24T11:00:00Z",
+        "commit_ids": [
+          "cmt_syn_501a"
+        ],
+        "referenced_ticket_ids": [
+          "tkt_syn_101"
+        ]
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_501a",
+        "repo_id": "repo_syn_005",
+        "sha": "501a000000000000000000000000000000000001",
+        "message": "Add per-tenant token bucket limiter for webhook delivery",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-24T09:30:00Z",
+        "branch_name": "fix/webhook-burst-syn-101",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_501",
+        "changed_paths": [
+          "src/webhooks/throttle.py"
+        ]
+      }
+    ],
+    "issues_tickets": [
+      {
+        "ticket_id": "tkt_syn_101",
+        "repo_id": "repo_syn_005",
+        "external_key": "SYN-101",
+        "title": "Prevent webhook retry storms during downstream outages",
+        "relation_role": "CONTEXT_ONLY"
+      }
+    ],
+    "initial_events": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "APPROVED_MVP_REGRESSION",
+    "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+    "approval_metadata": {
+      "approved_at_utc": "2026-11-27T03:36:33Z",
+      "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+      "approval_scope": "MVP_SYNTHETIC_REGRESSION_LOGICAL_EXPECTATIONS",
+      "dataset_version": "1.0.0-mvp-approved",
+      "comparison_policy": {
+        "compare_confirmed_logical_expectations": true,
+        "enforce_zero_mutation_on_rejection": true,
+        "excluded_unconfirmed_fields": [
+          "http_status",
+          "ticket_keyword_search_ranking"
+        ]
+      }
+    },
+    "events": [
+      {
+        "event_id": "ev_exp_005_1",
+        "workspace_id": "ws_syn_005",
+        "repo_id": "repo_syn_005",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_501",
+        "source_commit_ids": [
+          "cmt_syn_501a"
+        ],
+        "context_ticket_ids": [
+          "tkt_syn_101"
+        ],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Throttle webhook burst retries for SYN-101",
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "webhook burst retries",
+        "workspace_id": "ws_syn_005",
+        "expected_event_ids": [
+          "ev_exp_005_1"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.search_checks",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "EXCLUDED_FROM_MVP_TRUTH_COMPARISON",
+        "question": "Ticket membership/context attachment (CONTEXT_ONLY, 0 standalone ticket Events) is confirmed; whether search indexes/ranks ticket-only keywords ('SYN-101' or ticket title words) is separated from this membership oracle."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Issues and tickets attach strictly as CONTEXT_ONLY enrichment to code-backed PR CANDIDATE Events and never spawn standalone Events. Search check focuses on PR text so undecided ticket-keyword indexing/ranking stays separated from membership judgment.",
+    "confirmed_spec_rules": [
+      "ANCHOR_MODE_PR_AUTO_GENERATED_FOR_MERGED_PR",
+      "NEW_CANDIDATE_LIFECYCLE_STATUS_IS_CANDIDATE",
+      "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT"
+    ],
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": [
+      "Technical search indexing/ranking behavior for ticket-only keywords (separated from confirmed CONTEXT_ONLY membership rules)."
+    ]
+  }
+}

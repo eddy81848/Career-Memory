@@ -1,0 +1,471 @@
+{
+  "schema_version": "event-draft-review-queue.v1",
+  "task_ref": "T-001B",
+  "dataset_version": "1.0.0-mvp-approved",
+  "handoff_target": "M3 / T-306A (MVP regression) & Post-MVP B-003 review",
+  "approval_status": "PARTIALLY_APPROVED_MVP_REGRESSION",
+  "approval_baseline_commit_sha": "0773ac5740b358f4168777fda1e578231cc6dff9",
+  "approved_by": "human-reviewer (explicit approval on qa/event-fixtures@0773ac5740b358f4168777fda1e578231cc6dff9)",
+  "human_approval_required_for_remaining_items": true,
+  "confirmed_spec_rules_summary": [
+    "Anchor modes: PR, PR_SEGMENT, DIRECT_COMMIT, USER_COMPOSITE (only PR and DIRECT_COMMIT auto-generated; 1 DIRECT_COMMIT per verified default-branch NO_MATCH_OBSERVED commit; multi-commit clustering out of MVP).",
+    "Import runs: UNKNOWN != no PR; incomplete PR association sets Import Run status='PARTIAL' (PARTIAL_SUCCESS is not official) and promotes 0 Events; default Event search returns 0.",
+    "Lifecycle statuses: CANDIDATE, CONFIRMED, REJECTED, SUPERSEDED, STALE separated from top-level visibility is_active_top_level (no arbitrary ACTIVE/EXCLUDED/DISSOLVED).",
+    "Split: Mixed-purpose PR stays 1 CANDIDATE with review flag (0 auto-split); explicit user split requires disjoint evidence scopes, yields PR_SEGMENT (or DIRECT_COMMIT), and marks parent SUPERSEDED.",
+    "Merge: Same workspace and same repository across eligible PR, PR_SEGMENT, DIRECT_COMMIT (PR+DIRECT_COMMIT allowed); checks each member Event version; preserves snapshots; marks members SUPERSEDED; rolls up member-only search hits once to USER_COMPOSITE; no auto-inheritance of member Fact/Claim.",
+    "Dissolve: Requires expected_version, reason, idempotency_key; sets Composite SUPERSEDED + composite_membership_status='REMOVED'; re-evaluates members (CANDIDATE/CONFIRMED/STALE); marks Composite FACT/CLAIM/EXPORT STALE without deletion or auto-transfer.",
+    "Event API error codes: EVENT_VERSION_CONFLICT, CROSS_WORKSPACE_MEMBER, CROSS_REPOSITORY_MEMBER, DUPLICATE_COMPOSITE_MEMBER, NESTED_COMPOSITE_NOT_ALLOWED, CANNOT_LINK_CONFLICT, MEMBER_NOT_ACTIVE, MEMBER_ALREADY_COMPOSED, PR_ASSOCIATION_INCOMPLETE. CANNOT_LINK is a relation semantic, not a catch-all wire code."
+  ],
+  "unconfirmed_tokens_notice": "Confirmed logical expectations of EV-001..EV-016 are approved for MVP synthetic regression ground truth (dataset_version='1.0.0-mvp-approved', baseline 0773ac5740b358f4168777fda1e578231cc6dff9). Unconfirmed HTTP status codes / If-Match, multi-violation error precedence (EV-014), non-Event ID / unauthorized cross-workspace wire error codes (EV-013, EV-016), and unconfirmed wire command/flag/diagnostic tokens remain EXCLUDED from MVP truth comparison, while zero state mutation on rejection (state_mutated=false, resulting_event_ids=[]) is strictly retained. EV-017 and EV-018 remain unapproved Post-MVP (B-003) drafts.",
+  "queue": [
+    {
+      "review_id": "RQ-001",
+      "case_id": "EV-001",
+      "case_path": "cases/EV-001-pr-centered-basic.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006", "EVENT-10"],
+      "confirmed_spec_rules": [
+        "ANCHOR_MODE_PR_CANDIDATE_FOR_MERGED_PR",
+        "ASSOCIATED_COMMITS_NOT_DUPLICATED_AS_DIRECT_COMMIT_EVENTS"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Whether merge-commit SHAs generated on default branch belong in source_commit_ids alongside PR branch commits."
+      ],
+      "truly_undecided_questions": [
+        "Should merge-commit SHAs generated on default branch belong in source_commit_ids alongside PR branch commits?"
+      ]
+    },
+    {
+      "review_id": "RQ-002",
+      "case_id": "EV-002",
+      "case_path": "cases/EV-002-default-branch-direct-commit.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "priority": "P2",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006", "EVENT-10"],
+      "confirmed_spec_rules": [
+        "ANCHOR_MODE_DIRECT_COMMIT_CANDIDATE_ONE_PER_COMMIT",
+        "DEFAULT_BRANCH_VERIFIED_AT_START_AND_END_WITH_COMPLETED_NO_MATCH_OBSERVED",
+        "MULTI_COMMIT_AUTO_CLUSTERING_OUT_OF_MVP"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [],
+      "truly_undecided_questions": []
+    },
+    {
+      "review_id": "RQ-003",
+      "case_id": "EV-003",
+      "case_path": "cases/EV-003-unknown-association-hold.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_billing_engine",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006", "EVENT-10"],
+      "confirmed_spec_rules": [
+        "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
+        "INCOMPLETE_PR_ASSOCIATION_SETS_IMPORT_RUN_PARTIAL",
+        "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+        "OBSERVATION_RECORD_SEPARATE_FROM_DEFAULT_EVENT_SEARCH"
+      ],
+      "unconfirmed_spec_tokens": [
+        "Diagnostic observation record status token (spec_hold_status='UNCONFIRMED')"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "held_items[*].spec_hold_status",
+        "Diagnostic UI presentation for PARTIAL run observation records"
+      ],
+      "truly_undecided_questions": [
+        "Diagnostic UI presentation for PARTIAL run observation records (intentionally kept separate from this Event oracle)."
+      ]
+    },
+    {
+      "review_id": "RQ-004",
+      "case_id": "EV-004",
+      "case_path": "cases/EV-004-non-default-branch-no-pr.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_search_indexer",
+      "priority": "P2",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006", "EVENT-10"],
+      "confirmed_spec_rules": [
+        "NON_DEFAULT_BRANCH_ONLY_COMMIT_PRODUCES_ZERO_DIRECT_COMMIT_CANDIDATES"
+      ],
+      "unconfirmed_spec_tokens": [
+        "Non-eligible source record status token if persisted (spec_hold_status='UNCONFIRMED')"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "held_items[*].spec_hold_status",
+        "Physical collection stage placement (upstream Snapshot Import filter vs downstream Event Builder skip)"
+      ],
+      "truly_undecided_questions": [
+        "Physical collection stage placement (upstream Snapshot Import filter vs downstream Event Builder skip), kept separate from the confirmed semantic verdict of 0 candidates."
+      ]
+    },
+    {
+      "review_id": "RQ-005",
+      "case_id": "EV-005",
+      "case_path": "cases/EV-005-issue-ticket-context-only.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_notification_hub",
+      "priority": "P2",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006"],
+      "confirmed_spec_rules": [
+        "ANCHOR_MODE_PR_CANDIDATE_FOR_MERGED_PR",
+        "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Ticket-only keyword search indexing/ranking expectations"
+      ],
+      "truly_undecided_questions": [
+        "Technical search indexing/ranking expectations for ticket-only keywords (separated from confirmed CONTEXT_ONLY membership checks)."
+      ]
+    },
+    {
+      "review_id": "RQ-006",
+      "case_id": "EV-006",
+      "case_path": "cases/EV-006-shared-ticket-no-auto-merge.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "priority": "P2",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006"],
+      "confirmed_spec_rules": [
+        "NO_AUTO_MERGE_VIA_SHARED_ISSUE_TICKET",
+        "USER_COMPOSITE_CREATED_ONLY_BY_USER_MANUAL_MERGE"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Non-binding UI hints or ticket-only keyword ranking"
+      ],
+      "truly_undecided_questions": [
+        "Whether non-binding UI hints or ticket-only keyword ranking exist in MVP (membership separation itself is confirmed)."
+      ]
+    },
+    {
+      "review_id": "RQ-007",
+      "case_id": "EV-007",
+      "case_path": "cases/EV-007-mixed-purpose-pr.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-006", "FR-007"],
+      "confirmed_spec_rules": [
+        "MIXED_PURPOSE_PR_STAYS_SINGLE_CANDIDATE_WITH_REVIEW_FLAG",
+        "NO_AUTOMATIC_SPLIT_OF_MIXED_PURPOSE_PR"
+      ],
+      "unconfirmed_spec_tokens": [
+        "Exact review flag string token and UI presentation details (exact_flag_token='UNCONFIRMED')"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "events[*].review_flag.exact_flag_token",
+        "Review flag UI presentation details"
+      ],
+      "truly_undecided_questions": []
+    },
+    {
+      "review_id": "RQ-008",
+      "case_id": "EV-008",
+      "case_path": "cases/EV-008-user-split-mixed-pr.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007"],
+      "confirmed_spec_rules": [
+        "USER_SPLIT_BY_DISJOINT_APPROVED_EVIDENCE_SCOPES",
+        "PR_SPLIT_PRODUCES_PR_SEGMENT_CANDIDATES",
+        "SPLIT_PARENT_BECOMES_SUPERSEDED",
+        "OVERLAPPING_SPLIT_SCOPES_REJECTED"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_command_name for split (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "user_commands[*].spec_command_name",
+        "Whether a dedicated undo-split command exists in MVP"
+      ],
+      "truly_undecided_questions": [
+        "Whether a dedicated undo-split command exists in MVP."
+      ]
+    },
+    {
+      "review_id": "RQ-009",
+      "case_id": "EV-009",
+      "case_path": "cases/EV-009-user-manual-merge-composite.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-11"],
+      "confirmed_spec_rules": [
+        "USER_MANUAL_MERGE_SAME_WORKSPACE_AND_REPOSITORY_ELIGIBLE_ANCHORS",
+        "PR_PLUS_DIRECT_COMMIT_MIXED_MERGE_ALLOWED",
+        "PER_MEMBER_EVENT_VERSION_CHECK_AND_IMMUTABLE_SNAPSHOTS",
+        "MERGED_MEMBERS_BECOME_SUPERSEDED_AND_OMITTED_FROM_DEFAULT_AGGREGATION",
+        "MEMBER_FACT_AND_CLAIM_NOT_AUTO_INHERITED_BY_COMPOSITE"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_command_name for manual merge (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "user_commands[*].spec_command_name"
+      ],
+      "truly_undecided_questions": []
+    },
+    {
+      "review_id": "RQ-010",
+      "case_id": "EV-010",
+      "case_path": "cases/EV-010-composite-no-double-counting.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-11"],
+      "confirmed_spec_rules": [
+        "NO_COMPOSITE_DOUBLE_COUNTING_IN_SEARCH_OR_METRICS",
+        "MERGED_MEMBERS_ARE_SUPERSEDED_HISTORY",
+        "MEMBER_ONLY_SEARCH_HIT_ROLLS_UP_ONCE_TO_USER_COMPOSITE"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Direct detail GET response shape for historical SUPERSEDED member Event IDs"
+      ],
+      "truly_undecided_questions": [
+        "Direct detail GET response shape for a historical SUPERSEDED member Event ID (requires separate API contract)."
+      ]
+    },
+    {
+      "review_id": "RQ-011",
+      "case_id": "EV-011",
+      "case_path": "cases/EV-011-user-exclude-event.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_web_portal",
+      "priority": "P1",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007"],
+      "confirmed_spec_rules": [
+        "USER_EXCLUDE_SETS_LIFECYCLE_STATUS_REJECTED",
+        "SOURCE_PROVENANCE_PRESERVED_ON_EXCLUDE"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_command_name for exclude (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "user_commands[*].spec_command_name",
+        "Whether a separate restore command or Composite-exclude cascade exists"
+      ],
+      "truly_undecided_questions": [
+        "Whether a separate restore command or Composite-exclude cascade exists (not guessed)."
+      ]
+    },
+    {
+      "review_id": "RQ-012",
+      "case_id": "EV-012",
+      "case_path": "cases/EV-012-user-dissolve-composite.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "priority": "P0",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-12"],
+      "confirmed_spec_rules": [
+        "DISSOLVE_REQUIRES_EXPECTED_VERSION_REASON_AND_IDEMPOTENCY_KEY",
+        "DISSOLVED_COMPOSITE_BECOMES_SUPERSEDED_WITH_MEMBERSHIP_REMOVED",
+        "MEMBERS_REEVALUATED_TO_CANDIDATE_CONFIRMED_OR_STALE",
+        "COMPOSITE_FACT_CLAIM_EXPORT_MARKED_STALE_NO_DELETE_OR_AUTO_TRANSFER"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_command_name for dissolve (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "user_commands[*].spec_command_name",
+        "Exact error code when dissolve targets a non-USER_COMPOSITE Event"
+      ],
+      "truly_undecided_questions": [
+        "Exact error code when dissolve targets a non-USER_COMPOSITE Event."
+      ]
+    },
+    {
+      "review_id": "RQ-013",
+      "case_id": "EV-013",
+      "case_path": "cases/EV-013-cannot-link-context-and-unknown.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_auth_services",
+      "priority": "P0",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-12"],
+      "confirmed_spec_rules": [
+        "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT",
+        "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",
+        "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+        "ONLY_ELIGIBLE_PR_PR_SEGMENT_OR_DIRECT_COMMIT_EVENTS_ARE_MERGEABLE",
+        "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_hold_status and spec_command_name (UNCONFIRMED)",
+        "Exact wire spec_error_code and HTTP status for non-Event IDs (ticket / unpromoted UNKNOWN commit)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "command_results[*].spec_error_code (UNCONFIRMED for non-Event IDs)",
+        "command_results[*].http_status",
+        "held_items[*].spec_hold_status",
+        "user_commands[*].spec_command_name"
+      ],
+      "truly_undecided_questions": [
+        "Whether submitting non-Event IDs fails at request validation/404 or reaches domain codes such as CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE (zero mutation on rejection IS enforced)."
+      ]
+    },
+    {
+      "review_id": "RQ-014",
+      "case_id": "EV-014",
+      "case_path": "cases/EV-014-cannot-link-nested-and-excluded.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_analytics_pipe",
+      "priority": "P0",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-12"],
+      "confirmed_spec_rules": [
+        "USER_COMPOSITE_NESTING_FORBIDDEN_WITH_NESTED_COMPOSITE_NOT_ALLOWED",
+        "REJECTED_EVENT_MERGE_FORBIDDEN_WITH_MEMBER_NOT_ACTIVE",
+        "SUBSUMED_COMPOSITE_MEMBERS_ARE_SUPERSEDED",
+        "CANNOT_LINK_IS_RELATION_SEMANTIC_NOT_CATCH_ALL_WIRE_CODE",
+        "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+      ],
+      "unconfirmed_spec_tokens": [
+        "spec_command_name and HTTP status codes for NESTED_COMPOSITE_NOT_ALLOWED / MEMBER_NOT_ACTIVE / MEMBER_ALREADY_COMPOSED (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "command_results[*].http_status",
+        "command_results[cmd_syn_014_nested].spec_error_code (multi-violation precedence: MEMBER_ALREADY_COMPOSED vs MEMBER_NOT_ACTIVE)",
+        "user_commands[*].spec_command_name"
+      ],
+      "truly_undecided_questions": [
+        "Multi-violation error precedence when a member is simultaneously already composed (MEMBER_ALREADY_COMPOSED) and SUPERSEDED (MEMBER_NOT_ACTIVE) (zero mutation on rejection IS enforced)."
+      ]
+    },
+    {
+      "review_id": "RQ-015",
+      "case_id": "EV-015",
+      "case_path": "cases/EV-015-version-conflict-optimistic-lock.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "priority": "P0",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-12"],
+      "confirmed_spec_rules": [
+        "PER_EVENT_VERSION_CHECK_REQUIRED",
+        "EVENT_VERSION_CONFLICT_REJECTS_STALE_COMMAND_WITHOUT_MUTATION"
+      ],
+      "unconfirmed_spec_tokens": [
+        "HTTP status code (409 vs 412), If-Match header usage, and spec_command_name (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "command_results[*].http_status (409 vs 412)",
+        "If-Match header transport requirement",
+        "user_commands[*].spec_command_name"
+      ],
+      "truly_undecided_questions": [
+        "HTTP status code (409 vs 412) and whether If-Match header is used alongside request-body expected_version (EVENT_VERSION_CONFLICT and zero mutation ARE enforced)."
+      ]
+    },
+    {
+      "review_id": "RQ-016",
+      "case_id": "EV-016",
+      "case_path": "cases/EV-016-workspace-boundary-conflict.json",
+      "scope": "MVP",
+      "eval_partition": "MVP_SYNTHETIC_REGRESSION",
+      "eval_bundle_id": "bundle_mvp_multi_workspace",
+      "priority": "P0",
+      "status": "APPROVED_MVP_REGRESSION",
+      "official_refs": ["FR-007", "EVENT-12"],
+      "confirmed_spec_rules": [
+        "USER_MANUAL_MERGE_SAME_REPOSITORY_ONLY_WITH_CROSS_REPOSITORY_MEMBER",
+        "WORKSPACE_BOUNDARY_STRICTLY_ENFORCED",
+        "CROSS_WORKSPACE_MERGE_POLICY_SEPARATED_FROM_EXTERNAL_HTTP_EXPOSURE",
+        "NON_MERGE_CROSS_WORKSPACE_REJECT_DOES_NOT_USE_MERGE_ONLY_ERROR",
+        "REJECTED_COMMAND_CAUSES_ZERO_MUTATION"
+      ],
+      "unconfirmed_spec_tokens": [
+        "External HTTP error/status for unauthorized cross-workspace objects on merge and exclude (UNCONFIRMED)",
+        "HTTP status for CROSS_REPOSITORY_MEMBER and spec_command_name (UNCONFIRMED)"
+      ],
+      "excluded_from_mvp_truth_comparison": [
+        "command_results[*].http_status",
+        "command_results[cmd_syn_016_merge_cross_ws].spec_error_code (external HTTP exposure vs internal CROSS_WORKSPACE_MEMBER)",
+        "command_results[cmd_syn_016_exclude_cross_ws].spec_error_code (403 vs 404 external exposure)",
+        "user_commands[*].spec_command_name"
+      ],
+      "truly_undecided_questions": [
+        "Final external HTTP error code/status (403 vs 404 vs CROSS_WORKSPACE_MEMBER) exposed when caller targets an unauthorized foreign-workspace object (CROSS_REPOSITORY_MEMBER and zero mutation ARE enforced)."
+      ]
+    },
+    {
+      "review_id": "RQ-017",
+      "case_id": "EV-017",
+      "case_path": "cases/EV-017-post-mvp-b003-auto-change-discovery.json",
+      "scope": "POST_MVP",
+      "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+      "eval_bundle_id": "bundle_post_mvp_b003_draft",
+      "priority": "P2",
+      "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
+      "confirmed_spec_rules": [
+        "POST_MVP_B003_EXPLICITLY_TAGGED",
+        "NO_AUTO_INGESTION_AFTER_SUCCESS_SNAPSHOT_IMPORT_IN_MVP",
+        "MERGED_PR_IS_DEFAULT_EVENT_CANDIDATE"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Entire case excluded from MVP regression evaluation (unapproved POST_MVP B-003 draft)"
+      ],
+      "truly_undecided_questions": [
+        "Whether downstream B-003 evaluation will execute this fixture behind a POST_MVP harness flag."
+      ]
+    },
+    {
+      "review_id": "RQ-018",
+      "case_id": "EV-018",
+      "case_path": "cases/EV-018-post-mvp-b003-late-association-recovery.json",
+      "scope": "POST_MVP",
+      "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+      "eval_bundle_id": "bundle_post_mvp_b003_draft",
+      "priority": "P2",
+      "status": "REVIEW_REQUIRED",
+      "official_refs": ["FR-006"],
+      "confirmed_spec_rules": [
+        "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
+        "POST_MVP_B003_EXPLICITLY_TAGGED",
+        "SEPARATE_PARTIAL_IMPORT_RETRY_FROM_POST_SUCCESS_B003_RECLASSIFICATION"
+      ],
+      "unconfirmed_spec_tokens": [],
+      "excluded_from_mvp_truth_comparison": [
+        "Entire case excluded from MVP regression evaluation (unapproved POST_MVP B-003 draft)"
+      ],
+      "truly_undecided_questions": [
+        "Post-MVP B-003 transition mechanics for superseding a DIRECT_COMMIT Event once late PR association is observed."
+      ]
+    }
+  ]
+}

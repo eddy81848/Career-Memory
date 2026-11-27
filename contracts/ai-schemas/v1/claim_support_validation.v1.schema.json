@@ -1,0 +1,247 @@
+{
+  "$defs": {
+    "AtomFactBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "content_unit_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fact_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fact_support_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "source_object_revision_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "support_type": {
+          "enum": [
+            "DIRECT",
+            "CONTEXT",
+            "CONTRADICTS"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact_id",
+        "support_type",
+        "fact_support_ids",
+        "source_object_revision_id",
+        "content_unit_id"
+      ],
+      "type": "object"
+    },
+    "AtomValidationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "atom_type": {
+          "enum": [
+            "PROBLEM",
+            "ACTION",
+            "TECHNOLOGY",
+            "RESULT",
+            "ROLE",
+            "METRIC"
+          ],
+          "type": "string"
+        },
+        "fact_bindings": {
+          "items": {
+            "$ref": "#/$defs/AtomFactBinding"
+          },
+          "type": "array"
+        },
+        "metric_grounding": {
+          "$ref": "#/$defs/MetricDetails"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "role_contribution_grounding": {
+          "$ref": "#/$defs/RoleContributionGrounding"
+        },
+        "status": {
+          "enum": [
+            "SUPPORTED",
+            "USER_CONFIRMED",
+            "UNSUPPORTED",
+            "STALE"
+          ],
+          "type": "string"
+        },
+        "unsupported_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ordinal",
+        "atom_type",
+        "status",
+        "fact_bindings"
+      ],
+      "type": "object"
+    },
+    "MetricDetails": {
+      "additionalProperties": false,
+      "properties": {
+        "environment_scope": {
+          "enum": [
+            "PRODUCTION",
+            "STAGING_TEST",
+            "UNSPECIFIED"
+          ],
+          "type": "string"
+        },
+        "measurement_scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "period": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_basis": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "period",
+        "source_basis",
+        "environment_scope",
+        "measurement_scope"
+      ],
+      "type": "object"
+    },
+    "RoleContributionGrounding": {
+      "additionalProperties": false,
+      "properties": {
+        "active_contribution_support_fact_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "confirmed_event_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "IMPLEMENTED",
+            "REVIEWED",
+            "PROPOSED",
+            "DESIGNED",
+            "OPERATED",
+            "MENTORED",
+            "MEASURED"
+          ],
+          "type": "string"
+        },
+        "subject_identity_id": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_identity_id",
+        "confirmed_event_id",
+        "role",
+        "active_contribution_support_fact_ids"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://career-memory.local/schemas/ai/v1/claim_support_validation.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stage 3C ClaimSupportValidator structured output. Requires validation_run_id distinct from both generator_run_id and atomizer_run_id, validates ROLE contribution grounding (CLAIM-05) and 6-element METRIC grounding (CLAIM-06), and emits strictly read-only computed_verification.",
+  "properties": {
+    "atom_validations": {
+      "items": {
+        "$ref": "#/$defs/AtomValidationResult"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "atomizer_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_version": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "computed_verification": {
+      "enum": [
+        "SOURCE_VERIFIED",
+        "USER_CONFIRMED",
+        "MIXED",
+        "UNVERIFIED"
+      ],
+      "readOnly": true,
+      "type": "string"
+    },
+    "generator_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "validation_run_id": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "validation_run_id",
+    "generator_run_id",
+    "atomizer_run_id",
+    "claim_id",
+    "claim_version",
+    "atom_validations",
+    "computed_verification"
+  ],
+  "title": "ClaimSupportValidation Stage 3C Output (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "ClaimSupportValidator",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "STAGE_3C_CLAIM_SUPPORT_VALIDATION"
+}

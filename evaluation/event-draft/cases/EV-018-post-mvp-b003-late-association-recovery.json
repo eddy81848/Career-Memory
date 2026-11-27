@@ -1,0 +1,182 @@
+{
+  "schema_version": "event-draft-case.v1",
+  "case_id": "EV-018",
+  "slug": "post-mvp-b003-late-association-recovery",
+  "title": "[POST_MVP / B-003] Post-success late PR association observation for a DIRECT_COMMIT candidate created from completed NO_MATCH_OBSERVED",
+  "scope": "POST_MVP",
+  "backlog_ref": "B-003",
+  "post_mvp_reason": "Post-success late PR association reclassification (B-003) after a completed Snapshot Import is POST_MVP and strictly separated from incomplete PARTIAL import retries.",
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_post_mvp_b003_draft",
+    "source_lineage_group": "src_billing_engine",
+    "eval_partition": "POST_MVP_DRAFT_EXCLUDED",
+    "derived_from_same_source_cases": [
+      "EV-003",
+      "EV-018"
+    ]
+  },
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-POST-02",
+      "REQ-EV-ASSOC-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-18"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [],
+    "scenario_tags": [
+      "post_mvp",
+      "b_003",
+      "late_association_recovery",
+      "direct_commit_reclassification"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_018",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_018",
+        "workspace_id": "ws_syn_018",
+        "full_name": "acme-syn-lab/billing-engine",
+        "default_branch": "main",
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_018",
+        "workspace_id": "ws_syn_018",
+        "repo_id": "repo_syn_018",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T10:20:00Z",
+        "note": "Completed initial Snapshot Import where PR association lookup finished with NO_MATCH_OBSERVED (NOT an incomplete PARTIAL run)."
+      }
+    ],
+    "pull_requests": [],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1801",
+        "repo_id": "repo_syn_018",
+        "sha": "1801000000000000000000000000000000000001",
+        "message": "Fix multi-currency tax rounding edge case",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-22T09:10:00Z",
+        "branch_name": "main",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "src/billing/tax_rounding.py"
+        ]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "post_sync_observations": [
+      {
+        "observation_id": "obs_syn_1801",
+        "observation_type": "LATE_ASSOCIATION_RECOVERY",
+        "observed_at": "2026-11-06T09:00:00Z",
+        "details": {
+          "target_commit_id": "cmt_syn_1801",
+          "initial_association_status": "NO_MATCH_OBSERVED",
+          "recovered_pr_number": 1805,
+          "recovered_pr_title": "Fix multi-currency tax rounding edge case",
+          "recovered_association_status": "ASSOCIATED",
+          "backlog_ref": "B-003"
+        }
+      }
+    ]
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_exp_018_1",
+        "workspace_id": "ws_syn_018",
+        "repo_id": "repo_syn_018",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": [
+          "cmt_syn_1801"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Fix multi-currency tax rounding edge case",
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [
+      {
+        "observation_id": "obs_syn_1801",
+        "backlog_ref": "B-003",
+        "persisted_in_mvp": false,
+        "reason": "After SUCCESS snapshot import created DIRECT_COMMIT candidate ev_exp_018_1 from completed NO_MATCH_OBSERVED, later external observation of PR #1805 association is deferred to B-003 (POST_MVP) and not ingested in MVP."
+      }
+    ],
+    "command_results": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "multi-currency tax rounding",
+        "expected_event_ids": [
+          "ev_exp_018_1"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0
+    },
+    "post_mvp_transition_note": "Under B-003 (POST_MVP), applying late PR association observation obs_syn_1801 governs reclassifying/superseding DIRECT_COMMIT candidate ev_exp_018_1 into a PR Event for PR #1805 without mixing incomplete PARTIAL import retries.",
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.post_mvp_transition_note",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "When B-003 is designed post-MVP, define how a previously promoted DIRECT_COMMIT Event is superseded or migrated when late PR association is observed after a SUCCESS import."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Separates post-SUCCESS B-003 late PR association reclassification from incomplete PARTIAL import retries: sync_syn_018 succeeded with completed NO_MATCH_OBSERVED and start/end default-branch verification, emitting DIRECT_COMMIT CANDIDATE ev_exp_018_1, while later PR #1805 association observation obs_syn_1801 stays unpersisted_external_observations in MVP.",
+    "confirmed_spec_rules": [
+      "DEFAULT_BRANCH_DIRECT_COMMIT_ONLY_WHEN_LOOKUP_COMPLETED_AND_NO_MATCH_OBSERVED",
+      "POST_MVP_B003_EXPLICITLY_TAGGED",
+      "SEPARATE_PARTIAL_IMPORT_RETRY_FROM_POST_SUCCESS_B003_RECLASSIFICATION"
+    ],
+    "unconfirmed_spec_tokens": [],
+    "truly_undecided_items": [
+      "Post-MVP B-003 transition mechanics for superseding a DIRECT_COMMIT Event once late PR association is observed."
+    ]
+  }
+}

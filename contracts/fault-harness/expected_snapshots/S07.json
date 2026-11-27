@@ -1,0 +1,86 @@
+{
+  "default_branch": "main",
+  "injection_points": [
+    "BEFORE_PAGE_TX"
+  ],
+  "logical_snapshot": {
+    "content_units": [],
+    "event_memberships_count": 0,
+    "gate_checks": {
+      "claim_approval_gate_allowed": null,
+      "concurrent_stale_fence_discarded": 0,
+      "export_gate_allowed": true,
+      "external_ai_gate_allowed": true,
+      "extra": {
+        "cycle_detected_within_bound": true,
+        "prs_page2_requests": 1
+      },
+      "refetch_content_allowed": true,
+      "refetch_resolution_status": null
+    },
+    "outbox_summary": {
+      "import_ready_count": 0,
+      "outbox_consumed_effects_count": 0
+    },
+    "resource_and_account_policy": {
+      "account_status": "ACTIVE",
+      "deletion_fence_active": false,
+      "resource_status": "ACTIVE",
+      "resource_visibility": "PUBLIC"
+    },
+    "source_object_revisions": [
+      {
+        "content_hash": "sha256:c6bd1e5952ec57302d15c23dbcdce93f95225f53c81da27df618c5683a1392a6",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "203",
+        "provider_revision_id": "a2000000000000000000000000000000000000cb"
+      }
+    ],
+    "source_objects": [
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "203"
+      }
+    ],
+    "sync_checkpoints": [
+      {
+        "current_cursor": "https://api.github.com/repositories/900400020/pulls?state=closed&base=main&sort=updated&direction=desc&per_page=100&page=2",
+        "last_committed_page": 1,
+        "stream_name": "PRS",
+        "stream_status": "PARTIAL",
+        "unresolved_failures": 1
+      }
+    ],
+    "sync_commit_pr_associations": [],
+    "sync_item_outcomes": [],
+    "sync_run_page_observations": [
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      }
+    ],
+    "sync_runs": [
+      {
+        "failure_reason_code": "CURSOR_CYCLE_DETECTED",
+        "has_safe_checkpoint": true,
+        "import_ready": false,
+        "is_abandoned": false,
+        "processing_status": "NOT_STARTED",
+        "remaining_range_present": false,
+        "retry_allowed": false,
+        "source_drift": false,
+        "status": "PARTIAL"
+      }
+    ],
+    "work_events": []
+  },
+  "observed_at_iso": "2026-11-27T12:00:00Z",
+  "scenario_id": "S07",
+  "schema_version": "cm-b004-expected-v1",
+  "title": "Repeated / cyclic pagination cursor detection"
+}

@@ -1,0 +1,2113 @@
+{
+  "schema_version": "0.4.0-owner-review-candidate",
+  "dataset_version": "0.4.0-owner-review-candidate",
+  "artifact_role": "EXPECTED_ORACLE_OWNER_REVIEW_CANDIDATE",
+  "oracle_status": "PENDING_OWNER_REVIEW",
+  "candidate_scope": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED",
+  "domain_vs_fixture_label_policy": "Official domain fields use spec enums only (Fact types: PROBLEM|ACTION|TECHNOLOGY|RESULT|ROLE|METRIC; Atom statuses: SUPPORTED|USER_CONFIRMED|UNSUPPORTED|STALE; computed SOURCE_VERIFIED). All DRAFT_* and legacy test taxonomy labels live inside fixture_test_classification (TEST_FIXTURE_ONLY_NOT_DOMAIN_API) and MUST NOT be read as API/DB domain enums.",
+  "frozen_for_golden": false,
+  "human_approved": false,
+  "requires_human_review_task": "T-004B",
+  "provenance_and_freeze_preconditions": {
+    "supersedes_baseline_commit_sha": "fa6332d2dda00c59dd922465c1005349017577fe",
+    "supersedes_baseline_version": "0.3.0-synthetic-golden",
+    "spec_sync_basis": "Orchestrator-transmitted B-002 / Grounded Claim Pipeline / DB Model / Option C / T-004A / T-004B / REF-06..08 / CLAIM-05,06,08 / ADR-018 criteria (direct Notion read unavailable; unconfirmed API/DB details explicitly marked REVIEW_REQUIRED).",
+    "human_approval_status": "PENDING_OWNER_REVIEW_NOT_APPROVED",
+    "human_approved": false,
+    "adr_018_ai_cannot_self_approve": true,
+    "family_split_anti_leakage_rule": "All cases, edited versions, and refetch fixtures sharing an evaluation_family_id or source revision remain locked inside the same partition (SYNTHETIC_REGRESSION_DEV or SYNTHETIC_REGRESSION_TEST), preserving all v0.3.0 DEV/TEST boundaries.",
+    "live_llm_evaluation_in_scope": false,
+    "production_connector_integration_in_scope": false,
+    "synthetic_semantics_only_not_connector_evidence": true
+  },
+  "scenarios": [
+    {
+      "scenario_id": "SCN-01",
+      "evaluation_family_id": "family-src01",
+      "title": "Zero facts from standup boilerplate + ungrounded candidate claim",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "coverage_tags": [
+        "zero_facts",
+        "hard_negative",
+        "ungrounded_claim",
+        "mixed_ko_en"
+      ],
+      "expected_candidate_count": 0,
+      "expected_fact_count": 0,
+      "expected_atom_count": 1,
+      "review_required_items": [
+        "Confirm 0-candidate & 0-fact threshold for pure scheduling/boilerplate notes"
+      ],
+      "rationale": "FactCandidateExtractor yields 0 candidates from standup chatter; required atom-01-1 has 0 supports (UNSUPPORTED) and cannot compute SOURCE_VERIFIED.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-02",
+      "evaluation_family_id": "family-src02",
+      "title": "Single fact clean individual delivery baseline (implementation + conditional effect atoms)",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "coverage_tags": [
+        "single_fact",
+        "direct_support",
+        "individual_attribution",
+        "effect_with_condition"
+      ],
+      "expected_candidate_count": 1,
+      "expected_fact_count": 1,
+      "expected_atom_count": 2,
+      "review_required_items": [
+        "Confirm Stage 2A->2B->3A->3B->3C separation and 2/2 SUPPORTED atoms (implementation + conditional effect) for SOURCE_VERIFIED"
+      ],
+      "rationale": "Single unambiguous PR directly supports both implementation (atom-02-1) and conditional duplicate-notification prevention (atom-02-2).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-03",
+      "evaluation_family_id": "family-src03",
+      "title": "Multiple (N=3) facts from Korean postmortem with split action/metric atoms and multi-byte UTF-8 offsets",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "coverage_tags": [
+        "n_facts",
+        "multi_atom_claim",
+        "korean_utf8_offsets",
+        "direct_support"
+      ],
+      "expected_candidate_count": 3,
+      "expected_fact_count": 3,
+      "expected_atom_count": 4,
+      "review_required_items": [
+        "Confirm fact-03-1 METRIC classification and 4/4 SUPPORTED Korean atoms"
+      ],
+      "rationale": "Three Korean bullets yield 3 candidates -> 3 SUPPORTED facts (METRIC, ACTION, ACTION) and 4 SUPPORTED atoms.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-04",
+      "evaluation_family_id": "family-src04",
+      "title": "DIRECT+CONTEXT grounding vs CONTEXT-only insufficient grounding",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "coverage_tags": [
+        "direct_support",
+        "context_support",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 2,
+      "review_required_items": [
+        "Confirm CONTEXT-only atom-04-2 resolves to UNSUPPORTED and blocks SOURCE_VERIFIED"
+      ],
+      "rationale": "claim-04-1 is DIRECT+CONTEXT grounded (SUPPORTED); claim-04-2 has CONTEXT only (UNSUPPORTED).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-05",
+      "evaluation_family_id": "family-src05",
+      "title": "CONTRADICTS across incident draft vs addendum + separation of log-confirmed fact from unverified personal execution/audit claims",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "coverage_tags": [
+        "contradicts",
+        "multi_revision",
+        "correction_preserved",
+        "attribution_split",
+        "partial_support",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 4,
+      "review_required_items": [
+        "Confirm Stage 2B preserves correction addendum (fact-05-2 SUPPORTED) while marking contradicted draft (fact-05-1) as non-active conflicting record",
+        "Confirm claim-05-2 atom-05-3=SUPPORTED vs personal audit atom-05-4=UNSUPPORTED (blocks SOURCE_VERIFIED)"
+      ],
+      "rationale": "Correction sentence is NOT discarded: it directly supports fact-05-2 and contradicts fact-05-1; personal execution/audit attributions lack direct evidence.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-06",
+      "evaluation_family_id": "family-src06",
+      "title": "Completed delivery vs planned Q4 RFC work (including Stage 2B rejection of plan-as-completed extraction)",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "coverage_tags": [
+        "planned_vs_completed",
+        "contradicts",
+        "unpromoted_candidate_rejected",
+        "korean_utf8_offsets",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 3,
+      "expected_fact_count": 2,
+      "expected_atom_count": 4,
+      "review_required_items": [
+        "Confirm Stage 2B rejects fcand-06-3-rejected (plan promoted as completed) while keeping fact-06-2 as PLANNED to contradict claim-06-2"
+      ],
+      "rationale": "Plan sentence is preserved as a PLANNED fact (fact-06-2) rather than deleted; extractor mistake elevating plan to completed (fcand-06-3-rejected) is rejected by FactSupportValidator.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-07",
+      "evaluation_family_id": "family-src07",
+      "title": "Negation context (rollback KEPT; negated deployment & 30% savings preserved; Stage 2B rejects negation-stripping extraction)",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "coverage_tags": [
+        "negation_context",
+        "contradicts",
+        "unpromoted_candidate_rejected",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 4,
+      "expected_fact_count": 3,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm Stage 2B preserves negated facts (fact-07-2, fact-07-3) and rejects positive extractor error fcand-07-4-rejected"
+      ],
+      "rationale": "Explicit negations support negated CanonicalFacts that refute claim-07-2; extractor error stripping negation is rejected at Stage 2B.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-08",
+      "evaluation_family_id": "family-src08",
+      "title": "Team achievement vs individual contribution (Stage 2B rejects team-to-individual promotion; claim-08-2 splits solo conflict)",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "coverage_tags": [
+        "team_vs_individual",
+        "contradicts",
+        "unpromoted_candidate_rejected",
+        "context_support",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 3,
+      "expected_fact_count": 2,
+      "expected_atom_count": 4,
+      "review_required_items": [
+        "Confirm Stage 2B rejects fcand-08-3-rejected (6-engineer team work elevated to solo attribution) and preserves fact-08-1 at TEAM scope"
+      ],
+      "rationale": "Team work is preserved at TEAM scope and never promoted to individual attribution; claim-08-1 passes while solo-overclaim claim-08-2 fails.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-09",
+      "evaluation_family_id": "family-src09",
+      "title": "Staging/test benchmark vs unstarted production deployment & staging-only metric split",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "coverage_tags": [
+        "test_vs_production",
+        "contradicts",
+        "context_support",
+        "korean_utf8_offsets",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm fact-09-1 STAGING_TEST metric_details and fact-09-2 negated production rollout blocking claim-09-2"
+      ],
+      "rationale": "claim-09-1 accurately scopes the staging benchmark; claim-09-2 fails due to unstarted production rollout (CONTRADICTS) and staging-only metric (CONTEXT).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-10",
+      "evaluation_family_id": "family-src10",
+      "title": "Unverified causation and fabricated metric in a 3-atom partial claim",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "coverage_tags": [
+        "unverified_metric_causation",
+        "partial_support",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm confounded 18% revenue correlation (CONTEXT) + fabricated 45% lift (0 supports) stay UNSUPPORTED"
+      ],
+      "rationale": "Only 1 of 3 required atoms is SUPPORTED; causal overclaim and fabricated metric remain UNSUPPORTED.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-11",
+      "evaluation_family_id": "family-src11",
+      "title": "Identity ambiguity (unmapped homonym 'Alex') vs verified account author",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "coverage_tags": [
+        "identity_ambiguity",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 2,
+      "review_required_items": [
+        "Confirm ambiguous identity fact-11-1 (is_active_supported_fact=false) blocks claim-11-1 SOURCE_VERIFIED"
+      ],
+      "rationale": "Unmapped 'Alex' blocks SOURCE_VERIFIED on claim-11-1; verified owner PR passes claim-11-2.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-12",
+      "evaluation_family_id": "family-src12",
+      "title": "CLAIM-08 User edit & user confirmation matrix: v2 failed edit, v2 STALE un-reverified edit, v2 re-verified PASS, and USER_CONFIRMED-only FAIL",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-08"
+      ],
+      "coverage_tags": [
+        "user_edit_new_version_reverification",
+        "user_confirmed_not_source_verified",
+        "stale_atom_status",
+        "scope_mismatch",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 1,
+      "expected_fact_count": 1,
+      "expected_atom_count": 6,
+      "review_required_items": [
+        "Confirm CLAIM-08 4-case matrix in family-src12: claim-12-1 (v2 failed -> UNSUPPORTED), claim-12-2 (v2 un-reverified -> STALE), claim-12-3 (v2 re-verified -> SUPPORTED & SOURCE_VERIFIED), claim-12-4 (atom-12-6 USER_CONFIRMED -> SOURCE_VERIFIED forbidden)"
+      ],
+      "rationale": "Covers all official Atom statuses related to user edits/confirmations (SUPPORTED, STALE, UNSUPPORTED, USER_CONFIRMED) while keeping all src12 derivatives inside family-src12 (DEV).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-13",
+      "evaluation_family_id": "family-src13",
+      "title": "OD-003 user source deletion: preview + explicit confirmation -> immediate access block -> full purge of dependent Claims & server copies (even mixed-source), preserving independent Source",
+      "notion_test_ids": [
+        "T-004A",
+        "OD-003"
+      ],
+      "coverage_tags": [
+        "od003_user_delete",
+        "immediate_access_block",
+        "full_server_purge",
+        "independent_source_preserved"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm OD-003 full purge of claim-13-1 & mixed-source claim-13-2 (0 retained versions/edits/approvals, never PARTIALLY_GROUNDED) and preservation of independent src13b/fact-13-2"
+      ],
+      "rationale": "Preserves OD-003 user-deletion cascade semantics cleanly separated from REF-03 refetch unavailability.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-14",
+      "evaluation_family_id": "family-src14",
+      "title": "Hard negatives bundle: 10x numeric distortion and cross-project conflation",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "coverage_tags": [
+        "hard_negative",
+        "partial_support",
+        "contradicts",
+        "numeric_distortion",
+        "entity_conflation"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm 400ms->40ms distortion & Alpha/Borealis conflation keep claim-14-1 NOT SOURCE_VERIFIED"
+      ],
+      "rationale": "Only atom-14-1 is SUPPORTED; atom-14-2 (10x distortion) and atom-14-3 (project conflation) remain UNSUPPORTED.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-15",
+      "evaluation_family_id": "family-src15",
+      "title": "CLAIM-05 Role attribution pass/fail: verified Tech Lead contribution (PASS) vs unrecorded Security Lead role (FAIL)",
+      "notion_test_ids": [
+        "CLAIM-05"
+      ],
+      "coverage_tags": [
+        "claim_05_role_attribution",
+        "official_fact_type_role",
+        "direct_support",
+        "contradicts",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 2,
+      "expected_fact_count": 2,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm CLAIM-05 PASS (claim-15-1: explicit Tech Lead role + RFC/review contribution evidence) vs FAIL (claim-15-2: Security Lead role contradicted by Security-team-led audit with no Alex Kim role)"
+      ],
+      "rationale": "Tests official ROLE Fact type and verifies roles are supported only when direct personal contribution evidence exists.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    },
+    {
+      "scenario_id": "SCN-16",
+      "evaluation_family_id": "family-src16",
+      "title": "CLAIM-06 Metric grounding pass/fail + official PROBLEM/TECHNOLOGY/METRIC Fact types (value/unit/period/source/env/scope)",
+      "notion_test_ids": [
+        "CLAIM-06"
+      ],
+      "coverage_tags": [
+        "claim_06_metric_grounding",
+        "official_fact_type_problem",
+        "official_fact_type_technology",
+        "official_fact_type_metric",
+        "hard_negative"
+      ],
+      "expected_candidate_count": 3,
+      "expected_fact_count": 3,
+      "expected_atom_count": 3,
+      "review_required_items": [
+        "Confirm CLAIM-06 PASS (claim-16-1: exact value/unit/30-day period/Datadog APM/production checkout-api p99) vs FAIL (claim-16-2: overbroad company-wide & full-year 2026 scope)"
+      ],
+      "rationale": "Tests structured metric grounding (value, unit, period, source basis, environment, measurement scope) and covers PROBLEM, TECHNOLOGY, and METRIC official Fact types.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST",
+      "oracle_status": "PENDING_OWNER_REVIEW"
+    }
+  ],
+  "expected_facts": [
+    {
+      "fact_candidate_id": "fcand-02-1",
+      "scenario_id": "SCN-02",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-02-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Single unambiguous PR sentence validated DIRECT -> promoted to active SUPPORTED ACTION fact."
+    },
+    {
+      "fact_candidate_id": "fcand-03-1",
+      "scenario_id": "SCN-03",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-03-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Korean bullet 1 DIRECT-verified -> promoted to SUPPORTED METRIC fact in production scope."
+    },
+    {
+      "fact_candidate_id": "fcand-03-2",
+      "scenario_id": "SCN-03",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-03-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Korean bullet 2 DIRECT-verified -> promoted to SUPPORTED ACTION fact."
+    },
+    {
+      "fact_candidate_id": "fcand-03-3",
+      "scenario_id": "SCN-03",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-03-3",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Korean bullet 3 DIRECT-verified -> promoted to SUPPORTED ACTION fact."
+    },
+    {
+      "fact_candidate_id": "fcand-04-1",
+      "scenario_id": "SCN-04",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT",
+        "CONTEXT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-04-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Delivery log DIRECT-supports migration with Q3 initiative goal as CONTEXT."
+    },
+    {
+      "fact_candidate_id": "fcand-04-2",
+      "scenario_id": "SCN-04",
+      "expected_fact_type": "PROBLEM",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-04-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Context section DIRECT-supports that eliminating missed nightly batch runs was a stated goal (not a completed 100% outcome)."
+    },
+    {
+      "fact_candidate_id": "fcand-05-1",
+      "scenario_id": "SCN-05",
+      "expected_fact_type": "RESULT",
+      "expected_validator_support_roles": [
+        "DIRECT",
+        "CONTRADICTS"
+      ],
+      "expected_promotion_decision": "PROMOTE_AS_CONFLICTING_RECORD",
+      "expected_canonical_fact_id": "fact-05-1",
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Draft zero-drop assertion is preserved as a conflicting record (NOT active SUPPORTED fact) because addendum src05b explicitly CONTRADICTS it."
+    },
+    {
+      "fact_candidate_id": "fcand-05-2",
+      "scenario_id": "SCN-05",
+      "expected_fact_type": "PROBLEM",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-05-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Correction addendum is NOT discarded: it DIRECT-supports the corrected 412 HTTP 503 incident record while leaving individual auditor unspecified."
+    },
+    {
+      "fact_candidate_id": "fcand-06-1",
+      "scenario_id": "SCN-06",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-06-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Completed section DIRECT-supports endpoint implementation and production monitoring integration."
+    },
+    {
+      "fact_candidate_id": "fcand-06-2",
+      "scenario_id": "SCN-06",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-06-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Plan sentence is NOT deleted: it DIRECT-supports a PLANNED fact at observation time, which contradicts completion overclaims."
+    },
+    {
+      "fact_candidate_id": "fcand-06-3-rejected",
+      "scenario_id": "SCN-06",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "CONTRADICTS"
+      ],
+      "expected_promotion_decision": "REJECT_DO_NOT_PROMOTE",
+      "expected_canonical_fact_id": null,
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Extractor over-claim promoting planned RFC work to COMPLETED must be rejected by FactSupportValidator and never promoted."
+    },
+    {
+      "fact_candidate_id": "fcand-07-1",
+      "scenario_id": "SCN-07",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-07-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Rollback action is DIRECT-supported and promoted."
+    },
+    {
+      "fact_candidate_id": "fcand-07-2",
+      "scenario_id": "SCN-07",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-07-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Negation clause is NOT deleted: it DIRECT-supports negated non-deployment fact-07-2 to contradict false deployment claims."
+    },
+    {
+      "fact_candidate_id": "fcand-07-3",
+      "scenario_id": "SCN-07",
+      "expected_fact_type": "RESULT",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-07-3",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Negation clause is NOT deleted: it DIRECT-supports negated non-savings fact-07-3 to contradict false savings claims."
+    },
+    {
+      "fact_candidate_id": "fcand-07-4-rejected",
+      "scenario_id": "SCN-07",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "CONTRADICTS"
+      ],
+      "expected_promotion_decision": "REJECT_DO_NOT_PROMOTE",
+      "expected_canonical_fact_id": null,
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Extractor dropping explicit negation must be rejected by FactSupportValidator and never promoted."
+    },
+    {
+      "fact_candidate_id": "fcand-08-1",
+      "scenario_id": "SCN-08",
+      "expected_fact_type": "RESULT",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-08-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Preserves 6-engineer team attribution strictly at TEAM scope."
+    },
+    {
+      "fact_candidate_id": "fcand-08-2",
+      "scenario_id": "SCN-08",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT",
+        "CONTEXT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-08-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Individual cache layer contribution is DIRECT-supported with team CI rebuild as CONTEXT."
+    },
+    {
+      "fact_candidate_id": "fcand-08-3-rejected",
+      "scenario_id": "SCN-08",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "CONTRADICTS"
+      ],
+      "expected_promotion_decision": "REJECT_DO_NOT_PROMOTE",
+      "expected_canonical_fact_id": null,
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Team-to-individual elevation during extraction must be rejected by FactSupportValidator and never promoted."
+    },
+    {
+      "fact_candidate_id": "fcand-09-1",
+      "scenario_id": "SCN-09",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-09-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Staging benchmark metric is DIRECT-supported strictly in STAGING_TEST scope."
+    },
+    {
+      "fact_candidate_id": "fcand-09-2",
+      "scenario_id": "SCN-09",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-09-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Negated production rollout sentence is preserved as a SUPPORTED negated fact contradicting production deployment claims."
+    },
+    {
+      "fact_candidate_id": "fcand-10-1",
+      "scenario_id": "SCN-10",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-10-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "May 12 UI launch is DIRECT-supported."
+    },
+    {
+      "fact_candidate_id": "fcand-10-2",
+      "scenario_id": "SCN-10",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-10-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Confounded 18% revenue correlation is preserved with OBSERVED_CORRELATION modality (provides CONTEXT only for causal claims)."
+    },
+    {
+      "fact_candidate_id": "fcand-11-1",
+      "scenario_id": "SCN-11",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_AS_IDENTITY_UNRESOLVED_RECORD",
+      "expected_canonical_fact_id": "fact-11-1",
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Ambiguous homonym 'Alex' is NOT an active owner-resolved SUPPORTED fact."
+    },
+    {
+      "fact_candidate_id": "fcand-11-2",
+      "scenario_id": "SCN-11",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-11-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Verified owner PR DIRECT-supports unit test addition."
+    },
+    {
+      "fact_candidate_id": "fcand-12-1",
+      "scenario_id": "SCN-12",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-12-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Checkout service peak-load 25% p99 latency reduction is DIRECT-supported."
+    },
+    {
+      "fact_candidate_id": "fcand-13-1",
+      "scenario_id": "SCN-13",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_AS_DELETED_RECORD",
+      "expected_canonical_fact_id": "fact-13-1",
+      "expected_active_supported_fact": false,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "User-deleted src13a marks fact-13-1 inactive/deleted under OD-003."
+    },
+    {
+      "fact_candidate_id": "fcand-13-2",
+      "scenario_id": "SCN-13",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-13-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Independent non-deleted source src13b keeps fact-13-2 preserved and active."
+    },
+    {
+      "fact_candidate_id": "fcand-14-1",
+      "scenario_id": "SCN-14",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-14-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Project Alpha 900ms->400ms latency metric is DIRECT-supported."
+    },
+    {
+      "fact_candidate_id": "fcand-14-2",
+      "scenario_id": "SCN-14",
+      "expected_fact_type": "ACTION",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-14-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Project Borealis docs migration is DIRECT-supported."
+    },
+    {
+      "fact_candidate_id": "fcand-15-1",
+      "scenario_id": "SCN-15",
+      "expected_fact_type": "ROLE",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-15-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 / DB Model §3.8 fixture semantics: Binds person-alex-kim-verified + evt-career-15 + Tech Lead role to active concrete contribution span fs-15-1b (RFC authoring & schema rollout review sign-off); author match or role string alone is insufficient."
+    },
+    {
+      "fact_candidate_id": "fcand-15-2",
+      "scenario_id": "SCN-15",
+      "expected_fact_type": "ROLE",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-15-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05: Direct record that Security team led the compliance audit with no recorded role for Alex Kim; contradicts personal Security Lead claims."
+    },
+    {
+      "fact_candidate_id": "fcand-16-1",
+      "scenario_id": "SCN-16",
+      "expected_fact_type": "PROBLEM",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-16-1",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production latency bottleneck problem directly evidenced in report."
+    },
+    {
+      "fact_candidate_id": "fcand-16-2",
+      "scenario_id": "SCN-16",
+      "expected_fact_type": "TECHNOLOGY",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-16-2",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "PostgreSQL 16 covering composite index technology adoption directly evidenced."
+    },
+    {
+      "fact_candidate_id": "fcand-16-3",
+      "scenario_id": "SCN-16",
+      "expected_fact_type": "METRIC",
+      "expected_validator_support_roles": [
+        "DIRECT"
+      ],
+      "expected_promotion_decision": "PROMOTE_TO_CANONICAL_FACT",
+      "expected_canonical_fact_id": "fact-16-3",
+      "expected_active_supported_fact": true,
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06: Complete metric record with value, unit, 30-day period, Datadog APM source, production env, and checkout-api p99 scope."
+    }
+  ],
+  "expected_atoms": [
+    {
+      "claim_atom_id": "atom-01-1",
+      "scenario_id": "SCN-01",
+      "claim_id": "claim-01-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "0 canonical facts exist in boilerplate source src01."
+    },
+    {
+      "claim_atom_id": "atom-02-1",
+      "scenario_id": "SCN-02",
+      "claim_id": "claim-02-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Implementation of idempotent retry queue with exponential backoff for billing webhooks in Project Aurora is directly supported by active SUPPORTED fact-02-1."
+    },
+    {
+      "claim_atom_id": "atom-02-2",
+      "scenario_id": "SCN-02",
+      "claim_id": "claim-02-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Conditional effect (preventing duplicate invoice notifications during transient gateway timeouts) is directly supported by active SUPPORTED fact-02-1."
+    },
+    {
+      "claim_atom_id": "atom-03-1",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Shard redistribution script authoring action is directly supported by Korean bullet 1 (fact-03-1)."
+    },
+    {
+      "claim_atom_id": "atom-03-2",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production cluster p95 latency reduction (620ms -> 180ms) is independently directly supported by Korean bullet 1 (fact-03-1)."
+    },
+    {
+      "claim_atom_id": "atom-03-3",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Automatic rollback within 2 minutes on deployment failure is directly supported by Korean bullet 2 (fact-03-2)."
+    },
+    {
+      "claim_atom_id": "atom-03-4",
+      "scenario_id": "SCN-03",
+      "claim_id": "claim-03-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Slow-query alert rule above 300ms threshold is directly supported by Korean bullet 3 (fact-03-3)."
+    },
+    {
+      "claim_atom_id": "atom-04-1",
+      "scenario_id": "SCN-04",
+      "claim_id": "claim-04-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "WorkerPool v2 production migration is directly supported by fact-04-1 with initiative overview fact-04-2 as CONTEXT."
+    },
+    {
+      "claim_atom_id": "atom-04-2",
+      "scenario_id": "SCN-04",
+      "claim_id": "claim-04-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Only initiative goal CONTEXT exists (fact-04-2); CONTEXT-only cannot verify."
+    },
+    {
+      "claim_atom_id": "atom-05-1",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Neither incident draft (src05a) nor addendum (src05b) states that the user personally executed the database primary failover (0 supports)."
+    },
+    {
+      "claim_atom_id": "atom-05-2",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Initial draft zero-drop assertion (fact-05-1, non-active conflicting record) is explicitly refuted by postmortem addendum fact-05-2."
+    },
+    {
+      "claim_atom_id": "atom-05-3",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-2",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Postmortem addendum directly confirms that log audit recorded 412 HTTP 503 checkout responses during the 90-second failover window (fact-05-2)."
+    },
+    {
+      "claim_atom_id": "atom-05-4",
+      "scenario_id": "SCN-05",
+      "claim_id": "claim-05-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Passive 'Log audit confirmed' in fact-05-2 does NOT directly establish that the user personally performed the log audit and documentation (CONTEXT-only -> UNSUPPORTED)."
+    },
+    {
+      "claim_atom_id": "atom-06-1",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Read-replica health-check endpoint implementation is directly supported by completed section fact-06-1."
+    },
+    {
+      "claim_atom_id": "atom-06-2",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production monitoring integration of the health-check endpoint is independently directly supported by completed section fact-06-1."
+    },
+    {
+      "claim_atom_id": "atom-06-3",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Source RFC lists user_events sharding as a future Q4 plan at observation time (fact-06-2), contradicting completed claim."
+    },
+    {
+      "claim_atom_id": "atom-06-4",
+      "scenario_id": "SCN-06",
+      "claim_id": "claim-06-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Source RFC lists prototype benchmark as a next-month plan at observation time (fact-06-2), contradicting completed claim."
+    },
+    {
+      "claim_atom_id": "atom-07-1",
+      "scenario_id": "SCN-07",
+      "claim_id": "claim-07-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Directly supported rollback action fact-07-1."
+    },
+    {
+      "claim_atom_id": "atom-07-2",
+      "scenario_id": "SCN-07",
+      "claim_id": "claim-07-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production deployment claim is directly contradicted by explicit negation fact-07-2."
+    },
+    {
+      "claim_atom_id": "atom-07-3",
+      "scenario_id": "SCN-07",
+      "claim_id": "claim-07-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "30% compute cost savings claim is independently contradicted by explicit negation fact-07-3."
+    },
+    {
+      "claim_atom_id": "atom-08-1",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Individual cache layer directly supported (fact-08-2); team rebuild provides CONTEXT (fact-08-1)."
+    },
+    {
+      "claim_atom_id": "atom-08-2",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Claiming to have single-handedly rebuilt the entire CI pipeline directly contradicts 6-engineer team attribution in fact-08-1."
+    },
+    {
+      "claim_atom_id": "atom-08-3",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "No source evidence supports the 'from scratch' qualifier (0 supports)."
+    },
+    {
+      "claim_atom_id": "atom-08-4",
+      "scenario_id": "SCN-08",
+      "claim_id": "claim-08-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "22m -> 8m median build duration reduction is preserved strictly as a team-level outcome (CONTEXT-only for an individual solo-rebuild claim)."
+    },
+    {
+      "claim_atom_id": "atom-09-1",
+      "scenario_id": "SCN-09",
+      "claim_id": "claim-09-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Accurately scoped to local staging sandbox benchmark (fact-09-1)."
+    },
+    {
+      "claim_atom_id": "atom-09-2",
+      "scenario_id": "SCN-09",
+      "claim_id": "claim-09-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production database deployment claim directly contradicts negated fact-09-2."
+    },
+    {
+      "claim_atom_id": "atom-09-3",
+      "scenario_id": "SCN-09",
+      "claim_id": "claim-09-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "840ms -> 95ms p95 improvement was observed only in local staging sandbox (fact-09-1); CONTEXT-only cannot verify a production claim."
+    },
+    {
+      "claim_atom_id": "atom-10-1",
+      "scenario_id": "SCN-10",
+      "claim_id": "claim-10-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Launch date May 12 directly supported by fact-10-1."
+    },
+    {
+      "claim_atom_id": "atom-10-2",
+      "scenario_id": "SCN-10",
+      "claim_id": "claim-10-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Revenue correlation with discount confounder and no A/B test is CONTEXT-only, not causal proof."
+    },
+    {
+      "claim_atom_id": "atom-10-3",
+      "scenario_id": "SCN-10",
+      "claim_id": "claim-10-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Required atom has 0 supporting facts (fabricated 45% conversion lift)."
+    },
+    {
+      "claim_atom_id": "atom-11-1",
+      "scenario_id": "SCN-11",
+      "claim_id": "claim-11-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_IDENTITY_AMBIGUOUS"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Source names unmapped 'Alex' across two workspace members (fact-11-1 is_active_supported_fact=false)."
+    },
+    {
+      "claim_atom_id": "atom-11-2",
+      "scenario_id": "SCN-11",
+      "claim_id": "claim-11-2",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Verified owner account PR directly supports unit test addition (fact-11-2)."
+    },
+    {
+      "claim_atom_id": "atom-12-1",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "User edit to v2 expanded scope to global tuning across all services; checkout-only fact-12-1 fails v2 re-verification (CONTEXT-only -> UNSUPPORTED)."
+    },
+    {
+      "claim_atom_id": "atom-12-3",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "User edit to v2 claimed 60% global p99 reduction vs 25% checkout peak-load p99 in fact-12-1; fails v2 re-verification without inferring universal falsity."
+    },
+    {
+      "claim_atom_id": "atom-12-2",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-2",
+      "expected_domain_atom_status": "STALE",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08: User paraphrase created v2; existing support cas-12-2 was only evaluated on v1 -> official Atom status is STALE until re-verified on v2."
+    },
+    {
+      "claim_atom_id": "atom-12-4",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-3",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 PASS: User paraphrase v2 re-verified on v2 by distinct ClaimSupportValidator against active SUPPORTED fact-12-1 -> SUPPORTED."
+    },
+    {
+      "claim_atom_id": "atom-12-5",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-4",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Checkout service pool tuning & 25% peak p99 latency reduction is directly supported on v2 by fact-12-1."
+    },
+    {
+      "claim_atom_id": "atom-12-6",
+      "scenario_id": "SCN-12",
+      "claim_id": "claim-12-4",
+      "expected_domain_atom_status": "USER_CONFIRMED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_USER_CONFIRMED_NOT_SOURCE_VERIFIED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 FAIL: Owner explicitly confirmed '$4,000/month RDS spend savings' without source Fact support -> USER_CONFIRMED (NEVER qualifies for SOURCE_VERIFIED)."
+    },
+    {
+      "claim_atom_id": "atom-13-1",
+      "scenario_id": "SCN-13",
+      "claim_id": "claim-13-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "od003_purged_after_cleanup": true,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "OD-003: src13a deletion preview + explicit confirmation immediately blocked claim-13-1; atom-13-1 purged with claim-13-1 on cleanup."
+    },
+    {
+      "claim_atom_id": "atom-13-2",
+      "scenario_id": "SCN-13",
+      "claim_id": "claim-13-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "od003_purged_after_cleanup": true,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "OD-003: src13a deleted; atom-13-2 purged together with dependent claim-13-2 and all server copies."
+    },
+    {
+      "claim_atom_id": "atom-13-3",
+      "scenario_id": "SCN-13",
+      "claim_id": "claim-13-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "od003_purged_after_cleanup": true,
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "OD-003: Purged together with mixed-source dependent claim-13-2 (not left as surviving partial claim); independent source src13b & fact-13-2 preserved."
+    },
+    {
+      "claim_atom_id": "atom-14-1",
+      "scenario_id": "SCN-14",
+      "claim_id": "claim-14-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Directly supported by Project Borealis fact-14-2."
+    },
+    {
+      "claim_atom_id": "atom-14-2",
+      "scenario_id": "SCN-14",
+      "claim_id": "claim-14-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "10x numeric distortion: source fact-14-1 states 400ms, claim states 40ms."
+    },
+    {
+      "claim_atom_id": "atom-14-3",
+      "scenario_id": "SCN-14",
+      "claim_id": "claim-14-1",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Cross-project conflation attaching Project Alpha metric to Project Borealis (CONTEXT-only)."
+    },
+    {
+      "claim_atom_id": "atom-15-1",
+      "scenario_id": "SCN-15",
+      "claim_id": "claim-15-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 PASS: Tech Lead role for Q1 2026 payments ledger migration squad directly evidenced in fact-15-1."
+    },
+    {
+      "claim_atom_id": "atom-15-2",
+      "scenario_id": "SCN-15",
+      "claim_id": "claim-15-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 PASS: Concrete individual contribution (dual-write cutover RFC & schema rollout sign-off) directly evidenced in fact-15-1."
+    },
+    {
+      "claim_atom_id": "atom-15-3",
+      "scenario_id": "SCN-15",
+      "claim_id": "claim-15-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 FAIL: Security Lead role claim directly contradicted by fact-15-2 (audit led by Security team; no recorded role for Alex Kim)."
+    },
+    {
+      "claim_atom_id": "atom-16-1",
+      "scenario_id": "SCN-16",
+      "claim_id": "claim-16-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06 PASS: PostgreSQL 16 covering composite index directly supported by fact-16-2 with problem context fact-16-1."
+    },
+    {
+      "claim_atom_id": "atom-16-2",
+      "scenario_id": "SCN-16",
+      "claim_id": "claim-16-1",
+      "expected_domain_atom_status": "SUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06 PASS: Complete metric (920ms->210ms / 77.2%, production checkout-api p99, 2026-04-01..2026-04-30, Datadog APM) directly supported by fact-16-3."
+    },
+    {
+      "claim_atom_id": "atom-16-3",
+      "scenario_id": "SCN-16",
+      "claim_id": "claim-16-2",
+      "expected_domain_atom_status": "UNSUPPORTED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06 FAIL: Company-wide all-services & full-year 2026 claim exceeds 30-day April 2026 production checkout-api Datadog APM scope (CONTEXT-only -> UNSUPPORTED)."
+    }
+  ],
+  "expected_claims": [
+    {
+      "claim_id": "claim-01-1",
+      "scenario_id": "SCN-01",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "0 supporting facts for required atom-01-1; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-02-1",
+      "scenario_id": "SCN-02",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "2/2 required atoms SUPPORTED (retry queue implementation + conditional duplicate-notification prevention), active SUPPORTED fact, same-job refetch pass -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-03-1",
+      "scenario_id": "SCN-03",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "4/4 required Korean atoms SUPPORTED (shard script action, prod p95 620->180ms metric, 2-min rollback, >300ms alert) -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-04-1",
+      "scenario_id": "SCN-04",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "DIRECT + CONTEXT support on required atom-04-1 -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-04-2",
+      "scenario_id": "SCN-04",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CONTEXT-only support on required atom-04-2 (UNSUPPORTED); SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-05-1",
+      "scenario_id": "SCN-05",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Personal failover execution (atom-05-1) is UNSUPPORTED and zero-drop claim (atom-05-2) is contradicted by postmortem addendum; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-05-2",
+      "scenario_id": "SCN-05",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "1/2 required atoms SUPPORTED (atom-05-3), but personal log-audit & documentation attribution (atom-05-4) is UNSUPPORTED (CONTEXT-only); SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-06-1",
+      "scenario_id": "SCN-06",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "2/2 required atoms SUPPORTED (health-check endpoint implementation + production monitoring integration) -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-06-2",
+      "scenario_id": "SCN-06",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Both sharding completion and benchmark completion contradict RFC plan at observation time; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-07-1",
+      "scenario_id": "SCN-07",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Accurately describes reverted rollout (atom-07-1 SUPPORTED) -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-07-2",
+      "scenario_id": "SCN-07",
+      "notion_test_ids": [
+        "T-004A"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Both production deployment and 30% compute cost savings are independently negated in source; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-08-1",
+      "scenario_id": "SCN-08",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Accurately scoped to individual artifact cache contribution -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-08-2",
+      "scenario_id": "SCN-08",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Solo rebuild attribution contradicts 6-engineer team work, 'from scratch' is unsupported, and 22->8m is team-only CONTEXT; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-09-1",
+      "scenario_id": "SCN-09",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Accurately scoped to local staging sandbox benchmark -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-09-2",
+      "scenario_id": "SCN-09",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Production rollout contradicts unstarted rollout and production p95 metric has only staging CONTEXT; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-10-1",
+      "scenario_id": "SCN-10",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Only 1/3 required atoms SUPPORTED (atom-10-2 CONTEXT-only, atom-10-3 0 supports); SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-11-1",
+      "scenario_id": "SCN-11",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Ambiguous 'Alex' author (fact-11-1 inactive) blocks SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-11-2",
+      "scenario_id": "SCN-11",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Unambiguous verified account PR -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-12-1",
+      "scenario_id": "SCN-12",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-08"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 FAIL: User edit v2 over-generalized to global scope & 60% metric; v2 re-verification fails (both atoms UNSUPPORTED); SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-12-2",
+      "scenario_id": "SCN-12",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-08"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 STALE: User paraphrase v2 has only stale v1 support (atom-12-2=STALE); SOURCE_VERIFIED forbidden until re-verified on v2."
+    },
+    {
+      "claim_id": "claim-12-3",
+      "scenario_id": "SCN-12",
+      "notion_test_ids": [
+        "CLAIM-08"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 PASS: User paraphrase v2 re-verified on v2 by distinct ClaimSupportValidator + same-job refetch against active SUPPORTED fact-12-1 -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-12-4",
+      "scenario_id": "SCN-12",
+      "notion_test_ids": [
+        "CLAIM-08"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_USER_CONFIRMED_ONLY_NOT_SOURCE_VERIFIED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-08 FAIL: atom-12-6 ($4,000/month RDS savings) is USER_CONFIRMED only (no active SUPPORTED Fact / DIRECT support) -> SOURCE_VERIFIED strictly forbidden."
+    },
+    {
+      "claim_id": "claim-13-1",
+      "scenario_id": "SCN-13",
+      "notion_test_ids": [
+        "T-004A",
+        "OD-003"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "od003_expected_post_cleanup": {
+        "immediate_access_blocked_after_confirmation": true,
+        "claim_and_server_copies_purged": true,
+        "retained_claim_versions": [],
+        "retained_edited_copies": 0,
+        "retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_ref03_refetch_failure": true,
+        "partially_grounded_forbidden_post_deletion": true
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "OD-003: Deletion preview + explicit confirmation of src13a immediately blocks access; cleanup purges claim-13-1 & server copies (distinct from REF-03). Independent src13b preserved."
+    },
+    {
+      "claim_id": "claim-13-2",
+      "scenario_id": "SCN-13",
+      "notion_test_ids": [
+        "T-004A",
+        "OD-003"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_BLOCKED_THEN_PURGED_OD003",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "od003_expected_post_cleanup": {
+        "immediate_access_blocked_after_confirmation": true,
+        "claim_and_server_copies_purged": true,
+        "retained_claim_versions": [],
+        "retained_edited_copies": 0,
+        "retained_approved_copies": 0,
+        "independent_source_revisions_preserved": [
+          "rev-src13b-v1-227d1587"
+        ],
+        "independent_facts_preserved": [
+          "fact-13-2"
+        ],
+        "distinguished_from_ref03_refetch_failure": true,
+        "partially_grounded_forbidden_post_deletion": true
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "OD-003: Mixed-source dependent claim-13-2 immediately blocked and purged with all server copies & versions [1,2] (PARTIALLY_GROUNDED forbidden). Independent src13b & fact-13-2 preserved."
+    },
+    {
+      "claim_id": "claim-14-1",
+      "scenario_id": "SCN-14",
+      "notion_test_ids": [
+        "T-004A",
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "Required atoms include CONTRADICTED 10x distortion and CONTEXT-only conflation; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-15-1",
+      "scenario_id": "SCN-15",
+      "notion_test_ids": [
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 PASS: Tech Lead role (atom-15-1) and concrete RFC/review contributions (atom-15-2) both SUPPORTED by fact-15-1 -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-15-2",
+      "scenario_id": "SCN-15",
+      "notion_test_ids": [
+        "CLAIM-05"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-05 FAIL: Security Lead role claim lacks personal contribution evidence and is contradicted by fact-15-2; SOURCE_VERIFIED forbidden."
+    },
+    {
+      "claim_id": "claim-16-1",
+      "scenario_id": "SCN-16",
+      "notion_test_ids": [
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": true,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "COMPUTED_SOURCE_VERIFIED_WHEN_SAME_JOB_REFETCH_PASSES",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+        "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06 PASS: PostgreSQL 16 index (atom-16-1) + full metric with value/unit/30-day period/Datadog APM/prod checkout-api p99 scope (atom-16-2) both SUPPORTED -> computed SOURCE_VERIFIED."
+    },
+    {
+      "claim_id": "claim-16-2",
+      "scenario_id": "SCN-16",
+      "notion_test_ids": [
+        "CLAIM-06"
+      ],
+      "expected_source_verified_computed": false,
+      "same_job_refetch_required_for_source_verified": true,
+      "expected_domain_claim_status_note": "NOT_SOURCE_VERIFIED_NON_VERIFIED_PRODUCT_ENUM_REVIEW_REQUIRED",
+      "fixture_test_classification": {
+        "label_scope": "TEST_FIXTURE_ONLY_NOT_DOMAIN_API",
+        "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+        "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
+      },
+      "oracle_status": "PENDING_OWNER_REVIEW",
+      "review_required": true,
+      "rationale": "CLAIM-06 FAIL: Company-wide & full-year 2026 metric over-generalizes 30-day April 2026 checkout-api p99 Datadog APM scope (CONTEXT-only -> UNSUPPORTED); SOURCE_VERIFIED forbidden."
+    }
+  ]
+}

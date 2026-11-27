@@ -1,0 +1,495 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "CAND-EV-019",
+  "candidate_kind": "NEW_CASE_CANDIDATE",
+  "target_case_id": "EV-019",
+  "baseline_case_ref": null,
+  "slug": "trunk-default-branch-pr-dedup-and-no-heuristic-link",
+  "title": "Provider-reported 'trunk' default branch separates actual default vs non-default ('main') commits, deduplicates squash/rebase/out-of-window PR links, and rejects message/timestamp heuristic linking",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_cand_payments_trunk",
+    "source_lineage_group": "src_payments_trunk",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "CAND-EV-019"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-2-DEFAULT-BRANCH-PR-DEDUP",
+    "notion_clauses": [
+      "B-001 결정과 Accepted Amendment (https://app.notion.com/p/3e3f86591b5f81a4a38be3df331daf00)",
+      "Direct Commit & Composite 계약 (https://app.notion.com/p/3f0f86591b5f81a3ab49dc7aef5bc028)",
+      "Snapshot Import §4 (https://app.notion.com/p/3f0f86591b5f8170940fe98da87609aa)",
+      "Event Guide §2·3 (https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f)"
+    ],
+    "existing_gap": "All 18 existing cases hardcode default_branch='main' and none verify squash/rebase PR deduplication on default branch, out-of-window provider PR association suppressing direct-commit duplication on an otherwise eligible in-window commit, or rejection of timestamp/message similarity heuristics.",
+    "synthetic_input_summary": "SUCCESS INITIAL_BACKFILL (window 2026-10-01..2026-11-01, completed 2026-11-03) on acme-syn-lab/payments-trunk with provider-reported default_branch='trunk'. Contains: (1) non-default branch commits on branch literally named 'main' and on 'feat/draft-exp', (2) squash-merged PR #1901 with associated trunk commit, (3) rebase-merged PR #1902 with associated trunk commit, (4) an otherwise fully eligible in-window trunk commit (cmt_syn_1905_out_of_window_pr, committed 2026-10-30, start/end verified on trunk) whose fixture-premise provider association observation (obs_pr_assoc_syn_1903, separated from in-window pull_requests and merge-time head SHA) links it to out-of-window PR #1903 (merged 2026-11-02), and (5) a trunk commit with COMPLETED+NO_MATCH_OBSERVED whose timestamp (+2m), author, and message closely mimic PR #1901.",
+    "expected_behavior_summary": "Emits exactly 3 countable Events: 1 PR CANDIDATE for squash PR #1901, 1 PR CANDIDATE for rebase PR #1902, and 1 standalone DIRECT_COMMIT CANDIDATE (with user association confirmation needed) for the NO_MATCH_OBSERVED decoy commit. Out-of-window PR #1903 creates 0 new PR Events and suppresses DIRECT_COMMIT duplication for cmt_syn_1905_out_of_window_pr without asserting internal diagnostic persistence format. Zero Events for non-default 'main'/'feat/draft-exp' commits; zero heuristic PR auto-linking.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap2_default_branch_and_pr_dedup",
+      "test_delta_candidates.py::test_trunk_non_default_main_and_pr_dedup_invariants",
+      "test_delta_candidates.py::test_out_of_window_pr_dedup_chronology_and_no_direct_or_pr_emission",
+      "test_delta_candidates.py::test_heuristic_link_of_no_match_decoy_commit_rejected"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_SYNC_IMPORT_WINDOW_AND_PR_MERGE_STRATEGY",
+      "base_schema_path": "schemas/case.schema.json#/properties/synthetic_sources/properties/(sync_runs|pull_requests|commits)",
+      "limitation": "case.schema.json sets additionalProperties=false and omits sync_runs[*].import_window_start/end, pull_requests[*].merge_strategy, commits[*].within_import_window, commits[*].heuristic_similarity_decoy_for_pr_id, synthetic_sources.out_of_window_pr_associations (separating merge-time PR member from import-time provider observation), and expected_proposal.out_of_window_pr_dedup_checks.",
+      "candidate_representation": "Added import_window_start/end, merge_strategy, within_import_window, default_branch_reported_by_provider, heuristic_similarity_decoy_for_pr_id, synthetic_sources.out_of_window_pr_associations (explicit fixture input premise), and semantic expected_proposal.out_of_window_pr_dedup_checks (diagnostic_persistence_format='UNCONFIRMED') in isolated delta-candidate.schema.json.",
+      "wire_field_frozen": false
+    },
+    {
+      "gap_code": "SCHEMA_GAP_DIRECT_COMMIT_CONFIRMATION_EXPECTATION",
+      "base_schema_path": "schemas/case.schema.json#/properties/expected_proposal/properties/events/items",
+      "limitation": "case.schema.json cannot represent user association-confirmation-needed semantics on DIRECT_COMMIT candidates without inventing wire fields.",
+      "candidate_representation": "Uses expected_proposal.events[*].direct_commit_confirmation_expectation with UNCONFIRMED wire/badge tokens.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-BRANCH-02",
+      "REQ-EV-DEDUP-01",
+      "REQ-EV-NO-HEURISTIC-01",
+      "REQ-EV-COMMIT-CONFIRM-01"
+    ],
+    "draft_test_ids": [
+      "T-001B-DELTA-02"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "provider_default_branch_trunk",
+      "non_default_branch_named_main",
+      "squash_merge_pr_dedup",
+      "rebase_merge_pr_dedup",
+      "out_of_window_pr_dedup",
+      "no_timestamp_message_heuristic_link",
+      "association_confirmation_required",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_019",
+        "name": "Synthetic Workspace Trunk",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_019",
+        "workspace_id": "ws_syn_019",
+        "full_name": "acme-syn-lab/payments-trunk",
+        "default_branch": "trunk",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_019",
+        "workspace_id": "ws_syn_019",
+        "repo_id": "repo_syn_019",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-03T13:00:00Z",
+        "import_window_start": "2026-10-01T00:00:00Z",
+        "import_window_end": "2026-11-01T00:00:00Z",
+        "note": "Provider reports default_branch='trunk'. Branch literally named 'main' is a non-default branch. Snapshot backfill for 2026-10-01..2026-11-01 executes on 2026-11-03."
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_1901_squash",
+        "repo_id": "repo_syn_019",
+        "number": 1901,
+        "title": "Add settlement idempotency guard for retry queue",
+        "body": "Squash-merged PR adding settlement idempotency token check.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/settlement-idempotency",
+        "base_branch": "trunk",
+        "state": "MERGED",
+        "merged_at": "2026-10-18T14:00:00Z",
+        "merge_strategy": "SQUASH",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_1903_squash_trunk"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "pr_id": "pr_syn_1902_rebase",
+        "repo_id": "repo_syn_019",
+        "number": 1902,
+        "title": "Add ledger currency precision rounding tests",
+        "body": "Rebase-merged PR covering minor-unit rounding edge cases.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "feat/currency-rounding",
+        "base_branch": "trunk",
+        "state": "MERGED",
+        "merged_at": "2026-10-20T11:00:00Z",
+        "merge_strategy": "REBASE",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_1904_rebase_trunk"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_019"
+      }
+    ],
+    "out_of_window_pr_associations": [
+      {
+        "association_observation_id": "obs_pr_assoc_syn_1903",
+        "repo_id": "repo_syn_019",
+        "source_sync_run_id": "sync_syn_019",
+        "observed_default_branch_commit_id": "cmt_syn_1905_out_of_window_pr",
+        "external_pr_id": "pr_syn_1903_out_of_window",
+        "pr_number": 1903,
+        "pr_title": "Clean up fee schedule parser edge case",
+        "base_branch": "trunk",
+        "state": "MERGED",
+        "merge_strategy": "REBASE",
+        "pr_merged_at": "2026-11-02T09:00:00Z",
+        "within_import_window": false,
+        "merge_time_head_commit_sha": "1905f00000000000000000000000000000009999",
+        "provider_association_is_fixture_input_premise": true,
+        "premise_note": "Fixture input premise: cmt_syn_1905_out_of_window_pr (committed 2026-10-30 inside the 2026-10-01..2026-11-01 window, reachable on trunk at start/end of the 2026-11-03 import) is resolved by provider association lookup during import to out-of-window PR #1903 (merged 2026-11-02 via rebase from merge-time head SHA 1905f...9999). Separated from in-window pull_requests and makes NO claim about live GitHub API behavior."
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_1901_non_default_main",
+        "repo_id": "repo_syn_019",
+        "sha": "1901000000000000000000000000000000000001",
+        "message": "Legacy maintenance patch on non-default branch named main",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-12T08:00:00Z",
+        "within_import_window": true,
+        "branch_name": "main",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "scripts/legacy_cleanup.sh"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "commit_id": "cmt_syn_1902_non_default_feat",
+        "repo_id": "repo_syn_019",
+        "sha": "1902000000000000000000000000000000000002",
+        "message": "WIP: scratch retry benchmark",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-15T10:00:00Z",
+        "within_import_window": true,
+        "branch_name": "feat/draft-exp",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "bench/retry_bench.py"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "commit_id": "cmt_syn_1903_squash_trunk",
+        "repo_id": "repo_syn_019",
+        "sha": "1903000000000000000000000000000000000003",
+        "message": "Add settlement idempotency guard for retry queue (#1901)",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-18T14:00:00Z",
+        "within_import_window": true,
+        "branch_name": "trunk",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1901_squash",
+        "changed_paths": [
+          "src/payments/idempotency_guard.py"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "commit_id": "cmt_syn_1904_rebase_trunk",
+        "repo_id": "repo_syn_019",
+        "sha": "1904000000000000000000000000000000000004",
+        "message": "Add minor-unit currency rounding test cases",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-20T10:45:00Z",
+        "within_import_window": true,
+        "branch_name": "trunk",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1902_rebase",
+        "changed_paths": [
+          "tests/test_currency_rounding.py"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "commit_id": "cmt_syn_1905_out_of_window_pr",
+        "repo_id": "repo_syn_019",
+        "sha": "1905000000000000000000000000000000000005",
+        "message": "Clean up fee schedule parser edge case",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-30T15:00:00Z",
+        "within_import_window": true,
+        "branch_name": "trunk",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_1903_out_of_window",
+        "changed_paths": [
+          "src/fees/parser.py"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      },
+      {
+        "commit_id": "cmt_syn_1906_direct_similar",
+        "repo_id": "repo_syn_019",
+        "sha": "1906000000000000000000000000000000000006",
+        "message": "Add settlement idempotency guard for retry queue config",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-18T14:02:00Z",
+        "within_import_window": true,
+        "branch_name": "trunk",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "heuristic_similarity_decoy_for_pr_id": "pr_syn_1901_squash",
+        "changed_paths": [
+          "config/retry_queue_limits.yaml"
+        ],
+        "source_sync_run_id": "sync_syn_019"
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "event_relations": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_cand_019_pr_squash",
+        "workspace_id": "ws_syn_019",
+        "repo_id": "repo_syn_019",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1901_squash",
+        "source_commit_ids": [
+          "cmt_syn_1903_squash_trunk"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add settlement idempotency guard for retry queue",
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_cand_019_pr_rebase",
+        "workspace_id": "ws_syn_019",
+        "repo_id": "repo_syn_019",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_1902_rebase",
+        "source_commit_ids": [
+          "cmt_syn_1904_rebase_trunk"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add ledger currency precision rounding tests",
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_cand_019_direct_similar",
+        "workspace_id": "ws_syn_019",
+        "repo_id": "repo_syn_019",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": [
+          "cmt_syn_1906_direct_similar"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "direct_commit_confirmation_expectation": {
+          "requires_user_association_confirmation": true,
+          "no_match_observed_means_definitely_no_pr": false,
+          "spec_api_field_name": "UNCONFIRMED",
+          "spec_badge_text": "UNCONFIRMED",
+          "semantic_note": "Although cmt_syn_1906_direct_similar shares author, near-identical message, and 2-minute timestamp proximity with pr_syn_1901_squash, provider lookup returned NO_MATCH_OBSERVED. Must NOT heuristically attach to PR #1901; emit standalone DIRECT_COMMIT CANDIDATE requiring user association confirmation."
+        },
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Add settlement idempotency guard for retry queue config",
+        "unconfirmed_fields": [
+          "direct_commit_confirmation_expectation.spec_api_field_name",
+          "direct_commit_confirmation_expectation.spec_badge_text"
+        ]
+      }
+    ],
+    "held_items": [
+      {
+        "held_id": "hold_cand_019_non_default_main",
+        "record_kind": "NON_ELIGIBLE_SOURCE_RECORD",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_1901_non_default_main",
+        "logical_disposition": "not_direct_commit_candidate_non_default_branch",
+        "spec_hold_status": "UNCONFIRMED",
+        "hold_reason": "Provider reports default_branch='trunk'; branch literally named 'main' is non-default, so cmt_syn_1901_non_default_main produces 0 DIRECT_COMMIT candidates.",
+        "interpreted_as_no_pr": false,
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
+      },
+      {
+        "held_id": "hold_cand_019_non_default_feat",
+        "record_kind": "NON_ELIGIBLE_SOURCE_RECORD",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_1902_non_default_feat",
+        "logical_disposition": "not_direct_commit_candidate_non_default_branch",
+        "spec_hold_status": "UNCONFIRMED",
+        "hold_reason": "Commit on non-default branch 'feat/draft-exp' produces 0 DIRECT_COMMIT candidates.",
+        "interpreted_as_no_pr": false,
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
+      }
+    ],
+    "out_of_window_pr_dedup_checks": [
+      {
+        "association_observation_id": "obs_pr_assoc_syn_1903",
+        "commit_id": "cmt_syn_1905_out_of_window_pr",
+        "external_pr_id": "pr_syn_1903_out_of_window",
+        "creates_new_pr_event": false,
+        "creates_direct_commit_event": false,
+        "diagnostic_persistence_format": "UNCONFIRMED",
+        "reason": "cmt_syn_1905_out_of_window_pr satisfies all period (2026-10-30 in 10/01..11/01), branch ('trunk'), and start/end reachability preconditions, so ONLY the fixture-premise provider link to out-of-window PR #1903 (merged 2026-11-02) suppresses DIRECT_COMMIT duplication; out-of-window PR #1903 creates 0 new PR Events, and internal diagnostic persistence format is NOT asserted."
+      }
+    ],
+    "unpersisted_external_observations": [],
+    "command_results": [],
+    "review_actions": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "settlement idempotency guard",
+        "workspace_id": "ws_syn_019",
+        "expected_event_ids": [
+          "ev_cand_019_pr_squash",
+          "ev_cand_019_direct_similar"
+        ],
+        "expected_result_count": 2
+      },
+      {
+        "query": "currency rounding",
+        "workspace_id": "ws_syn_019",
+        "expected_event_ids": [
+          "ev_cand_019_pr_rebase"
+        ],
+        "expected_result_count": 1
+      },
+      {
+        "query": "fee schedule parser",
+        "workspace_id": "ws_syn_019",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      },
+      {
+        "query": "legacy maintenance patch",
+        "workspace_id": "ws_syn_019",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 3,
+      "total_user_composite_events": 0,
+      "total_held_items": 2,
+      "total_rejected_events": 0,
+      "total_direct_commit_events": 1
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.out_of_window_pr_dedup_checks[0].diagnostic_persistence_format",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "Snapshot Import §4 confirms 0 DIRECT_COMMIT duplication and 0 new PR Events for out-of-window associated PR #1903; internal diagnostic record persistence format and live GitHub lookup behavior are intentionally excluded from truth comparison."
+      },
+      {
+        "field_path": "expected_proposal.events[2].direct_commit_confirmation_expectation",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "Exact API field name and badge string for direct-commit association confirmation remain UNCONFIRMED."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Exercises provider-reported default_branch='trunk' (with a decoy non-default branch named 'main') and all PR deduplication boundaries in one SUCCESS backfill (window 2026-10-01..2026-11-01, run completed 2026-11-03): squash PR (#1901) and rebase PR (#1902) emit only PR CANDIDATEs with 0 duplicate DIRECT_COMMITs; in-window, trunk-verified commit cmt_syn_1905_out_of_window_pr (2026-10-30) is linked via separated fixture-premise provider observation obs_pr_assoc_syn_1903 to out-of-window PR #1903 (merged 2026-11-02, merge-time head SHA distinct from observed trunk commit), creating 0 new PR Events and 0 DIRECT_COMMITs without prescribing internal diagnostic persistence; and NO_MATCH_OBSERVED decoy commit cmt_syn_1906_direct_similar is NOT heuristically linked to PR #1901.",
+    "confirmed_spec_rules": [
+      "DEFAULT_BRANCH_DETERMINED_BY_PROVIDER_METADATA_NOT_HARDCODED_MAIN",
+      "NON_DEFAULT_BRANCH_ONLY_COMMIT_YIELDS_ZERO_DIRECT_COMMIT_CANDIDATES",
+      "SQUASH_AND_REBASE_PROVIDER_ASSOCIATED_COMMITS_NEVER_DUPLICATED_AS_DIRECT_COMMIT",
+      "OUT_OF_WINDOW_PROVIDER_PR_ASSOCIATION_SUPPRESSES_DIRECT_COMMIT_DUPLICATION_WITHOUT_NEW_PR_EVENT",
+      "NEVER_ASSUME_PR_ASSOCIATION_FROM_TIMESTAMP_OR_MESSAGE_SIMILARITY_ALONE",
+      "DIRECT_COMMIT_CANDIDATE_REQUIRES_USER_ASSOCIATION_CONFIRMATION_INDICATION"
+    ],
+    "unconfirmed_spec_tokens": [
+      "direct_commit_confirmation_expectation.spec_api_field_name and spec_badge_text (left UNCONFIRMED)",
+      "held_items[*].spec_hold_status and out_of_window_pr_dedup_checks[*].diagnostic_persistence_format (left UNCONFIRMED)"
+    ],
+    "truly_undecided_items": [
+      "Internal diagnostic persistence format for non-eligible/deduplicated commits and live GitHub API lookup nuances (provider association is modeled strictly as a fixture input premise)."
+    ]
+  }
+}

@@ -1,0 +1,451 @@
+{
+  "default_branch": "main",
+  "injection_points": [
+    "BEFORE_FINALIZE_SUCCESS"
+  ],
+  "logical_snapshot": {
+    "content_units": [],
+    "event_memberships_count": 0,
+    "gate_checks": {
+      "claim_approval_gate_allowed": null,
+      "concurrent_stale_fence_discarded": 0,
+      "export_gate_allowed": true,
+      "external_ai_gate_allowed": true,
+      "extra": {
+        "global_review_comment_drift_assumed": false,
+        "subcase_a_pr_cue_drift_reason": "PLAN_DRIFT",
+        "subcase_a_retry_rejected_409": true,
+        "subcase_b_branch_head_drift_reason": "PLAN_DRIFT"
+      },
+      "refetch_content_allowed": true,
+      "refetch_resolution_status": null
+    },
+    "outbox_summary": {
+      "import_ready_count": 0,
+      "outbox_consumed_effects_count": 0
+    },
+    "resource_and_account_policy": {
+      "account_status": "ACTIVE",
+      "deletion_fence_active": false,
+      "resource_status": "ACTIVE",
+      "resource_visibility": "PUBLIC"
+    },
+    "source_object_revisions": [
+      {
+        "content_hash": "sha256:a5a2ec5c25938b737856951d39ffb2842966acbf1d77aaf3c2f474fa315cae50",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "a2000000000000000000000000000000000000c9",
+        "provider_revision_id": "a2000000000000000000000000000000000000c9"
+      },
+      {
+        "content_hash": "sha256:9e76c9bc34ac24817e815f081e86dacbb47d3d82712d1c88d34d8ce18524ee7c",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b2000000000000000000000000000000000000c9",
+        "provider_revision_id": "b2000000000000000000000000000000000000c9"
+      },
+      {
+        "content_hash": "sha256:5203cd71d39e2ac9f324ff402268ca9ea758693b98b109e91c756b83222ceae0",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b2000000000000000000000000000000000000ca",
+        "provider_revision_id": "b2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:6edcc1b5fdd1c1db01d6a8d07b0508e17f83004f0eec62c3650d798f3a5c02de",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "b2000000000000000000000000000000000000cb",
+        "provider_revision_id": "b2000000000000000000000000000000000000cb"
+      },
+      {
+        "content_hash": "sha256:21819e499d9547b8d9c00064dc43b7ec6f761c056132378e80ed1b82d5a11169",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "c2000000000000000000000000000000000000ca",
+        "provider_revision_id": "c2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:35f926f6a4c390bcef61c44cab6d6bd411098932129dffc86a13d45152170ca1",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "e200000000000000000000000000000000000001",
+        "provider_revision_id": "e200000000000000000000000000000000000001"
+      },
+      {
+        "content_hash": "sha256:90d76306c99e88fa2a5bfcde458004a1afd8ad75fe48579fb24099fbac34b5f9",
+        "is_tombstone": false,
+        "object_type": "COMMIT",
+        "provider_object_id": "f200000000000000000000000000000000000001",
+        "provider_revision_id": "f200000000000000000000000000000000000001"
+      },
+      {
+        "content_hash": "sha256:793103814daeb29b40a7eea1e8e87fdeb072f64d793676acbe0db3d662af8461",
+        "is_tombstone": false,
+        "object_type": "ISSUE",
+        "provider_object_id": "601",
+        "provider_revision_id": "\"etag-b004-repo900400020-_repositories_900400020_issues_601-v1\""
+      },
+      {
+        "content_hash": "sha256:df677a8b061059f7d1c8cbfbcc822607cc358d6f5cfbdbea14446cc1f4ca2ea0",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "201",
+        "provider_revision_id": "a2000000000000000000000000000000000000c9"
+      },
+      {
+        "content_hash": "sha256:8ece8d51cb5012bf4b3b07c4a732ba21cc378a57b9bed6b69ad0ca6369025134",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "202",
+        "provider_revision_id": "a2000000000000000000000000000000000000ca"
+      },
+      {
+        "content_hash": "sha256:c6bd1e5952ec57302d15c23dbcdce93f95225f53c81da27df618c5683a1392a6",
+        "is_tombstone": false,
+        "object_type": "PR",
+        "provider_object_id": "203",
+        "provider_revision_id": "a2000000000000000000000000000000000000cb"
+      },
+      {
+        "content_hash": "sha256:90b53969312733d4e22c684000efe3711d5341b32485def1264814a3fe201223",
+        "is_tombstone": false,
+        "object_type": "REVIEW",
+        "provider_object_id": "5201",
+        "provider_revision_id": "a2000000000000000000000000000000000000c9"
+      }
+    ],
+    "source_objects": [
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "a2000000000000000000000000000000000000c9"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b2000000000000000000000000000000000000c9"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b2000000000000000000000000000000000000ca"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "b2000000000000000000000000000000000000cb"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "c2000000000000000000000000000000000000ca"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "NO_MATCH_OBSERVED",
+        "provider_object_id": "e200000000000000000000000000000000000001"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "COMMIT",
+        "pr_association_state": "MATCHED_PR",
+        "provider_object_id": "f200000000000000000000000000000000000001"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "ISSUE",
+        "pr_association_state": null,
+        "provider_object_id": "601"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "201"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "202"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "PR",
+        "pr_association_state": null,
+        "provider_object_id": "203"
+      },
+      {
+        "lifecycle_state": "ACTIVE",
+        "object_type": "REVIEW",
+        "pr_association_state": null,
+        "provider_object_id": "5201"
+      }
+    ],
+    "sync_checkpoints": [
+      {
+        "current_cursor": null,
+        "last_committed_page": 1,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 1,
+        "stream_name": "CONTEXT_ISSUES",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 2,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 3,
+        "stream_name": "PRS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      },
+      {
+        "current_cursor": null,
+        "last_committed_page": 9,
+        "stream_name": "PR_REVIEWS",
+        "stream_status": "SUCCESS",
+        "unresolved_failures": 0
+      }
+    ],
+    "sync_commit_pr_associations": [
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "a2000000000000000000000000000000000000c9",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [
+          201
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_HEAD_SHA",
+        "matched_pr_numbers": [
+          201
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b2000000000000000000000000000000000000c9",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [
+          201
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          201
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b2000000000000000000000000000000000000ca",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [
+          202
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          202
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "b2000000000000000000000000000000000000cb",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [
+          203
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PR_MERGE_COMMIT_SHA",
+        "matched_pr_numbers": [
+          203
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "c2000000000000000000000000000000000000ca",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [
+          202
+        ],
+        "excluded_reason": null,
+        "match_mechanism": "PROVIDER_COMMIT_PR_API",
+        "matched_pr_numbers": [
+          202
+        ],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "NO_MATCH_OBSERVED",
+        "commit_sha": "e200000000000000000000000000000000000001",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [],
+        "excluded_reason": null,
+        "match_mechanism": null,
+        "matched_pr_numbers": [],
+        "unknown_reason_code": null
+      },
+      {
+        "association_state": "MATCHED_PR",
+        "commit_sha": "f200000000000000000000000000000000000001",
+        "default_branch_name": "main",
+        "eligible_in_window_pr_numbers": [],
+        "excluded_reason": "OUT_OF_WINDOW_PR_LINKED",
+        "match_mechanism": "OUT_OF_WINDOW_PR_API",
+        "matched_pr_numbers": [
+          7
+        ],
+        "unknown_reason_code": null
+      }
+    ],
+    "sync_item_outcomes": [
+      {
+        "object_type": "COMMIT",
+        "outcome_kind": "EXCLUDED",
+        "provider_object_id": "f200000000000000000000000000000000000001",
+        "reason_code": "OUT_OF_WINDOW_PR_LINKED",
+        "retryable": false,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS"
+      }
+    ],
+    "sync_run_page_observations": [
+      {
+        "item_count": 0,
+        "page_number": 1,
+        "stream_name": "COMMIT_PR_ASSOCIATIONS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "CONTEXT_ISSUES",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 3,
+        "page_number": 1,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 3
+      },
+      {
+        "item_count": 4,
+        "page_number": 2,
+        "stream_name": "DEFAULT_BRANCH_COMMITS",
+        "unique_object_count": 4
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 2,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 3,
+        "stream_name": "PRS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 1,
+        "page_number": 1,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 1
+      },
+      {
+        "item_count": 0,
+        "page_number": 2,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 3,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 4,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 5,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 6,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 7,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 8,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      },
+      {
+        "item_count": 0,
+        "page_number": 9,
+        "stream_name": "PR_REVIEWS",
+        "unique_object_count": 0
+      }
+    ],
+    "sync_runs": [
+      {
+        "failure_reason_code": "PLAN_DRIFT",
+        "has_safe_checkpoint": true,
+        "import_ready": false,
+        "is_abandoned": false,
+        "processing_status": "NOT_STARTED",
+        "remaining_range_present": false,
+        "retry_allowed": false,
+        "source_drift": true,
+        "status": "PARTIAL"
+      }
+    ],
+    "work_events": []
+  },
+  "observed_at_iso": "2026-11-27T12:00:00Z",
+  "scenario_id": "S09",
+  "schema_version": "cm-b004-expected-v1",
+  "title": "Mid-run PR cue mutation and default branch / HEAD drift"
+}

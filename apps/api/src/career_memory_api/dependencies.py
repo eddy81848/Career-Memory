@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -12,6 +13,16 @@ from career_memory_api.authz import (
     WorkspaceAccessGuard,
     extract_bearer_credentials,
 )
+
+
+def get_request_id(
+    x_request_id: Annotated[str | None, Header(alias="X-Request-ID")] = None,
+) -> str | None:
+    """Extract optional client X-Request-ID header without trusting it for auth."""
+    if x_request_id is None:
+        return None
+    stripped = x_request_id.strip()
+    return stripped or None
 
 
 def get_workspace_access_guard(request: Request) -> WorkspaceAccessGuard:
@@ -45,3 +56,19 @@ def require_workspace_access(
         credentials=credentials,
         target_workspace_id=workspace_id,
     )
+
+
+def require_workspace_roles(
+    *allowed_roles: str,
+) -> Callable[[WorkspaceAccessContext], WorkspaceAccessContext]:
+    """Return a FastAPI dependency enforcing both Workspace access and role allowlist."""
+    normalized_roles = tuple(role.strip() for role in allowed_roles if role.strip())
+    if not normalized_roles:
+        raise ValueError("At least one allowed Workspace role must be specified.")
+
+    def _enforce(
+        access: Annotated[WorkspaceAccessContext, Depends(require_workspace_access)],
+    ) -> WorkspaceAccessContext:
+        return access.require_role(*normalized_roles)
+
+    return _enforce

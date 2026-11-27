@@ -1,0 +1,103 @@
+"""Option C raw-non-persistent on-demand Refetch Resolver package (M1-T103B)."""
+
+from __future__ import annotations
+
+from career_memory_api.resolver.models import (
+    FORBIDDEN_RAW_PERSISTENCE_KEYS,
+    DerivedUnitProjection,
+    DerivedUnitProjectionStatus,
+    EphemeralUnitContext,
+    ExportGatePrecondition,
+    GateOperationKind,
+    GateVerificationResult,
+    JobRefetchManifest,
+    JobRefetchManifestItem,
+    OperationMemoryResolution,
+    PersistedUnitResolutionTarget,
+    ProviderFetchOutcomeKind,
+    ProviderFetchRequest,
+    ProviderFetchResponse,
+    RefetchRequestInput,
+    ResolutionErrorMapping,
+    ResolutionMetadata,
+    ResolutionStatus,
+    assert_no_forbidden_raw_keys,
+    contains_forbidden_raw_key,
+    format_utc_timestamp,
+    map_resolution_status_to_error,
+    normalize_sha256_hash,
+    project_derived_unit_state_after_import_ready,
+)
+from career_memory_api.resolver.policy import (
+    DEFAULT_ALLOWED_PROVIDER_HOSTS,
+    EndpointSecurityPolicy,
+    EndpointValidationResult,
+    OperationBudgetConfig,
+    build_provider_endpoint_url,
+    evaluate_target_policy,
+)
+from career_memory_api.resolver.ports import (
+    ProvenanceMetadataStorePort,
+    ProviderContentFetcherPort,
+    RefetchResolverPort,
+    ResolutionAuditSinkPort,
+)
+from career_memory_api.resolver.postgres_store import (
+    InMemoryProvenanceMetadataStore,
+    PostgresProvenanceMetadataStore,
+)
+from career_memory_api.resolver.router import (
+    create_resolver_router,
+    mount_resolver_routes,
+)
+from career_memory_api.resolver.service import (
+    InMemoryProviderContentFetcher,
+    OperationRefetchSession,
+    RefetchResolverService,
+    verify_required_supports_for_gate,
+)
+
+__all__ = [
+    "DEFAULT_ALLOWED_PROVIDER_HOSTS",
+    "DerivedUnitProjection",
+    "DerivedUnitProjectionStatus",
+    "EndpointSecurityPolicy",
+    "EndpointValidationResult",
+    "EphemeralUnitContext",
+    "ExportGatePrecondition",
+    "FORBIDDEN_RAW_PERSISTENCE_KEYS",
+    "GateOperationKind",
+    "GateVerificationResult",
+    "InMemoryProvenanceMetadataStore",
+    "InMemoryProviderContentFetcher",
+    "JobRefetchManifest",
+    "JobRefetchManifestItem",
+    "OperationBudgetConfig",
+    "OperationMemoryResolution",
+    "OperationRefetchSession",
+    "PersistedUnitResolutionTarget",
+    "PostgresProvenanceMetadataStore",
+    "ProvenanceMetadataStorePort",
+    "ProviderContentFetcherPort",
+    "ProviderFetchOutcomeKind",
+    "ProviderFetchRequest",
+    "ProviderFetchResponse",
+    "RefetchRequestInput",
+    "RefetchResolverPort",
+    "RefetchResolverService",
+    "ResolutionAuditSinkPort",
+    "ResolutionErrorMapping",
+    "ResolutionMetadata",
+    "ResolutionStatus",
+    "assert_no_forbidden_raw_keys",
+    "build_provider_endpoint_url",
+    "contains_forbidden_raw_key",
+    "create_resolver_router",
+    "evaluate_target_policy",
+    "format_utc_timestamp",
+    "map_resolution_status_to_error",
+    "mount_resolver_routes",
+    "normalize_sha256_hash",
+    "project_derived_unit_state_after_import_ready",
+    "verify_required_supports_for_gate",
+]

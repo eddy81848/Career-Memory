@@ -93,6 +93,18 @@ class WorkspaceAccessContext:
     def role(self) -> str | None:
         return self.membership.role
 
+    def has_role(self, *allowed_roles: str) -> bool:
+        """Return True if the verified membership role is in ``allowed_roles``."""
+        return self.membership.role is not None and self.membership.role in allowed_roles
+
+    def require_role(self, *allowed_roles: str) -> WorkspaceAccessContext:
+        """Enforce that the verified membership holds one of ``allowed_roles``."""
+        if not self.has_role(*allowed_roles):
+            raise WorkspaceMembershipDeniedError(
+                "Workspace membership role does not permit this operation."
+            )
+        return self
+
 
 @dataclass(frozen=True, slots=True)
 class AuthCredentials:
@@ -134,6 +146,13 @@ class UnauthenticatedError(AuthorizationBoundaryError):
 
     def __init__(self, message: str = "Authentication is required.") -> None:
         super().__init__(AccessDenialReason.UNAUTHENTICATED, message)
+
+
+class SessionTerminatedError(UnauthenticatedError):
+    """Raised when a live session check confirms the user session has ended."""
+
+    def __init__(self, message: str = "The session has ended.") -> None:
+        super().__init__(message)
 
 
 class WorkspaceMembershipDeniedError(AuthorizationBoundaryError):

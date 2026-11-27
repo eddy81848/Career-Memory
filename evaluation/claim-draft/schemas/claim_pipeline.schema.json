@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.1.0.json",
-  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT)",
-  "description": "Draft structural schema for T-004A synthetic fixtures. Normalization, locator, and status enum conventions marked TEST_FIXTURE_ONLY are pending confirmation against Notion production specs (REVIEW_REQUIRED).",
+  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.2.0.json",
+  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT v0.2.0)",
+  "description": "Draft structural schema for T-004A synthetic fixtures. Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED. Provisional draft verdict labels (DRAFT_*) are strictly separated from product states.",
   "$defs": {
     "Sha256Hash": {
       "type": "string",
@@ -72,7 +72,7 @@
         "source_revision_id": { "type": "string", "pattern": "^rev-" },
         "scenario_ids": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^(SCN|REF)-[0-9]{2}$" }
+          "items": { "type": "string", "pattern": "^(SCN-[0-9]{2}|REF-0[1-8])$" }
         },
         "source_key": { "type": "string", "minLength": 2 },
         "revision_seq": { "type": "integer", "minimum": 1 },
@@ -122,8 +122,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_SOURCE_INPUT" },
         "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
         "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
@@ -149,7 +149,7 @@
       "additionalProperties": false,
       "properties": {
         "content_unit_id": { "type": "string", "pattern": "^cu-" },
-        "scenario_id": { "type": "string", "pattern": "^(SCN|REF)-[0-9]{2}$" },
+        "scenario_id": { "type": "string", "pattern": "^(SCN-[0-9]{2}|REF-0[1-8])$" },
         "source_revision_id": { "type": "string", "pattern": "^rev-" },
         "unit_index": { "type": "integer", "minimum": 0 },
         "unit_type": {
@@ -173,8 +173,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_1_CONTENT_UNIT_SEGMENTATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -260,8 +260,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -284,6 +284,7 @@
         "claim_atom_id",
         "canonical_fact_id",
         "support_role",
+        "evaluated_on_claim_version",
         "removed_by_user"
       ],
       "additionalProperties": false,
@@ -293,6 +294,7 @@
         "claim_atom_id": { "type": "string", "pattern": "^atom-" },
         "canonical_fact_id": { "type": "string", "pattern": "^fact-" },
         "support_role": { "type": "string", "enum": ["DIRECT", "CONTEXT", "CONTRADICTS"] },
+        "evaluated_on_claim_version": { "type": "integer", "minimum": 1 },
         "removed_by_user": { "type": "boolean" }
       }
     },
@@ -304,6 +306,7 @@
         "claim_id",
         "atom_text",
         "atom_kind",
+        "is_required_atom",
         "user_edited",
         "is_hard_negative"
       ],
@@ -317,6 +320,7 @@
           "type": "string",
           "enum": ["ACTION", "OUTCOME_METRIC", "SCOPE_ENVIRONMENT", "ATTRIBUTION", "TIMING"]
         },
+        "is_required_atom": { "type": "boolean" },
         "user_edited": { "type": "boolean" },
         "edit_severity": { "type": ["string", "null"], "enum": ["NONE", "MINOR_PARAPHRASE", "SUBSTANTIVE", null] },
         "is_hard_negative": { "type": "boolean" },
@@ -328,9 +332,12 @@
       "required": [
         "claim_id",
         "scenario_id",
+        "claim_version",
+        "previous_claim_version",
         "claim_text",
         "claim_atom_ids",
         "user_edited",
+        "reverification_state_on_new_version",
         "user_edit_history",
         "derived_from_claim_ids"
       ],
@@ -338,20 +345,33 @@
       "properties": {
         "claim_id": { "type": "string", "pattern": "^claim-" },
         "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
+        "claim_version": { "type": "integer", "minimum": 1 },
+        "previous_claim_version": { "type": ["integer", "null"], "minimum": 1 },
         "claim_text": { "type": "string", "minLength": 5 },
         "claim_atom_ids": {
           "type": "array",
           "items": { "type": "string", "pattern": "^atom-" }
         },
         "user_edited": { "type": "boolean" },
+        "reverification_state_on_new_version": {
+          "type": "string",
+          "enum": [
+            "NOT_APPLICABLE_UNEDITED",
+            "REVERIFY_REQUIRED_ON_NEW_VERSION",
+            "REVERIFIED_FAILED_ON_NEW_VERSION",
+            "REVERIFIED_PASSED_ON_NEW_VERSION"
+          ]
+        },
         "user_edit_history": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["event_id", "action", "severity", "note"],
+            "required": ["event_id", "from_version", "to_version", "action", "severity", "note"],
             "additionalProperties": false,
             "properties": {
               "event_id": { "type": "string" },
+              "from_version": { "type": "integer", "minimum": 1 },
+              "to_version": { "type": "integer", "minimum": 1 },
               "action": {
                 "type": "string",
                 "enum": ["EDIT_CLAIM_TEXT", "EDIT_ATOM_TEXT", "DELETE_SOURCE", "DELETE_FACT", "REMOVE_SUPPORT"]
@@ -381,8 +401,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_ASSEMBLY" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -403,7 +423,9 @@
     "RefetchSnapshot": {
       "type": "object",
       "required": [
-        "refetch_case_id",
+        "fixture_case_id",
+        "official_ref_id",
+        "legacy_draft_id",
         "scenario_title",
         "target_url",
         "url_safety_precheck",
@@ -417,7 +439,9 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
+        "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
         "scenario_title": { "type": "string", "minLength": 5 },
         "target_url": { "type": "string", "minLength": 5 },
         "additional_unsafe_urls": {
@@ -447,8 +471,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_REFETCH_STUB_INPUT" },
         "refetch_snapshots": {
           "type": "array",
@@ -459,7 +483,9 @@
     "RefetchCheckRecord": {
       "type": "object",
       "required": [
-        "refetch_case_id",
+        "fixture_case_id",
+        "official_ref_id",
+        "legacy_draft_id",
         "baseline_source_revision_id",
         "baseline_locator",
         "target_claim_id",
@@ -472,21 +498,23 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
+        "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+        "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
         "baseline_source_revision_id": { "type": "string", "pattern": "^rev-" },
         "baseline_locator": { "$ref": "#/$defs/Locator" },
         "target_claim_id": { "type": "string", "pattern": "^claim-" },
         "stub_outcome": {
           "type": "string",
           "enum": [
-            "REFETCH_MATCHED",
-            "CONTENT_CHANGED_LOCATOR_DRIFT",
-            "SOURCE_UNAVAILABLE",
-            "PARTIAL_RESPONSE",
-            "POLICY_DENIED",
-            "BLOCKED_UNSAFE_URL",
-            "CANARY_PERSISTENCE_AUDIT_PASS",
-            "NEW_REVISION_DETECTED_NO_AUTO_MUTATION"
+            "STUB_REFETCH_MATCHED",
+            "STUB_HASH_LOCATOR_MISMATCH_BLOCKED",
+            "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION",
+            "STUB_SOURCE_UNAVAILABLE_404",
+            "STUB_PARTIAL_TRUNCATED_206",
+            "STUB_CANARY_STATIC_SNAPSHOT_CLEAN",
+            "STUB_POLICY_PERMISSION_DENIED_403",
+            "STUB_UNSAFE_URL_BLOCKED_PREFETCH"
           ]
         },
         "locator_recheck_matched": { "type": ["boolean", "null"] },
@@ -511,8 +539,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "stage_name": { "type": "string", "const": "STAGE_4_REFETCH_VERIFICATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -529,6 +557,8 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
+        "verdict_namespace",
+        "product_status_mapping_policy",
         "frozen_for_golden",
         "requires_human_review_task",
         "scenarios",
@@ -537,10 +567,12 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_DRAFT" },
         "oracle_status": { "type": "string", "const": "DRAFT" },
+        "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
+        "product_status_mapping_policy": { "type": "string", "minLength": 10 },
         "frozen_for_golden": { "type": "boolean", "const": false },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
         "scenarios": {
@@ -578,7 +610,7 @@
               "claim_atom_id",
               "scenario_id",
               "claim_id",
-              "expected_atom_status",
+              "draft_atom_verdict",
               "oracle_status",
               "review_required",
               "rationale"
@@ -588,17 +620,18 @@
               "claim_atom_id": { "type": "string", "pattern": "^atom-" },
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
               "claim_id": { "type": "string", "pattern": "^claim-" },
-              "expected_atom_status": {
+              "draft_atom_verdict": {
                 "type": "string",
                 "enum": [
-                  "SUPPORTED_DIRECT",
-                  "SUPPORTED_DIRECT_WITH_CONTEXT",
-                  "CONTEXT_ONLY_UNSUPPORTED",
-                  "UNSUPPORTED",
-                  "CONTRADICTED",
-                  "IDENTITY_AMBIGUOUS",
-                  "INVALIDATED_BY_USER_EDIT",
-                  "INVALIDATED_BY_DELETION"
+                  "DRAFT_ATOM_SUPPORTED_DIRECT",
+                  "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
+                  "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
+                  "DRAFT_ATOM_UNSUPPORTED",
+                  "DRAFT_ATOM_CONTRADICTED",
+                  "DRAFT_ATOM_IDENTITY_AMBIGUOUS",
+                  "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION",
+                  "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
+                  "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION"
                 ]
               },
               "oracle_status": { "type": "string", "const": "DRAFT" },
@@ -614,7 +647,9 @@
             "required": [
               "claim_id",
               "scenario_id",
-              "expected_claim_status",
+              "draft_claim_verdict",
+              "source_verified_eligible",
+              "product_status_proposal",
               "oracle_status",
               "review_required",
               "rationale"
@@ -623,16 +658,25 @@
             "properties": {
               "claim_id": { "type": "string", "pattern": "^claim-" },
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
-              "expected_claim_status": {
+              "draft_claim_verdict": {
                 "type": "string",
                 "enum": [
-                  "SOURCE_VERIFIED",
-                  "PARTIALLY_SUPPORTED",
-                  "UNSUPPORTED",
-                  "CONFLICTING",
-                  "IDENTITY_AMBIGUOUS",
-                  "INVALIDATED_BY_USER_EDIT",
-                  "INVALIDATED_BY_DELETION"
+                  "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+                  "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+                  "DRAFT_CLAIM_UNGROUNDED",
+                  "DRAFT_CLAIM_CONFLICTING",
+                  "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
+                  "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
+                  "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
+                  "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION"
+                ]
+              },
+              "source_verified_eligible": { "type": "boolean" },
+              "product_status_proposal": {
+                "type": "string",
+                "enum": [
+                  "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
+                  "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED"
                 ]
               },
               "oracle_status": { "type": "string", "const": "DRAFT" },
@@ -650,27 +694,74 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
+        "verdict_namespace",
+        "product_status_mapping_policy",
         "frozen_for_golden",
         "requires_human_review_task",
-        "expected_refetch_cases"
+        "official_ref_matrix",
+        "expected_refetch_fixtures"
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.1.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.1.0-draft" },
+        "schema_version": { "type": "string", "const": "0.2.0-draft" },
+        "dataset_version": { "type": "string", "const": "0.2.0-draft" },
         "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_DRAFT" },
         "oracle_status": { "type": "string", "const": "DRAFT" },
+        "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
+        "product_status_mapping_policy": { "type": "string", "minLength": 10 },
         "frozen_for_golden": { "type": "boolean", "const": false },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
-        "expected_refetch_cases": {
+        "official_ref_matrix": {
           "type": "array",
           "items": {
             "type": "object",
             "required": [
-              "refetch_case_id",
-              "expected_verdict",
+              "official_ref_id",
+              "official_requirement_label",
+              "coverage_status",
+              "verified_in_draft",
+              "linked_fixture_case_ids",
+              "coverage_gap_details",
+              "oracle_status",
+              "review_required_items"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+              "official_requirement_label": { "type": "string", "minLength": 5 },
+              "coverage_status": {
+                "type": "string",
+                "enum": ["COVERED_SYNTHETIC_STUB", "PARTIAL_COVERAGE_GAP", "COVERAGE_GAP"]
+              },
+              "verified_in_draft": { "type": "boolean" },
+              "linked_fixture_case_ids": {
+                "type": "array",
+                "items": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" }
+              },
+              "coverage_gap_details": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "review_required_items": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "expected_refetch_fixtures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "fixture_case_id",
+              "official_ref_id",
+              "legacy_draft_id",
+              "draft_refetch_verdict",
               "expected_fetch_attempted",
               "expected_unverifiable_now",
+              "expected_source_deleted_confirmed",
               "expected_historical_fact_falsified",
               "expected_claim_auto_mutated",
               "expected_canary_leaked_in_clean_snapshot",
@@ -682,10 +773,25 @@
             ],
             "additionalProperties": false,
             "properties": {
-              "refetch_case_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
-              "expected_verdict": { "type": "string" },
+              "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
+              "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+              "legacy_draft_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
+              "draft_refetch_verdict": {
+                "type": "string",
+                "enum": [
+                  "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
+                  "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
+                  "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
+                  "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+                  "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
+                  "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
+                  "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
+                  "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH"
+                ]
+              },
               "expected_fetch_attempted": { "type": "boolean" },
               "expected_unverifiable_now": { "type": "boolean" },
+              "expected_source_deleted_confirmed": { "type": "boolean" },
               "expected_historical_fact_falsified": { "type": "boolean" },
               "expected_claim_auto_mutated": { "type": "boolean" },
               "expected_canary_leaked_in_clean_snapshot": { "type": "boolean" },

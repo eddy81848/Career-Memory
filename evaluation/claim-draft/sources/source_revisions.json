@@ -1,16 +1,16 @@
 {
-  "schema_version": "0.1.0-draft",
-  "dataset_version": "0.1.0-draft",
+  "schema_version": "0.2.0-draft",
+  "dataset_version": "0.2.0-draft",
   "artifact_role": "SYNTHETIC_SOURCE_INPUT",
   "normalization_policy": "fixture-nfc-lf-v0-draft",
   "convention_scope": "TEST_FIXTURE_ONLY",
   "review_required_specs": [
-    "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — Notion Grounded Claim Pipeline / Option C unavailable",
-    "REVIEW_REQUIRED: Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit)",
+    "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — fixture uses TEST_FIXTURE_ONLY fixture-nfc-lf-v0-draft",
+    "REVIEW_REQUIRED: Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit) — fixture uses TEST_FIXTURE_ONLY fixture-locator-v0-draft",
     "REVIEW_REQUIRED: Production canonical entity ID formats and hashing algorithm/salt policy",
-    "REVIEW_REQUIRED: Exact REF-01..08 ID-to-scenario label mapping against Notion T-004A table",
-    "REVIEW_REQUIRED: Minor user paraphrase edit invalidation tolerance (SCN-12 claim-12-2)",
-    "REVIEW_REQUIRED: Exact Option C transient snippet retention/display policy vs zero-raw-text persistence"
+    "REVIEW_REQUIRED: Final product Claim/Atom/Refetch status enum mapping (provisional DRAFT_* verdicts are NOT product states)",
+    "REVIEW_REQUIRED: User-edit re-verification transition policy for minor paraphrases after v2 re-verification passes (SCN-12 claim-12-2)",
+    "REVIEW_REQUIRED: Option C zero-raw-text runtime persistence boundary across DB, queues, logs, caches, and traces (REF-04/REF-06/REF-08)"
   ],
   "source_revisions": [
     {
@@ -43,10 +43,7 @@
         "REF-01",
         "REF-02",
         "REF-03",
-        "REF-04",
-        "REF-05",
-        "REF-06",
-        "REF-08"
+        "REF-05"
       ],
       "source_key": "src02",
       "revision_seq": 1,
@@ -414,7 +411,7 @@
     {
       "source_revision_id": "rev-src_ref07_canary-v1-7e7ec30a",
       "scenario_ids": [
-        "REF-07"
+        "REF-04"
       ],
       "source_key": "src_ref07_canary",
       "revision_seq": 1,
@@ -431,7 +428,7 @@
       "is_synthetic_fixture": true,
       "deleted_by_user": false,
       "contains_canary": true,
-      "canary_token_id": "canary-ref07-raw-text",
+      "canary_token_id": "canary-ref04-raw-text",
       "raw_text_fixture_only": "PR #700 — Audit Log Index Maintenance (Synthetic Canary Document)\nTransient Raw Body Sentinel: CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST\n\nI added automated weekly partition pruning for synthetic audit log tables."
     }
   ]

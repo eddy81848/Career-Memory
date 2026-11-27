@@ -1,11 +1,13 @@
 {
-  "schema_version": "0.1.0-draft",
-  "dataset_version": "0.1.0-draft",
+  "schema_version": "0.2.0-draft",
+  "dataset_version": "0.2.0-draft",
   "artifact_role": "SYNTHETIC_REFETCH_STUB_INPUT",
   "refetch_snapshots": [
     {
-      "refetch_case_id": "REF-01",
-      "scenario_title": "Same revision, identical content hash and locator",
+      "fixture_case_id": "refcase-01a",
+      "official_ref_id": "REF-01",
+      "legacy_draft_id": "REF-01",
+      "scenario_title": "Same revision, identical content hash and exact locator span reproduction",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -17,8 +19,10 @@
       "canary_tokens": []
     },
     {
-      "refetch_case_id": "REF-02",
-      "scenario_title": "Changed content hash and shifted locator offsets (drift)",
+      "fixture_case_id": "refcase-02a",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": "REF-02",
+      "scenario_title": "Changed content hash and shifted locator offsets blocked (drift)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -30,8 +34,25 @@
       "canary_tokens": []
     },
     {
-      "refetch_case_id": "REF-03",
-      "scenario_title": "Source unavailable (HTTP 404 Not Found — unverifiable now, NOT historically false)",
+      "fixture_case_id": "refcase-02b",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": "REF-08",
+      "scenario_title": "Appended new upstream revision changes content hash (blocked without auto-detect/auto-claim-refresh; Post-MVP boundary)",
+      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": 200,
+      "stub_error_code": null,
+      "is_partial_response": false,
+      "returned_content_sha256": "sha256:8b780454d53da7b96e324d1a82ce955ffb1d0c3203257fda58fca63544aa3209",
+      "returned_body_fixture_only": "PR #418 — Idempotent Retry Queue for Billing Webhooks\nAuthor: Alex Kim (@alexkim-synth)\n\nI implemented an idempotent retry queue with exponential backoff for billing webhooks in Project Aurora, preventing duplicate invoice notifications during transient gateway timeouts.\n\nFollow-up (2026-08-10): Added dead-letter queue metrics dashboard for webhook retries.",
+      "canary_tokens": []
+    },
+    {
+      "fixture_case_id": "refcase-03a",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": "REF-03",
+      "scenario_title": "Source unavailable (HTTP 404 Not Found — distinguished from confirmed deletion and historical falsity)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -43,8 +64,10 @@
       "canary_tokens": []
     },
     {
-      "refetch_case_id": "REF-04",
-      "scenario_title": "Partial/truncated refetch response (HTTP 206, span beyond returned bytes)",
+      "fixture_case_id": "refcase-03b",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": "REF-04",
+      "scenario_title": "Partial/truncated refetch response (HTTP 206 — distinguished from confirmed deletion and historical falsity)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -56,8 +79,27 @@
       "canary_tokens": []
     },
     {
-      "refetch_case_id": "REF-05",
-      "scenario_title": "Policy failure (HTTP 403 revoked scope / workspace policy denied)",
+      "fixture_case_id": "refcase-04a",
+      "official_ref_id": "REF-04",
+      "legacy_draft_id": "REF-07",
+      "scenario_title": "Option C raw-source non-persistence static canary audit + negative leak fixture",
+      "target_url": "https://synthetic.example.test/sources/ref07-canary-non-persistence",
+      "url_safety_precheck": "ALLOWED",
+      "fetch_attempted": true,
+      "http_status": 200,
+      "stub_error_code": null,
+      "is_partial_response": false,
+      "returned_content_sha256": "sha256:7e7ec30a493f68cc96c18d7cbc2caeabc4a6f913c74cd1c8c3b0f4808a3191c5",
+      "returned_body_fixture_only": "PR #700 — Audit Log Index Maintenance (Synthetic Canary Document)\nTransient Raw Body Sentinel: CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST\n\nI added automated weekly partition pruning for synthetic audit log tables.",
+      "canary_tokens": [
+        "CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST"
+      ]
+    },
+    {
+      "fixture_case_id": "refcase-05a",
+      "official_ref_id": "REF-05",
+      "legacy_draft_id": "REF-05",
+      "scenario_title": "Access permission failure (HTTP 403 revoked OAuth scope / workspace policy denied)",
       "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
       "url_safety_precheck": "ALLOWED",
       "fetch_attempted": true,
@@ -69,8 +111,10 @@
       "canary_tokens": []
     },
     {
-      "refetch_case_id": "REF-06",
-      "scenario_title": "Unsafe URL rejected prior to network fetch (SSRF / metadata / loopback / file scheme)",
+      "fixture_case_id": "refcase-05b",
+      "official_ref_id": "REF-05",
+      "legacy_draft_id": "REF-06",
+      "scenario_title": "Unsafe URL rejected prior to network fetch (SSRF metadata IP / loopback / private CIDR / file & ftp schemes / credentials)",
       "target_url": "http://169.254.169.254/latest/meta-data/iam/",
       "additional_unsafe_urls": [
         "http://127.0.0.1:8080/internal/sources",
@@ -86,34 +130,6 @@
       "is_partial_response": false,
       "returned_content_sha256": null,
       "returned_body_fixture_only": null,
-      "canary_tokens": []
-    },
-    {
-      "refetch_case_id": "REF-07",
-      "scenario_title": "Option C raw-source non-persistence canary verification",
-      "target_url": "https://synthetic.example.test/sources/ref07-canary-non-persistence",
-      "url_safety_precheck": "ALLOWED",
-      "fetch_attempted": true,
-      "http_status": 200,
-      "stub_error_code": null,
-      "is_partial_response": false,
-      "returned_content_sha256": "sha256:7e7ec30a493f68cc96c18d7cbc2caeabc4a6f913c74cd1c8c3b0f4808a3191c5",
-      "returned_body_fixture_only": "PR #700 — Audit Log Index Maintenance (Synthetic Canary Document)\nTransient Raw Body Sentinel: CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST\n\nI added automated weekly partition pruning for synthetic audit log tables.",
-      "canary_tokens": [
-        "CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST"
-      ]
-    },
-    {
-      "refetch_case_id": "REF-08",
-      "scenario_title": "Successful refetch detects new upstream revision — Post-MVP boundary (no auto-detect / no auto-claim-refresh)",
-      "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
-      "url_safety_precheck": "ALLOWED",
-      "fetch_attempted": true,
-      "http_status": 200,
-      "stub_error_code": null,
-      "is_partial_response": false,
-      "returned_content_sha256": "sha256:8b780454d53da7b96e324d1a82ce955ffb1d0c3203257fda58fca63544aa3209",
-      "returned_body_fixture_only": "PR #418 — Idempotent Retry Queue for Billing Webhooks\nAuthor: Alex Kim (@alexkim-synth)\n\nI implemented an idempotent retry queue with exponential backoff for billing webhooks in Project Aurora, preventing duplicate invoice notifications during transient gateway timeouts.\n\nFollow-up (2026-08-10): Added dead-letter queue metrics dashboard for webhook retries.",
       "canary_tokens": []
     }
   ]

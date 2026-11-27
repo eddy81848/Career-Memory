@@ -1,67 +1,66 @@
-# T-004A Coverage Matrix & T-004B Human Review Handoff
+# T-004A Coverage Matrix, Evidence-Paired Review Table & T-004B Handoff
 
-- **Dataset Version**: `0.1.0-draft`
+- **Dataset Version**: `0.2.0-draft`
 - **Oracle Status**: `DRAFT` (`frozen_for_golden: false`)
-- **Totals**: **14 Scenarios** (target ≥12) · **30 Claim Atoms** (target ≥24) · **23 Claims** · **25 Canonical Facts** · **28 Fact Supports** · **8 Refetch Cases (`REF-01..08`)** · **1 Synthetic Non-Persistence Canary**
+- **Verdict Namespace**: `DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS` (provisional `DRAFT_*` labels — distinct from product state enums, which remain `REVIEW_REQUIRED`)
+- **Totals**: **14 Scenarios** (≥12) · **30 Claim Atoms** (≥24) · **23 Claims** · **25 Canonical Facts** · **28 Fact Supports** · **8 Preserved Refetch Fixtures** mapped across official `REF-01..REF-05` + **3 Unverified Official Requirements (`REF-06..REF-08`: `COVERAGE_GAP`)**
 
-## 1. Fact·Claim Scenario Coverage (`SCN-01`..`SCN-14`)
+---
 
-| Scenario | Language | Facts | Atoms | Claims | Support Roles | Key Coverage Tags | Expected Claim Status (`DRAFT`) |
-|---|---|---:|---:|---:|---|---|---|
-| `SCN-01` | mixed (KO/EN) | 0 | 1 | 1 | none (0 supports) | 0 facts from boilerplate, hard negative hallucination | `claim-01-1`: `UNSUPPORTED` |
-| `SCN-02` | EN | 1 | 1 | 1 | `DIRECT` | 1 fact baseline, verified owner | `claim-02-1`: `SOURCE_VERIFIED` *(DRAFT)* |
-| `SCN-03` | KO | 3 | 3 | 1 | `DIRECT` | N=3 facts, multi-atom claim, Korean UTF-8 byte offsets | `claim-03-1`: `SOURCE_VERIFIED` *(DRAFT)* |
-| `SCN-04` | EN | 2 | 2 | 2 | `DIRECT`, `CONTEXT` | `DIRECT+CONTEXT` vs `CONTEXT`-only hard negative | `claim-04-1`: `SOURCE_VERIFIED` *(DRAFT)*; `claim-04-2`: `UNSUPPORTED` |
-| `SCN-05` | EN | 2 | 2 | 2 | `DIRECT`, `CONTRADICTS` | Cross-revision contradiction (draft vs addendum) | `claim-05-1`: `CONFLICTING`; `claim-05-2`: `SOURCE_VERIFIED` *(DRAFT)* |
-| `SCN-06` | KO | 2 | 2 | 2 | `DIRECT`, `CONTRADICTS` | Completed vs Planned RFC, Korean UTF-8 offsets | `claim-06-1`: `SOURCE_VERIFIED` *(DRAFT)*; `claim-06-2`: `CONFLICTING` |
-| `SCN-07` | EN | 2 | 2 | 2 | `DIRECT`, `CONTRADICTS` | Negation context (not deployed / reverted / no 30% savings) | `claim-07-1`: `SOURCE_VERIFIED` *(DRAFT)*; `claim-07-2`: `CONFLICTING` |
-| `SCN-08` | EN | 2 | 2 | 2 | `DIRECT`, `CONTEXT` | Team (6 engineers) vs Individual contribution attribution | `claim-08-1`: `SOURCE_VERIFIED` *(DRAFT)*; `claim-08-2`: `UNSUPPORTED` |
-| `SCN-09` | KO | 2 | 2 | 2 | `DIRECT`, `CONTEXT`, `CONTRADICTS` | Staging/test sandbox vs unstarted production deployment | `claim-09-1`: `SOURCE_VERIFIED` *(DRAFT)*; `claim-09-2`: `CONFLICTING` |
-| `SCN-10` | EN | 2 | 3 | 1 | `DIRECT`, `CONTEXT`, 0-support | Unverified causation (confounder, no A/B test) + fabricated metric + partial atom support (1/3) | `claim-10-1`: `PARTIALLY_SUPPORTED` |
-| `SCN-11` | EN | 2 | 2 | 2 | `DIRECT` | Identity ambiguity (unmapped `'Alex'`) vs verified owner | `claim-11-1`: `IDENTITY_AMBIGUOUS`; `claim-11-2`: `SOURCE_VERIFIED` *(DRAFT)* |
-| `SCN-12` | EN | 1 | 2 | 2 | `DIRECT` | User edit invalidation (substantive inflation + minor paraphrase) | `claim-12-1`: `INVALIDATED_BY_USER_EDIT`; `claim-12-2`: `INVALIDATED_BY_USER_EDIT` |
-| `SCN-13` | EN | 2 | 3 | 2 | `DIRECT` (removed/active) | User source deletion cascade (full invalidation + partial support 1/2) | `claim-13-1`: `INVALIDATED_BY_DELETION`; `claim-13-2`: `PARTIALLY_SUPPORTED` |
-| `SCN-14` | EN | 2 | 3 | 1 | `DIRECT`, `CONTEXT`, `CONTRADICTS` | Hard negatives: 10x numeric distortion (400ms→40ms) + cross-project conflation + partial anchor | `claim-14-1`: `CONFLICTING` |
+## 1. Human Review Pairing Table: Expected Results (`DRAFT`) ↔ Source Evidence (`SCN-01`..`SCN-14`)
 
-### Requirement Checklist Verification
+Each row pairs the provisional draft verdict (`DRAFT_CLAIM_*`), `SOURCE_VERIFIED` eligibility flag, and the exact synthetic evidence chain (`Source Revision @ char_start:char_end` → `Canonical Fact` → `ClaimAtomSupport`).
 
-- **0 / 1 / N Facts**: Covered (`SCN-01`=0, `SCN-02`/`SCN-12`=1, `SCN-03`=3).
-- **`DIRECT` / `CONTEXT` / `CONTRADICTS`**: All three roles exercised at both `FactSupport` and `ClaimAtomSupport` levels.
-- **Safety Invariants Enforced Programmatically**:
-  - 0 user-edited Claims set to `SOURCE_VERIFIED` (`SCN-12`).
-  - 0 unsupported (`SCN-01`, `SCN-04`, `SCN-08`) or partially supported (`SCN-10`, `SCN-13`, `SCN-14`) Claims set to `SOURCE_VERIFIED`.
-  - 0 self-evidencing Claims (no Claim/ClaimAtom appears as a Source Revision, Content Unit, or Fact Support).
+| Scenario | Claim (`ver`) | Provisional Verdict (`DRAFT_*`) | `SOURCE_VERIFIED` Eligible | Paired Evidence (`Atom ← Role(eval_ver) ← Fact ← SourceRevision@char_start:char_end`) | Human Review Checkpoint |
+|---|---|---|---:|---|---|
+| `SCN-01` | `claim-01-1` (`v1`) | `DRAFT_CLAIM_UNGROUNDED` | `false` | `atom-01-1`: **0 supports** (`rev-src01-v1-a43eb41e` boilerplate yields 0 facts) | Confirm 0-fact threshold for meeting logistics chatter |
+| `SCN-02` | `claim-02-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-02-1 ← DIRECT(v1) ← fact-02-1 [rev-src02-v1-2cb25379@89:271]` | Confirm baseline clean individual PR candidate |
+| `SCN-03` | `claim-03-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-03-1 ← DIRECT(v1) ← fact-03-1 [rev-src03-v1-6589ff1a@63:131]`; `atom-03-2 ← DIRECT(v1) ← fact-03-2 [@135:181]`; `atom-03-3 ← DIRECT(v1) ← fact-03-3 [@185:231]` | Confirm 3/3 required Korean atoms DIRECT-grounded |
+| `SCN-04` | `claim-04-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-04-1 ← DIRECT(v1) ← fact-04-1 [rev-src04-v1-0dfa04ee@171:268]` + `CONTEXT(v1) ← fact-04-2 [@44:144]` | Confirm DIRECT + CONTEXT qualifies as candidate |
+| `SCN-04` | `claim-04-2` (`v1`) | `DRAFT_CLAIM_UNGROUNDED` | `false` | `atom-04-2 ← CONTEXT(v1) ← fact-04-2 [rev-src04-v1-0dfa04ee@44:144]` *(CONTEXT-only)* | Confirm `CONTEXT`-only never qualifies for `SOURCE_VERIFIED` |
+| `SCN-05` | `claim-05-1` (`v1`) | `DRAFT_CLAIM_CONFLICTING` | `false` | `atom-05-1 ← DIRECT(v1) ← fact-05-1 [rev-src05a-v1-898e609e@40:114]` + `CONTRADICTS(v1) ← fact-05-2 [rev-src05b-v2-0539c693@58:159]` | Confirm addendum contradiction blocks `SOURCE_VERIFIED` |
+| `SCN-05` | `claim-05-2` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-05-2 ← DIRECT(v1) ← fact-05-2 [rev-src05b-v2-0539c693@58:159]` | Confirm corrected log-audit claim is grounded candidate |
+| `SCN-06` | `claim-06-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-06-1 ← DIRECT(v1) ← fact-06-1 [rev-src06-v1-11685e46@38:79]` | Confirm completed Korean RFC item qualifies |
+| `SCN-06` | `claim-06-2` (`v1`) | `DRAFT_CLAIM_CONFLICTING` | `false` | `atom-06-2 ← CONTRADICTS(v1) ← fact-06-2 [rev-src06-v1-11685e46@87:147]` | Confirm planned Q4 sharding claimed as completed maps to conflict/block |
+| `SCN-07` | `claim-07-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-07-1 ← DIRECT(v1) ← fact-07-1 [rev-src07-v1-84ada707@113:195]` | Confirm accurate rollback claim qualifies |
+| `SCN-07` | `claim-07-2` (`v1`) | `DRAFT_CLAIM_CONFLICTING` | `false` | `atom-07-2 ← CONTRADICTS(v1) ← fact-07-2 [rev-src07-v1-84ada707@58:255]` | Confirm negation reversal ("did not deploy / did not achieve 30%") is blocked |
+| `SCN-08` | `claim-08-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-08-1 ← DIRECT(v1) ← fact-08-2 [rev-src08-v1-699e83e2@190:254]` + `CONTEXT(v1) ← fact-08-1 [@31:169]` | Confirm individual cache contribution with team context qualifies |
+| `SCN-08` | `claim-08-2` (`v1`) | `DRAFT_CLAIM_UNGROUNDED` | `false` | `atom-08-2 ← CONTEXT(v1) ← fact-08-1 [rev-src08-v1-699e83e2@31:169]` *(CONTEXT-only)* | Confirm team-of-6 work overclaimed as solo never qualifies |
+| `SCN-09` | `claim-09-1` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-09-1 ← DIRECT(v1) ← fact-09-1 [rev-src09-v1-13804c48@31:98]` | Confirm staging-scoped Korean benchmark claim qualifies |
+| `SCN-09` | `claim-09-2` (`v1`) | `DRAFT_CLAIM_CONFLICTING` | `false` | `atom-09-2 ← CONTEXT(v1) ← fact-09-1 [@31:98]` + `CONTRADICTS(v1) ← fact-09-2 [rev-src09-v1-13804c48@99:121]` | Confirm staging result conflated with unstarted production rollout is blocked |
+| `SCN-10` | `claim-10-1` (`v1`) | `DRAFT_CLAIM_PARTIALLY_GROUNDED` | `false` | `atom-10-1 ← DIRECT(v1) ← fact-10-1 [rev-src10-v1-8fed086d@52:111]`; `atom-10-2 ← CONTEXT(v1) ← fact-10-2 [@112:318]`; `atom-10-3`: **0 supports** | Confirm 1/3 required atoms supported (unverified causation + fabricated 45%) blocks `SOURCE_VERIFIED` |
+| `SCN-11` | `claim-11-1` (`v1`) | `DRAFT_CLAIM_IDENTITY_AMBIGUOUS` | `false` | `atom-11-1 ← DIRECT(v1) ← fact-11-1 [rev-src11a-v1-270fe367@52:113]` (`identity_status=AMBIGUOUS`) | Confirm unmapped homonym `'Alex'` blocks `SOURCE_VERIFIED` |
+| `SCN-11` | `claim-11-2` (`v1`) | `DRAFT_CLAIM_GROUNDED_CANDIDATE` | `true` *(candidate)* | `atom-11-2 ← DIRECT(v1) ← fact-11-2 [rev-src11b-v1-10d2a8d0@122:184]` (`identity_status=RESOLVED`) | Confirm verified-account PR qualifies |
+| `SCN-12` | `claim-12-1` (`v2`, edited) | `DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT` | `false` | `atom-12-1 ← CONTRADICTS(v2) ← fact-12-1 [rev-src12-v1-54f9db4b@51:175]` (25% checkout → 60% global) | Confirm user edit to v2 re-verified against `fact-12-1` fails (`CONTRADICTS`) |
+| `SCN-12` | `claim-12-2` (`v2`, edited) | `DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION` | `false` | `atom-12-2 ← DIRECT(v1 stale!) ← fact-12-1 [rev-src12-v1-54f9db4b@51:175]` (minor paraphrase v2 not yet re-verified) | Confirm v1 support does NOT auto-carryover to v2; re-verification required on v2 |
+| `SCN-13` | `claim-13-1` (`v1`) | `DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION` | `false` | `atom-13-1 ← DIRECT(v1, removed_by_user=true) ← fact-13-1 [rev-src13a-v1-18d4db42@64:149]` (`deleted_by_user=true`) | Confirm explicit user source deletion invalidates claim (contrast with `REF-03`) |
+| `SCN-13` | `claim-13-2` (`v1`) | `DRAFT_CLAIM_PARTIALLY_GROUNDED` | `false` | `atom-13-2 ← DIRECT(v1, removed_by_user=true) ← fact-13-1 [@64:149]`; `atom-13-3 ← DIRECT(v1) ← fact-13-2 [rev-src13b-v1-227d1587@51:126]` | Confirm deletion of 1 required atom blocks `SOURCE_VERIFIED` even though 2nd atom survives |
+| `SCN-14` | `claim-14-1` (`v1`) | `DRAFT_CLAIM_CONFLICTING` | `false` | `atom-14-1 ← DIRECT(v1) ← fact-14-2 [rev-src14-v1-51462cb4@141:229]`; `atom-14-2 ← CONTRADICTS(v1) ← fact-14-1 [@39:140]`; `atom-14-3 ← CONTEXT(v1) ← fact-14-1, fact-14-2` | Confirm 400ms→40ms distortion + Alpha/Borealis conflation block `SOURCE_VERIFIED` |
 
-## 2. Refetch & Option C Canary Coverage (`REF-01`..`REF-08`)
+---
 
-> **Note (`REVIEW_REQUIRED`)**: Exact `REF-01..08` ID-to-label alignment with Notion `T-004A` must be verified during T-004B review.
+## 2. Official `REF-01..REF-08` Coverage Matrix & Evidence Pairing
 
-| Case | Scenario | Fetch Attempted | `unverifiable_now` | `historical_fact_falsified` | `claim_auto_mutated` | Post-MVP Tags | Expected Verdict (`DRAFT`) |
-|---|---|---:|---:|---:|---:|---|---|
-| `REF-01` | Same version, identical content hash & locator | `true` | `false` | `false` | `false` | `POST_MVP_AUTO_DETECT_SOURCE_CHANGE`, `POST_MVP_AUTO_REFRESH_CLAIM` | `REFETCH_MATCHED` |
-| `REF-02` | Changed content hash & shifted locator (drift) | `true` | `true` | `false` | `false` | `POST_MVP_AUTO_DETECT_SOURCE_CHANGE`, `POST_MVP_AUTO_REFRESH_CLAIM` | `CONTENT_CHANGED_LOCATOR_DRIFT` |
-| `REF-03` | Unavailable source (HTTP 404 Not Found) | `true` | `true` | `false` | `false` | — | `CURRENTLY_UNVERIFIABLE` |
-| `REF-04` | Partial/truncated response (HTTP 206) | `true` | `true` | `false` | `false` | — | `CURRENTLY_UNVERIFIABLE_PARTIAL` |
-| `REF-05` | Policy failure (HTTP 403 revoked OAuth scope) | `true` | `true` | `false` | `false` | — | `REFETCH_POLICY_FAILED` |
-| `REF-06` | Unsafe URL rejected pre-fetch (metadata IP, loopback, `file://`, `ftp://`, credentials, private CIDR) | `false` | `true` | `false` | `false` | — | `BLOCKED_UNSAFE_URL` |
-| `REF-07` | Option C raw-source non-persistence canary (`CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST`) + negative leak fixture | `true` | `false` | `false` | `false` | — | `CANARY_NON_PERSISTENCE_VERIFIED` |
-| `REF-08` | Successful refetch on new upstream revision — no auto-detect / no auto-claim-refresh | `true` | `false` | `false` | `false` | `POST_MVP_AUTO_DETECT_SOURCE_CHANGE`, `POST_MVP_AUTO_REFRESH_CLAIM` | `NEW_REVISION_DETECTED_NO_AUTO_MUTATION` |
+| Official ID | 공식 요구사항 | Draft Coverage Status | Preserved Fixture (`old ID`) | Paired Baseline Evidence & Locator | Provisional Verdict (`DRAFT_REFETCH_*`) / Coverage Gap |
+|---|---|---|---|---|---|
+| `REF-01` | 동일 버전과 정확한 근거 위치 재현 | `COVERED_SYNTHETIC_STUB` | `refcase-01a` (`REF-01`) | `rev-src02-v1-2cb25379@89:271` (`loc-ref-base-src02-89_271-e3bf184f`) | `DRAFT_REFETCH_EXACT_SPAN_REPRODUCED` (Post-MVP auto-detect/refresh disabled; live HTTP 미실행) |
+| `REF-02` | hash/locator 불일치 차단 | `COVERED_SYNTHETIC_STUB` | `refcase-02a` (`REF-02`) | `rev-src02-v1-2cb25379@89:271` (`loc-ref-base-src02-89_271-e3bf184f`) | `DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED` (header insert shifts offsets & hash) |
+| `REF-02` | hash/locator 불일치 차단 | `COVERED_SYNTHETIC_STUB` | `refcase-02b` (`REF-08`) | `rev-src02-v1-2cb25379@89:271` (`loc-ref-base-src02-89_271-e3bf184f`) | `DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION` (appended revision hash mismatch; Post-MVP auto-mutation disabled) |
+| `REF-03` | 재조회 불가와 삭제·거짓 구분 | `COVERED_SYNTHETIC_STUB` | `refcase-03a` (`REF-03`) | `rev-src02-v1-2cb25379@89:271` (HTTP 404 stub) | `DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE` (`unverifiable_now=true`, `deleted_confirmed=false`, `falsified=false`) |
+| `REF-03` | 재조회 불가와 삭제·거짓 구분 | `COVERED_SYNTHETIC_STUB` | `refcase-03b` (`REF-04`) | `rev-src02-v1-2cb25379@89:271` (HTTP 206 partial stub) | `DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE` (`unverifiable_now=true`, `deleted_confirmed=false`, `falsified=false`) |
+| `REF-04` | 원문 비영속 | `PARTIAL_COVERAGE_GAP` | `refcase-04a` (`REF-07`) | `rev-src_ref07_canary-v1-7e7ec30a@147:221` (`loc-ref-base-ref07-147_221-374b3bbe`) + canary `CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST` | `DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS` (static snapshot 0 leaks + negative leak fixture caught; **coverage gap**: live DB/logs/queues/caches/disk audit) |
+| `REF-05` | 접근 권한·허용된 URL 경계 | `PARTIAL_COVERAGE_GAP` | `refcase-05a` (`REF-05`) | `rev-src02-v1-2cb25379@89:271` (HTTP 403 `POLICY_OAUTH_SCOPE_REVOKED`) | `DRAFT_REFETCH_POLICY_ACCESS_DENIED` (**coverage gap**: live OAuth/tenant boundary) |
+| `REF-05` | 접근 권한·허용된 URL 경계 | `PARTIAL_COVERAGE_GAP` | `refcase-05b` (`REF-06`) | `http://169.254.169.254/...` + 5 unsafe URL vectors (`fetch_attempted=false`) | `DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH` (**coverage gap**: live 30x redirect SSRF & DNS-rebinding) |
+| `REF-06` | 중단·재실행 시 원문 저장에 의존하지 않음 | **`COVERAGE_GAP`** | *(none)* | *(unverified — requires worker crash/checkpoint/resume harness)* | **`COVERAGE_GAP` (`verified_in_draft=false`)** — not faked by renumbering |
+| `REF-07` | 승인·Export·근거 열람 시 재조회 | **`COVERAGE_GAP`** | *(none)* | *(unverified — requires product Approval / Export / Evidence-Viewer E2E)* | **`COVERAGE_GAP` (`verified_in_draft=false`)** — not faked by renumbering |
+| `REF-08` | 비용·크기 한도와 단계 간 메모리 전용 처리 | **`COVERAGE_GAP`** | *(none)* | *(unverified — requires runtime byte/cost cap & in-memory inter-stage transport test)* | **`COVERAGE_GAP` (`verified_in_draft=false`)** — not faked by renumbering |
 
-## 3. Independent Human Review Queue & T-004B Handoff
+---
 
-Before promoting `expected/oracle_draft.json` or `expected/refetch_oracle_draft.json` to golden (`frozen_for_golden: true`), an **independent human reviewer** in **T-004B** must resolve the following queue:
+## 3. Independent Human Review Queue (`REVIEW_REQUIRED` & T-004B Handoff)
 
-### A. Contract & Normalization Alignment (`REVIEW_REQUIRED` — Notion unavailable during T-004A draft)
-1. **Normalization & Offset Contract**: Confirm whether production parser uses Unicode codepoints, UTF-8 bytes, or UTF-16 code units, and confirm whitespace/Markdown stripping rules vs `fixture-nfc-lf-v0-draft`.
-2. **Hash & ID Format**: Confirm production `source_revision_id`, `locator_id`, and `sha256` input framing against `Grounded Claim Pipeline` and `방안 C`.
-3. **`REF-01..08` ID Mapping**: Cross-check our `REF-01..08` numbering against the exact Notion `T-004A` refetch table.
-4. **Option C Non-Persistence Boundary**: Confirm whether any short excerpt/snippet is transiently allowed or strictly forbidden across persisted DB tables, logs, caches, and traces (`REF-07`).
-
-### B. Semantic Grounding Rubric Sign-Off (`DRAFT` → Golden Gate)
-5. **Minor Paraphrase User Edits (`SCN-12` `claim-12-2`)**: Confirm whether minor non-numeric user paraphrases should stay strictly `INVALIDATED_BY_USER_EDIT` until re-verified (current conservative draft) or enter a separate `NEEDS_LIGHT_RECHECK` state.
-6. **Planned-as-Completed & Environment Conflation Enum (`SCN-06` `claim-06-2`, `SCN-09` `claim-09-2`)**: Confirm `CONFLICTING` vs `UNSUPPORTED` label when the source explicitly states future plans or unstarted production rollout.
-7. **Multi-Atom Conflict Precedence (`SCN-14` `claim-14-1`)**: Confirm `CONFLICTING` takes precedence over `PARTIALLY_SUPPORTED` when a Claim mixes supported, contradicted, and unsupported atoms.
-8. **`CONTEXT`-Only Claims (`SCN-04` `claim-04-2`, `SCN-08` `claim-08-2`)**: Confirm `CONTEXT`-only support maps to `UNSUPPORTED` (never `PARTIALLY_SUPPORTED` or `SOURCE_VERIFIED`).
-9. **Identity Ambiguity Policy (`SCN-11` `claim-11-1`)**: Confirm exact user-resolution flow and status label (`IDENTITY_AMBIGUOUS` vs `NEEDS_USER_CONFIRMATION`).
-10. **Deleted Source Cascade Naming (`SCN-13` `claim-13-1`, `claim-13-2`)**: Confirm `INVALIDATED_BY_DELETION` vs `UNSUPPORTED` for full vs partial deletion cascades.
-11. **Refetch Drift Re-Anchoring (`REF-02`)**: Confirm whether offset-shifted text matching is Post-MVP or part of MVP re-anchoring.
+1. **Normalization & Offset Contract (`REVIEW_REQUIRED`)**: Confirm production normalization (`fixture-nfc-lf-v0-draft`) and offset unit (`char` vs `utf8_byte` vs `utf16`) against Notion specs.
+2. **Product Status Enum Mapping (`REVIEW_REQUIRED`)**: Map provisional `DRAFT_CLAIM_*`, `DRAFT_ATOM_*`, and `DRAFT_REFETCH_*` verdicts onto finalized product state enums before T-004B golden freeze.
+3. **User-Edit Re-Verification Lifecycle (`SCN-12`)**: Confirm how `claim-12-2` transitions once `v2` completes re-verification against `fact-12-1`, and confirm `claim-12-1` conflict handling on failed `v2` re-verification.
+4. **Refetch Gap Closure Plan (`REF-04`..`REF-08`)**: Assign backend/worker/E2E QA tasks to close runtime gaps in `REF-04`, `REF-05` and full `COVERAGE_GAP`s in `REF-06`, `REF-07`, `REF-08`.
+5. **Semantic Rubric Confirmation**: Review `SCN-06`/`SCN-09`/`SCN-14` conflict precedence, `SCN-04`/`SCN-08` `CONTEXT`-only ungrounded handling, `SCN-11` identity ambiguity policy, and `SCN-13` vs `REF-03` deletion-vs-unavailable UX distinction.

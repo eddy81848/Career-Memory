@@ -1,11 +1,16 @@
-"""Programmatically build all T-004A synthetic dataset fixtures with computed hashes/offsets/locators.
+"""Programmatically build all T-004A synthetic dataset fixtures (v0.2.0-draft).
 
 Run from repo/worktree root:
     python3 evaluation/claim-draft/tools/build_fixtures.py
 
-Every version_id, content_sha256, unit_sha256, locator_id, char/utf8/utf16/line offset,
-and span_sha256 is computed deterministically from the normalized synthetic texts.
-No real user data, real URLs, API keys, or OAuth tokens are used.
+Design guarantees:
+- Preserves all synthetic Source Revisions and SCN-01..SCN-14 + refetch fixtures from b816d01.
+- Aligns refetch cases with the official REF-01..REF-08 specification without faking missing checks:
+  unverified requirements (REF-06, REF-07, REF-08) and runtime gaps (REF-04, REF-05) are explicitly
+  recorded as COVERAGE_GAP / PARTIAL_COVERAGE_GAP.
+- Models user edits as a new claim version requiring re-verification against evidence (SCN-12).
+- Strictly separates provisional draft verdicts (DRAFT_*) from product state enums.
+- Retains TEST_FIXTURE_ONLY & REVIEW_REQUIRED markers on unconfirmed normalization/offset rules.
 """
 
 from __future__ import annotations
@@ -25,18 +30,18 @@ from locator_hash import (
     sha256_prefixed,
 )
 
-SCHEMA_VERSION = "0.1.0-draft"
-DATASET_VERSION = "0.1.0-draft"
+SCHEMA_VERSION = "0.2.0-draft"
+DATASET_VERSION = "0.2.0-draft"
 
-CANARY_TOKEN_REF07 = "CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST"
+CANARY_TOKEN_REF04 = "CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST"
 
 REVIEW_REQUIRED_SPECS = [
-    "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — Notion Grounded Claim Pipeline / Option C unavailable",
-    "REVIEW_REQUIRED: Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit)",
+    "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — fixture uses TEST_FIXTURE_ONLY fixture-nfc-lf-v0-draft",
+    "REVIEW_REQUIRED: Production offset unit standard (Unicode codepoint vs UTF-8 byte vs UTF-16 code unit) — fixture uses TEST_FIXTURE_ONLY fixture-locator-v0-draft",
     "REVIEW_REQUIRED: Production canonical entity ID formats and hashing algorithm/salt policy",
-    "REVIEW_REQUIRED: Exact REF-01..08 ID-to-scenario label mapping against Notion T-004A table",
-    "REVIEW_REQUIRED: Minor user paraphrase edit invalidation tolerance (SCN-12 claim-12-2)",
-    "REVIEW_REQUIRED: Exact Option C transient snippet retention/display policy vs zero-raw-text persistence",
+    "REVIEW_REQUIRED: Final product Claim/Atom/Refetch status enum mapping (provisional DRAFT_* verdicts are NOT product states)",
+    "REVIEW_REQUIRED: User-edit re-verification transition policy for minor paraphrases after v2 re-verification passes (SCN-12 claim-12-2)",
+    "REVIEW_REQUIRED: Option C zero-raw-text runtime persistence boundary across DB, queues, logs, caches, and traces (REF-04/REF-06/REF-08)",
 ]
 
 
@@ -102,7 +107,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         rev_id_by_key[key] = rec["source_revision_id"]
         return rec["source_revision_id"]
 
-    # --- Synthetic Source Revisions (all artificial, zero real user text/PII/secrets) ---
+    # --- Synthetic Source Revisions (all 18 synthetic texts preserved verbatim from b816d01) ---
     register_source(
         "src01",
         revision_seq=1,
@@ -122,7 +127,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     register_source(
         "src02",
         revision_seq=1,
-        scenario_ids=["SCN-02", "REF-01", "REF-02", "REF-03", "REF-04", "REF-05", "REF-06", "REF-08"],
+        scenario_ids=["SCN-02", "REF-01", "REF-02", "REF-03", "REF-05"],
         source_kind="SYNTHETIC_PR_SUMMARY",
         uri_slug="scn02-pr418-billing-webhooks",
         language="en",
@@ -385,11 +390,11 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "Project Borealis: I migrated 12 internal documentation pages to the new Markdown linter."
         ),
     )
-    # Dedicated synthetic canary source for REF-07 (Option C raw-source non-persistence check)
+    # Dedicated synthetic canary source (preserved verbatim; mapped to official REF-04 원문 비영속)
     register_source(
         "src_ref07_canary",
         revision_seq=1,
-        scenario_ids=["REF-07"],
+        scenario_ids=["REF-04"],
         source_kind="SYNTHETIC_PR_SUMMARY",
         uri_slug="ref07-canary-non-persistence",
         language="en",
@@ -398,14 +403,14 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         created_at="2026-08-01T10:00:00Z",
         raw_text=(
             "PR #700 — Audit Log Index Maintenance (Synthetic Canary Document)\n"
-            f"Transient Raw Body Sentinel: {CANARY_TOKEN_REF07}\n\n"
+            f"Transient Raw Body Sentinel: {CANARY_TOKEN_REF04}\n\n"
             "I added automated weekly partition pruning for synthetic audit log tables."
         ),
         contains_canary=True,
-        canary_token_id="canary-ref07-raw-text",
+        canary_token_id="canary-ref04-raw-text",
     )
 
-    # --- Stage 1: Content Units ---
+    # --- Stage 1: Content Units (all 25 preserved) ---
     content_units: list[dict[str, Any]] = []
 
     def add_unit(
@@ -625,14 +630,14 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_unit(
         "cu-ref07-0",
-        "REF-07",
+        "REF-04",
         "src_ref07_canary",
         0,
         "PARAGRAPH",
         "I added automated weekly partition pruning for synthetic audit log tables.",
     )
 
-    # --- Stage 2: Canonical Facts & Fact Supports ---
+    # --- Stage 2: Canonical Facts & Fact Supports (all 25 facts & 28 supports preserved) ---
     canonical_facts: list[dict[str, Any]] = []
     fact_supports: list[dict[str, Any]] = []
 
@@ -684,8 +689,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             }
         )
 
-    # SCN-01: 0 canonical facts (boilerplate noise)
-
+    # SCN-01: 0 canonical facts
     # SCN-02: 1 canonical fact
     add_fact(
         "fact-02-1",
@@ -706,7 +710,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "I implemented an idempotent retry queue with exponential backoff for billing webhooks in Project Aurora, preventing duplicate invoice notifications during transient gateway timeouts.",
     )
 
-    # SCN-03: 3 canonical facts (N facts, Korean UTF-8 multi-byte spans)
+    # SCN-03: 3 canonical facts
     add_fact(
         "fact-03-1",
         "SCN-03",
@@ -1095,7 +1099,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "I added graceful shutdown unit tests for the ingestion worker.",
     )
 
-    # SCN-12: User edit invalidation
+    # SCN-12: User edit -> re-verification on new version
     add_fact(
         "fact-12-1",
         "SCN-12",
@@ -1197,7 +1201,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     for fact in canonical_facts:
         scenario_fact_counts[fact["scenario_id"]] += 1
 
-    # --- Stage 3: Claims, Claim Atoms, Claim Atom Supports ---
+    # --- Stage 3: Claims, Claim Atoms, Claim Atom Supports (all 23 claims, 30 atoms, 33 supports preserved) ---
     claims: list[dict[str, Any]] = []
     claim_atoms: list[dict[str, Any]] = []
     claim_atom_supports: list[dict[str, Any]] = []
@@ -1208,16 +1212,22 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         claim_text: str,
         atom_ids: list[str],
         *,
+        claim_version: int = 1,
+        previous_claim_version: int | None = None,
         user_edited: bool = False,
-        user_edit_history: list[dict[str, str]] | None = None,
+        reverification_state: str = "NOT_APPLICABLE_UNEDITED",
+        user_edit_history: list[dict[str, Any]] | None = None,
     ) -> None:
         claims.append(
             {
                 "claim_id": claim_id,
                 "scenario_id": scenario_id,
+                "claim_version": claim_version,
+                "previous_claim_version": previous_claim_version,
                 "claim_text": claim_text,
                 "claim_atom_ids": atom_ids,
                 "user_edited": user_edited,
+                "reverification_state_on_new_version": reverification_state,
                 "user_edit_history": user_edit_history or [],
                 "derived_from_claim_ids": [],
             }
@@ -1230,6 +1240,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         atom_text: str,
         atom_kind: str,
         *,
+        is_required_atom: bool = True,
         user_edited: bool = False,
         edit_severity: str | None = "NONE",
         is_hard_negative: bool = False,
@@ -1242,6 +1253,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                 "claim_id": claim_id,
                 "atom_text": atom_text,
                 "atom_kind": atom_kind,
+                "is_required_atom": is_required_atom,
                 "user_edited": user_edited,
                 "edit_severity": edit_severity,
                 "is_hard_negative": is_hard_negative,
@@ -1256,6 +1268,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         fact_id: str,
         support_role: str,
         *,
+        evaluated_on_claim_version: int = 1,
         removed_by_user: bool = False,
     ) -> None:
         claim_atom_supports.append(
@@ -1265,11 +1278,12 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                 "claim_atom_id": atom_id,
                 "canonical_fact_id": fact_id,
                 "support_role": support_role,
+                "evaluated_on_claim_version": evaluated_on_claim_version,
                 "removed_by_user": removed_by_user,
             }
         )
 
-    # SCN-01 (0 facts -> 1 unsupported hallucinated candidate atom)
+    # SCN-01
     add_claim("claim-01-1", "SCN-01", "결제 API 응답 속도를 40% 개선했다.", ["atom-01-1"])
     add_atom(
         "atom-01-1",
@@ -1281,7 +1295,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         hard_negative_type="ZERO_FACT_HALLUCINATION",
     )
 
-    # SCN-02 (1 fact -> 1 supported atom)
+    # SCN-02
     add_claim(
         "claim-02-1",
         "SCN-02",
@@ -1297,7 +1311,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-02-1", "SCN-02", "atom-02-1", "fact-02-1", "DIRECT")
 
-    # SCN-03 (3 facts -> 3 atoms in 1 multi-atom claim)
+    # SCN-03
     add_claim(
         "claim-03-1",
         "SCN-03",
@@ -1329,7 +1343,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     add_cas("cas-03-2", "SCN-03", "atom-03-2", "fact-03-2", "DIRECT")
     add_cas("cas-03-3", "SCN-03", "atom-03-3", "fact-03-3", "DIRECT")
 
-    # SCN-04 (DIRECT+CONTEXT vs CONTEXT-only)
+    # SCN-04
     add_claim(
         "claim-04-1",
         "SCN-04",
@@ -1363,7 +1377,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-04-3", "SCN-04", "atom-04-2", "fact-04-2", "CONTEXT")
 
-    # SCN-05 (CONTRADICTS)
+    # SCN-05
     add_claim(
         "claim-05-1",
         "SCN-05",
@@ -1397,7 +1411,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-05-3", "SCN-05", "atom-05-2", "fact-05-2", "DIRECT")
 
-    # SCN-06 (Planned vs Completed)
+    # SCN-06
     add_claim(
         "claim-06-1",
         "SCN-06",
@@ -1430,7 +1444,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-06-2", "SCN-06", "atom-06-2", "fact-06-2", "CONTRADICTS")
 
-    # SCN-07 (Negation context)
+    # SCN-07
     add_claim(
         "claim-07-1",
         "SCN-07",
@@ -1463,7 +1477,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-07-2", "SCN-07", "atom-07-2", "fact-07-2", "CONTRADICTS")
 
-    # SCN-08 (Team vs Individual)
+    # SCN-08
     add_claim(
         "claim-08-1",
         "SCN-08",
@@ -1497,7 +1511,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-08-3", "SCN-08", "atom-08-2", "fact-08-1", "CONTEXT")
 
-    # SCN-09 (Staging vs Production)
+    # SCN-09
     add_claim(
         "claim-09-1",
         "SCN-09",
@@ -1531,7 +1545,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     add_cas("cas-09-2", "SCN-09", "atom-09-2", "fact-09-1", "CONTEXT")
     add_cas("cas-09-3", "SCN-09", "atom-09-2", "fact-09-2", "CONTRADICTS")
 
-    # SCN-10 (Unverified causation + fabricated metric -> partially supported 3-atom claim)
+    # SCN-10 (3 required atoms: 1 DIRECT, 1 CONTEXT-only, 1 zero-support)
     add_claim(
         "claim-10-1",
         "SCN-10",
@@ -1565,9 +1579,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-10-1", "SCN-10", "atom-10-1", "fact-10-1", "DIRECT")
     add_cas("cas-10-2", "SCN-10", "atom-10-2", "fact-10-2", "CONTEXT")
-    # atom-10-3 deliberately has 0 supports
+    # atom-10-3 intentionally has 0 supports
 
-    # SCN-11 (Identity ambiguity vs resolved owner)
+    # SCN-11
     add_claim(
         "claim-11-1",
         "SCN-11",
@@ -1600,19 +1614,24 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     )
     add_cas("cas-11-2", "SCN-11", "atom-11-2", "fact-11-2", "DIRECT")
 
-    # SCN-12 (User edit invalidation: substantive & minor paraphrase)
+    # SCN-12: User edit creates claim_version=2 and requires re-verification against evidence on v2
     add_claim(
         "claim-12-1",
         "SCN-12",
         "Tuned PostgreSQL connection pool sizing globally, cutting p99 API latency by 60%.",
         ["atom-12-1"],
+        claim_version=2,
+        previous_claim_version=1,
         user_edited=True,
+        reverification_state="REVERIFIED_FAILED_ON_NEW_VERSION",
         user_edit_history=[
             {
                 "event_id": "evt-edit-12-1",
+                "from_version": 1,
+                "to_version": 2,
                 "action": "EDIT_CLAIM_TEXT",
                 "severity": "SUBSTANTIVE",
-                "note": "User changed '25% in checkout service' to '60% globally'",
+                "note": "User created v2 changing '25% in checkout service' to '60% globally'; v2 re-verification against fact-12-1 failed (CONTRADICTS)",
             }
         ],
     )
@@ -1627,20 +1646,33 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         is_hard_negative=True,
         hard_negative_type="USER_EDIT_METRIC_INFLATION",
     )
-    add_cas("cas-12-1", "SCN-12", "atom-12-1", "fact-12-1", "DIRECT")
+    # Re-evaluated on v2: contradicts fact-12-1 (25% in checkout service)
+    add_cas(
+        "cas-12-1",
+        "SCN-12",
+        "atom-12-1",
+        "fact-12-1",
+        "CONTRADICTS",
+        evaluated_on_claim_version=2,
+    )
 
     add_claim(
         "claim-12-2",
         "SCN-12",
         "Optimized Postgres pool configuration in the checkout service, lowering peak p99 API latency by 25%.",
         ["atom-12-2"],
+        claim_version=2,
+        previous_claim_version=1,
         user_edited=True,
+        reverification_state="REVERIFY_REQUIRED_ON_NEW_VERSION",
         user_edit_history=[
             {
                 "event_id": "evt-edit-12-2",
+                "from_version": 1,
+                "to_version": 2,
                 "action": "EDIT_CLAIM_TEXT",
                 "severity": "MINOR_PARAPHRASE",
-                "note": "User paraphrased wording without changing metric; conservative guard clears automatic SOURCE_VERIFIED",
+                "note": "User paraphrased claim into v2; prior v1 support cannot auto-carryover SOURCE_VERIFIED until v2 is re-verified against fact-12-1",
             }
         ],
     )
@@ -1653,21 +1685,34 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         user_edited=True,
         edit_severity="MINOR_PARAPHRASE",
     )
-    add_cas("cas-12-2", "SCN-12", "atom-12-2", "fact-12-1", "DIRECT")
+    # Prior support was only evaluated on v1 (stale relative to claim_version=2 -> must re-verify on v2!)
+    add_cas(
+        "cas-12-2",
+        "SCN-12",
+        "atom-12-2",
+        "fact-12-1",
+        "DIRECT",
+        evaluated_on_claim_version=1,
+    )
 
-    # SCN-13 (User deletion invalidation: full & partial cascade)
+    # SCN-13
     add_claim(
         "claim-13-1",
         "SCN-13",
         "Deprecated the legacy Memcached cluster and migrated session keys to Redis Cluster.",
         ["atom-13-1"],
+        claim_version=1,
+        previous_claim_version=None,
         user_edited=False,
+        reverification_state="NOT_APPLICABLE_UNEDITED",
         user_edit_history=[
             {
                 "event_id": "evt-del-13-1",
+                "from_version": 1,
+                "to_version": 1,
                 "action": "DELETE_SOURCE",
                 "severity": "CASCADE_DELETE",
-                "note": "User deleted underlying source src13a, cascading invalidation to fact-13-1 and claim-13-1",
+                "note": "User explicitly deleted underlying source src13a, cascading invalidation to fact-13-1 and claim-13-1",
             }
         ],
     )
@@ -1685,13 +1730,18 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "SCN-13",
         "Migrated session keys from Memcached to Redis Cluster and built a Redis saturation alert dashboard.",
         ["atom-13-2", "atom-13-3"],
+        claim_version=1,
+        previous_claim_version=None,
         user_edited=False,
+        reverification_state="NOT_APPLICABLE_UNEDITED",
         user_edit_history=[
             {
                 "event_id": "evt-del-13-2",
+                "from_version": 1,
+                "to_version": 1,
                 "action": "DELETE_SOURCE",
                 "severity": "CASCADE_DELETE",
-                "note": "Source src13a deleted; atom-13-2 invalidated while atom-13-3 remains supported -> PARTIALLY_SUPPORTED",
+                "note": "Source src13a deleted; required atom-13-2 lost support while atom-13-3 survives -> cannot remain SOURCE_VERIFIED",
             }
         ],
     )
@@ -1712,7 +1762,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     add_cas("cas-13-2", "SCN-13", "atom-13-2", "fact-13-1", "DIRECT", removed_by_user=True)
     add_cas("cas-13-3", "SCN-13", "atom-13-3", "fact-13-2", "DIRECT")
 
-    # SCN-14 (Hard negatives bundle: 10x unit distortion + cross-project conflation + partial anchor)
+    # SCN-14
     add_claim(
         "claim-14-1",
         "SCN-14",
@@ -1749,7 +1799,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
     add_cas("cas-14-3", "SCN-14", "atom-14-3", "fact-14-1", "CONTEXT")
     add_cas("cas-14-4", "SCN-14", "atom-14-3", "fact-14-2", "CONTEXT")
 
-    # --- Refetch Stub Snapshots & Stage 4 Checks (REF-01..08) ---
+    # --- Refetch Stub Snapshots & Stage 4 Checks (all 8 prior fixtures preserved & mapped to official REF-01..05) ---
     src02_norm = norm_by_key["src02"]
     src02_span = "I implemented an idempotent retry queue with exponential backoff for billing webhooks in Project Aurora, preventing duplicate invoice notifications during transient gateway timeouts."
     src02_baseline_loc = _make_locator("ref-base-src02", src02_norm, src02_span)
@@ -1758,15 +1808,15 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "[EDIT NOTICE 2026-08-05] Added billing compliance header above PR description.\n\n"
         + src02_norm
     )
-    src02_partial_body = src02_norm[:95]  # Truncated before baseline locator char_end
+    src02_partial_body = src02_norm[:95]
     src02_v2_body = normalize_text(
         src02_norm
         + "\n\nFollow-up (2026-08-10): Added dead-letter queue metrics dashboard for webhook retries."
     )
 
-    ref07_norm = norm_by_key["src_ref07_canary"]
-    ref07_span = "I added automated weekly partition pruning for synthetic audit log tables."
-    ref07_baseline_loc = _make_locator("ref-base-ref07", ref07_norm, ref07_span)
+    ref04_canary_norm = norm_by_key["src_ref07_canary"]
+    ref04_canary_span = "I added automated weekly partition pruning for synthetic audit log tables."
+    ref04_canary_baseline_loc = _make_locator("ref-base-ref07", ref04_canary_norm, ref04_canary_span)
 
     unsafe_primary_url = "http://169.254.169.254/latest/meta-data/iam/"
     unsafe_extra_urls = [
@@ -1776,7 +1826,6 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         "https://user:pass@localhost/secret-doc",
         "http://10.0.0.12/admin",
     ]
-    # Sanity-check our URL safety helper at build time
     for u in [unsafe_primary_url, *unsafe_extra_urls]:
         ok, _ = check_url_safety(u)
         if ok:
@@ -1784,8 +1833,10 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
 
     refetch_snapshots: list[dict[str, Any]] = [
         {
-            "refetch_case_id": "REF-01",
-            "scenario_title": "Same revision, identical content hash and locator",
+            "fixture_case_id": "refcase-01a",
+            "official_ref_id": "REF-01",
+            "legacy_draft_id": "REF-01",
+            "scenario_title": "Same revision, identical content hash and exact locator span reproduction",
             "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
             "url_safety_precheck": "ALLOWED",
             "fetch_attempted": True,
@@ -1797,8 +1848,10 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "canary_tokens": [],
         },
         {
-            "refetch_case_id": "REF-02",
-            "scenario_title": "Changed content hash and shifted locator offsets (drift)",
+            "fixture_case_id": "refcase-02a",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-02",
+            "scenario_title": "Changed content hash and shifted locator offsets blocked (drift)",
             "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
             "url_safety_precheck": "ALLOWED",
             "fetch_attempted": True,
@@ -1810,8 +1863,25 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "canary_tokens": [],
         },
         {
-            "refetch_case_id": "REF-03",
-            "scenario_title": "Source unavailable (HTTP 404 Not Found — unverifiable now, NOT historically false)",
+            "fixture_case_id": "refcase-02b",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-08",
+            "scenario_title": "Appended new upstream revision changes content hash (blocked without auto-detect/auto-claim-refresh; Post-MVP boundary)",
+            "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
+            "url_safety_precheck": "ALLOWED",
+            "fetch_attempted": True,
+            "http_status": 200,
+            "stub_error_code": None,
+            "is_partial_response": False,
+            "returned_content_sha256": sha256_prefixed(src02_v2_body),
+            "returned_body_fixture_only": src02_v2_body,
+            "canary_tokens": [],
+        },
+        {
+            "fixture_case_id": "refcase-03a",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-03",
+            "scenario_title": "Source unavailable (HTTP 404 Not Found — distinguished from confirmed deletion and historical falsity)",
             "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
             "url_safety_precheck": "ALLOWED",
             "fetch_attempted": True,
@@ -1823,8 +1893,10 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "canary_tokens": [],
         },
         {
-            "refetch_case_id": "REF-04",
-            "scenario_title": "Partial/truncated refetch response (HTTP 206, span beyond returned bytes)",
+            "fixture_case_id": "refcase-03b",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-04",
+            "scenario_title": "Partial/truncated refetch response (HTTP 206 — distinguished from confirmed deletion and historical falsity)",
             "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
             "url_safety_precheck": "ALLOWED",
             "fetch_attempted": True,
@@ -1836,8 +1908,25 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "canary_tokens": [],
         },
         {
-            "refetch_case_id": "REF-05",
-            "scenario_title": "Policy failure (HTTP 403 revoked scope / workspace policy denied)",
+            "fixture_case_id": "refcase-04a",
+            "official_ref_id": "REF-04",
+            "legacy_draft_id": "REF-07",
+            "scenario_title": "Option C raw-source non-persistence static canary audit + negative leak fixture",
+            "target_url": "https://synthetic.example.test/sources/ref07-canary-non-persistence",
+            "url_safety_precheck": "ALLOWED",
+            "fetch_attempted": True,
+            "http_status": 200,
+            "stub_error_code": None,
+            "is_partial_response": False,
+            "returned_content_sha256": sha256_prefixed(ref04_canary_norm),
+            "returned_body_fixture_only": ref04_canary_norm,
+            "canary_tokens": [CANARY_TOKEN_REF04],
+        },
+        {
+            "fixture_case_id": "refcase-05a",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-05",
+            "scenario_title": "Access permission failure (HTTP 403 revoked OAuth scope / workspace policy denied)",
             "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
             "url_safety_precheck": "ALLOWED",
             "fetch_attempted": True,
@@ -1849,8 +1938,10 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "canary_tokens": [],
         },
         {
-            "refetch_case_id": "REF-06",
-            "scenario_title": "Unsafe URL rejected prior to network fetch (SSRF / metadata / loopback / file scheme)",
+            "fixture_case_id": "refcase-05b",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-06",
+            "scenario_title": "Unsafe URL rejected prior to network fetch (SSRF metadata IP / loopback / private CIDR / file & ftp schemes / credentials)",
             "target_url": unsafe_primary_url,
             "additional_unsafe_urls": unsafe_extra_urls,
             "url_safety_precheck": "BLOCKED_UNSAFE_URL",
@@ -1862,41 +1953,17 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "returned_body_fixture_only": None,
             "canary_tokens": [],
         },
-        {
-            "refetch_case_id": "REF-07",
-            "scenario_title": "Option C raw-source non-persistence canary verification",
-            "target_url": "https://synthetic.example.test/sources/ref07-canary-non-persistence",
-            "url_safety_precheck": "ALLOWED",
-            "fetch_attempted": True,
-            "http_status": 200,
-            "stub_error_code": None,
-            "is_partial_response": False,
-            "returned_content_sha256": sha256_prefixed(ref07_norm),
-            "returned_body_fixture_only": ref07_norm,
-            "canary_tokens": [CANARY_TOKEN_REF07],
-        },
-        {
-            "refetch_case_id": "REF-08",
-            "scenario_title": "Successful refetch detects new upstream revision — Post-MVP boundary (no auto-detect / no auto-claim-refresh)",
-            "target_url": "https://synthetic.example.test/sources/scn02-pr418-billing-webhooks",
-            "url_safety_precheck": "ALLOWED",
-            "fetch_attempted": True,
-            "http_status": 200,
-            "stub_error_code": None,
-            "is_partial_response": False,
-            "returned_content_sha256": sha256_prefixed(src02_v2_body),
-            "returned_body_fixture_only": src02_v2_body,
-            "canary_tokens": [],
-        },
     ]
 
     refetch_checks: list[dict[str, Any]] = [
         {
-            "refetch_case_id": "REF-01",
+            "fixture_case_id": "refcase-01a",
+            "official_ref_id": "REF-01",
+            "legacy_draft_id": "REF-01",
             "baseline_source_revision_id": rev_id_by_key["src02"],
             "baseline_locator": src02_baseline_loc,
             "target_claim_id": "claim-02-1",
-            "stub_outcome": "REFETCH_MATCHED",
+            "stub_outcome": "STUB_REFETCH_MATCHED",
             "locator_recheck_matched": True,
             "hash_recheck_matched": True,
             "persisted_payload_snapshot": {
@@ -1904,122 +1971,38 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                 "content_sha256": sha256_prefixed(src02_norm),
                 "locator_id": src02_baseline_loc["locator_id"],
                 "span_sha256": src02_baseline_loc["span_sha256"],
-                "refetch_status": "REFETCH_MATCHED",
+                "stub_status": "STUB_REFETCH_MATCHED",
             },
             "negative_leaky_payload_fixture": None,
             "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
         },
         {
-            "refetch_case_id": "REF-02",
+            "fixture_case_id": "refcase-02a",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-02",
             "baseline_source_revision_id": rev_id_by_key["src02"],
             "baseline_locator": src02_baseline_loc,
             "target_claim_id": "claim-02-1",
-            "stub_outcome": "CONTENT_CHANGED_LOCATOR_DRIFT",
+            "stub_outcome": "STUB_HASH_LOCATOR_MISMATCH_BLOCKED",
             "locator_recheck_matched": False,
             "hash_recheck_matched": False,
             "persisted_payload_snapshot": {
                 "source_revision_id": rev_id_by_key["src02"],
                 "observed_content_sha256": sha256_prefixed(src02_drifted_body),
                 "locator_id": src02_baseline_loc["locator_id"],
-                "refetch_status": "CONTENT_CHANGED_LOCATOR_DRIFT",
+                "stub_status": "STUB_HASH_LOCATOR_MISMATCH_BLOCKED",
             },
             "negative_leaky_payload_fixture": None,
             "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
         },
         {
-            "refetch_case_id": "REF-03",
+            "fixture_case_id": "refcase-02b",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-08",
             "baseline_source_revision_id": rev_id_by_key["src02"],
             "baseline_locator": src02_baseline_loc,
             "target_claim_id": "claim-02-1",
-            "stub_outcome": "SOURCE_UNAVAILABLE",
-            "locator_recheck_matched": None,
-            "hash_recheck_matched": None,
-            "persisted_payload_snapshot": {
-                "source_revision_id": rev_id_by_key["src02"],
-                "refetch_status": "SOURCE_UNAVAILABLE",
-                "http_status": 404,
-            },
-            "negative_leaky_payload_fixture": None,
-            "post_mvp_tags": [],
-        },
-        {
-            "refetch_case_id": "REF-04",
-            "baseline_source_revision_id": rev_id_by_key["src02"],
-            "baseline_locator": src02_baseline_loc,
-            "target_claim_id": "claim-02-1",
-            "stub_outcome": "PARTIAL_RESPONSE",
-            "locator_recheck_matched": None,
-            "hash_recheck_matched": False,
-            "persisted_payload_snapshot": {
-                "source_revision_id": rev_id_by_key["src02"],
-                "refetch_status": "PARTIAL_RESPONSE",
-                "http_status": 206,
-            },
-            "negative_leaky_payload_fixture": None,
-            "post_mvp_tags": [],
-        },
-        {
-            "refetch_case_id": "REF-05",
-            "baseline_source_revision_id": rev_id_by_key["src02"],
-            "baseline_locator": src02_baseline_loc,
-            "target_claim_id": "claim-02-1",
-            "stub_outcome": "POLICY_DENIED",
-            "locator_recheck_matched": None,
-            "hash_recheck_matched": None,
-            "persisted_payload_snapshot": {
-                "source_revision_id": rev_id_by_key["src02"],
-                "refetch_status": "POLICY_DENIED",
-                "error_code": "POLICY_OAUTH_SCOPE_REVOKED",
-            },
-            "negative_leaky_payload_fixture": None,
-            "post_mvp_tags": [],
-        },
-        {
-            "refetch_case_id": "REF-06",
-            "baseline_source_revision_id": rev_id_by_key["src02"],
-            "baseline_locator": src02_baseline_loc,
-            "target_claim_id": "claim-02-1",
-            "stub_outcome": "BLOCKED_UNSAFE_URL",
-            "locator_recheck_matched": None,
-            "hash_recheck_matched": None,
-            "persisted_payload_snapshot": {
-                "source_revision_id": rev_id_by_key["src02"],
-                "refetch_status": "BLOCKED_UNSAFE_URL",
-                "fetch_attempted": False,
-            },
-            "negative_leaky_payload_fixture": None,
-            "post_mvp_tags": [],
-        },
-        {
-            "refetch_case_id": "REF-07",
-            "baseline_source_revision_id": rev_id_by_key["src_ref07_canary"],
-            "baseline_locator": ref07_baseline_loc,
-            "target_claim_id": "claim-02-1",
-            "stub_outcome": "CANARY_PERSISTENCE_AUDIT_PASS",
-            "locator_recheck_matched": True,
-            "hash_recheck_matched": True,
-            "persisted_payload_snapshot": {
-                "source_revision_id": rev_id_by_key["src_ref07_canary"],
-                "content_sha256": sha256_prefixed(ref07_norm),
-                "locator_id": ref07_baseline_loc["locator_id"],
-                "span_sha256": ref07_baseline_loc["span_sha256"],
-                "char_start": ref07_baseline_loc["char_start"],
-                "char_end": ref07_baseline_loc["char_end"],
-                "derived_fact_summary": "Added automated weekly partition pruning for synthetic audit log tables.",
-                "raw_text_persisted": False,
-            },
-            "negative_leaky_payload_fixture": {
-                "purpose": "Deliberate negative fixture to verify canary non-persistence detector catches raw source leakage",
-                "leaked_debug_log_entry": f"ERROR raw_body_dump={CANARY_TOKEN_REF07}",
-            },
-            "post_mvp_tags": [],
-        },
-        {
-            "refetch_case_id": "REF-08",
-            "baseline_source_revision_id": rev_id_by_key["src02"],
-            "baseline_locator": src02_baseline_loc,
-            "target_claim_id": "claim-02-1",
-            "stub_outcome": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION",
+            "stub_outcome": "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION",
             "locator_recheck_matched": True,
             "hash_recheck_matched": False,
             "persisted_payload_snapshot": {
@@ -2027,24 +2010,122 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                 "observed_content_sha256": sha256_prefixed(src02_v2_body),
                 "locator_id": src02_baseline_loc["locator_id"],
                 "claim_auto_mutated": False,
-                "refetch_status": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION",
+                "stub_status": "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION",
             },
             "negative_leaky_payload_fixture": None,
             "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
         },
+        {
+            "fixture_case_id": "refcase-03a",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-03",
+            "baseline_source_revision_id": rev_id_by_key["src02"],
+            "baseline_locator": src02_baseline_loc,
+            "target_claim_id": "claim-02-1",
+            "stub_outcome": "STUB_SOURCE_UNAVAILABLE_404",
+            "locator_recheck_matched": None,
+            "hash_recheck_matched": None,
+            "persisted_payload_snapshot": {
+                "source_revision_id": rev_id_by_key["src02"],
+                "stub_status": "STUB_SOURCE_UNAVAILABLE_404",
+                "http_status": 404,
+            },
+            "negative_leaky_payload_fixture": None,
+            "post_mvp_tags": [],
+        },
+        {
+            "fixture_case_id": "refcase-03b",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-04",
+            "baseline_source_revision_id": rev_id_by_key["src02"],
+            "baseline_locator": src02_baseline_loc,
+            "target_claim_id": "claim-02-1",
+            "stub_outcome": "STUB_PARTIAL_TRUNCATED_206",
+            "locator_recheck_matched": None,
+            "hash_recheck_matched": False,
+            "persisted_payload_snapshot": {
+                "source_revision_id": rev_id_by_key["src02"],
+                "stub_status": "STUB_PARTIAL_TRUNCATED_206",
+                "http_status": 206,
+            },
+            "negative_leaky_payload_fixture": None,
+            "post_mvp_tags": [],
+        },
+        {
+            "fixture_case_id": "refcase-04a",
+            "official_ref_id": "REF-04",
+            "legacy_draft_id": "REF-07",
+            "baseline_source_revision_id": rev_id_by_key["src_ref07_canary"],
+            "baseline_locator": ref04_canary_baseline_loc,
+            "target_claim_id": "claim-02-1",
+            "stub_outcome": "STUB_CANARY_STATIC_SNAPSHOT_CLEAN",
+            "locator_recheck_matched": True,
+            "hash_recheck_matched": True,
+            "persisted_payload_snapshot": {
+                "source_revision_id": rev_id_by_key["src_ref07_canary"],
+                "content_sha256": sha256_prefixed(ref04_canary_norm),
+                "locator_id": ref04_canary_baseline_loc["locator_id"],
+                "span_sha256": ref04_canary_baseline_loc["span_sha256"],
+                "char_start": ref04_canary_baseline_loc["char_start"],
+                "char_end": ref04_canary_baseline_loc["char_end"],
+                "derived_fact_summary": "Added automated weekly partition pruning for synthetic audit log tables.",
+                "raw_text_persisted": False,
+            },
+            "negative_leaky_payload_fixture": {
+                "purpose": "Deliberate negative fixture to verify canary non-persistence detector catches raw source leakage",
+                "leaked_debug_log_entry": f"ERROR raw_body_dump={CANARY_TOKEN_REF04}",
+            },
+            "post_mvp_tags": [],
+        },
+        {
+            "fixture_case_id": "refcase-05a",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-05",
+            "baseline_source_revision_id": rev_id_by_key["src02"],
+            "baseline_locator": src02_baseline_loc,
+            "target_claim_id": "claim-02-1",
+            "stub_outcome": "STUB_POLICY_PERMISSION_DENIED_403",
+            "locator_recheck_matched": None,
+            "hash_recheck_matched": None,
+            "persisted_payload_snapshot": {
+                "source_revision_id": rev_id_by_key["src02"],
+                "stub_status": "STUB_POLICY_PERMISSION_DENIED_403",
+                "error_code": "POLICY_OAUTH_SCOPE_REVOKED",
+            },
+            "negative_leaky_payload_fixture": None,
+            "post_mvp_tags": [],
+        },
+        {
+            "fixture_case_id": "refcase-05b",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-06",
+            "baseline_source_revision_id": rev_id_by_key["src02"],
+            "baseline_locator": src02_baseline_loc,
+            "target_claim_id": "claim-02-1",
+            "stub_outcome": "STUB_UNSAFE_URL_BLOCKED_PREFETCH",
+            "locator_recheck_matched": None,
+            "hash_recheck_matched": None,
+            "persisted_payload_snapshot": {
+                "source_revision_id": rev_id_by_key["src02"],
+                "stub_status": "STUB_UNSAFE_URL_BLOCKED_PREFETCH",
+                "fetch_attempted": False,
+            },
+            "negative_leaky_payload_fixture": None,
+            "post_mvp_tags": [],
+        },
     ]
 
-    # --- Expected Oracle (DRAFT, strictly separated from sources & stages) ---
+    # --- Expected Oracle (DRAFT, provisional DRAFT_* labels strictly separated from product states) ---
     expected_scenarios = [
         {
             "scenario_id": "SCN-01",
             "title": "Zero facts from standup boilerplate + ungrounded candidate claim",
-            "coverage_tags": ["zero_facts", "hard_negative", "unsupported_claim", "mixed_ko_en"],
+            "coverage_tags": ["zero_facts", "hard_negative", "ungrounded_claim", "mixed_ko_en"],
             "expected_fact_count": 0,
             "expected_atom_count": 1,
             "oracle_status": "DRAFT",
             "review_required_items": ["Confirm 0-fact threshold for pure scheduling/boilerplate notes"],
-            "rationale": "Meeting logistics chatter contains no career accomplishments; candidate claim has 0 fact supports and must remain UNSUPPORTED.",
+            "rationale": "Meeting logistics chatter yields 0 canonical facts; required atom-01-1 has 0 supports and cannot be SOURCE_VERIFIED.",
         },
         {
             "scenario_id": "SCN-02",
@@ -2053,8 +2134,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 1,
             "expected_atom_count": 1,
             "oracle_status": "DRAFT",
-            "review_required_items": ["T-004B human confirmation of baseline SOURCE_VERIFIED criteria"],
-            "rationale": "Single unambiguous PR authored by verified owner directly supports the single claim atom.",
+            "review_required_items": ["T-004B human confirmation of baseline SOURCE_VERIFIED candidate criteria"],
+            "rationale": "Single unambiguous PR authored by verified owner directly supports the single required claim atom.",
         },
         {
             "scenario_id": "SCN-03",
@@ -2063,8 +2144,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 3,
             "expected_atom_count": 3,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm multi-atom aggregation rule when all N atoms have DIRECT support"],
-            "rationale": "Three distinct bullet items yield 3 canonical facts and 3 supported claim atoms in one composite claim.",
+            "review_required_items": ["Confirm multi-atom aggregation rule when all N required atoms have DIRECT support"],
+            "rationale": "Three Korean bullet items yield 3 canonical facts and 3 DIRECT-supported required atoms in one composite claim.",
         },
         {
             "scenario_id": "SCN-04",
@@ -2073,8 +2154,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm CONTEXT-only claims map to UNSUPPORTED (not PARTIALLY_SUPPORTED)"],
-            "rationale": "Background initiative goal provides CONTEXT only and cannot independently verify a claim of 100% problem elimination.",
+            "review_required_items": ["Confirm product state mapping for CONTEXT-only claim-04-2 (must never be SOURCE_VERIFIED)"],
+            "rationale": "Background initiative goal provides CONTEXT only; claim-04-2 lacks DIRECT evidence and cannot be SOURCE_VERIFIED.",
         },
         {
             "scenario_id": "SCN-05",
@@ -2084,7 +2165,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
             "review_required_items": ["Confirm conflict precedence policy when a newer addendum contradicts an older draft"],
-            "rationale": "Unresolved CONTRADICTS support prevents SOURCE_VERIFIED on the zero-drop claim while allowing verification of the corrected log-audit claim.",
+            "rationale": "CONTRADICTS support from addendum blocks SOURCE_VERIFIED on zero-drop claim-05-1 while supporting corrected claim-05-2.",
         },
         {
             "scenario_id": "SCN-06",
@@ -2093,8 +2174,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm planned-as-completed maps to CONFLICTING vs UNSUPPORTED"],
-            "rationale": "Future plan statements cannot verify a completed-delivery claim, while the completed health-check item is directly supported.",
+            "review_required_items": ["Confirm product state mapping (conflicting vs ungrounded) for planned-as-completed claim-06-2"],
+            "rationale": "Future Q4 plan cannot verify a completed-delivery claim, while the completed health-check item is directly supported.",
         },
         {
             "scenario_id": "SCN-07",
@@ -2103,8 +2184,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Verify negation reversal handling in Fact/Claim rubric"],
-            "rationale": "Explicit negation refutes positive deployment/savings claims while supporting the accurate rollback claim.",
+            "review_required_items": ["Verify negation reversal rubric for claim-07-2"],
+            "rationale": "Explicit negation refutes positive deployment/savings claim-07-2 while supporting rollback claim-07-1.",
         },
         {
             "scenario_id": "SCN-08",
@@ -2113,8 +2194,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm attribution rubric for team-level metrics referenced as CONTEXT"],
-            "rationale": "Individual cache layer work is DIRECT-supported; solo-rebuilt CI pipeline overclaim lacks DIRECT individual support.",
+            "review_required_items": ["Confirm attribution rubric when team-level achievement is cited only as CONTEXT"],
+            "rationale": "Individual cache layer work is DIRECT-supported; solo-rebuilt overclaim-08-2 has only team CONTEXT and cannot be SOURCE_VERIFIED.",
         },
         {
             "scenario_id": "SCN-09",
@@ -2123,8 +2204,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm environment-scope mismatch triggers CONFLICTING when production non-deployment is explicit"],
-            "rationale": "Staging benchmark results cannot be elevated to production impact claims when production rollout has not started.",
+            "review_required_items": ["Confirm environment-scope conflict product state mapping for claim-09-2"],
+            "rationale": "Staging benchmark results cannot verify production impact when production rollout has not started.",
         },
         {
             "scenario_id": "SCN-10",
@@ -2134,7 +2215,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_atom_count": 3,
             "oracle_status": "DRAFT",
             "review_required_items": ["Confirm causal attribution bar when confounders exist and no A/B test was run"],
-            "rationale": "Only 1 of 3 atoms (launch date) is supported; unverified revenue causation and fabricated 45% conversion lift keep the claim PARTIALLY_SUPPORTED.",
+            "rationale": "Only 1 of 3 required atoms is DIRECT-supported; atom-10-2 is CONTEXT-only and atom-10-3 has 0 supports -> cannot be SOURCE_VERIFIED.",
         },
         {
             "scenario_id": "SCN-11",
@@ -2144,19 +2225,19 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
             "review_required_items": ["Confirm identity resolution threshold before allowing SOURCE_VERIFIED"],
-            "rationale": "Unmapped display name 'Alex' shared by two team members blocks automatic SOURCE_VERIFIED.",
+            "rationale": "Unmapped 'Alex' shared by two team members blocks automatic SOURCE_VERIFIED on claim-11-1.",
         },
         {
             "scenario_id": "SCN-12",
-            "title": "User edit invalidation (substantive inflation and minor paraphrase)",
-            "coverage_tags": ["user_edit_invalidation", "hard_negative"],
+            "title": "User edit creates new version requiring re-verification against evidence (substantive fail & minor pending)",
+            "coverage_tags": ["user_edit_new_version_reverification", "hard_negative"],
             "expected_fact_count": 1,
             "expected_atom_count": 2,
             "oracle_status": "DRAFT",
             "review_required_items": [
-                "REVIEW_REQUIRED: Confirm whether minor paraphrase edits (claim-12-2) also invalidate SOURCE_VERIFIED until re-verified"
+                "REVIEW_REQUIRED: Confirm product state transition when minor paraphrase v2 (claim-12-2) completes re-verification against fact-12-1"
             ],
-            "rationale": "User-edited claims must never remain automatically SOURCE_VERIFIED without re-verification.",
+            "rationale": "User edits increment claim_version to v2 and require re-verification against evidence; v2 inflation fails (CONTRADICTS) and v2 paraphrase cannot inherit v1 SOURCE_VERIFIED prior to re-verification.",
         },
         {
             "scenario_id": "SCN-13",
@@ -2165,8 +2246,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 3,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm deleted source cascade state naming (INVALIDATED_BY_DELETION vs UNSUPPORTED)"],
-            "rationale": "Deleting src13a invalidates fact-13-1, fully invalidating claim-13-1 and downgrading multi-atom claim-13-2 to PARTIALLY_SUPPORTED.",
+            "review_required_items": ["Confirm deleted source cascade product state naming (contrast with REF-03 unavailable)"],
+            "rationale": "Explicit user deletion of src13a removes support for fact-13-1, invalidating claim-13-1 and leaving required atom-13-2 unsupported in claim-13-2.",
         },
         {
             "scenario_id": "SCN-14",
@@ -2175,182 +2256,322 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "expected_fact_count": 2,
             "expected_atom_count": 3,
             "oracle_status": "DRAFT",
-            "review_required_items": ["Confirm claim status precedence when a multi-atom claim has both CONTRADICTED and UNSUPPORTED atoms"],
-            "rationale": "Despite 1 supported anchor atom, 400ms->40ms distortion and Alpha/Borealis conflation force CONFLICTING (never SOURCE_VERIFIED).",
+            "review_required_items": ["Confirm multi-atom precedence when CONTRADICTED and CONTEXT-only atoms coexist"],
+            "rationale": "Despite 1 DIRECT anchor atom, 400ms->40ms distortion and Alpha/Borealis conflation block SOURCE_VERIFIED.",
         },
     ]
 
     expected_atoms = [
-        ("atom-01-1", "SCN-01", "claim-01-1", "UNSUPPORTED", True, "0 canonical facts exist in boilerplate source."),
-        ("atom-02-1", "SCN-02", "claim-02-1", "SUPPORTED_DIRECT", True, "Directly supported by fact-02-1 from verified owner PR."),
-        ("atom-03-1", "SCN-03", "claim-03-1", "SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 1 (fact-03-1)."),
-        ("atom-03-2", "SCN-03", "claim-03-1", "SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 2 (fact-03-2)."),
-        ("atom-03-3", "SCN-03", "claim-03-1", "SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 3 (fact-03-3)."),
-        ("atom-04-1", "SCN-04", "claim-04-1", "SUPPORTED_DIRECT_WITH_CONTEXT", True, "DIRECT fact-04-1 plus CONTEXT fact-04-2."),
-        ("atom-04-2", "SCN-04", "claim-04-2", "CONTEXT_ONLY_UNSUPPORTED", True, "Only initiative goal CONTEXT exists; no direct evidence of 100% elimination."),
-        ("atom-05-1", "SCN-05", "claim-05-1", "CONTRADICTED", True, "Refuted by postmortem addendum fact-05-2 (412 HTTP 503s)."),
-        ("atom-05-2", "SCN-05", "claim-05-2", "SUPPORTED_DIRECT", True, "Directly supported by audited addendum fact-05-2."),
-        ("atom-06-1", "SCN-06", "claim-06-1", "SUPPORTED_DIRECT", True, "Directly supported by completed section fact-06-1."),
-        ("atom-06-2", "SCN-06", "claim-06-2", "CONTRADICTED", True, "Source marks sharding as future Q4 plan, contradicting completed claim."),
-        ("atom-07-1", "SCN-07", "claim-07-1", "SUPPORTED_DIRECT", True, "Directly supported rollback action fact-07-1."),
-        ("atom-07-2", "SCN-07", "claim-07-2", "CONTRADICTED", True, "Directly contradicted by explicit negation fact-07-2."),
-        ("atom-08-1", "SCN-08", "claim-08-1", "SUPPORTED_DIRECT_WITH_CONTEXT", True, "Individual cache layer directly supported; team rebuild provides context."),
-        ("atom-08-2", "SCN-08", "claim-08-2", "CONTEXT_ONLY_UNSUPPORTED", True, "Team-of-6 accomplishment cannot directly verify solo-rebuilt claim."),
-        ("atom-09-1", "SCN-09", "claim-09-1", "SUPPORTED_DIRECT", True, "Accurately scoped to local staging sandbox benchmark."),
-        ("atom-09-2", "SCN-09", "claim-09-2", "CONTRADICTED", True, "Source explicitly states production rollout has not started."),
-        ("atom-10-1", "SCN-10", "claim-10-1", "SUPPORTED_DIRECT", True, "Launch date May 12 directly supported by fact-10-1."),
-        ("atom-10-2", "SCN-10", "claim-10-1", "CONTEXT_ONLY_UNSUPPORTED", True, "Observed revenue correlation with discount confounder and no A/B test cannot verify causation."),
-        ("atom-10-3", "SCN-10", "claim-10-1", "UNSUPPORTED", True, "Fabricated 45% conversion lift has zero supporting facts."),
-        ("atom-11-1", "SCN-11", "claim-11-1", "IDENTITY_AMBIGUOUS", True, "Source names unmapped 'Alex' across two workspace members."),
-        ("atom-11-2", "SCN-11", "claim-11-2", "SUPPORTED_DIRECT", True, "Verified owner account PR directly supports unit test addition."),
-        ("atom-12-1", "SCN-12", "claim-12-1", "INVALIDATED_BY_USER_EDIT", True, "User substantively inflated 25% checkout latency reduction to 60% globally."),
-        ("atom-12-2", "SCN-12", "claim-12-2", "INVALIDATED_BY_USER_EDIT", True, "Conservative rule: minor user paraphrase still clears automatic SOURCE_VERIFIED until re-verified (REVIEW_REQUIRED)."),
-        ("atom-13-1", "SCN-13", "claim-13-1", "INVALIDATED_BY_DELETION", True, "Underlying source src13a and fact-13-1 deleted by user."),
-        ("atom-13-2", "SCN-13", "claim-13-2", "INVALIDATED_BY_DELETION", True, "Underlying source src13a deleted by user."),
-        ("atom-13-3", "SCN-13", "claim-13-2", "SUPPORTED_DIRECT", True, "Surviving source src13b still directly supports Redis alert dashboard."),
-        ("atom-14-1", "SCN-14", "claim-14-1", "SUPPORTED_DIRECT", True, "Directly supported by Project Borealis fact-14-2."),
-        ("atom-14-2", "SCN-14", "claim-14-1", "CONTRADICTED", True, "10x numeric distortion: source states 400ms, claim states 40ms."),
-        ("atom-14-3", "SCN-14", "claim-14-1", "CONTEXT_ONLY_UNSUPPORTED", True, "False cross-project conflation attaching Project Alpha metric to Project Borealis."),
+        ("atom-01-1", "SCN-01", "claim-01-1", "DRAFT_ATOM_UNSUPPORTED", True, "0 canonical facts exist in boilerplate source src01."),
+        ("atom-02-1", "SCN-02", "claim-02-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by fact-02-1 from verified owner PR src02."),
+        ("atom-03-1", "SCN-03", "claim-03-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 1 (fact-03-1 / fs-03-1)."),
+        ("atom-03-2", "SCN-03", "claim-03-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 2 (fact-03-2 / fs-03-2)."),
+        ("atom-03-3", "SCN-03", "claim-03-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by Korean bullet 3 (fact-03-3 / fs-03-3)."),
+        ("atom-04-1", "SCN-04", "claim-04-1", "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT", True, "DIRECT fact-04-1 plus CONTEXT fact-04-2."),
+        ("atom-04-2", "SCN-04", "claim-04-2", "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT", True, "Only initiative goal CONTEXT exists (fact-04-2); CONTEXT-only cannot verify."),
+        ("atom-05-1", "SCN-05", "claim-05-1", "DRAFT_ATOM_CONTRADICTED", True, "Refuted by postmortem addendum fact-05-2 (412 HTTP 503s)."),
+        ("atom-05-2", "SCN-05", "claim-05-2", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by audited addendum fact-05-2."),
+        ("atom-06-1", "SCN-06", "claim-06-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by completed section fact-06-1."),
+        ("atom-06-2", "SCN-06", "claim-06-2", "DRAFT_ATOM_CONTRADICTED", True, "Source marks sharding as future Q4 plan (fact-06-2), contradicting completed claim."),
+        ("atom-07-1", "SCN-07", "claim-07-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported rollback action fact-07-1."),
+        ("atom-07-2", "SCN-07", "claim-07-2", "DRAFT_ATOM_CONTRADICTED", True, "Directly contradicted by explicit negation fact-07-2."),
+        ("atom-08-1", "SCN-08", "claim-08-1", "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT", True, "Individual cache layer directly supported (fact-08-2); team rebuild provides CONTEXT (fact-08-1)."),
+        ("atom-08-2", "SCN-08", "claim-08-2", "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT", True, "Team-of-6 accomplishment (CONTEXT only) cannot verify solo-rebuilt attribution."),
+        ("atom-09-1", "SCN-09", "claim-09-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Accurately scoped to local staging sandbox benchmark (fact-09-1)."),
+        ("atom-09-2", "SCN-09", "claim-09-2", "DRAFT_ATOM_CONTRADICTED", True, "Source explicitly states production rollout has not started (fact-09-2)."),
+        ("atom-10-1", "SCN-10", "claim-10-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Launch date May 12 directly supported by fact-10-1."),
+        ("atom-10-2", "SCN-10", "claim-10-1", "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT", True, "Revenue correlation with discount confounder and no A/B test is CONTEXT-only, not causal proof."),
+        ("atom-10-3", "SCN-10", "claim-10-1", "DRAFT_ATOM_UNSUPPORTED", True, "Required atom has 0 supporting facts (fabricated 45% conversion lift)."),
+        ("atom-11-1", "SCN-11", "claim-11-1", "DRAFT_ATOM_IDENTITY_AMBIGUOUS", True, "Source names unmapped 'Alex' across two workspace members (fact-11-1)."),
+        ("atom-11-2", "SCN-11", "claim-11-2", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Verified owner account PR directly supports unit test addition (fact-11-2)."),
+        ("atom-12-1", "SCN-12", "claim-12-1", "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT", True, "User edit to v2 inflated 25% checkout reduction to 60% globally; v2 re-verification against fact-12-1 failed (CONTRADICTS)."),
+        ("atom-12-2", "SCN-12", "claim-12-2", "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION", True, "User paraphrase created v2; existing support cas-12-2 was only evaluated on v1 and must be re-verified on v2 before any SOURCE_VERIFIED eligibility."),
+        ("atom-13-1", "SCN-13", "claim-13-1", "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION", True, "Underlying source src13a and fact-13-1 explicitly deleted by user."),
+        ("atom-13-2", "SCN-13", "claim-13-2", "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION", True, "Required atom lost support when user deleted src13a."),
+        ("atom-13-3", "SCN-13", "claim-13-2", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Surviving source src13b still directly supports Redis alert dashboard (fact-13-2)."),
+        ("atom-14-1", "SCN-14", "claim-14-1", "DRAFT_ATOM_SUPPORTED_DIRECT", True, "Directly supported by Project Borealis fact-14-2."),
+        ("atom-14-2", "SCN-14", "claim-14-1", "DRAFT_ATOM_CONTRADICTED", True, "10x numeric distortion: source fact-14-1 states 400ms, claim states 40ms."),
+        ("atom-14-3", "SCN-14", "claim-14-1", "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT", True, "Cross-project conflation attaching Project Alpha metric to Project Borealis (CONTEXT-only)."),
     ]
 
     expected_claims = [
-        ("claim-01-1", "SCN-01", "UNSUPPORTED", True, "0 supporting facts; cannot be SOURCE_VERIFIED."),
-        ("claim-02-1", "SCN-02", "SOURCE_VERIFIED", True, "Draft candidate: 1/1 atom DIRECT-supported, unedited, resolved owner."),
-        ("claim-03-1", "SCN-03", "SOURCE_VERIFIED", True, "Draft candidate: 3/3 atoms DIRECT-supported from verified Korean postmortem."),
-        ("claim-04-1", "SCN-04", "SOURCE_VERIFIED", True, "Draft candidate: DIRECT + CONTEXT support on unedited atom."),
-        ("claim-04-2", "SCN-04", "UNSUPPORTED", True, "CONTEXT-only support cannot verify outcome claim."),
-        ("claim-05-1", "SCN-05", "CONFLICTING", True, "Contradicted by postmortem addendum."),
-        ("claim-05-2", "SCN-05", "SOURCE_VERIFIED", True, "Draft candidate: directly grounded in corrected addendum."),
-        ("claim-06-1", "SCN-06", "SOURCE_VERIFIED", True, "Draft candidate: completed item directly supported."),
-        ("claim-06-2", "SCN-06", "CONFLICTING", True, "Planned work misrepresented as completed."),
-        ("claim-07-1", "SCN-07", "SOURCE_VERIFIED", True, "Draft candidate: accurately describes reverted rollout."),
-        ("claim-07-2", "SCN-07", "CONFLICTING", True, "Explicitly negated in source."),
-        ("claim-08-1", "SCN-08", "SOURCE_VERIFIED", True, "Draft candidate: scoped to individual artifact cache contribution."),
-        ("claim-08-2", "SCN-08", "UNSUPPORTED", True, "Overclaims team-of-6 rebuild as solo achievement."),
-        ("claim-09-1", "SCN-09", "SOURCE_VERIFIED", True, "Draft candidate: accurately scoped to staging sandbox."),
-        ("claim-09-2", "SCN-09", "CONFLICTING", True, "Conflates staging benchmark with unstarted production rollout."),
-        ("claim-10-1", "SCN-10", "PARTIALLY_SUPPORTED", True, "Only 1/3 atoms supported; causation unverified and 45% metric fabricated."),
-        ("claim-11-1", "SCN-11", "IDENTITY_AMBIGUOUS", True, "Ambiguous 'Alex' author prevents automatic SOURCE_VERIFIED."),
-        ("claim-11-2", "SCN-11", "SOURCE_VERIFIED", True, "Draft candidate: unambiguous verified account PR."),
-        ("claim-12-1", "SCN-12", "INVALIDATED_BY_USER_EDIT", True, "Substantive user edit invalidates SOURCE_VERIFIED."),
-        ("claim-12-2", "SCN-12", "INVALIDATED_BY_USER_EDIT", True, "Minor user edit clears automatic SOURCE_VERIFIED pending re-verification (REVIEW_REQUIRED)."),
-        ("claim-13-1", "SCN-13", "INVALIDATED_BY_DELETION", True, "All supporting facts deleted by user."),
-        ("claim-13-2", "SCN-13", "PARTIALLY_SUPPORTED", True, "1 of 2 atoms invalidated by deletion; partial support cannot be SOURCE_VERIFIED."),
-        ("claim-14-1", "SCN-14", "CONFLICTING", True, "Contains contradicted 10x metric distortion and cross-project conflation despite 1 supported atom."),
+        ("claim-01-1", "SCN-01", "DRAFT_CLAIM_UNGROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "0 supporting facts for required atom-01-1; SOURCE_VERIFIED forbidden."),
+        ("claim-02-1", "SCN-02", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: 1/1 required atom DIRECT-supported, unedited v1, resolved owner."),
+        ("claim-03-1", "SCN-03", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: 3/3 required atoms DIRECT-supported from verified Korean postmortem."),
+        ("claim-04-1", "SCN-04", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: DIRECT + CONTEXT support on unedited required atom."),
+        ("claim-04-2", "SCN-04", "DRAFT_CLAIM_UNGROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "CONTEXT-only support on required atom-04-2; SOURCE_VERIFIED forbidden."),
+        ("claim-05-1", "SCN-05", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Contradicted by postmortem addendum; SOURCE_VERIFIED forbidden."),
+        ("claim-05-2", "SCN-05", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: directly grounded in corrected addendum."),
+        ("claim-06-1", "SCN-06", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: completed item directly supported."),
+        ("claim-06-2", "SCN-06", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Planned work misrepresented as completed; SOURCE_VERIFIED forbidden."),
+        ("claim-07-1", "SCN-07", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: accurately describes reverted rollout."),
+        ("claim-07-2", "SCN-07", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Explicitly negated in source; SOURCE_VERIFIED forbidden."),
+        ("claim-08-1", "SCN-08", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: scoped to individual artifact cache contribution."),
+        ("claim-08-2", "SCN-08", "DRAFT_CLAIM_UNGROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Overclaims team-of-6 rebuild as solo work (CONTEXT-only); SOURCE_VERIFIED forbidden."),
+        ("claim-09-1", "SCN-09", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: accurately scoped to staging sandbox."),
+        ("claim-09-2", "SCN-09", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Conflates staging benchmark with unstarted production rollout; SOURCE_VERIFIED forbidden."),
+        ("claim-10-1", "SCN-10", "DRAFT_CLAIM_PARTIALLY_GROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Only 1/3 required atoms DIRECT-supported (atom-10-2 CONTEXT-only, atom-10-3 0 supports); SOURCE_VERIFIED forbidden."),
+        ("claim-11-1", "SCN-11", "DRAFT_CLAIM_IDENTITY_AMBIGUOUS", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Ambiguous 'Alex' author blocks SOURCE_VERIFIED."),
+        ("claim-11-2", "SCN-11", "DRAFT_CLAIM_GROUNDED_CANDIDATE", True, "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW", True, "Draft candidate: unambiguous verified account PR."),
+        ("claim-12-1", "SCN-12", "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "User edit created v2; v2 re-verification against fact-12-1 failed (CONTRADICTS); SOURCE_VERIFIED forbidden."),
+        ("claim-12-2", "SCN-12", "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "User paraphrase created v2; must re-verify against fact-12-1 on v2 before any SOURCE_VERIFIED eligibility."),
+        ("claim-13-1", "SCN-13", "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "All supporting facts deleted by user; SOURCE_VERIFIED forbidden."),
+        ("claim-13-2", "SCN-13", "DRAFT_CLAIM_PARTIALLY_GROUNDED", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Required atom-13-2 lost support due to user deletion (only 1/2 supported); SOURCE_VERIFIED forbidden."),
+        ("claim-14-1", "SCN-14", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Required atoms include CONTRADICTED 10x distortion and CONTEXT-only conflation; SOURCE_VERIFIED forbidden."),
     ]
 
-    expected_refetch_cases = [
+    # Official REF-01..REF-08 Coverage Matrix (honestly separating covered stubs vs partial/full coverage gaps)
+    official_ref_matrix = [
         {
-            "refetch_case_id": "REF-01",
-            "expected_verdict": "REFETCH_MATCHED",
+            "official_ref_id": "REF-01",
+            "official_requirement_label": "동일 버전과 정확한 근거 위치 재현",
+            "coverage_status": "COVERED_SYNTHETIC_STUB",
+            "verified_in_draft": True,
+            "linked_fixture_case_ids": ["refcase-01a"],
+            "coverage_gap_details": [
+                "Static synthetic fixture & round-trip locator check only; real external provider HTTP refetch is NOT executed."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm production normalization/offset contract for exact span reproduction"
+            ],
+        },
+        {
+            "official_ref_id": "REF-02",
+            "official_requirement_label": "hash/locator 불일치 차단",
+            "coverage_status": "COVERED_SYNTHETIC_STUB",
+            "verified_in_draft": True,
+            "linked_fixture_case_ids": ["refcase-02a", "refcase-02b"],
+            "coverage_gap_details": [
+                "Static synthetic drift & appended-revision hash mismatch blocked; Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch NOT executed."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP"
+            ],
+        },
+        {
+            "official_ref_id": "REF-03",
+            "official_requirement_label": "재조회 불가와 삭제·거짓 구분",
+            "coverage_status": "COVERED_SYNTHETIC_STUB",
+            "verified_in_draft": True,
+            "linked_fixture_case_ids": ["refcase-03a", "refcase-03b"],
+            "coverage_gap_details": [
+                "Covers synthetic HTTP 404 & HTTP 206 partial responses distinguished from confirmed deletion (contrast SCN-13) and historical falsity; HTTP 410/429/5xx/network timeout runtime retries NOT executed."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm product status distinction between unavailable (404/206/timeout), confirmed upstream delete (410), and user deletion (SCN-13)"
+            ],
+        },
+        {
+            "official_ref_id": "REF-04",
+            "official_requirement_label": "원문 비영속",
+            "coverage_status": "PARTIAL_COVERAGE_GAP",
+            "verified_in_draft": True,
+            "linked_fixture_case_ids": ["refcase-04a"],
+            "coverage_gap_details": [
+                "COVERAGE GAP (runtime): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, and disk temp files are NOT yet tested."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, and traces"
+            ],
+        },
+        {
+            "official_ref_id": "REF-05",
+            "official_requirement_label": "접근 권한·허용된 URL 경계",
+            "coverage_status": "PARTIAL_COVERAGE_GAP",
+            "verified_in_draft": True,
+            "linked_fixture_case_ids": ["refcase-05a", "refcase-05b"],
+            "coverage_gap_details": [
+                "COVERAGE GAP (runtime): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm full production URL allowlist, redirect policy, and tenant/OAuth permission error codes"
+            ],
+        },
+        {
+            "official_ref_id": "REF-06",
+            "official_requirement_label": "중단·재실행 시 원문 저장에 의존하지 않음",
+            "coverage_status": "COVERAGE_GAP",
+            "verified_in_draft": False,
+            "linked_fixture_case_ids": [],
+            "coverage_gap_details": [
+                "COVERAGE GAP (unverified): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A static draft. Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Define worker checkpoint schema and add restart/replay test in worker/integration QA harness"
+            ],
+        },
+        {
+            "official_ref_id": "REF-07",
+            "official_requirement_label": "승인·Export·근거 열람 시 재조회",
+            "coverage_status": "COVERAGE_GAP",
+            "verified_in_draft": False,
+            "linked_fixture_case_ids": [],
+            "coverage_gap_details": [
+                "COVERAGE GAP (unverified): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers. Explicitly out of scope for offline T-004A static dataset; requires product API/UI integration QA."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Define trigger contract for on-demand refetch during Claim approval, Export generation, and evidence inspection"
+            ],
+        },
+        {
+            "official_ref_id": "REF-08",
+            "official_requirement_label": "비용·크기 한도와 단계 간 메모리 전용 처리",
+            "coverage_status": "COVERAGE_GAP",
+            "verified_in_draft": False,
+            "linked_fixture_case_ids": [],
+            "coverage_gap_details": [
+                "COVERAGE GAP (unverified): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (verifying no temp file/DB/queue spill of raw text between pipeline stages)."
+            ],
+            "oracle_status": "DRAFT",
+            "review_required_items": [
+                "REVIEW_REQUIRED: Confirm exact max source byte size, LLM budget/token cap, and inter-stage memory-only execution contract"
+            ],
+        },
+    ]
+
+    expected_refetch_fixtures = [
+        {
+            "fixture_case_id": "refcase-01a",
+            "official_ref_id": "REF-01",
+            "legacy_draft_id": "REF-01",
+            "draft_refetch_verdict": "DRAFT_REFETCH_EXACT_SPAN_REPRODUCED",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": False,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
             "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm REF-01 ID alignment with Notion T-004A"],
-            "rationale": "Identical content hash and locator span confirm unchanged source; automatic background change polling and claim auto-refresh remain Post-MVP.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm exact product status name for successful refetch reproduction"],
+            "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection and auto-refresh remain disabled.",
         },
         {
-            "refetch_case_id": "REF-02",
-            "expected_verdict": "CONTENT_CHANGED_LOCATOR_DRIFT",
+            "fixture_case_id": "refcase-02a",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-02",
+            "draft_refetch_verdict": "DRAFT_REFETCH_HASH_LOCATOR_MISMATCH_BLOCKED",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
             "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP"],
-            "rationale": "Inserted header changes content hash and shifts offsets; marks locator drift/unverifiable-now without claiming the historical fact is false or auto-updating the claim.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm mismatch block UX/status vs Post-MVP re-anchoring"],
+            "rationale": "Inserted header changes content hash and shifts offsets; verification is blocked without claiming historical falsity or auto-updating the claim.",
         },
         {
-            "refetch_case_id": "REF-03",
-            "expected_verdict": "CURRENTLY_UNVERIFIABLE",
+            "fixture_case_id": "refcase-02b",
+            "official_ref_id": "REF-02",
+            "legacy_draft_id": "REF-08",
+            "draft_refetch_verdict": "DRAFT_REFETCH_HASH_MISMATCH_NEW_REVISION_BLOCKED_NO_AUTO_MUTATION",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
-            "post_mvp_tags": [],
+            "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm user-facing status badge for HTTP 404/410/timeout"],
-            "rationale": "HTTP 404 means the source is currently unavailable/unverifiable; it MUST NOT be conflated with proving the past fact false.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm policy when document hash changes via appended text while prefix span still matches"],
+            "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and Post-MVP auto-detect/auto-claim-refresh remains disabled.",
         },
         {
-            "refetch_case_id": "REF-04",
-            "expected_verdict": "CURRENTLY_UNVERIFIABLE_PARTIAL",
+            "fixture_case_id": "refcase-03a",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-03",
+            "draft_refetch_verdict": "DRAFT_REFETCH_UNAVAILABLE_DISTINGUISHED_FROM_DELETED_AND_FALSE",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
             "post_mvp_tags": [],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm byte-limit truncation retry/error policy"],
-            "rationale": "Truncated HTTP 206 response omits the baseline locator range -> currently unverifiable, not falsified and not verified.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm product status for HTTP 404 (unverifiable now, neither confirmed deletion nor historical falsity)"],
+            "rationale": "HTTP 404 makes the source currently unverifiable; it MUST be distinguished from confirmed user deletion (SCN-13) and MUST NOT mark the historical fact false.",
         },
         {
-            "refetch_case_id": "REF-05",
-            "expected_verdict": "REFETCH_POLICY_FAILED",
+            "fixture_case_id": "refcase-03b",
+            "official_ref_id": "REF-03",
+            "legacy_draft_id": "REF-04",
+            "draft_refetch_verdict": "DRAFT_REFETCH_PARTIAL_DISTINGUISHED_FROM_DELETED_AND_FALSE",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
             "post_mvp_tags": [],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm exact permission/retention policy failure codes"],
-            "rationale": "HTTP 403 / revoked OAuth scope prevents verification now without falsifying historical facts.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm truncated HTTP 206 retry/fallback handling"],
+            "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable, neither confirmed deleted nor historically false.",
         },
         {
-            "refetch_case_id": "REF-06",
-            "expected_verdict": "BLOCKED_UNSAFE_URL",
-            "expected_fetch_attempted": False,
-            "expected_unverifiable_now": True,
-            "expected_historical_fact_falsified": False,
-            "expected_claim_auto_mutated": False,
-            "expected_canary_leaked_in_clean_snapshot": False,
-            "expected_canary_detected_in_negative_fixture": None,
-            "post_mvp_tags": [],
-            "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm full production SSRF/DNS-rebinding allowlist policy"],
-            "rationale": "Metadata IPs, loopback, private CIDR, embedded credentials, and non-HTTPS schemes must be rejected prior to any outbound request.",
-        },
-        {
-            "refetch_case_id": "REF-07",
-            "expected_verdict": "CANARY_NON_PERSISTENCE_VERIFIED",
+            "fixture_case_id": "refcase-04a",
+            "official_ref_id": "REF-04",
+            "legacy_draft_id": "REF-07",
+            "draft_refetch_verdict": "DRAFT_REFETCH_STATIC_CANARY_NON_PERSISTENCE_PASS",
             "expected_fetch_attempted": True,
             "expected_unverifiable_now": False,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": True,
             "post_mvp_tags": [],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm Option C zero-raw-text boundary for logs, caches, and traces"],
-            "rationale": "Option C forbids persisting raw source text: clean persisted snapshot contains 0 canary tokens, while the negative leak fixture proves detector sensitivity.",
+            "review_required_items": ["REVIEW_REQUIRED: Extend canary audit to live DB/logs/caches/queues in backend QA (PARTIAL_COVERAGE_GAP)"],
+            "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture.",
         },
         {
-            "refetch_case_id": "REF-08",
-            "expected_verdict": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION",
+            "fixture_case_id": "refcase-05a",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-05",
+            "draft_refetch_verdict": "DRAFT_REFETCH_POLICY_ACCESS_DENIED",
             "expected_fetch_attempted": True,
-            "expected_unverifiable_now": False,
+            "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
             "expected_historical_fact_falsified": False,
             "expected_claim_auto_mutated": False,
             "expected_canary_leaked_in_clean_snapshot": False,
             "expected_canary_detected_in_negative_fixture": None,
-            "post_mvp_tags": ["POST_MVP_AUTO_DETECT_SOURCE_CHANGE", "POST_MVP_AUTO_REFRESH_CLAIM"],
+            "post_mvp_tags": [],
             "oracle_status": "DRAFT",
-            "review_required_items": ["REVIEW_REQUIRED: Confirm Post-MVP handoff boundary for automatic upstream change detection and Claim auto-refresh"],
-            "rationale": "Even when a manual refetch succeeds on a newer revision, MVP must not silently auto-detect changes or overwrite the user's Claim.",
+            "review_required_items": ["REVIEW_REQUIRED: Confirm OAuth scope revocation & tenant permission boundary codes (PARTIAL_COVERAGE_GAP)"],
+            "rationale": "HTTP 403 / revoked OAuth scope blocks access without deleting or falsifying historical facts.",
+        },
+        {
+            "fixture_case_id": "refcase-05b",
+            "official_ref_id": "REF-05",
+            "legacy_draft_id": "REF-06",
+            "draft_refetch_verdict": "DRAFT_REFETCH_UNSAFE_URL_BLOCKED_PREFETCH",
+            "expected_fetch_attempted": False,
+            "expected_unverifiable_now": True,
+            "expected_source_deleted_confirmed": False,
+            "expected_historical_fact_falsified": False,
+            "expected_claim_auto_mutated": False,
+            "expected_canary_leaked_in_clean_snapshot": False,
+            "expected_canary_detected_in_negative_fixture": None,
+            "post_mvp_tags": [],
+            "oracle_status": "DRAFT",
+            "review_required_items": ["REVIEW_REQUIRED: Add live redirect/DNS-rebinding SSRF tests in backend QA (PARTIAL_COVERAGE_GAP)"],
+            "rationale": "Metadata IP, loopback, private CIDR, embedded credentials, and non-HTTPS schemes are rejected prior to any outbound fetch.",
         },
     ]
 
@@ -2392,7 +2613,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
             "stage_name": "STAGE_3_CLAIM_ASSEMBLY",
-            "stage_responsibility": "Assemble Claims and Claim Atoms linked to Canonical Facts via Claim Atom Supports, recording user edits/deletions without self-evidencing claims or prematurely marking oracle approval.",
+            "stage_responsibility": "Assemble versioned Claims and required Claim Atoms linked to Canonical Facts via Claim Atom Supports, modeling user-edit re-verification on new versions and deletion cascades without self-evidencing claims.",
             "artifact_role": "STAGE_STUB_OUTPUT",
             "claims": claims,
             "claim_atoms": claim_atoms,
@@ -2402,7 +2623,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
             "stage_name": "STAGE_4_REFETCH_VERIFICATION",
-            "stage_responsibility": "Evaluate synthetic refetch stub responses (REF-01..08), locator/hash consistency, URL safety precheck, Option C non-persistence canary audit, and Post-MVP non-mutation boundary.",
+            "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
             "artifact_role": "STAGE_STUB_OUTPUT",
             "refetch_checks": refetch_checks,
         },
@@ -2411,6 +2632,8 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "dataset_version": DATASET_VERSION,
             "artifact_role": "EXPECTED_ORACLE_DRAFT",
             "oracle_status": "DRAFT",
+            "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
+            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_*_verdict values are provisional T-004A evaluation labels and MUST NOT be conflated with finalized product status enums.",
             "frozen_for_golden": False,
             "requires_human_review_task": "T-004B",
             "scenarios": expected_scenarios,
@@ -2419,23 +2642,25 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                     "claim_atom_id": aid,
                     "scenario_id": sid,
                     "claim_id": cid,
-                    "expected_atom_status": status,
+                    "draft_atom_verdict": verdict,
                     "oracle_status": "DRAFT",
                     "review_required": req,
                     "rationale": rat,
                 }
-                for aid, sid, cid, status, req, rat in expected_atoms
+                for aid, sid, cid, verdict, req, rat in expected_atoms
             ],
             "expected_claims": [
                 {
                     "claim_id": cid,
                     "scenario_id": sid,
-                    "expected_claim_status": status,
+                    "draft_claim_verdict": verdict,
+                    "source_verified_eligible": eligible,
+                    "product_status_proposal": proposal,
                     "oracle_status": "DRAFT",
                     "review_required": req,
                     "rationale": rat,
                 }
-                for cid, sid, status, req, rat in expected_claims
+                for cid, sid, verdict, eligible, proposal, req, rat in expected_claims
             ],
         },
         "expected/refetch_oracle_draft.json": {
@@ -2443,9 +2668,12 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "dataset_version": DATASET_VERSION,
             "artifact_role": "EXPECTED_REFETCH_ORACLE_DRAFT",
             "oracle_status": "DRAFT",
+            "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
+            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are provisional T-004A evaluation labels, separate from final product states.",
             "frozen_for_golden": False,
             "requires_human_review_task": "T-004B",
-            "expected_refetch_cases": expected_refetch_cases,
+            "official_ref_matrix": official_ref_matrix,
+            "expected_refetch_fixtures": expected_refetch_fixtures,
         },
     }
 
@@ -2464,7 +2692,7 @@ def write_all_artifacts(base_dir: Path) -> list[Path]:
 def main() -> None:
     base_dir = Path(__file__).resolve().parent.parent
     written = write_all_artifacts(base_dir)
-    print(f"Generated {len(written)} T-004A synthetic dataset files under {base_dir}:")
+    print(f"Generated {len(written)} T-004A synthetic dataset files (v{DATASET_VERSION}) under {base_dir}:")
     for p in written:
         print(f"  - {p.relative_to(base_dir)}")
 

@@ -1,12 +1,14 @@
 {
-  "schema_version": "0.1.0-draft",
-  "dataset_version": "0.1.0-draft",
+  "schema_version": "0.2.0-draft",
+  "dataset_version": "0.2.0-draft",
   "stage_name": "STAGE_4_REFETCH_VERIFICATION",
-  "stage_responsibility": "Evaluate synthetic refetch stub responses (REF-01..08), locator/hash consistency, URL safety precheck, Option C non-persistence canary audit, and Post-MVP non-mutation boundary.",
+  "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
   "artifact_role": "STAGE_STUB_OUTPUT",
   "refetch_checks": [
     {
-      "refetch_case_id": "REF-01",
+      "fixture_case_id": "refcase-01a",
+      "official_ref_id": "REF-01",
+      "legacy_draft_id": "REF-01",
       "baseline_source_revision_id": "rev-src02-v1-2cb25379",
       "baseline_locator": {
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
@@ -26,7 +28,7 @@
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "REFETCH_MATCHED",
+      "stub_outcome": "STUB_REFETCH_MATCHED",
       "locator_recheck_matched": true,
       "hash_recheck_matched": true,
       "persisted_payload_snapshot": {
@@ -34,7 +36,7 @@
         "content_sha256": "sha256:2cb2537936283cbb5f7527ecbf64b9d65fc849f58004b4828104e7a53cc01c9f",
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb",
-        "refetch_status": "REFETCH_MATCHED"
+        "stub_status": "STUB_REFETCH_MATCHED"
       },
       "negative_leaky_payload_fixture": null,
       "post_mvp_tags": [
@@ -43,7 +45,9 @@
       ]
     },
     {
-      "refetch_case_id": "REF-02",
+      "fixture_case_id": "refcase-02a",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": "REF-02",
       "baseline_source_revision_id": "rev-src02-v1-2cb25379",
       "baseline_locator": {
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
@@ -63,14 +67,14 @@
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "CONTENT_CHANGED_LOCATOR_DRIFT",
+      "stub_outcome": "STUB_HASH_LOCATOR_MISMATCH_BLOCKED",
       "locator_recheck_matched": false,
       "hash_recheck_matched": false,
       "persisted_payload_snapshot": {
         "source_revision_id": "rev-src02-v1-2cb25379",
         "observed_content_sha256": "sha256:910b89ea35c15f759e12dcc71afdace7dc3a713fe5554a244eaa26013b10d4ea",
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
-        "refetch_status": "CONTENT_CHANGED_LOCATOR_DRIFT"
+        "stub_status": "STUB_HASH_LOCATOR_MISMATCH_BLOCKED"
       },
       "negative_leaky_payload_fixture": null,
       "post_mvp_tags": [
@@ -79,7 +83,9 @@
       ]
     },
     {
-      "refetch_case_id": "REF-03",
+      "fixture_case_id": "refcase-02b",
+      "official_ref_id": "REF-02",
+      "legacy_draft_id": "REF-08",
       "baseline_source_revision_id": "rev-src02-v1-2cb25379",
       "baseline_locator": {
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
@@ -99,19 +105,60 @@
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "SOURCE_UNAVAILABLE",
+      "stub_outcome": "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION",
+      "locator_recheck_matched": true,
+      "hash_recheck_matched": false,
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "observed_content_sha256": "sha256:8b780454d53da7b96e324d1a82ce955ffb1d0c3203257fda58fca63544aa3209",
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "claim_auto_mutated": false,
+        "stub_status": "STUB_HASH_MISMATCH_NEW_REVISION_NO_AUTO_MUTATION"
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": [
+        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
+        "POST_MVP_AUTO_REFRESH_CLAIM"
+      ]
+    },
+    {
+      "fixture_case_id": "refcase-03a",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": "REF-03",
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_SOURCE_UNAVAILABLE_404",
       "locator_recheck_matched": null,
       "hash_recheck_matched": null,
       "persisted_payload_snapshot": {
         "source_revision_id": "rev-src02-v1-2cb25379",
-        "refetch_status": "SOURCE_UNAVAILABLE",
+        "stub_status": "STUB_SOURCE_UNAVAILABLE_404",
         "http_status": 404
       },
       "negative_leaky_payload_fixture": null,
       "post_mvp_tags": []
     },
     {
-      "refetch_case_id": "REF-04",
+      "fixture_case_id": "refcase-03b",
+      "official_ref_id": "REF-03",
+      "legacy_draft_id": "REF-04",
       "baseline_source_revision_id": "rev-src02-v1-2cb25379",
       "baseline_locator": {
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
@@ -131,83 +178,21 @@
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "PARTIAL_RESPONSE",
+      "stub_outcome": "STUB_PARTIAL_TRUNCATED_206",
       "locator_recheck_matched": null,
       "hash_recheck_matched": false,
       "persisted_payload_snapshot": {
         "source_revision_id": "rev-src02-v1-2cb25379",
-        "refetch_status": "PARTIAL_RESPONSE",
+        "stub_status": "STUB_PARTIAL_TRUNCATED_206",
         "http_status": 206
       },
       "negative_leaky_payload_fixture": null,
       "post_mvp_tags": []
     },
     {
-      "refetch_case_id": "REF-05",
-      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
-      "baseline_locator": {
-        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
-        "locator_spec_version": "fixture-locator-v0-draft",
-        "normalization_policy": "fixture-nfc-lf-v0-draft",
-        "convention_scope": "TEST_FIXTURE_ONLY",
-        "char_start": 89,
-        "char_end": 271,
-        "char_length": 182,
-        "utf8_byte_start": 91,
-        "utf8_byte_end": 273,
-        "utf8_byte_length": 182,
-        "utf16_start": 89,
-        "utf16_end": 271,
-        "line_start": 4,
-        "line_end": 4,
-        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
-      },
-      "target_claim_id": "claim-02-1",
-      "stub_outcome": "POLICY_DENIED",
-      "locator_recheck_matched": null,
-      "hash_recheck_matched": null,
-      "persisted_payload_snapshot": {
-        "source_revision_id": "rev-src02-v1-2cb25379",
-        "refetch_status": "POLICY_DENIED",
-        "error_code": "POLICY_OAUTH_SCOPE_REVOKED"
-      },
-      "negative_leaky_payload_fixture": null,
-      "post_mvp_tags": []
-    },
-    {
-      "refetch_case_id": "REF-06",
-      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
-      "baseline_locator": {
-        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
-        "locator_spec_version": "fixture-locator-v0-draft",
-        "normalization_policy": "fixture-nfc-lf-v0-draft",
-        "convention_scope": "TEST_FIXTURE_ONLY",
-        "char_start": 89,
-        "char_end": 271,
-        "char_length": 182,
-        "utf8_byte_start": 91,
-        "utf8_byte_end": 273,
-        "utf8_byte_length": 182,
-        "utf16_start": 89,
-        "utf16_end": 271,
-        "line_start": 4,
-        "line_end": 4,
-        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
-      },
-      "target_claim_id": "claim-02-1",
-      "stub_outcome": "BLOCKED_UNSAFE_URL",
-      "locator_recheck_matched": null,
-      "hash_recheck_matched": null,
-      "persisted_payload_snapshot": {
-        "source_revision_id": "rev-src02-v1-2cb25379",
-        "refetch_status": "BLOCKED_UNSAFE_URL",
-        "fetch_attempted": false
-      },
-      "negative_leaky_payload_fixture": null,
-      "post_mvp_tags": []
-    },
-    {
-      "refetch_case_id": "REF-07",
+      "fixture_case_id": "refcase-04a",
+      "official_ref_id": "REF-04",
+      "legacy_draft_id": "REF-07",
       "baseline_source_revision_id": "rev-src_ref07_canary-v1-7e7ec30a",
       "baseline_locator": {
         "locator_id": "loc-ref-base-ref07-147_221-374b3bbe",
@@ -227,7 +212,7 @@
         "span_sha256": "sha256:374b3bbebe5374fc73c85f0fb9676072634f6f2d267644562a6446785df26297"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "CANARY_PERSISTENCE_AUDIT_PASS",
+      "stub_outcome": "STUB_CANARY_STATIC_SNAPSHOT_CLEAN",
       "locator_recheck_matched": true,
       "hash_recheck_matched": true,
       "persisted_payload_snapshot": {
@@ -247,7 +232,9 @@
       "post_mvp_tags": []
     },
     {
-      "refetch_case_id": "REF-08",
+      "fixture_case_id": "refcase-05a",
+      "official_ref_id": "REF-05",
+      "legacy_draft_id": "REF-05",
       "baseline_source_revision_id": "rev-src02-v1-2cb25379",
       "baseline_locator": {
         "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
@@ -267,21 +254,50 @@
         "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
       },
       "target_claim_id": "claim-02-1",
-      "stub_outcome": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION",
-      "locator_recheck_matched": true,
-      "hash_recheck_matched": false,
+      "stub_outcome": "STUB_POLICY_PERMISSION_DENIED_403",
+      "locator_recheck_matched": null,
+      "hash_recheck_matched": null,
       "persisted_payload_snapshot": {
         "source_revision_id": "rev-src02-v1-2cb25379",
-        "observed_content_sha256": "sha256:8b780454d53da7b96e324d1a82ce955ffb1d0c3203257fda58fca63544aa3209",
-        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
-        "claim_auto_mutated": false,
-        "refetch_status": "NEW_REVISION_DETECTED_NO_AUTO_MUTATION"
+        "stub_status": "STUB_POLICY_PERMISSION_DENIED_403",
+        "error_code": "POLICY_OAUTH_SCOPE_REVOKED"
       },
       "negative_leaky_payload_fixture": null,
-      "post_mvp_tags": [
-        "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
-        "POST_MVP_AUTO_REFRESH_CLAIM"
-      ]
+      "post_mvp_tags": []
+    },
+    {
+      "fixture_case_id": "refcase-05b",
+      "official_ref_id": "REF-05",
+      "legacy_draft_id": "REF-06",
+      "baseline_source_revision_id": "rev-src02-v1-2cb25379",
+      "baseline_locator": {
+        "locator_id": "loc-ref-base-src02-89_271-e3bf184f",
+        "locator_spec_version": "fixture-locator-v0-draft",
+        "normalization_policy": "fixture-nfc-lf-v0-draft",
+        "convention_scope": "TEST_FIXTURE_ONLY",
+        "char_start": 89,
+        "char_end": 271,
+        "char_length": 182,
+        "utf8_byte_start": 91,
+        "utf8_byte_end": 273,
+        "utf8_byte_length": 182,
+        "utf16_start": 89,
+        "utf16_end": 271,
+        "line_start": 4,
+        "line_end": 4,
+        "span_sha256": "sha256:e3bf184f2ae9efcd6898f9da1ab4cdf1650bad6517860c7600d5859433adebbb"
+      },
+      "target_claim_id": "claim-02-1",
+      "stub_outcome": "STUB_UNSAFE_URL_BLOCKED_PREFETCH",
+      "locator_recheck_matched": null,
+      "hash_recheck_matched": null,
+      "persisted_payload_snapshot": {
+        "source_revision_id": "rev-src02-v1-2cb25379",
+        "stub_status": "STUB_UNSAFE_URL_BLOCKED_PREFETCH",
+        "fetch_attempted": false
+      },
+      "negative_leaky_payload_fixture": null,
+      "post_mvp_tags": []
     }
   ]
 }

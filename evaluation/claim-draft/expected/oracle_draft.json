@@ -1,8 +1,10 @@
 {
-  "schema_version": "0.1.0-draft",
-  "dataset_version": "0.1.0-draft",
+  "schema_version": "0.2.0-draft",
+  "dataset_version": "0.2.0-draft",
   "artifact_role": "EXPECTED_ORACLE_DRAFT",
   "oracle_status": "DRAFT",
+  "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
+  "product_status_mapping_policy": "REVIEW_REQUIRED — draft_*_verdict values are provisional T-004A evaluation labels and MUST NOT be conflated with finalized product status enums.",
   "frozen_for_golden": false,
   "requires_human_review_task": "T-004B",
   "scenarios": [
@@ -12,7 +14,7 @@
       "coverage_tags": [
         "zero_facts",
         "hard_negative",
-        "unsupported_claim",
+        "ungrounded_claim",
         "mixed_ko_en"
       ],
       "expected_fact_count": 0,
@@ -21,7 +23,7 @@
       "review_required_items": [
         "Confirm 0-fact threshold for pure scheduling/boilerplate notes"
       ],
-      "rationale": "Meeting logistics chatter contains no career accomplishments; candidate claim has 0 fact supports and must remain UNSUPPORTED."
+      "rationale": "Meeting logistics chatter yields 0 canonical facts; required atom-01-1 has 0 supports and cannot be SOURCE_VERIFIED."
     },
     {
       "scenario_id": "SCN-02",
@@ -35,9 +37,9 @@
       "expected_atom_count": 1,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "T-004B human confirmation of baseline SOURCE_VERIFIED criteria"
+        "T-004B human confirmation of baseline SOURCE_VERIFIED candidate criteria"
       ],
-      "rationale": "Single unambiguous PR authored by verified owner directly supports the single claim atom."
+      "rationale": "Single unambiguous PR authored by verified owner directly supports the single required claim atom."
     },
     {
       "scenario_id": "SCN-03",
@@ -52,9 +54,9 @@
       "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm multi-atom aggregation rule when all N atoms have DIRECT support"
+        "Confirm multi-atom aggregation rule when all N required atoms have DIRECT support"
       ],
-      "rationale": "Three distinct bullet items yield 3 canonical facts and 3 supported claim atoms in one composite claim."
+      "rationale": "Three Korean bullet items yield 3 canonical facts and 3 DIRECT-supported required atoms in one composite claim."
     },
     {
       "scenario_id": "SCN-04",
@@ -68,9 +70,9 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm CONTEXT-only claims map to UNSUPPORTED (not PARTIALLY_SUPPORTED)"
+        "Confirm product state mapping for CONTEXT-only claim-04-2 (must never be SOURCE_VERIFIED)"
       ],
-      "rationale": "Background initiative goal provides CONTEXT only and cannot independently verify a claim of 100% problem elimination."
+      "rationale": "Background initiative goal provides CONTEXT only; claim-04-2 lacks DIRECT evidence and cannot be SOURCE_VERIFIED."
     },
     {
       "scenario_id": "SCN-05",
@@ -86,7 +88,7 @@
       "review_required_items": [
         "Confirm conflict precedence policy when a newer addendum contradicts an older draft"
       ],
-      "rationale": "Unresolved CONTRADICTS support prevents SOURCE_VERIFIED on the zero-drop claim while allowing verification of the corrected log-audit claim."
+      "rationale": "CONTRADICTS support from addendum blocks SOURCE_VERIFIED on zero-drop claim-05-1 while supporting corrected claim-05-2."
     },
     {
       "scenario_id": "SCN-06",
@@ -101,9 +103,9 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm planned-as-completed maps to CONFLICTING vs UNSUPPORTED"
+        "Confirm product state mapping (conflicting vs ungrounded) for planned-as-completed claim-06-2"
       ],
-      "rationale": "Future plan statements cannot verify a completed-delivery claim, while the completed health-check item is directly supported."
+      "rationale": "Future Q4 plan cannot verify a completed-delivery claim, while the completed health-check item is directly supported."
     },
     {
       "scenario_id": "SCN-07",
@@ -117,9 +119,9 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Verify negation reversal handling in Fact/Claim rubric"
+        "Verify negation reversal rubric for claim-07-2"
       ],
-      "rationale": "Explicit negation refutes positive deployment/savings claims while supporting the accurate rollback claim."
+      "rationale": "Explicit negation refutes positive deployment/savings claim-07-2 while supporting rollback claim-07-1."
     },
     {
       "scenario_id": "SCN-08",
@@ -133,9 +135,9 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm attribution rubric for team-level metrics referenced as CONTEXT"
+        "Confirm attribution rubric when team-level achievement is cited only as CONTEXT"
       ],
-      "rationale": "Individual cache layer work is DIRECT-supported; solo-rebuilt CI pipeline overclaim lacks DIRECT individual support."
+      "rationale": "Individual cache layer work is DIRECT-supported; solo-rebuilt overclaim-08-2 has only team CONTEXT and cannot be SOURCE_VERIFIED."
     },
     {
       "scenario_id": "SCN-09",
@@ -150,9 +152,9 @@
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm environment-scope mismatch triggers CONFLICTING when production non-deployment is explicit"
+        "Confirm environment-scope conflict product state mapping for claim-09-2"
       ],
-      "rationale": "Staging benchmark results cannot be elevated to production impact claims when production rollout has not started."
+      "rationale": "Staging benchmark results cannot verify production impact when production rollout has not started."
     },
     {
       "scenario_id": "SCN-10",
@@ -168,7 +170,7 @@
       "review_required_items": [
         "Confirm causal attribution bar when confounders exist and no A/B test was run"
       ],
-      "rationale": "Only 1 of 3 atoms (launch date) is supported; unverified revenue causation and fabricated 45% conversion lift keep the claim PARTIALLY_SUPPORTED."
+      "rationale": "Only 1 of 3 required atoms is DIRECT-supported; atom-10-2 is CONTEXT-only and atom-10-3 has 0 supports -> cannot be SOURCE_VERIFIED."
     },
     {
       "scenario_id": "SCN-11",
@@ -183,22 +185,22 @@
       "review_required_items": [
         "Confirm identity resolution threshold before allowing SOURCE_VERIFIED"
       ],
-      "rationale": "Unmapped display name 'Alex' shared by two team members blocks automatic SOURCE_VERIFIED."
+      "rationale": "Unmapped 'Alex' shared by two team members blocks automatic SOURCE_VERIFIED on claim-11-1."
     },
     {
       "scenario_id": "SCN-12",
-      "title": "User edit invalidation (substantive inflation and minor paraphrase)",
+      "title": "User edit creates new version requiring re-verification against evidence (substantive fail & minor pending)",
       "coverage_tags": [
-        "user_edit_invalidation",
+        "user_edit_new_version_reverification",
         "hard_negative"
       ],
       "expected_fact_count": 1,
       "expected_atom_count": 2,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "REVIEW_REQUIRED: Confirm whether minor paraphrase edits (claim-12-2) also invalidate SOURCE_VERIFIED until re-verified"
+        "REVIEW_REQUIRED: Confirm product state transition when minor paraphrase v2 (claim-12-2) completes re-verification against fact-12-1"
       ],
-      "rationale": "User-edited claims must never remain automatically SOURCE_VERIFIED without re-verification."
+      "rationale": "User edits increment claim_version to v2 and require re-verification against evidence; v2 inflation fails (CONTRADICTS) and v2 paraphrase cannot inherit v1 SOURCE_VERIFIED prior to re-verification."
     },
     {
       "scenario_id": "SCN-13",
@@ -211,9 +213,9 @@
       "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm deleted source cascade state naming (INVALIDATED_BY_DELETION vs UNSUPPORTED)"
+        "Confirm deleted source cascade product state naming (contrast with REF-03 unavailable)"
       ],
-      "rationale": "Deleting src13a invalidates fact-13-1, fully invalidating claim-13-1 and downgrading multi-atom claim-13-2 to PARTIALLY_SUPPORTED."
+      "rationale": "Explicit user deletion of src13a removes support for fact-13-1, invalidating claim-13-1 and leaving required atom-13-2 unsupported in claim-13-2."
     },
     {
       "scenario_id": "SCN-14",
@@ -229,9 +231,9 @@
       "expected_atom_count": 3,
       "oracle_status": "DRAFT",
       "review_required_items": [
-        "Confirm claim status precedence when a multi-atom claim has both CONTRADICTED and UNSUPPORTED atoms"
+        "Confirm multi-atom precedence when CONTRADICTED and CONTEXT-only atoms coexist"
       ],
-      "rationale": "Despite 1 supported anchor atom, 400ms->40ms distortion and Alpha/Borealis conflation force CONFLICTING (never SOURCE_VERIFIED)."
+      "rationale": "Despite 1 DIRECT anchor atom, 400ms->40ms distortion and Alpha/Borealis conflation block SOURCE_VERIFIED."
     }
   ],
   "expected_atoms": [
@@ -239,52 +241,52 @@
       "claim_atom_id": "atom-01-1",
       "scenario_id": "SCN-01",
       "claim_id": "claim-01-1",
-      "expected_atom_status": "UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "0 canonical facts exist in boilerplate source."
+      "rationale": "0 canonical facts exist in boilerplate source src01."
     },
     {
       "claim_atom_id": "atom-02-1",
       "scenario_id": "SCN-02",
       "claim_id": "claim-02-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by fact-02-1 from verified owner PR."
+      "rationale": "Directly supported by fact-02-1 from verified owner PR src02."
     },
     {
       "claim_atom_id": "atom-03-1",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 1 (fact-03-1)."
+      "rationale": "Directly supported by Korean bullet 1 (fact-03-1 / fs-03-1)."
     },
     {
       "claim_atom_id": "atom-03-2",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 2 (fact-03-2)."
+      "rationale": "Directly supported by Korean bullet 2 (fact-03-2 / fs-03-2)."
     },
     {
       "claim_atom_id": "atom-03-3",
       "scenario_id": "SCN-03",
       "claim_id": "claim-03-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Directly supported by Korean bullet 3 (fact-03-3)."
+      "rationale": "Directly supported by Korean bullet 3 (fact-03-3 / fs-03-3)."
     },
     {
       "claim_atom_id": "atom-04-1",
       "scenario_id": "SCN-04",
       "claim_id": "claim-04-1",
-      "expected_atom_status": "SUPPORTED_DIRECT_WITH_CONTEXT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "DIRECT fact-04-1 plus CONTEXT fact-04-2."
@@ -293,16 +295,16 @@
       "claim_atom_id": "atom-04-2",
       "scenario_id": "SCN-04",
       "claim_id": "claim-04-2",
-      "expected_atom_status": "CONTEXT_ONLY_UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Only initiative goal CONTEXT exists; no direct evidence of 100% elimination."
+      "rationale": "Only initiative goal CONTEXT exists (fact-04-2); CONTEXT-only cannot verify."
     },
     {
       "claim_atom_id": "atom-05-1",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-1",
-      "expected_atom_status": "CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Refuted by postmortem addendum fact-05-2 (412 HTTP 503s)."
@@ -311,7 +313,7 @@
       "claim_atom_id": "atom-05-2",
       "scenario_id": "SCN-05",
       "claim_id": "claim-05-2",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Directly supported by audited addendum fact-05-2."
@@ -320,7 +322,7 @@
       "claim_atom_id": "atom-06-1",
       "scenario_id": "SCN-06",
       "claim_id": "claim-06-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Directly supported by completed section fact-06-1."
@@ -329,16 +331,16 @@
       "claim_atom_id": "atom-06-2",
       "scenario_id": "SCN-06",
       "claim_id": "claim-06-2",
-      "expected_atom_status": "CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Source marks sharding as future Q4 plan, contradicting completed claim."
+      "rationale": "Source marks sharding as future Q4 plan (fact-06-2), contradicting completed claim."
     },
     {
       "claim_atom_id": "atom-07-1",
       "scenario_id": "SCN-07",
       "claim_id": "claim-07-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Directly supported rollback action fact-07-1."
@@ -347,7 +349,7 @@
       "claim_atom_id": "atom-07-2",
       "scenario_id": "SCN-07",
       "claim_id": "claim-07-2",
-      "expected_atom_status": "CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Directly contradicted by explicit negation fact-07-2."
@@ -356,43 +358,43 @@
       "claim_atom_id": "atom-08-1",
       "scenario_id": "SCN-08",
       "claim_id": "claim-08-1",
-      "expected_atom_status": "SUPPORTED_DIRECT_WITH_CONTEXT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT_WITH_CONTEXT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Individual cache layer directly supported; team rebuild provides context."
+      "rationale": "Individual cache layer directly supported (fact-08-2); team rebuild provides CONTEXT (fact-08-1)."
     },
     {
       "claim_atom_id": "atom-08-2",
       "scenario_id": "SCN-08",
       "claim_id": "claim-08-2",
-      "expected_atom_status": "CONTEXT_ONLY_UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Team-of-6 accomplishment cannot directly verify solo-rebuilt claim."
+      "rationale": "Team-of-6 accomplishment (CONTEXT only) cannot verify solo-rebuilt attribution."
     },
     {
       "claim_atom_id": "atom-09-1",
       "scenario_id": "SCN-09",
       "claim_id": "claim-09-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Accurately scoped to local staging sandbox benchmark."
+      "rationale": "Accurately scoped to local staging sandbox benchmark (fact-09-1)."
     },
     {
       "claim_atom_id": "atom-09-2",
       "scenario_id": "SCN-09",
       "claim_id": "claim-09-2",
-      "expected_atom_status": "CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Source explicitly states production rollout has not started."
+      "rationale": "Source explicitly states production rollout has not started (fact-09-2)."
     },
     {
       "claim_atom_id": "atom-10-1",
       "scenario_id": "SCN-10",
       "claim_id": "claim-10-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Launch date May 12 directly supported by fact-10-1."
@@ -401,88 +403,88 @@
       "claim_atom_id": "atom-10-2",
       "scenario_id": "SCN-10",
       "claim_id": "claim-10-1",
-      "expected_atom_status": "CONTEXT_ONLY_UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Observed revenue correlation with discount confounder and no A/B test cannot verify causation."
+      "rationale": "Revenue correlation with discount confounder and no A/B test is CONTEXT-only, not causal proof."
     },
     {
       "claim_atom_id": "atom-10-3",
       "scenario_id": "SCN-10",
       "claim_id": "claim-10-1",
-      "expected_atom_status": "UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_UNSUPPORTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Fabricated 45% conversion lift has zero supporting facts."
+      "rationale": "Required atom has 0 supporting facts (fabricated 45% conversion lift)."
     },
     {
       "claim_atom_id": "atom-11-1",
       "scenario_id": "SCN-11",
       "claim_id": "claim-11-1",
-      "expected_atom_status": "IDENTITY_AMBIGUOUS",
+      "draft_atom_verdict": "DRAFT_ATOM_IDENTITY_AMBIGUOUS",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Source names unmapped 'Alex' across two workspace members."
+      "rationale": "Source names unmapped 'Alex' across two workspace members (fact-11-1)."
     },
     {
       "claim_atom_id": "atom-11-2",
       "scenario_id": "SCN-11",
       "claim_id": "claim-11-2",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Verified owner account PR directly supports unit test addition."
+      "rationale": "Verified owner account PR directly supports unit test addition (fact-11-2)."
     },
     {
       "claim_atom_id": "atom-12-1",
       "scenario_id": "SCN-12",
       "claim_id": "claim-12-1",
-      "expected_atom_status": "INVALIDATED_BY_USER_EDIT",
+      "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_FAILED_AFTER_EDIT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "User substantively inflated 25% checkout latency reduction to 60% globally."
+      "rationale": "User edit to v2 inflated 25% checkout reduction to 60% globally; v2 re-verification against fact-12-1 failed (CONTRADICTS)."
     },
     {
       "claim_atom_id": "atom-12-2",
       "scenario_id": "SCN-12",
       "claim_id": "claim-12-2",
-      "expected_atom_status": "INVALIDATED_BY_USER_EDIT",
+      "draft_atom_verdict": "DRAFT_ATOM_REVERIFY_REQUIRED_NEW_VERSION",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Conservative rule: minor user paraphrase still clears automatic SOURCE_VERIFIED until re-verified (REVIEW_REQUIRED)."
+      "rationale": "User paraphrase created v2; existing support cas-12-2 was only evaluated on v1 and must be re-verified on v2 before any SOURCE_VERIFIED eligibility."
     },
     {
       "claim_atom_id": "atom-13-1",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-1",
-      "expected_atom_status": "INVALIDATED_BY_DELETION",
+      "draft_atom_verdict": "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Underlying source src13a and fact-13-1 deleted by user."
+      "rationale": "Underlying source src13a and fact-13-1 explicitly deleted by user."
     },
     {
       "claim_atom_id": "atom-13-2",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-2",
-      "expected_atom_status": "INVALIDATED_BY_DELETION",
+      "draft_atom_verdict": "DRAFT_ATOM_INVALIDATED_BY_USER_DELETION",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Underlying source src13a deleted by user."
+      "rationale": "Required atom lost support when user deleted src13a."
     },
     {
       "claim_atom_id": "atom-13-3",
       "scenario_id": "SCN-13",
       "claim_id": "claim-13-2",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Surviving source src13b still directly supports Redis alert dashboard."
+      "rationale": "Surviving source src13b still directly supports Redis alert dashboard (fact-13-2)."
     },
     {
       "claim_atom_id": "atom-14-1",
       "scenario_id": "SCN-14",
       "claim_id": "claim-14-1",
-      "expected_atom_status": "SUPPORTED_DIRECT",
+      "draft_atom_verdict": "DRAFT_ATOM_SUPPORTED_DIRECT",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Directly supported by Project Borealis fact-14-2."
@@ -491,74 +493,88 @@
       "claim_atom_id": "atom-14-2",
       "scenario_id": "SCN-14",
       "claim_id": "claim-14-1",
-      "expected_atom_status": "CONTRADICTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTRADICTED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "10x numeric distortion: source states 400ms, claim states 40ms."
+      "rationale": "10x numeric distortion: source fact-14-1 states 400ms, claim states 40ms."
     },
     {
       "claim_atom_id": "atom-14-3",
       "scenario_id": "SCN-14",
       "claim_id": "claim-14-1",
-      "expected_atom_status": "CONTEXT_ONLY_UNSUPPORTED",
+      "draft_atom_verdict": "DRAFT_ATOM_CONTEXT_ONLY_INSUFFICIENT",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "False cross-project conflation attaching Project Alpha metric to Project Borealis."
+      "rationale": "Cross-project conflation attaching Project Alpha metric to Project Borealis (CONTEXT-only)."
     }
   ],
   "expected_claims": [
     {
       "claim_id": "claim-01-1",
       "scenario_id": "SCN-01",
-      "expected_claim_status": "UNSUPPORTED",
+      "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "0 supporting facts; cannot be SOURCE_VERIFIED."
+      "rationale": "0 supporting facts for required atom-01-1; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-02-1",
       "scenario_id": "SCN-02",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: 1/1 atom DIRECT-supported, unedited, resolved owner."
+      "rationale": "Draft candidate: 1/1 required atom DIRECT-supported, unedited v1, resolved owner."
     },
     {
       "claim_id": "claim-03-1",
       "scenario_id": "SCN-03",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: 3/3 atoms DIRECT-supported from verified Korean postmortem."
+      "rationale": "Draft candidate: 3/3 required atoms DIRECT-supported from verified Korean postmortem."
     },
     {
       "claim_id": "claim-04-1",
       "scenario_id": "SCN-04",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Draft candidate: DIRECT + CONTEXT support on unedited atom."
+      "rationale": "Draft candidate: DIRECT + CONTEXT support on unedited required atom."
     },
     {
       "claim_id": "claim-04-2",
       "scenario_id": "SCN-04",
-      "expected_claim_status": "UNSUPPORTED",
+      "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "CONTEXT-only support cannot verify outcome claim."
+      "rationale": "CONTEXT-only support on required atom-04-2; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-05-1",
       "scenario_id": "SCN-05",
-      "expected_claim_status": "CONFLICTING",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Contradicted by postmortem addendum."
+      "rationale": "Contradicted by postmortem addendum; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-05-2",
       "scenario_id": "SCN-05",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: directly grounded in corrected addendum."
@@ -566,7 +582,9 @@
     {
       "claim_id": "claim-06-1",
       "scenario_id": "SCN-06",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: completed item directly supported."
@@ -574,15 +592,19 @@
     {
       "claim_id": "claim-06-2",
       "scenario_id": "SCN-06",
-      "expected_claim_status": "CONFLICTING",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Planned work misrepresented as completed."
+      "rationale": "Planned work misrepresented as completed; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-07-1",
       "scenario_id": "SCN-07",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: accurately describes reverted rollout."
@@ -590,15 +612,19 @@
     {
       "claim_id": "claim-07-2",
       "scenario_id": "SCN-07",
-      "expected_claim_status": "CONFLICTING",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Explicitly negated in source."
+      "rationale": "Explicitly negated in source; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-08-1",
       "scenario_id": "SCN-08",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: scoped to individual artifact cache contribution."
@@ -606,15 +632,19 @@
     {
       "claim_id": "claim-08-2",
       "scenario_id": "SCN-08",
-      "expected_claim_status": "UNSUPPORTED",
+      "draft_claim_verdict": "DRAFT_CLAIM_UNGROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Overclaims team-of-6 rebuild as solo achievement."
+      "rationale": "Overclaims team-of-6 rebuild as solo work (CONTEXT-only); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-09-1",
       "scenario_id": "SCN-09",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: accurately scoped to staging sandbox."
@@ -622,31 +652,39 @@
     {
       "claim_id": "claim-09-2",
       "scenario_id": "SCN-09",
-      "expected_claim_status": "CONFLICTING",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Conflates staging benchmark with unstarted production rollout."
+      "rationale": "Conflates staging benchmark with unstarted production rollout; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-10-1",
       "scenario_id": "SCN-10",
-      "expected_claim_status": "PARTIALLY_SUPPORTED",
+      "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Only 1/3 atoms supported; causation unverified and 45% metric fabricated."
+      "rationale": "Only 1/3 required atoms DIRECT-supported (atom-10-2 CONTEXT-only, atom-10-3 0 supports); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-11-1",
       "scenario_id": "SCN-11",
-      "expected_claim_status": "IDENTITY_AMBIGUOUS",
+      "draft_claim_verdict": "DRAFT_CLAIM_IDENTITY_AMBIGUOUS",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Ambiguous 'Alex' author prevents automatic SOURCE_VERIFIED."
+      "rationale": "Ambiguous 'Alex' author blocks SOURCE_VERIFIED."
     },
     {
       "claim_id": "claim-11-2",
       "scenario_id": "SCN-11",
-      "expected_claim_status": "SOURCE_VERIFIED",
+      "draft_claim_verdict": "DRAFT_CLAIM_GROUNDED_CANDIDATE",
+      "source_verified_eligible": true,
+      "product_status_proposal": "CANDIDATE_FOR_SOURCE_VERIFIED_REVIEW",
       "oracle_status": "DRAFT",
       "review_required": true,
       "rationale": "Draft candidate: unambiguous verified account PR."
@@ -654,42 +692,52 @@
     {
       "claim_id": "claim-12-1",
       "scenario_id": "SCN-12",
-      "expected_claim_status": "INVALIDATED_BY_USER_EDIT",
+      "draft_claim_verdict": "DRAFT_CLAIM_REVERIFY_FAILED_AFTER_EDIT",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Substantive user edit invalidates SOURCE_VERIFIED."
+      "rationale": "User edit created v2; v2 re-verification against fact-12-1 failed (CONTRADICTS); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-12-2",
       "scenario_id": "SCN-12",
-      "expected_claim_status": "INVALIDATED_BY_USER_EDIT",
+      "draft_claim_verdict": "DRAFT_CLAIM_REVERIFY_REQUIRED_NEW_VERSION",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Minor user edit clears automatic SOURCE_VERIFIED pending re-verification (REVIEW_REQUIRED)."
+      "rationale": "User paraphrase created v2; must re-verify against fact-12-1 on v2 before any SOURCE_VERIFIED eligibility."
     },
     {
       "claim_id": "claim-13-1",
       "scenario_id": "SCN-13",
-      "expected_claim_status": "INVALIDATED_BY_DELETION",
+      "draft_claim_verdict": "DRAFT_CLAIM_INVALIDATED_BY_USER_DELETION",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "All supporting facts deleted by user."
+      "rationale": "All supporting facts deleted by user; SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-13-2",
       "scenario_id": "SCN-13",
-      "expected_claim_status": "PARTIALLY_SUPPORTED",
+      "draft_claim_verdict": "DRAFT_CLAIM_PARTIALLY_GROUNDED",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "1 of 2 atoms invalidated by deletion; partial support cannot be SOURCE_VERIFIED."
+      "rationale": "Required atom-13-2 lost support due to user deletion (only 1/2 supported); SOURCE_VERIFIED forbidden."
     },
     {
       "claim_id": "claim-14-1",
       "scenario_id": "SCN-14",
-      "expected_claim_status": "CONFLICTING",
+      "draft_claim_verdict": "DRAFT_CLAIM_CONFLICTING",
+      "source_verified_eligible": false,
+      "product_status_proposal": "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED",
       "oracle_status": "DRAFT",
       "review_required": true,
-      "rationale": "Contains contradicted 10x metric distortion and cross-project conflation despite 1 supported atom."
+      "rationale": "Required atoms include CONTRADICTED 10x distortion and CONTEXT-only conflation; SOURCE_VERIFIED forbidden."
     }
   ]
 }

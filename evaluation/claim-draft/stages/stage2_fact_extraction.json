@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.1.0-draft",
-  "dataset_version": "0.1.0-draft",
+  "schema_version": "0.2.0-draft",
+  "dataset_version": "0.2.0-draft",
   "stage_name": "STAGE_2_FACT_EXTRACTION",
   "stage_responsibility": "Extract 0/1/N Canonical Facts from Content Units and bind typed Fact Supports (DIRECT/CONTEXT/CONTRADICTS) with exact span locators.",
   "artifact_role": "STAGE_STUB_OUTPUT",

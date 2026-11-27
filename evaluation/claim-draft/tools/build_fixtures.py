@@ -1,22 +1,25 @@
-"""Programmatically build all T-004A synthetic dataset fixtures (v0.3.0-draft).
+"""Programmatically build all T-004A/B synthetic regression dataset fixtures (v0.3.0-synthetic-golden).
 
 Run from repo/worktree root:
     python3 evaluation/claim-draft/tools/build_fixtures.py
 
 Design guarantees:
-- Preserves all 18 synthetic Source Revisions and 12 kept Claims (including SCN-13 OD-003).
-- Applies all 11 independent-review Claim revisions (atom granularity, effect-with-condition on claim-02-1,
-  fact-vs-personal-attribution split on claim-05-2, scope/negation/team/plan splits, and non-overreaching tags).
-- Aligns refetch cases with official REF-01..REF-08, adding REF-02 same-hash/locator-only mismatch (refcase-02c)
-  and REF-03 transient failures 429/503/timeout with retry cap & approval block (refcase-03c..03e),
-  while honestly recording unverified requirements (REF-06, REF-07, REF-08) and runtime gaps (REF-04, REF-05)
-  as COVERAGE_GAP / PARTIAL_COVERAGE_GAP.
-- Strictly separates provisional draft verdicts (DRAFT_*) from product state enums and preserves DRAFT status.
-- Retains TEST_FIXTURE_ONLY & REVIEW_REQUIRED markers on unconfirmed normalization/offset rules.
+- Approves reviewed v0.3.0-draft (@ 570067488a2d8d5b2fe249653336ec60af4a45c8) expected results STRICTLY
+  as synthetic regression test ground truth (no live LLM evaluation, no external connector/production integration).
+- Preserves all 18 synthetic Source Revisions, 14 scenarios, 23 Claims, 41 Claim Atoms (including all 11
+  Round-01 revisions, 12 kept Claims, and SCN-13 OD-003 deletion lifecycle), and 12 refetch stub fixtures.
+- Assigns family-preserving evaluation partitions (SYNTHETIC_REGRESSION_DEV / SYNTHETIC_REGRESSION_TEST)
+  so all cases and edited versions derived from the same source remain in the exact same partition.
+- Keeps unverified REF items honestly unpassed: REF-06..08 remain COVERAGE_GAP (UNVERIFIED_COVERAGE_GAP),
+  and REF-04..05 remain PARTIAL_COVERAGE_GAP (PARTIAL_UNVERIFIED_COVERAGE_GAP).
+- Strictly separates provisional verdict labels (DRAFT_*) from unconfirmed product state enums, retains
+  TEST_FIXTURE_ONLY & REVIEW_REQUIRED markers on production normalization/offset rules, and emits
+  APPROVAL_MANIFEST.json with exact SHA-256 hashes for all dataset artifacts and the schema.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -32,10 +35,34 @@ from locator_hash import (
     sha256_prefixed,
 )
 
-SCHEMA_VERSION = "0.3.0-draft"
-DATASET_VERSION = "0.3.0-draft"
+SCHEMA_VERSION = "0.3.0-synthetic-golden"
+DATASET_VERSION = "0.3.0-synthetic-golden"
+APPROVED_FROM_DRAFT_COMMIT_SHA = "570067488a2d8d5b2fe249653336ec60af4a45c8"
+APPROVED_FROM_DRAFT_VERSION = "0.3.0-draft"
+GOLDEN_SCOPE = "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION"
+ORACLE_STATUS_APPROVED = "APPROVED_SYNTHETIC_REGRESSION"
 
 CANARY_TOKEN_REF04 = "CM_SYNTHETIC_CANARY_RAW_TEXT_7F9A2C_DO_NOT_PERSIST"
+
+# Anti-leakage family-to-partition map: every scenario, edited version, and refetch fixture
+# sharing the same source family MUST remain in the exact same evaluation partition.
+FAMILY_PARTITION_MAP = {
+    "family-src01": "SYNTHETIC_REGRESSION_DEV",
+    "family-src02": "SYNTHETIC_REGRESSION_TEST",
+    "family-src03": "SYNTHETIC_REGRESSION_DEV",
+    "family-src04": "SYNTHETIC_REGRESSION_DEV",
+    "family-src05": "SYNTHETIC_REGRESSION_TEST",
+    "family-src06": "SYNTHETIC_REGRESSION_DEV",
+    "family-src07": "SYNTHETIC_REGRESSION_TEST",
+    "family-src08": "SYNTHETIC_REGRESSION_DEV",
+    "family-src09": "SYNTHETIC_REGRESSION_TEST",
+    "family-src10": "SYNTHETIC_REGRESSION_DEV",
+    "family-src11": "SYNTHETIC_REGRESSION_TEST",
+    "family-src12": "SYNTHETIC_REGRESSION_DEV",
+    "family-src13": "SYNTHETIC_REGRESSION_TEST",
+    "family-src14": "SYNTHETIC_REGRESSION_TEST",
+    "family-src_ref07_canary": "SYNTHETIC_REGRESSION_DEV",
+}
 
 REVIEW_REQUIRED_SPECS = [
     "REVIEW_REQUIRED: Production text normalization policy (CRLF/NFC/whitespace stripping) — fixture uses TEST_FIXTURE_ONLY fixture-nfc-lf-v0-draft",
@@ -2683,6 +2710,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "rationale": "Despite 1 DIRECT anchor atom, 400ms->40ms distortion and Alpha/Borealis conflation block SOURCE_VERIFIED.",
         },
     ]
+    for scn in expected_scenarios:
+        scn["evaluation_partition"] = FAMILY_PARTITION_MAP[scn["evaluation_family_id"]]
+        scn["oracle_status"] = ORACLE_STATUS_APPROVED
 
     expected_atoms = [
         ("atom-01-1", "SCN-01", "claim-01-1", "DRAFT_ATOM_UNSUPPORTED", True, "0 canonical facts exist in boilerplate source src01."),
@@ -2779,7 +2809,7 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
         ("claim-14-1", "SCN-14", "DRAFT_CLAIM_CONFLICTING", False, "DO_NOT_MARK_SOURCE_VERIFIED_REVIEW_REQUIRED", True, "Required atoms include CONTRADICTED 10x distortion and CONTEXT-only conflation; SOURCE_VERIFIED forbidden."),
     ]
 
-    # Official REF-01..REF-08 Coverage Matrix (honestly separating covered stubs vs partial/full coverage gaps)
+    # Official REF-01..REF-08 Coverage Matrix (honestly separating covered stubs vs partial/full coverage gaps; unverified items are NEVER marked passed)
     official_ref_matrix = [
         {
             "official_ref_id": "REF-01",
@@ -2788,9 +2818,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": True,
             "linked_fixture_case_ids": ["refcase-01a"],
             "coverage_gap_details": [
-                "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed."
+                "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed and NOT in this approval scope."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": ORACLE_STATUS_APPROVED,
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm production normalization/offset contract for exact span reproduction"
             ],
@@ -2802,9 +2832,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": True,
             "linked_fixture_case_ids": ["refcase-02a", "refcase-02b", "refcase-02c"],
             "coverage_gap_details": [
-                "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch NOT executed."
+                "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch is NOT executed and NOT in this approval scope."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": ORACLE_STATUS_APPROVED,
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP",
                 "REVIEW_REQUIRED: Confirm distinct error telemetry between upstream content change (refcase-02a/02b) and internal/corrupted locator mismatch (refcase-02c)"
@@ -2817,9 +2847,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": True,
             "linked_fixture_case_ids": ["refcase-03a", "refcase-03b", "refcase-03c", "refcase-03d", "refcase-03e"],
             "coverage_gap_details": [
-                "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed."
+                "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed and NOT in this approval scope."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": ORACLE_STATUS_APPROVED,
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm product status distinction between 404, partial 206, transient 429/5xx/timeout retry-cap block, confirmed upstream delete (410), and user deletion (SCN-13)"
             ],
@@ -2828,12 +2858,12 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "official_ref_id": "REF-04",
             "official_requirement_label": "원문 비영속",
             "coverage_status": "PARTIAL_COVERAGE_GAP",
-            "verified_in_draft": True,
+            "verified_in_draft": False,
             "linked_fixture_case_ids": ["refcase-04a"],
             "coverage_gap_details": [
-                "COVERAGE GAP (runtime): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
+                "COVERAGE GAP (runtime — NOT passed): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, queues, and Export"
             ],
@@ -2842,12 +2872,12 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "official_ref_id": "REF-05",
             "official_requirement_label": "접근 권한·허용된 URL 경계",
             "coverage_status": "PARTIAL_COVERAGE_GAP",
-            "verified_in_draft": True,
+            "verified_in_draft": False,
             "linked_fixture_case_ids": ["refcase-05a", "refcase-05b"],
             "coverage_gap_details": [
-                "COVERAGE GAP (runtime): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
+                "COVERAGE GAP (runtime — NOT passed): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm full production URL allowlist, redirect policy, and tenant/OAuth permission error codes"
             ],
@@ -2859,9 +2889,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": False,
             "linked_fixture_case_ids": [],
             "coverage_gap_details": [
-                "COVERAGE GAP (unverified): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A static draft (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
+                "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A/B static dataset (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": "UNVERIFIED_COVERAGE_GAP",
             "review_required_items": [
                 "REVIEW_REQUIRED: Define worker checkpoint schema and add restart/replay test in worker/integration QA harness"
             ],
@@ -2873,9 +2903,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": False,
             "linked_fixture_case_ids": [],
             "coverage_gap_details": [
-                "COVERAGE GAP (unverified): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline T-004A static dataset; requires product API/UI integration QA."
+                "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline synthetic regression dataset; requires product API/UI integration QA."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": "UNVERIFIED_COVERAGE_GAP",
             "review_required_items": [
                 "REVIEW_REQUIRED: Define trigger contract for on-demand refetch during Claim approval, Export generation, and evidence inspection"
             ],
@@ -2887,9 +2917,9 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "verified_in_draft": False,
             "linked_fixture_case_ids": [],
             "coverage_gap_details": [
-                "COVERAGE GAP (unverified): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
+                "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
             ],
-            "oracle_status": "DRAFT",
+            "oracle_status": "UNVERIFIED_COVERAGE_GAP",
             "review_required_items": [
                 "REVIEW_REQUIRED: Confirm exact max source byte size, LLM budget/token cap, and inter-stage memory-only execution contract"
             ],
@@ -3126,8 +3156,11 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "rationale": "Metadata IP, loopback, private CIDR, embedded credentials, and non-HTTPS schemes are rejected prior to any outbound fetch.",
         },
     ]
+    for rf in expected_refetch_fixtures:
+        rf["evaluation_partition"] = FAMILY_PARTITION_MAP[rf["evaluation_family_id"]]
+        rf["oracle_status"] = ORACLE_STATUS_APPROVED
 
-    return {
+    dataset_artifacts: dict[str, dict[str, Any]] = {
         "sources/source_revisions.json": {
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
@@ -3175,24 +3208,29 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
             "stage_name": "STAGE_4_REFETCH_VERIFICATION",
-            "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (distinguishing body drift vs same-hash locator-only mismatch and HTTP 404 vs transient 429/5xx/timeout failures, with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
+            "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (distinguishing body drift vs same-hash locator-only mismatch and HTTP 404 vs transient 429/5xx/timeout failures, with REF-04..REF-05 partial runtime gaps and REF-06..REF-08 unverified COVERAGE_GAPs tracked honestly in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
             "artifact_role": "STAGE_STUB_OUTPUT",
             "refetch_checks": refetch_checks,
         },
         "expected/oracle_draft.json": {
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
-            "artifact_role": "EXPECTED_ORACLE_DRAFT",
-            "oracle_status": "DRAFT",
+            "artifact_role": "EXPECTED_ORACLE_APPROVED_SYNTHETIC_REGRESSION",
+            "oracle_status": ORACLE_STATUS_APPROVED,
+            "golden_scope": GOLDEN_SCOPE,
             "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
-            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_*_verdict values are provisional T-004A evaluation labels and MUST NOT be conflated with finalized product status enums.",
-            "frozen_for_golden": False,
+            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_*_verdict values are approved strictly for synthetic regression tests and MUST NOT be conflated with unconfirmed finalized product status enums.",
+            "frozen_for_golden": True,
             "requires_human_review_task": "T-004B",
             "provenance_and_freeze_preconditions": {
                 "base_commit_sha": "f90b716036a9392b06b465f8d5545502d8eb18cd",
-                "review_source_ref": "career-memory-round-01/claim-qa-independent-review.md (11 Claim revisions applied; 12 kept Claims & SCN-13 OD-003 preserved)",
-                "human_approval_status": "PENDING_T004B_HUMAN_SIGNOFF",
-                "family_split_anti_leakage_rule": "Keep all cases sharing evaluation_family_id (e.g., family-src02 across SCN-02 & refcase-01a..05b; family-src12 original/edited versions) in the same evaluation split before any golden freeze.",
+                "approved_from_draft_commit_sha": APPROVED_FROM_DRAFT_COMMIT_SHA,
+                "approved_from_draft_version": APPROVED_FROM_DRAFT_VERSION,
+                "review_source_ref": "career-memory-round-01/claim-qa-independent-review.md (11 Claim revisions applied; 12 kept Claims & SCN-13 OD-003 preserved; approved for synthetic regression tests from v0.3.0-draft @ 5700674)",
+                "human_approval_status": "APPROVED_SYNTHETIC_REGRESSION_ONLY",
+                "family_split_anti_leakage_rule": "All cases, edited versions, and refetch fixtures sharing an evaluation_family_id or source revision are strictly assigned to the exact same partition (SYNTHETIC_REGRESSION_DEV or SYNTHETIC_REGRESSION_TEST).",
+                "live_llm_evaluation_in_scope": False,
+                "production_connector_integration_in_scope": False,
                 "synthetic_semantics_only_not_connector_evidence": True,
             },
             "scenarios": expected_scenarios,
@@ -3202,11 +3240,11 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                     "scenario_id": sid,
                     "claim_id": cid,
                     "draft_atom_verdict": verdict,
-                    "oracle_status": "DRAFT",
-                    "review_required": req,
+                    "oracle_status": ORACLE_STATUS_APPROVED,
+                    "review_required": False,
                     "rationale": rat,
                 }
-                for aid, sid, cid, verdict, req, rat in expected_atoms
+                for aid, sid, cid, verdict, _req, rat in expected_atoms
             ],
             "expected_claims": [
                 {
@@ -3220,25 +3258,106 @@ def build_all_artifacts() -> dict[str, dict[str, Any]]:
                         if cid in od003_expected_by_claim
                         else {}
                     ),
-                    "oracle_status": "DRAFT",
-                    "review_required": req,
+                    "oracle_status": ORACLE_STATUS_APPROVED,
+                    "review_required": False,
                     "rationale": rat,
                 }
-                for cid, sid, verdict, eligible, proposal, req, rat in expected_claims
+                for cid, sid, verdict, eligible, proposal, _req, rat in expected_claims
             ],
         },
         "expected/refetch_oracle_draft.json": {
             "schema_version": SCHEMA_VERSION,
             "dataset_version": DATASET_VERSION,
-            "artifact_role": "EXPECTED_REFETCH_ORACLE_DRAFT",
-            "oracle_status": "DRAFT",
+            "artifact_role": "EXPECTED_REFETCH_ORACLE_APPROVED_SYNTHETIC_REGRESSION",
+            "oracle_status": ORACLE_STATUS_APPROVED,
+            "golden_scope": GOLDEN_SCOPE,
             "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
-            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are provisional T-004A evaluation labels, separate from final product states.",
-            "frozen_for_golden": False,
+            "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are approved strictly for synthetic regression stubs and remain separate from unconfirmed product states; unverified REF-04..08 gaps are NOT marked passed.",
+            "frozen_for_golden": True,
             "requires_human_review_task": "T-004B",
             "official_ref_matrix": official_ref_matrix,
             "expected_refetch_fixtures": expected_refetch_fixtures,
         },
+    }
+
+    # Build family-preserving partition index for APPROVAL_MANIFEST.json
+    partitions_summary: dict[str, dict[str, list[str]]] = {
+        "SYNTHETIC_REGRESSION_DEV": {
+            "family_ids": [],
+            "scenario_ids": [],
+            "claim_ids": [],
+            "refetch_fixture_case_ids": [],
+        },
+        "SYNTHETIC_REGRESSION_TEST": {
+            "family_ids": [],
+            "scenario_ids": [],
+            "claim_ids": [],
+            "refetch_fixture_case_ids": [],
+        },
+    }
+    scenario_partition_by_id = {scn["scenario_id"]: scn["evaluation_partition"] for scn in expected_scenarios}
+    for fam_id, part_name in sorted(FAMILY_PARTITION_MAP.items()):
+        partitions_summary[part_name]["family_ids"].append(fam_id)
+    for scn in expected_scenarios:
+        partitions_summary[scn["evaluation_partition"]]["scenario_ids"].append(scn["scenario_id"])
+    for cl in claims:
+        partitions_summary[scenario_partition_by_id[cl["scenario_id"]]]["claim_ids"].append(cl["claim_id"])
+    for rf in expected_refetch_fixtures:
+        partitions_summary[rf["evaluation_partition"]]["refetch_fixture_case_ids"].append(rf["fixture_case_id"])
+
+    # Compute exact UTF-8 byte SHA-256 of all 8 dataset JSON files + schema JSON file
+    base_dir = Path(__file__).resolve().parent.parent
+    schema_path = base_dir / "schemas" / "claim_pipeline.schema.json"
+    artifact_sha256: dict[str, str] = {}
+    if schema_path.exists():
+        artifact_sha256["schemas/claim_pipeline.schema.json"] = (
+            "sha256:" + hashlib.sha256(schema_path.read_bytes()).hexdigest()
+        )
+    for rel_path in sorted(dataset_artifacts.keys()):
+        serialized = (json.dumps(dataset_artifacts[rel_path], indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        artifact_sha256[rel_path] = "sha256:" + hashlib.sha256(serialized).hexdigest()
+
+    manifest_lines = "\n".join(f"{path}  {digest}" for path, digest in sorted(artifact_sha256.items())) + "\n"
+    bundle_sha256 = sha256_prefixed(manifest_lines)
+
+    approval_manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "dataset_version": DATASET_VERSION,
+        "artifact_role": "SYNTHETIC_REGRESSION_APPROVAL_MANIFEST",
+        "approval_status": "APPROVED_SYNTHETIC_REGRESSION_GOLDEN",
+        "golden_scope": GOLDEN_SCOPE,
+        "approved_from_draft_commit_sha": APPROVED_FROM_DRAFT_COMMIT_SHA,
+        "approved_from_draft_version": APPROVED_FROM_DRAFT_VERSION,
+        "approval_scope": {
+            "included": [
+                "Synthetic Fact/Claim grounding regression oracle (SCN-01..SCN-14: 23 Claims, 41 Claim Atoms, 26 Canonical Facts, 29 Fact Supports, including all 11 Round-01 revisions and 12 kept Claims)",
+                "OD-003 synthetic user-deletion access-block & full-server-purge lifecycle regression (SCN-13 claim-13-1, claim-13-2)",
+                "Synthetic Refetch stub regression fixtures (refcase-01a..refcase-05b; REF-01..REF-03 static synthetic stubs, REF-04 static JSON canary, REF-05 static 403 & URL pre-check)",
+                "Programmatic locator/hash round-trip integrity and family-preserving evaluation partitioning (SYNTHETIC_REGRESSION_DEV / SYNTHETIC_REGRESSION_TEST)",
+            ],
+            "excluded": [
+                "Real external LLM inference quality, prompt tuning, or token/cost benchmarking",
+                "Live external provider connectors (GitHub/Notion/Slack/Jira), live HTTP refetch, live retry/backoff, live OAuth/tenant boundaries, or live redirect/DNS-rebinding SSRF execution",
+                "Production code, shared CI, EVENT-QA, or production DB integration",
+                "Unverified official REF coverage gaps: REF-04 & REF-05 runtime gaps (PARTIAL_COVERAGE_GAP) and REF-06, REF-07, REF-08 (COVERAGE_GAP) — NOT marked passed",
+                "Finalized production normalization/offset contract and finalized product Claim/Atom/Refetch status enum mapping (still REVIEW_REQUIRED)",
+            ],
+            "live_llm_evaluation_in_scope": False,
+            "production_connector_integration_in_scope": False,
+            "synthetic_semantics_only_not_connector_evidence": True,
+        },
+        "unverified_ref_items_not_passed": {
+            "partial_coverage_gap": ["REF-04", "REF-05"],
+            "coverage_gap": ["REF-06", "REF-07", "REF-08"],
+        },
+        "evaluation_partitions": partitions_summary,
+        "artifact_sha256": dict(sorted(artifact_sha256.items())),
+        "bundle_sha256": bundle_sha256,
+    }
+
+    return {
+        **dataset_artifacts,
+        "APPROVAL_MANIFEST.json": approval_manifest,
     }
 
 
@@ -3256,7 +3375,7 @@ def write_all_artifacts(base_dir: Path) -> list[Path]:
 def main() -> None:
     base_dir = Path(__file__).resolve().parent.parent
     written = write_all_artifacts(base_dir)
-    print(f"Generated {len(written)} T-004A synthetic dataset files (v{DATASET_VERSION}) under {base_dir}:")
+    print(f"Generated {len(written)} T-004A/B synthetic regression files (v{DATASET_VERSION}) under {base_dir}:")
     for p in written:
         print(f"  - {p.relative_to(base_dir)}")
 

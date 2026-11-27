@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.3.0-draft",
-  "dataset_version": "0.3.0-draft",
+  "schema_version": "0.3.0-synthetic-golden",
+  "dataset_version": "0.3.0-synthetic-golden",
   "artifact_role": "SYNTHETIC_REFETCH_STUB_INPUT",
   "refetch_snapshots": [
     {

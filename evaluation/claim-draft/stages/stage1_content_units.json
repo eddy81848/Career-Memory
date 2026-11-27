@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.3.0-draft",
-  "dataset_version": "0.3.0-draft",
+  "schema_version": "0.3.0-synthetic-golden",
+  "dataset_version": "0.3.0-synthetic-golden",
   "stage_name": "STAGE_1_CONTENT_UNIT_SEGMENTATION",
   "stage_responsibility": "Deterministically segment normalized Source Revisions into Content Units with programmatically computed locators and hashes, without persisting raw text.",
   "artifact_role": "STAGE_STUB_OUTPUT",

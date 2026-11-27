@@ -1,8 +1,8 @@
 {
-  "schema_version": "0.3.0-draft",
-  "dataset_version": "0.3.0-draft",
+  "schema_version": "0.3.0-synthetic-golden",
+  "dataset_version": "0.3.0-synthetic-golden",
   "stage_name": "STAGE_4_REFETCH_VERIFICATION",
-  "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (distinguishing body drift vs same-hash locator-only mismatch and HTTP 404 vs transient 429/5xx/timeout failures, with REF-06..REF-08 explicitly tracked as COVERAGE_GAP in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
+  "stage_responsibility": "Evaluate synthetic refetch stub responses mapped to official REF-01..REF-05 (distinguishing body drift vs same-hash locator-only mismatch and HTTP 404 vs transient 429/5xx/timeout failures, with REF-04..REF-05 partial runtime gaps and REF-06..REF-08 unverified COVERAGE_GAPs tracked honestly in oracle matrix), checking locator/hash consistency, URL safety, static canary non-persistence, and Post-MVP non-mutation boundary.",
   "artifact_role": "STAGE_STUB_OUTPUT",
   "refetch_checks": [
     {

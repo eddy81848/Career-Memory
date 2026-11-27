@@ -1,14 +1,17 @@
 """Structural, schema, locator/hash round-trip, anti-self-evidence, official REF-01..08 coverage-gap,
-new-version user-edit re-verification, required-atom, canary, and provisional-verdict validator.
+family-partition anti-leakage, approval-manifest hash, new-version user-edit re-verification,
+required-atom, canary, and provisional-verdict validator.
 
 Note:
-Structural validation is strictly separate from human semantic ground-truth approval (T-004B).
-Passing this validator certifies structural integrity, locator/hash round-trip accuracy,
-honest coverage-gap tracking, and safety invariants — NOT golden semantic sign-off.
+The approved golden scope (v0.3.0-synthetic-golden) covers ONLY synthetic regression tests.
+Live external LLM evaluation, external connector / HTTP refetch execution, production DB integration,
+unverified REF items (REF-04/05 partial gaps, REF-06..08 coverage gaps), and finalized product
+status enum / normalization specs remain explicitly outside this approval scope.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -34,7 +37,12 @@ DATASET_FILES = {
     "stages/stage4_refetch_checks.json": "Stage4RefetchChecksFile",
     "expected/oracle_draft.json": "OracleDraftFile",
     "expected/refetch_oracle_draft.json": "RefetchOracleDraftFile",
+    "APPROVAL_MANIFEST.json": "ApprovalManifestFile",
 }
+
+APPROVED_ORACLE_STATUS = "APPROVED_SYNTHETIC_REGRESSION"
+GOLDEN_SCOPE = "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION"
+VALID_EVALUATION_PARTITIONS = ("SYNTHETIC_REGRESSION_DEV", "SYNTHETIC_REGRESSION_TEST")
 
 OFFICIAL_REF_REQUIREMENTS = {
     "REF-01": "동일 버전과 정확한 근거 위치 재현",
@@ -220,6 +228,7 @@ def validate_bundle(
     s4_doc = docs["stages/stage4_refetch_checks.json"]
     oracle_doc = docs["expected/oracle_draft.json"]
     ref_oracle_doc = docs["expected/refetch_oracle_draft.json"]
+    manifest_doc = docs["APPROVAL_MANIFEST.json"]
 
     # 2. Index and validate Source Revisions
     sources_by_id: dict[str, dict[str, Any]] = {}
@@ -529,17 +538,23 @@ def validate_bundle(
         if fid not in facts_by_id:
             errors.append(ValidationErrorItem("BROKEN_REFERENCE", f"{loc_path}.canonical_fact_id", f"Unknown '{fid}'"))
 
-    # 6. Validate Expected Oracle (DRAFT, provisional verdict namespace, & strict SOURCE_VERIFIED guards)
+    # 6. Validate Expected Oracle (APPROVED_SYNTHETIC_REGRESSION scope, provisional verdict namespace, & strict SOURCE_VERIFIED guards)
     for doc_label, o_doc in (
         ("expected/oracle_draft.json", oracle_doc),
         ("expected/refetch_oracle_draft.json", ref_oracle_doc),
     ):
-        if o_doc.get("oracle_status") != "DRAFT" or o_doc.get("frozen_for_golden") is not False:
+        if (
+            o_doc.get("oracle_status") != APPROVED_ORACLE_STATUS
+            or o_doc.get("frozen_for_golden") is not True
+            or o_doc.get("golden_scope") != GOLDEN_SCOPE
+        ):
             errors.append(
                 ValidationErrorItem(
-                    "PREMATURE_GOLDEN_FREEZE",
+                    "APPROVAL_SCOPE_OVERCLAIM",
                     doc_label,
-                    "Expected oracle MUST remain oracle_status='DRAFT' and frozen_for_golden=false before T-004B review",
+                    f"Expected oracle MUST declare oracle_status={APPROVED_ORACLE_STATUS!r}, "
+                    f"frozen_for_golden=true, and golden_scope={GOLDEN_SCOPE!r} "
+                    "(unqualified GOLDEN / production / live-LLM approval is forbidden)",
                 )
             )
         if o_doc.get("verdict_namespace") != "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS":
@@ -550,6 +565,23 @@ def validate_bundle(
                     "Expected oracle must declare verdict_namespace='DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS'",
                 )
             )
+
+    prov = oracle_doc.get("provenance_and_freeze_preconditions", {})
+    if (
+        prov.get("human_approval_status") != "APPROVED_SYNTHETIC_REGRESSION_ONLY"
+        or prov.get("live_llm_evaluation_in_scope") is not False
+        or prov.get("production_connector_integration_in_scope") is not False
+        or prov.get("synthetic_semantics_only_not_connector_evidence") is not True
+    ):
+        errors.append(
+            ValidationErrorItem(
+                "APPROVAL_SCOPE_OVERCLAIM",
+                "expected/oracle_draft.json.provenance_and_freeze_preconditions",
+                "Approval scope MUST remain strictly synthetic-regression-only "
+                "(live_llm_evaluation_in_scope=false, production_connector_integration_in_scope=false, "
+                "synthetic_semantics_only_not_connector_evidence=true)",
+            )
+        )
 
     scenarios_in_oracle = oracle_doc.get("scenarios", [])
     if len(scenarios_in_oracle) < 12:
@@ -636,9 +668,13 @@ def validate_bundle(
         return True, "ok"
 
     for cid, ec in expected_claims_by_id.items():
-        if ec.get("oracle_status") != "DRAFT":
+        if ec.get("oracle_status") != APPROVED_ORACLE_STATUS:
             errors.append(
-                ValidationErrorItem("PREMATURE_GOLDEN_FREEZE", f"expected_claims[{cid}]", "Must be oracle_status='DRAFT'")
+                ValidationErrorItem(
+                    "APPROVAL_SCOPE_OVERCLAIM",
+                    f"expected_claims[{cid}]",
+                    f"Must be oracle_status={APPROVED_ORACLE_STATUS!r}",
+                )
             )
         verdict = str(ec.get("draft_claim_verdict", ""))
         proposal = str(ec.get("product_status_proposal", ""))
@@ -882,17 +918,39 @@ def validate_bundle(
         linked = row.get("linked_fixture_case_ids", [])
         cov_status = row.get("coverage_status")
         verified = row.get("verified_in_draft")
+        row_oracle_status = row.get("oracle_status")
         gap_details = row.get("coverage_gap_details", [])
 
-        # Anti-fake-coverage guard: missing fixtures MUST be declared COVERAGE_GAP and verified_in_draft=False
+        # Anti-fake-coverage guard: unverified REF-06..08 (0 fixtures) and partially unverified REF-04..05
+        # MUST NOT be marked verified/passed.
         if not linked:
-            if cov_status != "COVERAGE_GAP" or verified is not False or not gap_details:
+            if (
+                cov_status != "COVERAGE_GAP"
+                or verified is not False
+                or row_oracle_status != "UNVERIFIED_COVERAGE_GAP"
+                or not gap_details
+            ):
                 errors.append(
                     ValidationErrorItem(
                         "FALSE_COVERAGE_CLAIM",
                         loc,
                         f"{official_ref_id} has 0 linked fixtures and MUST be coverage_status='COVERAGE_GAP', "
-                        "verified_in_draft=false, with non-empty coverage_gap_details",
+                        "verified_in_draft=false, oracle_status='UNVERIFIED_COVERAGE_GAP', with non-empty coverage_gap_details",
+                    )
+                )
+        elif official_ref_id in ("REF-04", "REF-05") or cov_status == "PARTIAL_COVERAGE_GAP":
+            if (
+                cov_status != "PARTIAL_COVERAGE_GAP"
+                or verified is not False
+                or row_oracle_status != "PARTIAL_UNVERIFIED_COVERAGE_GAP"
+                or not gap_details
+            ):
+                errors.append(
+                    ValidationErrorItem(
+                        "FALSE_COVERAGE_CLAIM",
+                        loc,
+                        f"{official_ref_id} has unverified runtime gaps and MUST remain coverage_status='PARTIAL_COVERAGE_GAP', "
+                        "verified_in_draft=false, oracle_status='PARTIAL_UNVERIFIED_COVERAGE_GAP', with non-empty coverage_gap_details",
                     )
                 )
         else:
@@ -902,6 +960,14 @@ def validate_bundle(
                         "FALSE_COVERAGE_CLAIM",
                         loc,
                         f"{official_ref_id} marked COVERAGE_GAP cannot set verified_in_draft=true",
+                    )
+                )
+            if cov_status == "COVERED_SYNTHETIC_STUB" and row_oracle_status != APPROVED_ORACLE_STATUS:
+                errors.append(
+                    ValidationErrorItem(
+                        "APPROVAL_SCOPE_OVERCLAIM",
+                        loc,
+                        f"{official_ref_id} covered synthetic stub row must set oracle_status={APPROVED_ORACLE_STATUS!r}",
                     )
                 )
 
@@ -1145,13 +1211,14 @@ def validate_bundle(
                     )
                 )
 
-    # Global Option C non-persistence audit across persisted stage files & oracle files
+    # Global Option C non-persistence audit across persisted stage files, oracle files, & approval manifest
     for label, doc in (
         ("stages/stage1_content_units.json", s1_doc),
         ("stages/stage2_fact_extraction.json", s2_doc),
         ("stages/stage3_claim_assembly.json", s3_doc),
         ("expected/oracle_draft.json", oracle_doc),
         ("expected/refetch_oracle_draft.json", ref_oracle_doc),
+        ("APPROVAL_MANIFEST.json", manifest_doc),
     ):
         leaked = detect_canary_in_obj(doc, all_canary_tokens)
         if leaked:
@@ -1163,7 +1230,225 @@ def validate_bundle(
                 )
             )
 
+    # 8. Validate Family-Preserving Evaluation Partitions (anti-leakage) & APPROVAL_MANIFEST.json integrity
+    family_to_partitions: dict[str, set[str]] = {}
+    scenario_partition_by_id: dict[str, str] = {}
+    actual_partitions: dict[str, dict[str, list[str]]] = {
+        p: {
+            "family_ids": [],
+            "scenario_ids": [],
+            "claim_ids": [],
+            "refetch_fixture_case_ids": [],
+        }
+        for p in VALID_EVALUATION_PARTITIONS
+    }
+
+    for scn in scenarios_in_oracle:
+        sid = scn.get("scenario_id", "")
+        fam = scn.get("evaluation_family_id", "")
+        part = scn.get("evaluation_partition", "")
+        if part not in VALID_EVALUATION_PARTITIONS:
+            errors.append(
+                ValidationErrorItem(
+                    "FAMILY_PARTITION_LEAKAGE",
+                    f"expected/oracle_draft.json.scenarios[{sid}].evaluation_partition",
+                    f"Invalid evaluation_partition {part!r}; expected one of {VALID_EVALUATION_PARTITIONS}",
+                )
+            )
+            continue
+        scenario_partition_by_id[sid] = part
+        family_to_partitions.setdefault(fam, set()).add(part)
+        actual_partitions[part]["scenario_ids"].append(sid)
+
+    for cl in s3_doc.get("claims", []):
+        cid = cl.get("claim_id", "")
+        part = scenario_partition_by_id.get(cl.get("scenario_id", ""))
+        if part:
+            actual_partitions[part]["claim_ids"].append(cid)
+
+    for fcid, ro in ref_oracles_by_id.items():
+        if ro.get("oracle_status") != APPROVED_ORACLE_STATUS:
+            errors.append(
+                ValidationErrorItem(
+                    "APPROVAL_SCOPE_OVERCLAIM",
+                    f"expected_refetch_fixtures[{fcid}].oracle_status",
+                    f"Must set oracle_status={APPROVED_ORACLE_STATUS!r}",
+                )
+            )
+        fam = ro.get("evaluation_family_id", "")
+        part = ro.get("evaluation_partition", "")
+        if part not in VALID_EVALUATION_PARTITIONS:
+            errors.append(
+                ValidationErrorItem(
+                    "FAMILY_PARTITION_LEAKAGE",
+                    f"expected_refetch_fixtures[{fcid}].evaluation_partition",
+                    f"Invalid evaluation_partition {part!r}; expected one of {VALID_EVALUATION_PARTITIONS}",
+                )
+            )
+            continue
+        family_to_partitions.setdefault(fam, set()).add(part)
+        actual_partitions[part]["refetch_fixture_case_ids"].append(fcid)
+
+    for fam, parts in sorted(family_to_partitions.items()):
+        if len(parts) > 1:
+            errors.append(
+                ValidationErrorItem(
+                    "FAMILY_PARTITION_LEAKAGE",
+                    f"evaluation_family[{fam}]",
+                    f"Cases/edits/refetch fixtures from family '{fam}' leaked across multiple partitions: {sorted(parts)}",
+                )
+            )
+        elif len(parts) == 1:
+            only_part = next(iter(parts))
+            actual_partitions[only_part]["family_ids"].append(fam)
+
+    # Verify source-revision-level anti-leakage (same raw source revision cannot appear in both DEV and TEST)
+    source_rev_to_partitions: dict[str, set[str]] = {}
+    for cu in s1_doc.get("content_units", []):
+        part = scenario_partition_by_id.get(cu.get("scenario_id", ""))
+        if part and cu.get("source_revision_id"):
+            source_rev_to_partitions.setdefault(cu["source_revision_id"], set()).add(part)
+    for fs in s2_doc.get("fact_supports", []):
+        part = scenario_partition_by_id.get(fs.get("scenario_id", ""))
+        if part and fs.get("source_revision_id"):
+            source_rev_to_partitions.setdefault(fs["source_revision_id"], set()).add(part)
+    for chk in s4_doc.get("refetch_checks", []):
+        ro = ref_oracles_by_id.get(chk.get("fixture_case_id", ""))
+        part = ro.get("evaluation_partition") if ro else None
+        if part in VALID_EVALUATION_PARTITIONS and chk.get("baseline_source_revision_id"):
+            source_rev_to_partitions.setdefault(chk["baseline_source_revision_id"], set()).add(part)
+
+    for rev_id, parts in sorted(source_rev_to_partitions.items()):
+        if len(parts) > 1:
+            errors.append(
+                ValidationErrorItem(
+                    "FAMILY_PARTITION_LEAKAGE",
+                    f"source_revision[{rev_id}]",
+                    f"Same source_revision_id '{rev_id}' leaked across multiple evaluation partitions: {sorted(parts)}",
+                )
+            )
+
+    # Validate APPROVAL_MANIFEST.json scope, unverified REF list, partitions, and exact SHA-256 digests
+    if (
+        manifest_doc.get("approval_status") != "APPROVED_SYNTHETIC_REGRESSION_GOLDEN"
+        or manifest_doc.get("golden_scope") != GOLDEN_SCOPE
+    ):
+        errors.append(
+            ValidationErrorItem(
+                "APPROVAL_SCOPE_OVERCLAIM",
+                "APPROVAL_MANIFEST.json",
+                f"Manifest must declare approval_status='APPROVED_SYNTHETIC_REGRESSION_GOLDEN' and golden_scope={GOLDEN_SCOPE!r}",
+            )
+        )
+    m_scope = manifest_doc.get("approval_scope", {})
+    if (
+        m_scope.get("live_llm_evaluation_in_scope") is not False
+        or m_scope.get("production_connector_integration_in_scope") is not False
+        or m_scope.get("synthetic_semantics_only_not_connector_evidence") is not True
+    ):
+        errors.append(
+            ValidationErrorItem(
+                "APPROVAL_SCOPE_OVERCLAIM",
+                "APPROVAL_MANIFEST.json.approval_scope",
+                "Manifest approval_scope MUST exclude live LLM evaluation and production connector integration",
+            )
+        )
+    m_unverified = manifest_doc.get("unverified_ref_items_not_passed", {})
+    if m_unverified.get("partial_coverage_gap") != sorted(partial_gap_refs) or m_unverified.get(
+        "coverage_gap"
+    ) != sorted(coverage_gap_refs):
+        errors.append(
+            ValidationErrorItem(
+                "FALSE_COVERAGE_CLAIM",
+                "APPROVAL_MANIFEST.json.unverified_ref_items_not_passed",
+                f"Manifest unverified_ref_items_not_passed mismatch: expected partial={sorted(partial_gap_refs)}, "
+                f"coverage_gap={sorted(coverage_gap_refs)}, got {m_unverified!r}",
+            )
+        )
+
+    m_parts = manifest_doc.get("evaluation_partitions", {})
+    for part_name in VALID_EVALUATION_PARTITIONS:
+        expected_entry = {k: sorted(v) for k, v in actual_partitions[part_name].items()}
+        recorded_raw = m_parts.get(part_name, {})
+        recorded_entry = {
+            k: sorted(recorded_raw.get(k, []))
+            for k in ("family_ids", "scenario_ids", "claim_ids", "refetch_fixture_case_ids")
+        }
+        if recorded_entry != expected_entry:
+            errors.append(
+                ValidationErrorItem(
+                    "FAMILY_PARTITION_LEAKAGE",
+                    f"APPROVAL_MANIFEST.json.evaluation_partitions.{part_name}",
+                    f"Partition manifest mismatch: recorded {recorded_entry} != actual {expected_entry}",
+                )
+            )
+    dev_fams = set(m_parts.get("SYNTHETIC_REGRESSION_DEV", {}).get("family_ids", []))
+    test_fams = set(m_parts.get("SYNTHETIC_REGRESSION_TEST", {}).get("family_ids", []))
+    if dev_fams & test_fams:
+        errors.append(
+            ValidationErrorItem(
+                "FAMILY_PARTITION_LEAKAGE",
+                "APPROVAL_MANIFEST.json.evaluation_partitions",
+                f"Overlapping family_ids across DEV and TEST partitions: {sorted(dev_fams & test_fams)}",
+            )
+        )
+
+    expected_artifact_sha256: dict[str, str] = {}
+    schema_disk_path = Path(__file__).resolve().parent.parent / "schemas" / "claim_pipeline.schema.json"
+    if schema_disk_path.exists():
+        expected_artifact_sha256["schemas/claim_pipeline.schema.json"] = (
+            "sha256:" + hashlib.sha256(schema_disk_path.read_bytes()).hexdigest()
+        )
+    for rel_path in sorted(p for p in DATASET_FILES if p != "APPROVAL_MANIFEST.json"):
+        serialized = (json.dumps(docs[rel_path], indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        expected_artifact_sha256[rel_path] = "sha256:" + hashlib.sha256(serialized).hexdigest()
+
+    recorded_artifact_sha256 = manifest_doc.get("artifact_sha256", {})
+    if set(recorded_artifact_sha256.keys()) != set(expected_artifact_sha256.keys()):
+        errors.append(
+            ValidationErrorItem(
+                "MANIFEST_HASH_MISMATCH",
+                "APPROVAL_MANIFEST.json.artifact_sha256",
+                f"Manifest file keys {sorted(recorded_artifact_sha256.keys())} != expected {sorted(expected_artifact_sha256.keys())}",
+            )
+        )
+    for rel_path, expected_digest in sorted(expected_artifact_sha256.items()):
+        rec_digest = recorded_artifact_sha256.get(rel_path)
+        if rec_digest != expected_digest:
+            errors.append(
+                ValidationErrorItem(
+                    "MANIFEST_HASH_MISMATCH",
+                    f"APPROVAL_MANIFEST.json.artifact_sha256[{rel_path}]",
+                    f"Recorded {rec_digest} != computed {expected_digest}",
+                )
+            )
+
+    expected_manifest_lines = (
+        "\n".join(f"{path}  {digest}" for path, digest in sorted(expected_artifact_sha256.items())) + "\n"
+    )
+    expected_bundle_sha256 = sha256_prefixed(expected_manifest_lines)
+    if manifest_doc.get("bundle_sha256") != expected_bundle_sha256:
+        errors.append(
+            ValidationErrorItem(
+                "MANIFEST_HASH_MISMATCH",
+                "APPROVAL_MANIFEST.json.bundle_sha256",
+                f"Recorded {manifest_doc.get('bundle_sha256')} != computed {expected_bundle_sha256}",
+            )
+        )
+
+    partition_counts = {
+        part_name: {
+            "families": len(actual_partitions[part_name]["family_ids"]),
+            "scenarios": len(actual_partitions[part_name]["scenario_ids"]),
+            "claims": len(actual_partitions[part_name]["claim_ids"]),
+            "refetch_fixtures": len(actual_partitions[part_name]["refetch_fixture_case_ids"]),
+        }
+        for part_name in VALID_EVALUATION_PARTITIONS
+    }
+
     summary = {
+        "dataset_version": src_doc.get("dataset_version", "unknown"),
+        "approval_status": manifest_doc.get("approval_status", "unknown"),
         "source_revisions": len(sources_by_id),
         "content_units": len(units_by_id),
         "canonical_facts": len(facts_by_id),
@@ -1173,11 +1458,13 @@ def validate_bundle(
         "claim_atom_supports": len(s3_doc.get("claim_atom_supports", [])),
         "scenarios": len(scenarios_in_oracle),
         "refetch_fixtures_preserved": len(snaps_by_id),
+        "partition_counts": partition_counts,
         "official_ref_covered_stub": covered_stub_refs,
         "official_ref_partial_coverage_gap": partial_gap_refs,
         "official_ref_coverage_gap": coverage_gap_refs,
         "locator_roundtrips_checked": locator_checks_run,
         "canary_tokens_audited": len(all_canary_tokens),
+        "bundle_sha256": expected_bundle_sha256,
         "error_count": len(errors),
     }
     return errors, summary
@@ -1188,7 +1475,7 @@ def main() -> int:
     schema, docs = load_dataset_bundle(base_dir)
     errors, summary = validate_bundle(schema, docs)
     dataset_version = docs.get("sources/source_revisions.json", {}).get("dataset_version", "unknown")
-    print(f"T-004A Claim Draft Dataset Structural Validation Summary (v{dataset_version}):")
+    print(f"T-004A/B Claim Synthetic Regression Golden Validation Summary (v{dataset_version}):")
     for key, val in summary.items():
         print(f"  {key}: {val}")
     if errors:
@@ -1196,8 +1483,14 @@ def main() -> int:
         for err in errors:
             print(f"  - {err.format()}")
         return 1
-    print("\nPASSED: All schema, locator/hash round-trip, anti-self-evidence, official REF coverage-gap, canary, and draft-oracle guards succeeded.")
-    print("NOTE: Structural PASS is separate from T-004B human semantic ground-truth approval (oracle_status=DRAFT).")
+    print(
+        "\nPASSED: All schema, locator/hash round-trip, anti-self-evidence, official REF coverage-gap, "
+        "family-partition anti-leakage, approval-manifest hash, canary, and synthetic-regression-golden guards succeeded."
+    )
+    print(
+        "NOTE: Approved scope is strictly SYNTHETIC_REGRESSION_ONLY (no live LLM, no production connector integration; "
+        "unverified REF-04/05 partial gaps and REF-06..08 coverage gaps remain NOT passed)."
+    )
     return 0
 
 

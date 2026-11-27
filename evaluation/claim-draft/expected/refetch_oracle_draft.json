@@ -1,11 +1,12 @@
 {
-  "schema_version": "0.3.0-draft",
-  "dataset_version": "0.3.0-draft",
-  "artifact_role": "EXPECTED_REFETCH_ORACLE_DRAFT",
-  "oracle_status": "DRAFT",
+  "schema_version": "0.3.0-synthetic-golden",
+  "dataset_version": "0.3.0-synthetic-golden",
+  "artifact_role": "EXPECTED_REFETCH_ORACLE_APPROVED_SYNTHETIC_REGRESSION",
+  "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
+  "golden_scope": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION",
   "verdict_namespace": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS",
-  "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are provisional T-004A evaluation labels, separate from final product states.",
-  "frozen_for_golden": false,
+  "product_status_mapping_policy": "REVIEW_REQUIRED — draft_refetch_verdict values are approved strictly for synthetic regression stubs and remain separate from unconfirmed product states; unverified REF-04..08 gaps are NOT marked passed.",
+  "frozen_for_golden": true,
   "requires_human_review_task": "T-004B",
   "official_ref_matrix": [
     {
@@ -17,9 +18,9 @@
         "refcase-01a"
       ],
       "coverage_gap_details": [
-        "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed."
+        "Static synthetic fixture & round-trip locator check only (URL-only match or partial response must never pass REF-01); real external provider HTTP refetch is NOT executed and NOT in this approval scope."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm production normalization/offset contract for exact span reproduction"
       ]
@@ -35,9 +36,9 @@
         "refcase-02c"
       ],
       "coverage_gap_details": [
-        "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch NOT executed."
+        "Static synthetic stubs distinguish body drift (refcase-02a), appended new revision (refcase-02b), and identical-hash corrupted-locator mismatch (refcase-02c); Post-MVP auto-detect/auto-refresh remains disabled; real provider refetch is NOT executed and NOT in this approval scope."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm whether shifted-offset fuzzy re-anchoring is MVP or Post-MVP",
         "REVIEW_REQUIRED: Confirm distinct error telemetry between upstream content change (refcase-02a/02b) and internal/corrupted locator mismatch (refcase-02c)"
@@ -56,9 +57,9 @@
         "refcase-03e"
       ],
       "coverage_gap_details": [
-        "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed."
+        "Static synthetic stubs distinguish HTTP 404 (refcase-03a) and HTTP 206 partial (refcase-03b) from transient failures HTTP 429 (refcase-03c), HTTP 503 5xx (refcase-03d), and network timeout (refcase-03e) with retry-cap and approval-block expectations, all distinct from confirmed deletion (SCN-13) and historical falsity; live retry/backoff execution, HTTP 410 confirmed upstream delete, and runtime approval-gate E2E are NOT executed and NOT in this approval scope."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm product status distinction between 404, partial 206, transient 429/5xx/timeout retry-cap block, confirmed upstream delete (410), and user deletion (SCN-13)"
       ]
@@ -67,14 +68,14 @@
       "official_ref_id": "REF-04",
       "official_requirement_label": "원문 비영속",
       "coverage_status": "PARTIAL_COVERAGE_GAP",
-      "verified_in_draft": true,
+      "verified_in_draft": false,
       "linked_fixture_case_ids": [
         "refcase-04a"
       ],
       "coverage_gap_details": [
-        "COVERAGE GAP (runtime): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
+        "COVERAGE GAP (runtime — NOT passed): Synthetic canary (refcase-04a) audits static persisted JSON snapshots & negative leak fixture only; live DB tables, application logs, queue payloads, cache entries, error trackers, Export artifacts, and disk temp files are NOT yet tested."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm Option C zero-raw-text persistence boundary across DB, logs, caches, queues, and Export"
       ]
@@ -83,15 +84,15 @@
       "official_ref_id": "REF-05",
       "official_requirement_label": "접근 권한·허용된 URL 경계",
       "coverage_status": "PARTIAL_COVERAGE_GAP",
-      "verified_in_draft": true,
+      "verified_in_draft": false,
       "linked_fixture_case_ids": [
         "refcase-05a",
         "refcase-05b"
       ],
       "coverage_gap_details": [
-        "COVERAGE GAP (runtime): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
+        "COVERAGE GAP (runtime — NOT passed): Covers synthetic HTTP 403 revoked-scope stub and static URL pre-check (metadata IP, loopback, private IP, file/ftp, credentials); live OAuth/tenant isolation, HTTP 30x redirect SSRF chains, and DNS-rebinding enforcement are NOT yet tested."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "PARTIAL_UNVERIFIED_COVERAGE_GAP",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm full production URL allowlist, redirect policy, and tenant/OAuth permission error codes"
       ]
@@ -103,9 +104,9 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A static draft (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
+        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or worker crash/checkpoint/resume harness exists in T-004A/B static dataset (local T-007E runtime evidence is NOT product E2E verification). Requires worker restart/replay integration test proving checkpoint state stores only IDs/hashes/locators and re-fetches source on retry without reading persisted raw text."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
       "review_required_items": [
         "REVIEW_REQUIRED: Define worker checkpoint schema and add restart/replay test in worker/integration QA harness"
       ]
@@ -117,9 +118,9 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline T-004A static dataset; requires product API/UI integration QA."
+        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or product E2E exists for approval, Export, or evidence-viewer refetch triggers (local T-007E runtime evidence is NOT product E2E verification). Explicitly out of scope for offline synthetic regression dataset; requires product API/UI integration QA."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
       "review_required_items": [
         "REVIEW_REQUIRED: Define trigger contract for on-demand refetch during Claim approval, Export generation, and evidence inspection"
       ]
@@ -131,9 +132,9 @@
       "verified_in_draft": false,
       "linked_fixture_case_ids": [],
       "coverage_gap_details": [
-        "COVERAGE GAP (unverified): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
+        "COVERAGE GAP (unverified — NOT passed): No synthetic fixture or runtime test exists for payload byte/char size caps, LLM token/cost ceilings, or in-memory-only inter-stage transport (local T-007E runtime evidence is NOT product E2E verification)."
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "UNVERIFIED_COVERAGE_GAP",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm exact max source byte size, LLM budget/token cap, and inter-stage memory-only execution contract"
       ]
@@ -158,11 +159,12 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm exact product status name for successful refetch reproduction (URL-only or partial match must not pass)"
       ],
-      "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection and auto-refresh remain disabled."
+      "rationale": "Same source revision reproduces identical content_sha256 and baseline_locator span; Post-MVP background auto-detection and auto-refresh remain disabled.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-02a",
@@ -182,11 +184,12 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm mismatch block UX/status vs Post-MVP re-anchoring"
       ],
-      "rationale": "Inserted header changes content hash and shifts offsets (body change); verification & approval are blocked without claiming historical falsity or auto-updating the claim."
+      "rationale": "Inserted header changes content hash and shifts offsets (body change); verification & approval are blocked without claiming historical falsity or auto-updating the claim.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-02b",
@@ -206,11 +209,12 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm policy when document hash changes via appended text while prefix span still matches"
       ],
-      "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and approval while Post-MVP auto-detect/auto-claim-refresh remains disabled."
+      "rationale": "Appended follow-up changes document content_sha256; hash mismatch blocks silent reuse and approval while Post-MVP auto-detect/auto-claim-refresh remains disabled.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-02c",
@@ -230,11 +234,12 @@
         "POST_MVP_AUTO_DETECT_SOURCE_CHANGE",
         "POST_MVP_AUTO_REFRESH_CLAIM"
       ],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm diagnostic/block handling when content_sha256 matches identically but stored locator offsets/span_sha256 fail round-trip"
       ],
-      "rationale": "Returned source body has the exact same content_sha256 as baseline, but tested_locator offsets point to the wrong span; blocks verification & approval cleanly distinct from upstream body drift (refcase-02a/02b)."
+      "rationale": "Returned source body has the exact same content_sha256 as baseline, but tested_locator offsets point to the wrong span; blocks verification & approval cleanly distinct from upstream body drift (refcase-02a/02b).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-03a",
@@ -251,11 +256,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm product status for HTTP 404 (distinct from transient 429/5xx/timeout, confirmed deletion SCN-13, and historical falsity)"
       ],
-      "rationale": "Single HTTP 404 makes the source currently unverifiable and blocks approval; it MUST be distinguished from transient outages (refcase-03c..03e), confirmed user deletion (SCN-13), and historical falsity."
+      "rationale": "Single HTTP 404 makes the source currently unverifiable and blocks approval; it MUST be distinguished from transient outages (refcase-03c..03e), confirmed user deletion (SCN-13), and historical falsity.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-03b",
@@ -272,11 +278,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm truncated HTTP 206 retry/fallback handling"
       ],
-      "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable and blocks approval, neither confirmed deleted nor historically false."
+      "rationale": "Truncated HTTP 206 omits the baseline locator range -> currently unverifiable and blocks approval, neither confirmed deleted nor historically false.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-03c",
@@ -293,11 +300,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm production max retry cap, Retry-After backoff, and approval-gate block UX for HTTP 429 (runtime retry harness NOT executed)"
       ],
-      "rationale": "Transient HTTP 429 rate-limit failure exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
+      "rationale": "Transient HTTP 429 rate-limit failure exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-03d",
@@ -314,11 +322,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm production max retry cap and approval-gate block UX for HTTP 5xx transient outages (runtime retry harness NOT executed)"
       ],
-      "rationale": "Transient HTTP 503 upstream server outage exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
+      "rationale": "Transient HTTP 503 upstream server outage exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-03e",
@@ -335,11 +344,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm production timeout threshold, retry cap, and approval-gate block UX (runtime timeout harness NOT executed)"
       ],
-      "rationale": "Transient network/read timeout exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity."
+      "rationale": "Transient network/read timeout exhausts bounded retry cap (stub max=3) and blocks approval while unavailable; explicitly distinguished from HTTP 404, confirmed deletion (SCN-13), and historical falsity.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-04a",
@@ -356,11 +366,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": true,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Extend canary audit to live DB/logs/caches/queues/Export in backend QA (PARTIAL_COVERAGE_GAP)"
       ],
-      "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture (not a substitute for runtime leak auditing)."
+      "rationale": "Static Option C canary check confirms 0 canary tokens in clean persisted snapshot & stage/oracle JSON while proving detector sensitivity on negative_leaky_payload_fixture (not a substitute for runtime leak auditing).",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_DEV"
     },
     {
       "fixture_case_id": "refcase-05a",
@@ -377,11 +388,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Confirm OAuth scope revocation & tenant permission boundary codes (PARTIAL_COVERAGE_GAP)"
       ],
-      "rationale": "HTTP 403 / revoked OAuth scope blocks access and approval without deleting or falsifying historical facts."
+      "rationale": "HTTP 403 / revoked OAuth scope blocks access and approval without deleting or falsifying historical facts.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     },
     {
       "fixture_case_id": "refcase-05b",
@@ -398,11 +410,12 @@
       "expected_canary_leaked_in_clean_snapshot": false,
       "expected_canary_detected_in_negative_fixture": null,
       "post_mvp_tags": [],
-      "oracle_status": "DRAFT",
+      "oracle_status": "APPROVED_SYNTHETIC_REGRESSION",
       "review_required_items": [
         "REVIEW_REQUIRED: Add live redirect/DNS-rebinding SSRF tests in backend QA (PARTIAL_COVERAGE_GAP)"
       ],
-      "rationale": "Metadata IP, loopback, private CIDR, embedded credentials, and non-HTTPS schemes are rejected prior to any outbound fetch."
+      "rationale": "Metadata IP, loopback, private CIDR, embedded credentials, and non-HTTPS schemes are rejected prior to any outbound fetch.",
+      "evaluation_partition": "SYNTHETIC_REGRESSION_TEST"
     }
   ]
 }

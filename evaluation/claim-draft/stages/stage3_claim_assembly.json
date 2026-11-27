@@ -1,6 +1,6 @@
 {
-  "schema_version": "0.3.0-draft",
-  "dataset_version": "0.3.0-draft",
+  "schema_version": "0.3.0-synthetic-golden",
+  "dataset_version": "0.3.0-synthetic-golden",
   "stage_name": "STAGE_3_CLAIM_ASSEMBLY",
   "stage_responsibility": "Assemble versioned Claims and required Claim Atoms linked to Canonical Facts via Claim Atom Supports, modeling user-edit re-verification on new versions and OD-003 deletion cascades without self-evidencing claims.",
   "artifact_role": "STAGE_STUB_OUTPUT",

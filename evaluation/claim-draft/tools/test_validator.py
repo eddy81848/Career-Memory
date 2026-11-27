@@ -1,4 +1,4 @@
-"""Unit, regression, and deliberate fault-injection test suite for T-004A synthetic dataset (v0.3.0-draft).
+"""Unit, regression, and deliberate fault-injection test suite for T-004A/B synthetic regression golden dataset (v0.3.0-synthetic-golden).
 
 Run from repo/worktree root:
     python3 -m unittest discover -s evaluation/claim-draft/tools -p "test_*.py" -v
@@ -42,15 +42,25 @@ class ClaimDraftDatasetTests(unittest.TestCase):
     def test_01_valid_dataset_passes_structural_and_official_ref_matrix_checks(self) -> None:
         errors, summary = validate_bundle(self.schema, self._clone_docs())
         self.assertEqual(errors, [], f"Expected 0 errors, got: {[e.format() for e in errors]}")
+        self.assertEqual(summary["dataset_version"], "0.3.0-synthetic-golden")
+        self.assertEqual(summary["approval_status"], "APPROVED_SYNTHETIC_REGRESSION_GOLDEN")
         self.assertEqual(summary["scenarios"], 14)
         self.assertEqual(summary["canonical_facts"], 26)
         self.assertEqual(summary["fact_supports"], 29)
         self.assertEqual(summary["claims"], 23)
         self.assertEqual(summary["claim_atoms"], 41)
         self.assertEqual(summary["refetch_fixtures_preserved"], 12)
+        self.assertEqual(
+            summary["partition_counts"],
+            {
+                "SYNTHETIC_REGRESSION_DEV": {"families": 8, "scenarios": 7, "claims": 11, "refetch_fixtures": 1},
+                "SYNTHETIC_REGRESSION_TEST": {"families": 7, "scenarios": 7, "claims": 12, "refetch_fixtures": 11},
+            },
+        )
         self.assertEqual(summary["official_ref_covered_stub"], ["REF-01", "REF-02", "REF-03"])
         self.assertEqual(summary["official_ref_partial_coverage_gap"], ["REF-04", "REF-05"])
         self.assertEqual(summary["official_ref_coverage_gap"], ["REF-06", "REF-07", "REF-08"])
+        self.assertTrue(str(summary["bundle_sha256"]).startswith("sha256:"))
         self.assertGreater(summary["locator_roundtrips_checked"], 60)
 
     def test_02_programmatic_builder_matches_checked_in_files_byte_for_byte(self) -> None:
@@ -162,15 +172,26 @@ class ClaimDraftDatasetTests(unittest.TestCase):
         self.assertIn("VERDICT_NAMESPACE_CONFLATION", codes)
         self.assertIn("SCHEMA_VALIDATION_ERROR", codes)
 
-    def test_12_fault_injection_premature_golden_freeze_before_t004b(self) -> None:
-        docs = self._clone_docs()
-        docs["expected/oracle_draft.json"]["oracle_status"] = "GOLDEN"
-        docs["expected/oracle_draft.json"]["frozen_for_golden"] = True
-        self.assertIn("PREMATURE_GOLDEN_FREEZE", self._error_codes(docs))
+    def test_12_fault_injection_approval_scope_overclaim_rejected(self) -> None:
+        docs_a = self._clone_docs()
+        docs_a["expected/oracle_draft.json"]["oracle_status"] = "GOLDEN"
+        self.assertIn("APPROVAL_SCOPE_OVERCLAIM", self._error_codes(docs_a))
 
-    def test_13_fault_injection_fake_coverage_claim_on_missing_ref06_ref07_ref08(self) -> None:
+        docs_b = self._clone_docs()
+        docs_b["expected/oracle_draft.json"]["provenance_and_freeze_preconditions"][
+            "live_llm_evaluation_in_scope"
+        ] = True
+        self.assertIn("APPROVAL_SCOPE_OVERCLAIM", self._error_codes(docs_b))
+
+        docs_c = self._clone_docs()
+        docs_c["expected/oracle_draft.json"]["provenance_and_freeze_preconditions"][
+            "production_connector_integration_in_scope"
+        ] = True
+        self.assertIn("APPROVAL_SCOPE_OVERCLAIM", self._error_codes(docs_c))
+
+    def test_13_fault_injection_fake_coverage_claim_on_unverified_ref04_to_ref08(self) -> None:
         for gap_ref_id in ("REF-06", "REF-07", "REF-08"):
-            with self.subTest(official_ref_id=gap_ref_id):
+            with self.subTest(official_ref_id=gap_ref_id, mode="coverage_gap"):
                 docs = self._clone_docs()
                 row = next(
                     r
@@ -179,6 +200,19 @@ class ClaimDraftDatasetTests(unittest.TestCase):
                 )
                 row["coverage_status"] = "COVERED_SYNTHETIC_STUB"
                 row["verified_in_draft"] = True
+                row["oracle_status"] = "APPROVED_SYNTHETIC_REGRESSION"
+                self.assertIn("FALSE_COVERAGE_CLAIM", self._error_codes(docs))
+
+        for partial_ref_id in ("REF-04", "REF-05"):
+            with self.subTest(official_ref_id=partial_ref_id, mode="partial_coverage_gap"):
+                docs = self._clone_docs()
+                row = next(
+                    r
+                    for r in docs["expected/refetch_oracle_draft.json"]["official_ref_matrix"]
+                    if r["official_ref_id"] == partial_ref_id
+                )
+                row["verified_in_draft"] = True
+                row["oracle_status"] = "APPROVED_SYNTHETIC_REGRESSION"
                 self.assertIn("FALSE_COVERAGE_CLAIM", self._error_codes(docs))
 
     def test_14_fault_injection_official_ref_label_mismatch(self) -> None:
@@ -367,6 +401,58 @@ class ClaimDraftDatasetTests(unittest.TestCase):
         ec05_2 = next(c for c in clean["expected/oracle_draft.json"]["expected_claims"] if c["claim_id"] == "claim-05-2")
         self.assertEqual(ec05_2["draft_claim_verdict"], "DRAFT_CLAIM_PARTIALLY_GROUNDED")
         self.assertFalse(ec05_2["source_verified_eligible"])
+
+    def test_28_fault_injection_family_and_source_partition_leakage(self) -> None:
+        # Clean check: edited claims & refetch fixtures share exact partition with their source scenario
+        clean = self._clone_docs()
+        parts = clean["APPROVAL_MANIFEST.json"]["evaluation_partitions"]
+        self.assertIn("family-src12", parts["SYNTHETIC_REGRESSION_DEV"]["family_ids"])
+        self.assertIn("claim-12-1", parts["SYNTHETIC_REGRESSION_DEV"]["claim_ids"])
+        self.assertIn("claim-12-2", parts["SYNTHETIC_REGRESSION_DEV"]["claim_ids"])
+        self.assertIn("family-src02", parts["SYNTHETIC_REGRESSION_TEST"]["family_ids"])
+        self.assertIn("SCN-02", parts["SYNTHETIC_REGRESSION_TEST"]["scenario_ids"])
+        self.assertIn("refcase-01a", parts["SYNTHETIC_REGRESSION_TEST"]["refetch_fixture_case_ids"])
+        self.assertIn("family-src13", parts["SYNTHETIC_REGRESSION_TEST"]["family_ids"])
+        self.assertIn("claim-13-2", parts["SYNTHETIC_REGRESSION_TEST"]["claim_ids"])
+
+        # Case A: Same evaluation_family_id split across DEV and TEST
+        docs_a = self._clone_docs()
+        rf01a = next(
+            r
+            for r in docs_a["expected/refetch_oracle_draft.json"]["expected_refetch_fixtures"]
+            if r["fixture_case_id"] == "refcase-01a"
+        )
+        rf01a["evaluation_partition"] = "SYNTHETIC_REGRESSION_DEV"
+        self.assertIn("FAMILY_PARTITION_LEAKAGE", self._error_codes(docs_a))
+
+        # Case B: Even if evaluation_family_id is disguised, same source_revision_id split is still caught
+        docs_b = self._clone_docs()
+        rf01a_b = next(
+            r
+            for r in docs_b["expected/refetch_oracle_draft.json"]["expected_refetch_fixtures"]
+            if r["fixture_case_id"] == "refcase-01a"
+        )
+        rf01a_b["evaluation_family_id"] = "family-disguised-src02"
+        rf01a_b["evaluation_partition"] = "SYNTHETIC_REGRESSION_DEV"
+        self.assertIn("FAMILY_PARTITION_LEAKAGE", self._error_codes(docs_b))
+
+    def test_29_fault_injection_approval_manifest_hash_tamper(self) -> None:
+        docs_a = self._clone_docs()
+        docs_a["APPROVAL_MANIFEST.json"]["bundle_sha256"] = "sha256:" + ("0" * 64)
+        self.assertIn("MANIFEST_HASH_MISMATCH", self._error_codes(docs_a))
+
+        docs_b = self._clone_docs()
+        docs_b["APPROVAL_MANIFEST.json"]["artifact_sha256"]["expected/oracle_draft.json"] = "sha256:" + ("a" * 64)
+        self.assertIn("MANIFEST_HASH_MISMATCH", self._error_codes(docs_b))
+
+    def test_30_fault_injection_approval_manifest_scope_overclaim(self) -> None:
+        docs_a = self._clone_docs()
+        docs_a["APPROVAL_MANIFEST.json"]["approval_scope"]["live_llm_evaluation_in_scope"] = True
+        self.assertIn("APPROVAL_SCOPE_OVERCLAIM", self._error_codes(docs_a))
+
+        docs_b = self._clone_docs()
+        docs_b["APPROVAL_MANIFEST.json"]["approval_scope"]["production_connector_integration_in_scope"] = True
+        self.assertIn("APPROVAL_SCOPE_OVERCLAIM", self._error_codes(docs_b))
 
 
 if __name__ == "__main__":

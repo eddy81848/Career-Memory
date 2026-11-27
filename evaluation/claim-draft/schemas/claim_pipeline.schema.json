@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-draft-v0.3.0.json",
-  "title": "Career Memory T-004A Grounded Claim Pipeline Synthetic Dataset Schema (DRAFT v0.3.0)",
-  "description": "Draft structural schema for T-004A synthetic fixtures (round-01 review revision). Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED. Provisional draft verdict labels (DRAFT_*) are strictly separated from product states.",
+  "$id": "https://synthetic.example.test/schemas/career-memory/claim-pipeline-synthetic-golden-v0.3.0.json",
+  "title": "Career Memory T-004A/B Grounded Claim Pipeline Synthetic Regression Dataset Schema (v0.3.0-synthetic-golden)",
+  "description": "Structural schema for the approved synthetic regression test dataset (v0.3.0-synthetic-golden, approved from v0.3.0-draft @ 5700674). Scope is strictly limited to synthetic regression tests; live LLM evaluation, external connector integration, and unverified REF items (REF-04/05 partial gaps, REF-06..08 coverage gaps) remain excluded. Normalization, locator, and product status enum mappings remain REVIEW_REQUIRED for production.",
   "$defs": {
     "Sha256Hash": {
       "type": "string",
@@ -122,8 +122,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_SOURCE_INPUT" },
         "normalization_policy": { "type": "string", "const": "fixture-nfc-lf-v0-draft" },
         "convention_scope": { "type": "string", "const": "TEST_FIXTURE_ONLY" },
@@ -173,8 +173,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "stage_name": { "type": "string", "const": "STAGE_1_CONTENT_UNIT_SEGMENTATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -260,8 +260,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "stage_name": { "type": "string", "const": "STAGE_2_FACT_EXTRACTION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -462,8 +462,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "stage_name": { "type": "string", "const": "STAGE_3_CLAIM_ASSEMBLY" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -532,8 +532,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "artifact_role": { "type": "string", "const": "SYNTHETIC_REFETCH_STUB_INPUT" },
         "refetch_snapshots": {
           "type": "array",
@@ -626,8 +626,8 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
         "stage_name": { "type": "string", "const": "STAGE_4_REFETCH_VERIFICATION" },
         "stage_responsibility": { "type": "string", "minLength": 10 },
         "artifact_role": { "type": "string", "const": "STAGE_STUB_OUTPUT" },
@@ -644,6 +644,7 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
+        "golden_scope",
         "verdict_namespace",
         "product_status_mapping_policy",
         "frozen_for_golden",
@@ -655,29 +656,38 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
-        "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_DRAFT" },
-        "oracle_status": { "type": "string", "const": "DRAFT" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_ORACLE_APPROVED_SYNTHETIC_REGRESSION" },
+        "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
         "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
         "product_status_mapping_policy": { "type": "string", "minLength": 10 },
-        "frozen_for_golden": { "type": "boolean", "const": false },
+        "frozen_for_golden": { "type": "boolean", "const": true },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
         "provenance_and_freeze_preconditions": {
           "type": "object",
           "required": [
             "base_commit_sha",
+            "approved_from_draft_commit_sha",
+            "approved_from_draft_version",
             "review_source_ref",
             "human_approval_status",
             "family_split_anti_leakage_rule",
+            "live_llm_evaluation_in_scope",
+            "production_connector_integration_in_scope",
             "synthetic_semantics_only_not_connector_evidence"
           ],
           "additionalProperties": false,
           "properties": {
             "base_commit_sha": { "type": "string", "minLength": 7 },
+            "approved_from_draft_commit_sha": { "type": "string", "minLength": 7 },
+            "approved_from_draft_version": { "type": "string", "minLength": 3 },
             "review_source_ref": { "type": "string", "minLength": 5 },
-            "human_approval_status": { "type": "string", "const": "PENDING_T004B_HUMAN_SIGNOFF" },
+            "human_approval_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION_ONLY" },
             "family_split_anti_leakage_rule": { "type": "string", "minLength": 10 },
+            "live_llm_evaluation_in_scope": { "type": "boolean", "const": false },
+            "production_connector_integration_in_scope": { "type": "boolean", "const": false },
             "synthetic_semantics_only_not_connector_evidence": { "type": "boolean", "const": true }
           }
         },
@@ -701,12 +711,15 @@
             "properties": {
               "scenario_id": { "type": "string", "pattern": "^SCN-[0-9]{2}$" },
               "evaluation_family_id": { "type": "string", "pattern": "^family-" },
-              "evaluation_partition": { "type": "string", "const": "DRAFT_UNASSIGNED_KEEP_FAMILY_TOGETHER" },
+              "evaluation_partition": {
+                "type": "string",
+                "enum": ["SYNTHETIC_REGRESSION_DEV", "SYNTHETIC_REGRESSION_TEST"]
+              },
               "title": { "type": "string" },
               "coverage_tags": { "type": "array", "items": { "type": "string" } },
               "expected_fact_count": { "type": "integer", "minimum": 0 },
               "expected_atom_count": { "type": "integer", "minimum": 1 },
-              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
               "review_required_items": { "type": "array", "items": { "type": "string" } },
               "rationale": { "type": "string" }
             }
@@ -745,7 +758,7 @@
                   "DRAFT_ATOM_PURGED_WITH_DEPENDENT_CLAIM_OD003"
                 ]
               },
-              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
               "review_required": { "type": "boolean" },
               "rationale": { "type": "string" }
             }
@@ -823,7 +836,7 @@
                   "partially_grounded_forbidden_post_deletion": { "type": "boolean" }
                 }
               },
-              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
               "review_required": { "type": "boolean" },
               "rationale": { "type": "string" }
             }
@@ -838,6 +851,7 @@
         "dataset_version",
         "artifact_role",
         "oracle_status",
+        "golden_scope",
         "verdict_namespace",
         "product_status_mapping_policy",
         "frozen_for_golden",
@@ -847,13 +861,14 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "schema_version": { "type": "string", "const": "0.3.0-draft" },
-        "dataset_version": { "type": "string", "const": "0.3.0-draft" },
-        "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_DRAFT" },
-        "oracle_status": { "type": "string", "const": "DRAFT" },
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "artifact_role": { "type": "string", "const": "EXPECTED_REFETCH_ORACLE_APPROVED_SYNTHETIC_REGRESSION" },
+        "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
+        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
         "verdict_namespace": { "type": "string", "const": "DRAFT_PROVISIONAL_NOT_PRODUCT_STATUS" },
         "product_status_mapping_policy": { "type": "string", "minLength": 10 },
-        "frozen_for_golden": { "type": "boolean", "const": false },
+        "frozen_for_golden": { "type": "boolean", "const": true },
         "requires_human_review_task": { "type": "string", "const": "T-004B" },
         "official_ref_matrix": {
           "type": "array",
@@ -886,7 +901,14 @@
                 "type": "array",
                 "items": { "type": "string" }
               },
-              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "oracle_status": {
+                "type": "string",
+                "enum": [
+                  "APPROVED_SYNTHETIC_REGRESSION",
+                  "PARTIAL_UNVERIFIED_COVERAGE_GAP",
+                  "UNVERIFIED_COVERAGE_GAP"
+                ]
+              },
               "review_required_items": {
                 "type": "array",
                 "items": { "type": "string" }
@@ -901,6 +923,7 @@
             "required": [
               "fixture_case_id",
               "evaluation_family_id",
+              "evaluation_partition",
               "official_ref_id",
               "legacy_draft_id",
               "draft_refetch_verdict",
@@ -921,6 +944,10 @@
             "properties": {
               "fixture_case_id": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" },
               "evaluation_family_id": { "type": "string", "pattern": "^family-" },
+              "evaluation_partition": {
+                "type": "string",
+                "enum": ["SYNTHETIC_REGRESSION_DEV", "SYNTHETIC_REGRESSION_TEST"]
+              },
               "official_ref_id": { "type": "string", "pattern": "^REF-0[1-8]$" },
               "legacy_draft_id": { "type": ["string", "null"], "pattern": "^REF-0[1-8]$" },
               "draft_refetch_verdict": {
@@ -949,12 +976,97 @@
               "expected_canary_leaked_in_clean_snapshot": { "type": "boolean" },
               "expected_canary_detected_in_negative_fixture": { "type": ["boolean", "null"] },
               "post_mvp_tags": { "type": "array", "items": { "type": "string" } },
-              "oracle_status": { "type": "string", "const": "DRAFT" },
+              "oracle_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION" },
               "review_required_items": { "type": "array", "items": { "type": "string" } },
               "rationale": { "type": "string" }
             }
           }
         }
+      }
+    },
+    "ApprovalManifestFile": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "dataset_version",
+        "artifact_role",
+        "approval_status",
+        "golden_scope",
+        "approved_from_draft_commit_sha",
+        "approved_from_draft_version",
+        "approval_scope",
+        "unverified_ref_items_not_passed",
+        "evaluation_partitions",
+        "artifact_sha256",
+        "bundle_sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "dataset_version": { "type": "string", "const": "0.3.0-synthetic-golden" },
+        "artifact_role": { "type": "string", "const": "SYNTHETIC_REGRESSION_APPROVAL_MANIFEST" },
+        "approval_status": { "type": "string", "const": "APPROVED_SYNTHETIC_REGRESSION_GOLDEN" },
+        "golden_scope": { "type": "string", "const": "SYNTHETIC_REGRESSION_ONLY_NO_LIVE_LLM_NO_PROD_INTEGRATION" },
+        "approved_from_draft_commit_sha": { "type": "string", "minLength": 7 },
+        "approved_from_draft_version": { "type": "string", "const": "0.3.0-draft" },
+        "approval_scope": {
+          "type": "object",
+          "required": [
+            "included",
+            "excluded",
+            "live_llm_evaluation_in_scope",
+            "production_connector_integration_in_scope",
+            "synthetic_semantics_only_not_connector_evidence"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "included": { "type": "array", "items": { "type": "string" } },
+            "excluded": { "type": "array", "items": { "type": "string" } },
+            "live_llm_evaluation_in_scope": { "type": "boolean", "const": false },
+            "production_connector_integration_in_scope": { "type": "boolean", "const": false },
+            "synthetic_semantics_only_not_connector_evidence": { "type": "boolean", "const": true }
+          }
+        },
+        "unverified_ref_items_not_passed": {
+          "type": "object",
+          "required": ["partial_coverage_gap", "coverage_gap"],
+          "additionalProperties": false,
+          "properties": {
+            "partial_coverage_gap": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } },
+            "coverage_gap": { "type": "array", "items": { "type": "string", "pattern": "^REF-0[1-8]$" } }
+          }
+        },
+        "evaluation_partitions": {
+          "type": "object",
+          "required": ["SYNTHETIC_REGRESSION_DEV", "SYNTHETIC_REGRESSION_TEST"],
+          "additionalProperties": false,
+          "properties": {
+            "SYNTHETIC_REGRESSION_DEV": {
+              "type": "object",
+              "required": ["family_ids", "scenario_ids", "claim_ids", "refetch_fixture_case_ids"],
+              "additionalProperties": false,
+              "properties": {
+                "family_ids": { "type": "array", "items": { "type": "string", "pattern": "^family-" } },
+                "scenario_ids": { "type": "array", "items": { "type": "string", "pattern": "^SCN-[0-9]{2}$" } },
+                "claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim-" } },
+                "refetch_fixture_case_ids": { "type": "array", "items": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" } }
+              }
+            },
+            "SYNTHETIC_REGRESSION_TEST": {
+              "type": "object",
+              "required": ["family_ids", "scenario_ids", "claim_ids", "refetch_fixture_case_ids"],
+              "additionalProperties": false,
+              "properties": {
+                "family_ids": { "type": "array", "items": { "type": "string", "pattern": "^family-" } },
+                "scenario_ids": { "type": "array", "items": { "type": "string", "pattern": "^SCN-[0-9]{2}$" } },
+                "claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^claim-" } },
+                "refetch_fixture_case_ids": { "type": "array", "items": { "type": "string", "pattern": "^refcase-0[1-8][a-z]$" } }
+              }
+            }
+          }
+        },
+        "artifact_sha256": { "type": "object" },
+        "bundle_sha256": { "$ref": "#/$defs/Sha256Hash" }
       }
     }
   }

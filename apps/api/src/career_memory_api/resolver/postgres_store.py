@@ -27,7 +27,11 @@ def _try_normalize_uuid(value: str) -> str | None:
         return None
 
 
-def _row_to_target(row: tuple[Any, ...]) -> PersistedUnitResolutionTarget:
+def _row_to_target(
+    row: tuple[Any, ...],
+    *,
+    deletion_fence_active: bool = False,
+) -> PersistedUnitResolutionTarget:
     anchor = dict(row[25]) if isinstance(row[25], dict) else {}
     parser_version = str(anchor.get("parser_version", ""))
     norm_meta = dict(row[22]) if isinstance(row[22], dict) else {}
@@ -68,7 +72,34 @@ def _row_to_target(row: tuple[Any, ...]) -> PersistedUnitResolutionTarget:
         content_ref=row[32],
         retention_class=row[33],
         last_verified_at=row[34],
+        deletion_fence_active=deletion_fence_active,
     )
+
+
+def _query_deletion_fence_active(
+    cur: psycopg.Cursor,
+    workspace_id: str,
+    source_resource_id: str,
+) -> bool:
+    """Check public.deletion_jobs fence when 0040+ schema is present (safe on 0010+0020 clusters)."""
+    cur.execute("SELECT to_regclass('public.deletion_jobs') IS NOT NULL")
+    reg_row = cur.fetchone()
+    if not reg_row or not bool(reg_row[0]):
+        return False
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM public.deletion_jobs AS dj
+            WHERE dj.workspace_id = %s::uuid
+              AND dj.source_resource_id = %s::uuid
+              AND dj.status IN ('PENDING', 'RUNNING', 'PARTIAL', 'SUCCEEDED')
+        )
+        """,
+        (workspace_id, source_resource_id),
+    )
+    fence_row = cur.fetchone()
+    return bool(fence_row and fence_row[0])
 
 
 _SELECT_TARGET_COLUMNS = """
@@ -154,11 +185,11 @@ class PostgresProvenanceMetadataStore:
                 (access.workspace_id, unit_uuid),
             )
             row = cur.fetchone()
+            if row is None:
+                return None
+            fence_active = _query_deletion_fence_active(cur, access.workspace_id, str(row[5]))
 
-        if row is None:
-            return None
-
-        target = _row_to_target(row)
+        target = _row_to_target(row, deletion_fence_active=fence_active)
         if target.workspace_id != access.workspace_id:
             return None
         return target
@@ -183,11 +214,23 @@ class PostgresProvenanceMetadataStore:
                 (access.workspace_id, rev_uuid),
             )
             rows = cur.fetchall()
+            fence_by_resource: dict[str, bool] = {}
+            for row in rows:
+                res_id = str(row[5])
+                if res_id not in fence_by_resource:
+                    fence_by_resource[res_id] = _query_deletion_fence_active(
+                        cur, access.workspace_id, res_id
+                    )
 
         return tuple(
             target
             for row in rows
-            if (target := _row_to_target(row)).workspace_id == access.workspace_id
+            if (
+                target := _row_to_target(
+                    row, deletion_fence_active=fence_by_resource.get(str(row[5]), False)
+                )
+            ).workspace_id
+            == access.workspace_id
         )
 
     def check_policy_fence_current(

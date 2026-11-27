@@ -1434,9 +1434,7 @@ class B004PostgresScenarioRunner:
         assert len(conflicts) == 1 and conflicts[0] == (409, "SYNC_ALREADY_RUNNING")
         run_id = accepted[0]
 
-        # Idempotent replay of the winning key returns 202 with same target_id
-        winning_key = k1 if any(k == "ACCEPTED" for k, _ in req_outcomes[:1]) else k2
-        # Verify whichever key succeeded replays cleanly
+        # Idempotent replay of whichever key succeeded returns 202 with the same target_id
         replayed_id = None
         for cand_key in (k1, k2):
             try:
@@ -1456,18 +1454,10 @@ class B004PostgresScenarioRunner:
         assert replayed_id == run_id
 
         # Part B: Two workers read checkpoint_version=0 for PRS and race commit_page_batch
-        # First let real orchestrator freeze plan & execute PRS page 1? Even better:
-        # We run a controlled 2-thread race on PRS page 1 using the real PR #203 item from provider,
-        # OR even cleaner: use two PostgresBackfillPageCommitter instances racing on PRS page 1
-        # right after plan_spec is persisted, then let orchestrator resume cleanly from page 2!
         snap_start = stack.github_client.fetch_repository_snapshot(
             owner=provider.owner,
             repo=provider.repo,
-            token_secret_ref=stack.connect_service.resolve_active_credential_for_resource(
-                stack.access, source_resource_id=stack.resource_id
-            ).source_resource.source_account_id
-            if False
-            else None,
+            token_secret_ref=None,
             provider_resource_id=provider.repo_id,
         )
         # Execute real page 1 fetch via HttpGitHubImportClient + build frozen plan
@@ -2695,6 +2685,31 @@ class B004PostgresScenarioRunner:
             stack_a.captured_api_texts.append(conf_resp.text)
             assert conf_resp.status_code == 202
 
+        # BLOCKER-1 zero-window check: IMMEDIATELY after deletion-confirm (202) and BEFORE
+        # DerivedUnitIngestionProcessor runs, raw viewer (HTTP 403), AI, Approval, and Export
+        # gates MUST ALL be blocked by live public.deletion_jobs fence!
+        zero_window_gates = self._check_policy_gates(
+            stack_a,
+            content_unit_id=unit_id,
+            sync_run_id=run_a,
+        )
+        assert zero_window_gates.refetch_content_allowed is False
+        assert zero_window_gates.refetch_resolution_status == ResolutionStatus.POLICY_BLOCKED.value
+        assert zero_window_gates.external_ai_gate_allowed is False
+        assert zero_window_gates.export_gate_allowed is False
+        assert zero_window_gates.claim_approval_gate_allowed is False
+
+        with self._cluster.admin_connection() as conn:
+            zero_window_violations = list(
+                verify_b004_invariants(
+                    conn,
+                    workspace_id=stack_a.access.workspace_id,
+                    phase="s16_part_a_zero_window_after_deletion_confirm",
+                    gate_checks=zero_window_gates,
+                    source_resource_id=stack_a.resource_id,
+                )
+            )
+
         # After OD-003 deletion fence, derived unit processing projects BLOCKED_POLICY (preserving SUCCESS)
         post_del_derived = stack_a.derived_processor.process_import_ready_run(
             workspace_id=stack_a.access.workspace_id,
@@ -2704,7 +2719,7 @@ class B004PostgresScenarioRunner:
         assert post_del_derived.sync_run_status is SyncRunStatus.SUCCESS
         assert post_del_derived.processing_status is ProcessingStatus.BLOCKED_POLICY
 
-        # Part B: Pre-resume OD-003 deletion fence on PARTIAL run cancels queued resume (0 resurrection)
+        # Part B: Pre-resume OD-003 deletion fence on PARTIAL run cancels queued resume AND blocks /retry (404)
         provider_b = build_compact_multipage_provider(
             scenario_id="S16",
             default_branch=spec.default_branch,
@@ -2741,7 +2756,16 @@ class B004PostgresScenarioRunner:
                     "acknowledge_irreversible_purge": True,
                 },
             )
+            stack_b.captured_api_texts.append(conf_b.text)
             assert conf_b.status_code == 202
+
+        # NB-2: Attempting POST /v1/sync-runs/{id}/retry after deletion-confirm MUST return 404!
+        self._retry_run_http(
+            stack_b,
+            run_id=run_b,
+            expected_run_version=st_b1["run_version"],
+            expected_status=404,
+        )
 
         # Worker finds 0 runnable jobs (canceled by fence); direct orchestrator call also sees CANCELED
         step_b2 = stack_b.worker.claim_and_execute_next(
@@ -2798,20 +2822,68 @@ class B004PostgresScenarioRunner:
         assert step_c2.execution.import_ready is False
         assert step_c2.execution.retry_allowed is False
 
+        # Part D (NB-3): Post-SUCCESS upstream PUBLIC -> PRIVATE flip BEFORE local verify_resource_policy
+        # MUST immediately return 403 POLICY_BLOCKED on live refetch viewer & Approval/Export gates!
+        provider_d = build_compact_multipage_provider(
+            scenario_id="S16",
+            default_branch=spec.default_branch,
+            repo_id="900400039",
+            repo_name="career-memory-s16d",
+        )
+        stack_d = self._build_stack(provider_d)
+        rec_d = self._create_run_http(stack_d, backfill_from="2026-08-01")
+        run_d = rec_d["target_id"]
+        step_d = stack_d.worker.claim_and_execute_next(
+            stack_d.access.workspace_id,
+            worker_id="b004-s16d-w1",
+            access=stack_d.access,
+            run_derived_units=True,
+            now=FIXED_NOW,
+        )
+        assert step_d is not None and step_d.execution.status is SyncRunStatus.SUCCESS
+        unit_d = self._find_first_pr_content_unit_id(stack_d.access.workspace_id, pr_number="201")
+        assert unit_d is not None
+
+        # Flip upstream repo PRIVATE without calling verify_resource_policy locally!
+        provider_d.private = True
+        provider_d.visibility = "private"
+        live_private_gates = self._check_policy_gates(
+            stack_d,
+            content_unit_id=unit_d,
+            sync_run_id=run_d,
+        )
+        assert live_private_gates.refetch_content_allowed is False
+        assert live_private_gates.refetch_resolution_status == ResolutionStatus.POLICY_BLOCKED.value
+        assert live_private_gates.claim_approval_gate_allowed is False
+        assert live_private_gates.export_gate_allowed is False
+
         with self._cluster.admin_connection() as conn:
-            mid_violations = list(
-                verify_b004_invariants(
-                    conn,
-                    workspace_id=stack_b.access.workspace_id,
-                    phase="s16_part_b_pre_resume_deletion_fence",
-                    source_resource_id=stack_b.resource_id,
+            mid_violations = (
+                zero_window_violations
+                + list(
+                    verify_b004_invariants(
+                        conn,
+                        workspace_id=stack_b.access.workspace_id,
+                        phase="s16_part_b_pre_resume_deletion_fence",
+                        source_resource_id=stack_b.resource_id,
+                    )
                 )
-            ) + list(
-                verify_b004_invariants(
-                    conn,
-                    workspace_id=stack_c.access.workspace_id,
-                    phase="s16_part_c_pre_resume_private_flip",
-                    source_resource_id=stack_c.resource_id,
+                + list(
+                    verify_b004_invariants(
+                        conn,
+                        workspace_id=stack_c.access.workspace_id,
+                        phase="s16_part_c_pre_resume_private_flip",
+                        source_resource_id=stack_c.resource_id,
+                    )
+                )
+                + list(
+                    verify_b004_invariants(
+                        conn,
+                        workspace_id=stack_d.access.workspace_id,
+                        phase="s16_part_d_post_success_live_private_flip",
+                        gate_checks=live_private_gates,
+                        source_resource_id=stack_d.resource_id,
+                    )
                 )
             )
 
@@ -2820,11 +2892,18 @@ class B004PostgresScenarioRunner:
             content_unit_id=unit_id,
             sync_run_id=run_a,
             extra={
+                "part_a_zero_window_refetch_blocked": not zero_window_gates.refetch_content_allowed,
+                "part_a_zero_window_approval_blocked": not zero_window_gates.claim_approval_gate_allowed,
+                "part_a_zero_window_export_blocked": not zero_window_gates.export_gate_allowed,
                 "part_a_post_success_deletion_processing_status": post_del_derived.processing_status.value,
+                "part_b_pre_resume_deletion_retry_404": True,
                 "part_b_pre_resume_deletion_run_status": exec_b_check.status.value,
                 "part_b_pre_resume_resurrection_events": 0,
                 "part_c_pre_resume_private_run_status": step_c2.execution.status.value,
                 "part_c_pre_resume_private_reason": step_c2.execution.failure_reason_code,
+                "part_d_live_private_refetch_status": live_private_gates.refetch_resolution_status,
+                "part_d_live_private_refetch_blocked": not live_private_gates.refetch_content_allowed,
+                "part_d_live_private_export_blocked": not live_private_gates.export_gate_allowed,
             },
         )
         assert gate_checks.refetch_content_allowed is False
@@ -2840,12 +2919,22 @@ class B004PostgresScenarioRunner:
                 *provider_a.canaries.all_tokens(),
                 *provider_b.canaries.all_tokens(),
                 *provider_c.canaries.all_tokens(),
+                *provider_d.canaries.all_tokens(),
             ),
-            [*stack_a.captured_api_texts, *stack_b.captured_api_texts, *stack_c.captured_api_texts],
+            [
+                *stack_a.captured_api_texts,
+                *stack_b.captured_api_texts,
+                *stack_c.captured_api_texts,
+                *stack_d.captured_api_texts,
+            ],
             mid_violations,
             gate_checks,
             0,
-            ["Post-SUCCESS OD-003 deletion blocked raw/AI/Export (0 exposures); pre-resume deletion fence canceled run (0 resurrection); pre-resume PRIVATE flip halted resume (0 tombstones, 0 promotions)."],
+            [
+                "Zero-window post-SUCCESS OD-003 deletion blocked raw/AI/Approval/Export BEFORE background worker; "
+                "pre-resume deletion fence canceled run and rejected /retry (404, 0 resurrection); "
+                "pre-resume and live post-SUCCESS PRIVATE flips halted/blocked immediately with 0 exposures."
+            ],
         )
 
 

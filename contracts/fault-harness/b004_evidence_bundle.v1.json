@@ -676,9 +676,9 @@
         "BEFORE_PAGE_TX"
       ],
       "invariant_violation_count": 0,
-      "logical_snapshot_sha256": "4d961110918aaf7f2a98e19095e259b9b930c8a74fe70a30b5926bff55ee9d8e",
+      "logical_snapshot_sha256": "44be6660bf15b457b505132cd6a06eadf8fa8c51c64b420fb8aa0e315b4e08a2",
       "notes": [
-        "Post-SUCCESS OD-003 deletion blocked raw/AI/Export (0 exposures); pre-resume deletion fence canceled run (0 resurrection); pre-resume PRIVATE flip halted resume (0 tombstones, 0 promotions)."
+        "Zero-window post-SUCCESS OD-003 deletion blocked raw/AI/Approval/Export BEFORE background worker; pre-resume deletion fence canceled run and rejected /retry (404, 0 resurrection); pre-resume and live post-SUCCESS PRIVATE flips halted/blocked immediately with 0 exposures."
       ],
       "passed": true,
       "requirements": [

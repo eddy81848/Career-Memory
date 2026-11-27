@@ -66,14 +66,15 @@ Every scenario is checked at both **intermediate crash/pause boundaries** and **
 
 ---
 
-## 4. Production Defects Discovered & Fixed by B-004 Execution
+## 4. Production Defects Discovered & Fixed by B-004 Execution & `T-005D` Audit
 
-Running the real M2 stack on PostgreSQL 18 uncovered two concrete production issues, both resolved cleanly within M2 scope:
+Running the real M2 stack on PostgreSQL 18 and completing the independent `T-005D` adversarial audit uncovered and resolved three concrete production defects:
 
-1. **`DerivedUnitIngestionProcessor.verify_unit_and_project_status` (`derived_units.py`)**: Referenced nonexistent enum member `ResolutionStatus.SOURCE_UNAVAILABLE` instead of `ResolutionStatus.UNAVAILABLE` (caught during `S15` post-`SUCCESS` `REVISION_MISMATCH` projection). Fixed to `ResolutionStatus.UNAVAILABLE`.
-2. **`DerivedUnitIngestionProcessor` Gate 2 deletion fence handling (`derived_units.py`)**: When `is_deletion_fence_active` fired on an already-`SUCCESS` run in `S16`, Gate 2 projected `processing_status = 'BLOCKED_POLICY'` without transitioning existing `content_units.policy_state` to `'BLOCKED'`. Fixed to atomically set `content_units.policy_state = 'BLOCKED'` inside the same transaction.
-   - *M5 `T-502` Defense-in-Depth Note*: Production `OD-003` deletion-confirm persistence in M5 should also atomically transition `content_units.policy_state = 'BLOCKED'` (or enforce `deletion_jobs` fence lookup inside `PostgresProvenanceMetadataStore`) so raw viewer requests arriving between `deletion-confirm` and background job execution are rejected with zero window.
-3. **`DIRECT_COMMIT` confirmation flag (`association_classifier.py`, `postgres_page_committer.py`)**: Added explicit `requires_user_confirmation: True` alongside `user_review_required: True` in `DIRECT_COMMIT` `summary_metadata` and `direct_commit_badge_metadata`.
+1. **`PostgresProvenanceMetadataStore` zero-window `OD-003` deletion fence (`resolver/postgres_store.py` — `T-005D BLOCKER-1`)**: `PersistedUnitResolutionTarget` and `evaluate_target_policy` already enforced `deletion_fence_active`, but `PostgresProvenanceMetadataStore` did not query `public.deletion_jobs`, leaving a window between `POST /v1/source-resources/{id}/deletion-confirm` (`202`) and background worker execution where raw viewing and approval/export gates could pass. Fixed inside `get_unit_resolution_target`, `list_sibling_unit_anchors`, and `check_policy_fence_current` via a `to_regclass('public.deletion_jobs')`-guarded query (preserving full backward compatibility with `0010+0020`-only resolver clusters), closing the exposure window to **0ms**. Verified directly in `S16` (before calling `DerivedUnitIngestionProcessor`) and by dedicated regression test `test_b004_od003_deletion_confirm_zero_window_blocks_resolver_and_gates_immediately`.
+2. **`DerivedUnitIngestionProcessor.verify_unit_and_project_status` (`derived_units.py`)**: Referenced nonexistent enum member `ResolutionStatus.SOURCE_UNAVAILABLE` instead of `ResolutionStatus.UNAVAILABLE` (caught during `S15` post-`SUCCESS` `REVISION_MISMATCH` projection). Fixed to `ResolutionStatus.UNAVAILABLE`.
+3. **`DerivedUnitIngestionProcessor` Gate 2 deletion fence handling (`derived_units.py`)**: When `is_deletion_fence_active` fired on an already-`SUCCESS` run in `S16`, Gate 2 projected `processing_status = 'BLOCKED_POLICY'` without transitioning existing `content_units.policy_state` to `'BLOCKED'`. Fixed to atomically set `content_units.policy_state = 'BLOCKED'` inside the same transaction.
+4. **`DIRECT_COMMIT` confirmation flag (`association_classifier.py`, `postgres_page_committer.py`)**: Added explicit `requires_user_confirmation: True` alongside `user_review_required: True` in `DIRECT_COMMIT` `summary_metadata` and `direct_commit_badge_metadata`.
+5. **Additional `T-005D` hardening (`NB-1` ~ `NB-3`)**: Removed dead branch/variable in `_run_s05`; verified `POST /v1/sync-runs/{id}/retry` returns `404` immediately after `OD-003` `deletion-confirm` on `PARTIAL` runs (`S16` Part B); verified live post-`SUCCESS` `PUBLIC → PRIVATE` upstream flip immediately returns `403 POLICY_BLOCKED` on `GET /v1/content-units/{id}/content` and blocks Approval/Export gates even before local `verify_resource_policy` runs (`S16` Part D).
 
 ---
 

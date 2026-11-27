@@ -123,10 +123,17 @@
       "external_ai_gate_allowed": false,
       "extra": {
         "part_a_post_success_deletion_processing_status": "BLOCKED_POLICY",
+        "part_a_zero_window_approval_blocked": true,
+        "part_a_zero_window_export_blocked": true,
+        "part_a_zero_window_refetch_blocked": true,
+        "part_b_pre_resume_deletion_retry_404": true,
         "part_b_pre_resume_deletion_run_status": "CANCELED",
         "part_b_pre_resume_resurrection_events": 0,
         "part_c_pre_resume_private_reason": null,
-        "part_c_pre_resume_private_run_status": "CANCELED"
+        "part_c_pre_resume_private_run_status": "CANCELED",
+        "part_d_live_private_export_blocked": true,
+        "part_d_live_private_refetch_blocked": true,
+        "part_d_live_private_refetch_status": "POLICY_BLOCKED"
       },
       "refetch_content_allowed": false,
       "refetch_resolution_status": "POLICY_BLOCKED"

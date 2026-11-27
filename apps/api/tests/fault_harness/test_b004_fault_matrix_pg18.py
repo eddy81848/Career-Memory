@@ -128,3 +128,118 @@ def test_b004_10page_resume_supports_main_and_master_default_branches_without_ha
     assert step2 is not None and step2.execution.status is SyncRunStatus.SUCCESS
     assert len(step2.execution.promoted_pr_event_ids) == 10
     assert len(step2.execution.promoted_direct_commit_event_ids) == 1
+
+
+@pytest.mark.postgres
+def test_b004_od003_deletion_confirm_zero_window_blocks_resolver_and_gates_immediately(
+    b004_pg18_cluster: EphemeralB004Pg18Cluster,
+) -> None:
+    """BLOCKER-1 regression: immediately after deletion-confirm (202), BEFORE any background worker runs,
+    GET /v1/content-units/{id}/content must return 403 and APPROVAL / EXPORT_DOWNLOAD gates must block.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from career_memory_api.app import create_app
+    from career_memory_api.fault_harness import build_compact_multipage_provider
+    from career_memory_api.fault_harness.runner import _SingleActorAccessProvider
+    from career_memory_api.resolver import (
+        ExportGatePrecondition,
+        GateOperationKind,
+        PostgresProvenanceMetadataStore,
+        RefetchResolverService,
+        ResolutionStatus,
+        mount_resolver_routes,
+        verify_required_supports_for_gate,
+    )
+
+    b004_pg18_cluster.truncate_all()
+    runner = B004PostgresScenarioRunner(b004_pg18_cluster)
+    provider = build_compact_multipage_provider(
+        scenario_id="S16",
+        default_branch="main",
+        repo_id="900400097",
+        repo_name="career-memory-s16-zero-window",
+    )
+    stack = runner._build_stack(provider)  # noqa: SLF001
+    runner._create_run_http(stack, backfill_from="2026-08-01")  # noqa: SLF001
+    step = stack.worker.claim_and_execute_next(
+        stack.access.workspace_id,
+        worker_id="w-s16-zw",
+        access=stack.access,
+        run_derived_units=True,
+        now=FIXED_NOW,
+    )
+    assert step is not None and step.execution.status is SyncRunStatus.SUCCESS
+    unit_id = runner._find_first_pr_content_unit_id(stack.access.workspace_id, pr_number="201")  # noqa: SLF001
+    assert unit_id is not None
+
+    # Confirm deletion via OD-003 (202) — DO NOT run DerivedUnitIngestionProcessor or any worker!
+    with TestClient(stack.app) as client:
+        prev = client.post(
+            f"/v1/source-resources/{stack.resource_id}/deletion-preview"
+        ).json()
+        conf = client.post(
+            f"/v1/source-resources/{stack.resource_id}/deletion-confirm",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "preview_token": prev["preview_token"],
+                "expected_resource_version": prev["resource_version"],
+                "expected_impact_scope_version": prev["impact_scope_version"],
+                "acknowledge_irreversible_purge": True,
+            },
+        )
+        assert conf.status_code == 202
+
+    # Verify zero-window immediate blocking across HTTP viewer, APPROVAL gate, and EXPORT_DOWNLOAD gate
+    with b004_pg18_cluster.api_connection() as api_conn:
+        resolver = RefetchResolverService(
+            metadata_store=PostgresProvenanceMetadataStore(api_conn),
+            fetcher=stack.content_fetcher,
+            clock=lambda: FIXED_NOW,
+        )
+        viewer_app = create_app(
+            access_provider=_SingleActorAccessProvider(stack.access, stack.bearer_token),
+        )
+        mount_resolver_routes(viewer_app, resolver=resolver)
+        with TestClient(viewer_app) as vclient:
+            vresp = vclient.get(
+                f"/v1/content-units/{unit_id}/content",
+                headers={
+                    "Authorization": f"Bearer {stack.bearer_token}",
+                    "X-Workspace-ID": stack.access.workspace_id,
+                },
+            )
+            assert vresp.status_code == 403
+            assert provider.canaries.raw_pr_body not in vresp.text
+            assert provider.canaries.oauth_token not in vresp.text
+
+        with resolver.open_operation_session(
+            stack.access, operation_id="op-zero-window-del-fence"
+        ) as session:
+            app_gate = verify_required_supports_for_gate(
+                session,
+                [unit_id],
+                operation_kind=GateOperationKind.APPROVAL,
+                resolver=resolver,
+                clock=lambda: FIXED_NOW,
+            )
+            assert app_gate.allowed is False
+            assert app_gate.resolutions[0].status is ResolutionStatus.POLICY_BLOCKED
+
+            exp_gate = verify_required_supports_for_gate(
+                session,
+                [unit_id],
+                operation_kind=GateOperationKind.EXPORT_DOWNLOAD,
+                resolver=resolver,
+                export_precondition=ExportGatePrecondition(
+                    claim_version_approved=True,
+                    approved_claim_version=1,
+                    requested_claim_version=1,
+                ),
+                clock=lambda: FIXED_NOW,
+            )
+            assert exp_gate.allowed is False
+            assert exp_gate.resolutions[0].status is ResolutionStatus.POLICY_BLOCKED
+

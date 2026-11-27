@@ -1,0 +1,2207 @@
+{
+  "components": {
+    "headers": {
+      "PrivateNoStore": {
+        "description": "Enforce non-cached reads for current access and Plan C ephemeral content.",
+        "required": true,
+        "schema": {
+          "const": "private, no-store"
+        }
+      },
+      "RequestID": {
+        "description": "Echo of the optional X-Request-ID.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "RequestID": {
+        "in": "header",
+        "name": "X-Request-ID",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "SyncRunID": {
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "schema": {
+          "minLength": 1,
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "ImportAuthUnavailable": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        },
+        "description": "AUTH_VERIFICATION_UNAVAILABLE (retryable=true).",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/PrivateNoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
+      "ImportResourceConcealed": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        },
+        "description": "RESOURCE_NOT_FOUND (missing, out-of-workspace, or concealed).",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/PrivateNoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
+      "ImportSessionRequired": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        },
+        "description": "SESSION_TERMINATED or unauthenticated request.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/PrivateNoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
+      "ImportWorkspaceAccessRevoked": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        },
+        "description": "WORKSPACE_SCOPE_VIOLATION.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/PrivateNoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
+      "InitialImportConflict": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ImportConflict"
+            }
+          }
+        },
+        "description": "IDEMPOTENCY_CONFLICT, SYNC_ALREADY_RUNNING, or IDEMPOTENCY_KEY_EXPIRED."
+      },
+      "RetryConflict": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ImportConflict"
+                },
+                {
+                  "$ref": "#/components/schemas/RetryVersionConflict"
+                }
+              ]
+            }
+          }
+        },
+        "description": "RESOURCE_VERSION_CONFLICT or ImportConflict."
+      },
+      "SyncRunAccepted": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SyncRunAccepted"
+            }
+          }
+        },
+        "description": "Accepted for processing.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ClaimApproveRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/{claim_id}/approve request contract (verification absent).",
+        "properties": {
+          "acknowledge_unverified_atoms": {
+            "default": false,
+            "title": "Acknowledge Unverified Atoms",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ClaimApproveRequest",
+        "type": "object"
+      },
+      "ClaimBoundaryResponse": {
+        "additionalProperties": false,
+        "description": "Claim API response exposing strictly read-only computed verification.",
+        "properties": {
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_text": {
+            "minLength": 1,
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "computed_verification": {
+            "$ref": "#/components/schemas/ClaimVerification",
+            "description": "Read-only computed verification status derived from verified provenance.",
+            "readOnly": true
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "workspace_id",
+          "event_id",
+          "version",
+          "claim_text",
+          "status",
+          "computed_verification"
+        ],
+        "title": "ClaimBoundaryResponse",
+        "type": "object"
+      },
+      "ClaimDraftCreateRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/drafts request contract (read-only verification strictly absent).",
+        "properties": {
+          "claim_text": {
+            "minLength": 1,
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "confirmed_event_id": {
+            "minLength": 1,
+            "title": "Confirmed Event Id",
+            "type": "string"
+          },
+          "input_fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Input Fact Ids",
+            "type": "array"
+          },
+          "status": {
+            "const": "DRAFT",
+            "default": "DRAFT",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_event_id",
+          "input_fact_ids",
+          "claim_text"
+        ],
+        "title": "ClaimDraftCreateRequest",
+        "type": "object"
+      },
+      "ClaimEditRequest": {
+        "additionalProperties": false,
+        "description": "PATCH /v1/claims/{claim_id} request contract (creates new version, verification absent).",
+        "properties": {
+          "claim_text": {
+            "minLength": 1,
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "edit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Edit Reason"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version",
+          "claim_text"
+        ],
+        "title": "ClaimEditRequest",
+        "type": "object"
+      },
+      "ClaimStatus": {
+        "enum": [
+          "DRAFT",
+          "DRAFT_INVALID",
+          "SUPPORT_VALIDATED",
+          "APPROVED",
+          "REJECTED",
+          "STALE",
+          "SUPERSEDED"
+        ],
+        "type": "string"
+      },
+      "ClaimVerification": {
+        "enum": [
+          "SOURCE_VERIFIED",
+          "USER_CONFIRMED",
+          "MIXED",
+          "UNVERIFIED"
+        ],
+        "readOnly": true,
+        "type": "string"
+      },
+      "ContentUnitType": {
+        "enum": [
+          "PR_TITLE",
+          "PR_BODY_SECTION",
+          "ISSUE_SECTION",
+          "COMMENT",
+          "REVIEW_COMMENT",
+          "COMMIT_MESSAGE",
+          "DIFF_HUNK",
+          "SYMBOL_CHANGE"
+        ],
+        "type": "string"
+      },
+      "DeletionConfirmAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "202 Accepted response for confirmed source deletion (OD-003).",
+        "properties": {
+          "deletion_job_id": {
+            "minLength": 1,
+            "title": "Deletion Job Id",
+            "type": "string"
+          },
+          "fence_active": {
+            "const": true,
+            "default": true,
+            "title": "Fence Active",
+            "type": "boolean"
+          },
+          "source_resource_id": {
+            "minLength": 1,
+            "title": "Source Resource Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "PENDING",
+            "default": "PENDING",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deletion_job_id",
+          "source_resource_id"
+        ],
+        "title": "DeletionConfirmAcceptedResponse",
+        "type": "object"
+      },
+      "DeletionConfirmRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/source-resources/{source_resource_id}/deletion-confirm request (OD-003).",
+        "properties": {
+          "acknowledge_irreversible_purge": {
+            "const": true,
+            "title": "Acknowledge Irreversible Purge",
+            "type": "boolean"
+          },
+          "expected_impact_scope_version": {
+            "minLength": 1,
+            "title": "Expected Impact Scope Version",
+            "type": "string"
+          },
+          "expected_resource_version": {
+            "minLength": 1,
+            "title": "Expected Resource Version",
+            "type": "string"
+          },
+          "preview_token": {
+            "minLength": 1,
+            "title": "Preview Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_token",
+          "expected_resource_version",
+          "expected_impact_scope_version",
+          "acknowledge_irreversible_purge"
+        ],
+        "title": "DeletionConfirmRequest",
+        "type": "object"
+      },
+      "DeletionImpactCounts": {
+        "additionalProperties": false,
+        "description": "Affected object counts returned by deletion preview (OD-003).",
+        "properties": {
+          "claims_approved": {
+            "minimum": 0,
+            "title": "Claims Approved",
+            "type": "integer"
+          },
+          "claims_draft": {
+            "minimum": 0,
+            "title": "Claims Draft",
+            "type": "integer"
+          },
+          "claims_edited": {
+            "minimum": 0,
+            "title": "Claims Edited",
+            "type": "integer"
+          },
+          "claims_historical_versions": {
+            "minimum": 0,
+            "title": "Claims Historical Versions",
+            "type": "integer"
+          },
+          "contributions": {
+            "minimum": 0,
+            "title": "Contributions",
+            "type": "integer"
+          },
+          "ephemeral_cache_entries": {
+            "minimum": 0,
+            "title": "Ephemeral Cache Entries",
+            "type": "integer"
+          },
+          "facts": {
+            "minimum": 0,
+            "title": "Facts",
+            "type": "integer"
+          },
+          "search_index_entries": {
+            "minimum": 0,
+            "title": "Search Index Entries",
+            "type": "integer"
+          },
+          "server_exports": {
+            "minimum": 0,
+            "title": "Server Exports",
+            "type": "integer"
+          },
+          "work_events": {
+            "minimum": 0,
+            "title": "Work Events",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "work_events",
+          "facts",
+          "contributions",
+          "claims_draft",
+          "claims_edited",
+          "claims_approved",
+          "claims_historical_versions",
+          "search_index_entries",
+          "ephemeral_cache_entries",
+          "server_exports"
+        ],
+        "title": "DeletionImpactCounts",
+        "type": "object"
+      },
+      "DeletionPreviewResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/source-resources/{source_resource_id}/deletion-preview response (OD-003).",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "impact_counts": {
+            "$ref": "#/components/schemas/DeletionImpactCounts"
+          },
+          "impact_scope_version": {
+            "minLength": 1,
+            "title": "Impact Scope Version",
+            "type": "string"
+          },
+          "non_recoverable_scopes": {
+            "$ref": "#/components/schemas/NonRecoverableScopes"
+          },
+          "preview_token": {
+            "minLength": 1,
+            "title": "Preview Token",
+            "type": "string"
+          },
+          "resource_version": {
+            "minLength": 1,
+            "title": "Resource Version",
+            "type": "string"
+          },
+          "source_resource_id": {
+            "minLength": 1,
+            "title": "Source Resource Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_resource_id",
+          "resource_version",
+          "impact_scope_version",
+          "impact_counts",
+          "non_recoverable_scopes",
+          "preview_token",
+          "expires_at"
+        ],
+        "title": "DeletionPreviewResponse",
+        "type": "object"
+      },
+      "EphemeralContentUnitResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "content_unit_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "context": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "source_resolution": {
+            "$ref": "#/components/schemas/SourceResolutionSummary"
+          },
+          "unit_type": {
+            "$ref": "#/components/schemas/ContentUnitType"
+          }
+        },
+        "required": [
+          "content_unit_id",
+          "unit_type",
+          "content",
+          "context",
+          "source_resolution"
+        ],
+        "type": "object"
+      },
+      "ErrorBody": {
+        "additionalProperties": false,
+        "description": "Standard Career Memory API error payload (MVP API §3).",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Details"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "additionalProperties": false,
+        "description": "Standard Career Memory API error envelope.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportConflict": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "enum": [
+                  "IDEMPOTENCY_CONFLICT",
+                  "SYNC_ALREADY_RUNNING",
+                  "IDEMPOTENCY_KEY_EXPIRED"
+                ],
+                "type": "string"
+              },
+              "details": {
+                "additionalProperties": false,
+                "properties": {
+                  "existing_run_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "existing_run_id"
+                ],
+                "type": "object"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "retryable": {
+                "const": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable",
+              "request_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "ImportState": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "SUCCESS",
+          "PARTIAL",
+          "PARTIAL_WITH_LIMIT",
+          "FAILED",
+          "CANCELED"
+        ],
+        "type": "string"
+      },
+      "ImportStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "failure_reason": {
+            "type": "string"
+          },
+          "import_ready": {
+            "type": "boolean"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "plan_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "processed_range": {
+            "type": "string"
+          },
+          "processing_status": {
+            "$ref": "#/components/schemas/ProcessingStatus"
+          },
+          "remaining_range": {
+            "type": "string"
+          },
+          "retry": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed": {
+                "type": "boolean"
+              },
+              "from_safe_checkpoint": {
+                "const": true
+              }
+            },
+            "required": [
+              "allowed"
+            ],
+            "type": "object"
+          },
+          "run_version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "source_drift": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImportState"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/StreamProgress"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "plan_id",
+          "import_ready",
+          "processing_status",
+          "source_drift",
+          "retry",
+          "run_version"
+        ],
+        "type": "object"
+      },
+      "InitialImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "backfill_from": {
+            "format": "date",
+            "type": "string"
+          },
+          "limits": {
+            "additionalProperties": false,
+            "properties": {
+              "max_objects": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "mode": {
+            "const": "INITIAL_BACKFILL"
+          },
+          "source_resource_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_resource_id",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "NonRecoverableScopes": {
+        "additionalProperties": false,
+        "description": "Explicit disclosure of copies outside server purge reach (OD-003).",
+        "properties": {
+          "already_downloaded_exports": {
+            "const": true,
+            "default": true,
+            "title": "Already Downloaded Exports",
+            "type": "boolean"
+          },
+          "notice": {
+            "default": "Previously downloaded local export files and remote provider-hosted source originals cannot be recalled by server-side deletion.",
+            "minLength": 1,
+            "title": "Notice",
+            "type": "string"
+          },
+          "provider_hosted_originals": {
+            "const": true,
+            "default": true,
+            "title": "Provider Hosted Originals",
+            "type": "boolean"
+          }
+        },
+        "title": "NonRecoverableScopes",
+        "type": "object"
+      },
+      "ProcessingStatus": {
+        "enum": [
+          "NOT_STARTED",
+          "RUNNING",
+          "BLOCKED_POLICY",
+          "BLOCKED_SOURCE",
+          "FAILED",
+          "COMPLETE"
+        ],
+        "type": "string"
+      },
+      "RecoveredSyncRuns": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "import_status": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                },
+                "status_url": {
+                  "pattern": "^/v1/sync-runs/[^/?#]+$",
+                  "type": "string"
+                },
+                "target_id": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_id",
+                "status_url",
+                "import_status"
+              ],
+              "type": "object"
+            },
+            "maxItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ResolutionStatus": {
+        "enum": [
+          "MATCHED",
+          "REVISION_MISMATCH",
+          "UNAVAILABLE",
+          "POLICY_BLOCKED",
+          "INVALID_LOCATOR",
+          "PARTIAL_WITH_LIMIT"
+        ],
+        "type": "string"
+      },
+      "RetryImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_run_version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_run_version"
+        ],
+        "type": "object"
+      },
+      "RetryVersionConflict": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "const": "RESOURCE_VERSION_CONFLICT"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "retryable": {
+                "const": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable",
+              "request_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "SearchEntityType": {
+        "enum": [
+          "WORK_EVENT",
+          "FACT",
+          "CLAIM"
+        ],
+        "type": "string"
+      },
+      "SearchHit": {
+        "additionalProperties": false,
+        "description": "Single non-raw search hit.",
+        "properties": {
+          "entity_id": {
+            "minLength": 1,
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/SearchEntityType"
+          },
+          "score": {
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "title_or_summary": {
+            "minLength": 1,
+            "title": "Title Or Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "title_or_summary",
+          "score"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/search response contract (OD-008).",
+        "properties": {
+          "index_version": {
+            "minLength": 1,
+            "title": "Index Version",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          },
+          "query_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Query Hash",
+            "type": "string"
+          },
+          "ranking_version": {
+            "minLength": 1,
+            "title": "Ranking Version",
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SearchScope"
+          }
+        },
+        "required": [
+          "scope",
+          "query_hash",
+          "index_version",
+          "ranking_version",
+          "items"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SearchScope": {
+        "additionalProperties": false,
+        "description": "Authoritative search scope (OD-008: workspace_id + optional source_resource_id only).",
+        "properties": {
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id"
+        ],
+        "title": "SearchScope",
+        "type": "object"
+      },
+      "SourceResolutionErrorCode": {
+        "enum": [
+          "SOURCE_REVISION_MISMATCH",
+          "SOURCE_LOCATOR_INVALID",
+          "SOURCE_POLICY_BLOCKED",
+          "SOURCE_UNAVAILABLE",
+          "SOURCE_FETCH_LIMIT"
+        ],
+        "type": "string"
+      },
+      "SourceResolutionErrorEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          },
+          "source_resolution": {
+            "$ref": "#/components/schemas/SourceResolutionSummary"
+          }
+        },
+        "required": [
+          "error",
+          "source_resolution"
+        ],
+        "type": "object"
+      },
+      "SourceResolutionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expected_revision_hash": {
+            "type": "string"
+          },
+          "observed_revision_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResolutionStatus"
+          }
+        },
+        "required": [
+          "status",
+          "checked_at",
+          "expected_revision_hash",
+          "observed_revision_hash",
+          "retryable",
+          "reason_code"
+        ],
+        "type": "object"
+      },
+      "StreamProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "last_committed_page": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "unresolved_failures": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "type",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SyncRunAccepted": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "const": "PENDING"
+          },
+          "status_url": {
+            "pattern": "^/v1/sync-runs/[^/?#]+$",
+            "type": "string"
+          },
+          "target_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "target_type": {
+            "const": "SYNC_RUN"
+          }
+        },
+        "required": [
+          "target_id",
+          "status_url"
+        ],
+        "type": "object"
+      },
+      "SyncRunMode": {
+        "enum": [
+          "INITIAL_BACKFILL"
+        ],
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "SupabaseAccessJWT": {
+        "bearerFormat": "JWT",
+        "description": "Supabase access JWT verified server-side with live session and Workspace membership checks.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Notion MVP API Specification & T-106",
+    "url": "https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa"
+  },
+  "info": {
+    "description": "Integrated M1 Foundation API contract covering healthz, CONTRACT-06 initial import (4 routes aligned with contracts/import-v1/openapi.yaml), Plan C §7 ephemeral content viewing, read-only Claim verification write guard, OD-008 workspace search (zero project_id), and OD-003 source deletion preview/confirm. BYOK and external LLM subscription callback routes are intentionally absent.",
+    "title": "Career Memory M1 Integrated API",
+    "version": "1.0.0-m1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/v1/claims/drafts": {
+      "post": {
+        "operationId": "createClaimDraft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimDraftCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimBoundaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_READONLY_VERIFICATION_WRITE, or PROHIBITED_RAW_TEXT_PERSISTENCE."
+          }
+        },
+        "summary": "Create a DRAFT claim without writable verification fields",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}": {
+      "patch": {
+        "operationId": "editClaimVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimBoundaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Claim not found or concealed."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Version conflict."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_READONLY_VERIFICATION_WRITE, or PROHIBITED_RAW_TEXT_PERSISTENCE."
+          }
+        },
+        "summary": "Edit a claim into a new version without writable verification fields",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}/approve": {
+      "post": {
+        "operationId": "approveClaimVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimApproveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimBoundaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Claim not found or concealed."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Version conflict or refetch verification block."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_READONLY_VERIFICATION_WRITE."
+          }
+        },
+        "summary": "Approve a claim version without direct SOURCE_VERIFIED writes",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/content-units/{content_unit_id}/content": {
+      "get": {
+        "description": "Refetches raw source content strictly on-demand from persisted provider IDs (never accepting arbitrary URLs), verifies revision/unit SHA-256 hashes and locators, and returns Cache-Control: private, no-store.",
+        "operationId": "getEphemeralContentUnitContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "content_unit_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_context",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Workspace-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EphemeralContentUnitResponse"
+                }
+              }
+            },
+            "description": "Ephemeral verified Content Unit text and resolution metadata.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_REQUEST (e.g. arbitrary URL parameter supplied).",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ImportSessionRequired"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResolutionErrorEnvelope"
+                }
+              }
+            },
+            "description": "WORKSPACE_SCOPE_VIOLATION or SOURCE_POLICY_BLOCKED.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/ImportResourceConcealed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResolutionErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_REVISION_MISMATCH or SOURCE_LOCATOR_INVALID.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResolutionErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_FETCH_LIMIT (operation limits exceeded or truncated response).",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResolutionErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_UNAVAILABLE or AUTH_VERIFICATION_UNAVAILABLE.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              }
+            }
+          }
+        },
+        "summary": "Ephemerally refetch and verify a persisted Content Unit (Plan C §7)",
+        "tags": [
+          "content-units"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "searchWorkspaceMemory",
+        "parameters": [
+          {
+            "description": "Search query text.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Search query text.",
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional source resource UUID within the authenticated Workspace.",
+            "in": "query",
+            "name": "source_resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional source resource UUID within the authenticated Workspace.",
+              "title": "Source Resource Id"
+            }
+          },
+          {
+            "description": "Optional filter over WORK_EVENT, FACT, or CLAIM.",
+            "in": "query",
+            "name": "entity_types",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchEntityType"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional filter over WORK_EVENT, FACT, or CLAIM.",
+              "title": "Entity Types"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Versioned opaque cursor bound to (workspace_id, source_resource_id, query_hash, index_version, ranking_version).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Versioned opaque cursor bound to (workspace_id, source_resource_id, query_hash, index_version, ranking_version).",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_SEARCH_CURSOR."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          }
+        },
+        "summary": "Search non-raw workspace entities scoped by workspace and optional source_resource_id (OD-008)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/v1/source-resources/{source_resource_id}/deletion-confirm": {
+      "post": {
+        "operationId": "confirmSourceResourceDeletion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_resource_id",
+            "required": true,
+            "schema": {
+              "title": "Source Resource Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key for deletion confirmation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key for deletion confirmation.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeletionConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionConfirmAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Source resource not found or concealed."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "DELETION_PREVIEW_EXPIRED, DELETION_PREVIEW_SCOPE_CHANGED, or DELETION_PREVIEW_INVALID."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Missing/invalid Idempotency-Key or body."
+          }
+        },
+        "summary": "Confirm irreversible source deletion with Idempotency-Key and matching preview_token (OD-003)",
+        "tags": [
+          "source-resources"
+        ]
+      }
+    },
+    "/v1/source-resources/{source_resource_id}/deletion-preview": {
+      "post": {
+        "operationId": "previewSourceResourceDeletion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_resource_id",
+            "required": true,
+            "schema": {
+              "title": "Source Resource Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Source resource not found or concealed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview cascade deletion impact and issue a version-bound preview_token (OD-003)",
+        "tags": [
+          "source-resources"
+        ]
+      }
+    },
+    "/v1/sync-runs": {
+      "get": {
+        "operationId": "recoverInitialImportRun",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_resource_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "const": 1,
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveredSyncRuns"
+                }
+              }
+            },
+            "description": "Zero or one readable run with its current status.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ImportSessionRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/ImportWorkspaceAccessRevoked"
+          },
+          "404": {
+            "$ref": "#/components/responses/ImportResourceConcealed"
+          },
+          "422": {
+            "description": "Invalid query parameter (missing source_resource_id or limit != 1)."
+          },
+          "503": {
+            "$ref": "#/components/responses/ImportAuthUnavailable"
+          }
+        },
+        "summary": "Recover one readable import run for a repository",
+        "tags": [
+          "sync-runs"
+        ]
+      },
+      "post": {
+        "operationId": "createInitialImport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitialImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/components/responses/SyncRunAccepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/ImportSessionRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/ImportWorkspaceAccessRevoked"
+          },
+          "404": {
+            "$ref": "#/components/responses/ImportResourceConcealed"
+          },
+          "409": {
+            "$ref": "#/components/responses/InitialImportConflict"
+          },
+          "422": {
+            "description": "Missing or invalid Idempotency-Key or request body."
+          },
+          "503": {
+            "$ref": "#/components/responses/ImportAuthUnavailable"
+          }
+        },
+        "summary": "Request a one-time initial import plan",
+        "tags": [
+          "sync-runs"
+        ]
+      }
+    },
+    "/v1/sync-runs/{id}": {
+      "get": {
+        "operationId": "getInitialImportStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            },
+            "description": "Import and derived processing status, including PARTIAL and PARTIAL_WITH_LIMIT.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/PrivateNoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ImportSessionRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/ImportWorkspaceAccessRevoked"
+          },
+          "404": {
+            "$ref": "#/components/responses/ImportResourceConcealed"
+          },
+          "503": {
+            "$ref": "#/components/responses/ImportAuthUnavailable"
+          }
+        },
+        "summary": "Read run status, checkpoint progress, limits, and retry eligibility",
+        "tags": [
+          "sync-runs"
+        ]
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SyncRunID"
+        }
+      ]
+    },
+    "/v1/sync-runs/{id}/retry": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SyncRunID"
+        }
+      ],
+      "post": {
+        "operationId": "retryInitialImport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/components/responses/SyncRunAccepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/ImportSessionRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/ImportWorkspaceAccessRevoked"
+          },
+          "404": {
+            "$ref": "#/components/responses/ImportResourceConcealed"
+          },
+          "409": {
+            "$ref": "#/components/responses/RetryConflict"
+          },
+          "422": {
+            "description": "Missing or invalid Idempotency-Key or request body."
+          },
+          "503": {
+            "$ref": "#/components/responses/ImportAuthUnavailable"
+          }
+        },
+        "summary": "Resume the same run from its safe checkpoint",
+        "tags": [
+          "sync-runs"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "SupabaseAccessJWT": []
+    }
+  ]
+}

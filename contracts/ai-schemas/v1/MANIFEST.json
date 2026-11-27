@@ -1,0 +1,61 @@
+{
+  "golden_alignment_reference": "0.4.0-synthetic-golden",
+  "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
+  "schema_package_version": "1.0.0",
+  "schemas": [
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "claim_atomization.v1.schema.json",
+      "pipeline_role": "ClaimAtomizer",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/claim_atomization.v1.schema.json",
+      "sha256": "sha256:e086cff2582994f508e8a5105cba673a6d4bb7647b649db7419ff6ca699b0b44",
+      "stage_code": "STAGE_3B_CLAIM_ATOMIZATION",
+      "version": "1.0.0"
+    },
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "claim_draft.v1.schema.json",
+      "pipeline_role": "ClaimGenerator",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/claim_draft.v1.schema.json",
+      "sha256": "sha256:bd9b0fc86a3d8ca93f1b2287f939a5da01f727ec3eb659e4eb1405c8cf743c35",
+      "stage_code": "STAGE_3A_CLAIM_GENERATION",
+      "version": "1.0.0"
+    },
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "claim_support_validation.v1.schema.json",
+      "pipeline_role": "ClaimSupportValidator",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/claim_support_validation.v1.schema.json",
+      "sha256": "sha256:e8e306a219c52dbf4f890a4ca352563707b0ac3c44afa2a54be4b852a42d4373",
+      "stage_code": "STAGE_3C_CLAIM_SUPPORT_VALIDATION",
+      "version": "1.0.0"
+    },
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "fact_candidate.v1.schema.json",
+      "pipeline_role": "FactCandidateExtractor",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/fact_candidate.v1.schema.json",
+      "sha256": "sha256:628b33859c8d1efd6aefce3e3bca48f7263ec2db3747014b9667b37880b2f117",
+      "stage_code": "STAGE_2A_FACT_CANDIDATE_EXTRACTION",
+      "version": "1.0.0"
+    },
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "fact_support_validation.v1.schema.json",
+      "pipeline_role": "FactSupportValidator",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/fact_support_validation.v1.schema.json",
+      "sha256": "sha256:b37e3063aa45c906641336d40b25bff3fd8b1423ad086c184ae03630c173e307",
+      "stage_code": "STAGE_2B_FACT_SUPPORT_VALIDATION",
+      "version": "1.0.0"
+    },
+    {
+      "compatibility_class": "BACKWARD_COMPATIBLE",
+      "file": "generation_run_manifest.v1.schema.json",
+      "pipeline_role": "GenerationRunManifest",
+      "schema_id": "https://career-memory.local/schemas/ai/v1/generation_run_manifest.v1.schema.json",
+      "sha256": "sha256:860951c34837e8ddd120e1775e986f323ff897108c0634f5de6848664b540ed7",
+      "stage_code": "GENERATION_RUN_MANIFEST",
+      "version": "1.0.0"
+    }
+  ]
+}

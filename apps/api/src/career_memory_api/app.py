@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from career_memory_api.authz import (
@@ -28,12 +28,20 @@ def create_app(
     settings: Settings | None = None,
     *,
     access_provider: WorkspaceAccessProvider | None = None,
+    sync_runs_router: APIRouter | None = None,
+    resolver_router: APIRouter | None = None,
+    contracts_router: APIRouter | None = None,
+    install_contract_handlers: bool = False,
 ) -> FastAPI:
     """Create a FastAPI app instance.
 
     In normal execution ``access_provider`` is omitted and defaults to the
     fail-closed ``UnconfiguredWorkspaceAccessProvider``. No environment flag
     or request header can activate a synthetic provider.
+
+    Optional M1 domain routers (``sync_runs_router``, ``resolver_router``,
+    ``contracts_router``) may be mounted cleanly without changing default
+    scaffold behavior.
     """
     resolved_settings = Settings.from_env() if settings is None else settings
     resolved_provider: WorkspaceAccessProvider = (
@@ -62,5 +70,17 @@ def create_app(
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    if install_contract_handlers:
+        from career_memory_api.contracts_api.router import install_contract_error_handlers
+
+        install_contract_error_handlers(app)
+
+    if sync_runs_router is not None:
+        app.include_router(sync_runs_router)
+    if resolver_router is not None:
+        app.include_router(resolver_router)
+    if contracts_router is not None:
+        app.include_router(contracts_router)
 
     return app

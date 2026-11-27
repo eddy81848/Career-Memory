@@ -1,0 +1,168 @@
+{
+  "$id": "https://career-memory.local/schemas/ai/v1/generation_run_manifest.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Non-raw provenance manifest for every AI pipeline execution run. Permits strictly ID/version/hash artifact references in input_artifact_versions and forbids raw source text or prompt bodies (Plan C / REF-04).",
+  "properties": {
+    "algorithm_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "compatibility_class": {
+      "enum": [
+        "BACKWARD_COMPATIBLE",
+        "MIGRATION_REQUIRED"
+      ],
+      "type": "string"
+    },
+    "event_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "input_artifact_versions": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalization_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "claim_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "claim_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "content_unit_hashes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "content_unit_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "contribution_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "fact_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hash_policy_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "ruleset_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "schema_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_revision_hashes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_revision_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "input_hash": {
+      "pattern": "^(sha256:)?[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "model": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "output_schema_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "output_schema_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "prompt_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_type": {
+      "enum": [
+        "FACT_CANDIDATE_EXTRACTION",
+        "FACT_SUPPORT_VALIDATION",
+        "CLAIM_DRAFT_GENERATION",
+        "CLAIM_ATOMIZATION",
+        "CLAIM_SUPPORT_VALIDATION",
+        "REFETCH_VERIFICATION"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELED"
+      ],
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "workspace_id",
+    "run_type",
+    "input_artifact_versions",
+    "input_hash",
+    "output_schema_id",
+    "output_schema_version",
+    "compatibility_class"
+  ],
+  "title": "GenerationRun Manifest (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "GenerationRunManifest",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "GENERATION_RUN_MANIFEST"
+}

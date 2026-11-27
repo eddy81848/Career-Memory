@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "CmLocatorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalization_version": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "char_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "char_length": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "char_start": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "line_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "line_start": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "locator_spec_version": {
+          "const": "cm-locator-v1",
+          "type": "string"
+        },
+        "span_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "utf16_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf16_start": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "utf8_byte_end": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf8_byte_length": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "utf8_byte_start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "locator_spec_version",
+        "canonicalization_version",
+        "char_start",
+        "char_end",
+        "char_length",
+        "utf8_byte_start",
+        "utf8_byte_end",
+        "utf8_byte_length",
+        "utf16_start",
+        "utf16_end",
+        "line_start",
+        "line_end",
+        "span_sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://career-memory.local/schemas/ai/v1/fact_support_validation.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stage 2B FactSupportValidator structured output. Requires a validator_run_id distinct from extractor_run_id, verifies cm-locator-v1 coordinates, and strictly forbids raw quote/extracted_span persistence.",
+  "properties": {
+    "content_unit_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "extractor_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "fact_candidate_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "promoted_fact_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "promotion_decision": {
+      "enum": [
+        "PROMOTE_SUPPORTED",
+        "MARK_CONFLICTED",
+        "REJECT_UNSUPPORTED",
+        "DEFER_REVIEW"
+      ],
+      "type": "string"
+    },
+    "rejection_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revision_and_locator_verified": {
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "source_object_revision_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "support_type": {
+      "enum": [
+        "DIRECT",
+        "CONTEXT",
+        "CONTRADICTS"
+      ],
+      "type": "string"
+    },
+    "validator": {
+      "enum": [
+        "RULE",
+        "USER",
+        "MODEL"
+      ],
+      "type": "string"
+    },
+    "validator_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "validator_version": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "verified_locator": {
+      "$ref": "#/$defs/CmLocatorV1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "validator_run_id",
+    "extractor_run_id",
+    "fact_candidate_id",
+    "source_object_revision_id",
+    "content_unit_id",
+    "verified_locator",
+    "support_type",
+    "validator",
+    "validator_version",
+    "promotion_decision"
+  ],
+  "title": "FactSupportValidation Stage 2B Output (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "FactSupportValidator",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "STAGE_2B_FACT_SUPPORT_VALIDATION"
+}

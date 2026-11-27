@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "ClaimAtomDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "atom_text": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "atom_type": {
+          "enum": [
+            "PROBLEM",
+            "ACTION",
+            "TECHNOLOGY",
+            "RESULT",
+            "ROLE",
+            "METRIC"
+          ],
+          "type": "string"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ordinal",
+        "atom_type",
+        "atom_text"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://career-memory.local/schemas/ai/v1/claim_atomization.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stage 3B ClaimAtomizer structured output. Requires atomizer_run_id distinct from generator_run_id and decomposes a Claim version into ordered typed atoms.",
+  "properties": {
+    "atomizer_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "atoms": {
+      "items": {
+        "$ref": "#/$defs/ClaimAtomDraft"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "claim_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_version": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "generator_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "atomizer_run_id",
+    "generator_run_id",
+    "claim_id",
+    "claim_version",
+    "atoms"
+  ],
+  "title": "ClaimAtomization Stage 3B Output (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "ClaimAtomizer",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "STAGE_3B_CLAIM_ATOMIZATION"
+}

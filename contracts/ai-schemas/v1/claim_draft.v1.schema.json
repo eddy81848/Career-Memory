@@ -1,0 +1,71 @@
+{
+  "$id": "https://career-memory.local/schemas/ai/v1/claim_draft.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Stage 3A ClaimGenerator structured output. Scoped to one confirmed_event_id and non-empty same-Event input_fact_ids, fixed to initial status DRAFT, and strictly prohibiting verification or SOURCE_VERIFIED assignment.",
+  "properties": {
+    "claim_text": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "claim_version": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "confirmed_event_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "generator_run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "input_fact_ids": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "previous_claim_version": {
+      "minimum": 1,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "type": "string"
+    },
+    "status": {
+      "const": "DRAFT",
+      "type": "string"
+    },
+    "supersedes_claim_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "generator_run_id",
+    "confirmed_event_id",
+    "input_fact_ids",
+    "claim_version",
+    "claim_text",
+    "status"
+  ],
+  "title": "ClaimDraft Stage 3A Output (v1)",
+  "type": "object",
+  "x-compatibility-class": "BACKWARD_COMPATIBLE",
+  "x-golden-alignment": "0.4.0-synthetic-golden",
+  "x-pipeline-role": "ClaimGenerator",
+  "x-schema-package-version": "1.0.0",
+  "x-stage-code": "STAGE_3A_CLAIM_GENERATION"
+}

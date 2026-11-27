@@ -1,0 +1,84 @@
+"""M1 integrated API contract boundary models and FastAPI routers.
+
+Covers:
+- Claim write boundary rejecting direct ``verification`` / ``SOURCE_VERIFIED`` writes
+- OD-008 Search contract (Workspace + optional ``source_resource_id``, zero ``project_id``)
+- OD-003 Source deletion preview & confirm contract (version-bound ``preview_token`` + ``Idempotency-Key``)
+- Integrated M1 contract app builder used for deterministic OpenAPI snapshot generation
+"""
+
+from career_memory_api.contracts_api.models import (
+    DEFAULT_SEARCH_INDEX_VERSION,
+    DEFAULT_SEARCH_RANKING_VERSION,
+    FORBIDDEN_PROJECT_SCOPE_FIELDS,
+    FORBIDDEN_VERIFICATION_WRITE_FIELDS,
+    ClaimApproveRequest,
+    ClaimBoundaryResponse,
+    ClaimDraftCreateRequest,
+    ClaimEditRequest,
+    ContractBoundaryError,
+    DeletionConfirmAcceptedResponse,
+    DeletionConfirmRequest,
+    DeletionImpactCounts,
+    DeletionPreviewResponse,
+    DeletionPreviewTokenPayload,
+    ErrorBody,
+    ErrorEnvelope,
+    NonRecoverableScopes,
+    SearchCursorPayload,
+    SearchEntityType,
+    SearchHit,
+    SearchResponse,
+    SearchScope,
+    assert_no_prohibited_project_id,
+    assert_no_readonly_verification_write,
+    compute_query_hash,
+    decode_and_verify_deletion_preview_token,
+    decode_and_verify_search_cursor,
+    encode_deletion_preview_token,
+    encode_search_cursor,
+)
+from career_memory_api.contracts_api.router import (
+    ContractBoundaryPort,
+    InMemoryContractBoundaryService,
+    create_contracts_router,
+    create_m1_contract_app,
+    install_contract_error_handlers,
+)
+
+__all__ = [
+    "ClaimApproveRequest",
+    "ClaimBoundaryResponse",
+    "ClaimDraftCreateRequest",
+    "ClaimEditRequest",
+    "ContractBoundaryError",
+    "ContractBoundaryPort",
+    "DEFAULT_SEARCH_INDEX_VERSION",
+    "DEFAULT_SEARCH_RANKING_VERSION",
+    "DeletionConfirmAcceptedResponse",
+    "DeletionConfirmRequest",
+    "DeletionImpactCounts",
+    "DeletionPreviewResponse",
+    "DeletionPreviewTokenPayload",
+    "ErrorBody",
+    "ErrorEnvelope",
+    "FORBIDDEN_PROJECT_SCOPE_FIELDS",
+    "FORBIDDEN_VERIFICATION_WRITE_FIELDS",
+    "InMemoryContractBoundaryService",
+    "NonRecoverableScopes",
+    "SearchCursorPayload",
+    "SearchEntityType",
+    "SearchHit",
+    "SearchResponse",
+    "SearchScope",
+    "assert_no_prohibited_project_id",
+    "assert_no_readonly_verification_write",
+    "compute_query_hash",
+    "create_contracts_router",
+    "create_m1_contract_app",
+    "decode_and_verify_deletion_preview_token",
+    "decode_and_verify_search_cursor",
+    "encode_deletion_preview_token",
+    "encode_search_cursor",
+    "install_contract_error_handlers",
+]

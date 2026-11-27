@@ -1,0 +1,2673 @@
+{
+  "migrations": [
+    "0010_identity_workspace_source_auth.sql",
+    "0020_source_provenance_metadata.sql",
+    "0030_events_facts_claims_contributions.sql",
+    "0040_sync_runs_jobs_outbox_audit.sql"
+  ],
+  "roles": {
+    "cm_api_app": {
+      "rolbypassrls": false,
+      "rolcanlogin": false,
+      "rolsuper": false
+    },
+    "cm_migrator": {
+      "rolbypassrls": false,
+      "rolcanlogin": false,
+      "rolsuper": false
+    },
+    "cm_worker_app": {
+      "rolbypassrls": false,
+      "rolcanlogin": false,
+      "rolsuper": false
+    }
+  },
+  "schema_version": "1.0.0",
+  "tables": {
+    "api_idempotency_records": {
+      "check_constraints": {
+        "ck_api_idempotency_24h_exact": "CHECK ((expires_at = (created_at + '24:00:00'::interval)))",
+        "ck_api_idempotency_fingerprint_sha256": "CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))",
+        "ck_api_idempotency_key_uuid": "CHECK ((idempotency_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text))",
+        "ck_api_idempotency_operation_scope": "CHECK ((operation_scope = ANY (ARRAY['SYNC_RUN_CREATE'::text, 'SYNC_RUN_RETRY'::text])))",
+        "ck_api_idempotency_response_body_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(response_body)))",
+        "ck_api_idempotency_response_body_object": "CHECK ((jsonb_typeof(response_body) = 'object'::text))",
+        "ck_api_idempotency_response_status_202": "CHECK ((response_status = 202))"
+      },
+      "columns": [
+        "workspace_id",
+        "operation_scope",
+        "idempotency_key",
+        "request_fingerprint",
+        "target_sync_run_id",
+        "response_status",
+        "response_body",
+        "created_at",
+        "expires_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "api_idempotency_records_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "target_sync_run_id"
+          ],
+          "name": "fk_api_idempotency_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        }
+      ],
+      "indexes": [
+        "api_idempotency_records_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "api_idempotency_records_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "audit_events": {
+      "check_constraints": {
+        "ck_audit_events_action_non_empty": "CHECK ((length(btrim(action)) > 0))",
+        "ck_audit_events_actor_type": "CHECK ((actor_type = ANY (ARRAY['USER'::text, 'SYSTEM'::text, 'WORKER'::text, 'OPERATOR'::text])))",
+        "ck_audit_events_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(redacted_metadata)))",
+        "ck_audit_events_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(redacted_metadata)))",
+        "ck_audit_events_metadata_object": "CHECK ((jsonb_typeof(redacted_metadata) = 'object'::text))",
+        "ck_audit_events_target_type_non_empty": "CHECK ((length(btrim(target_type)) > 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "actor_type",
+        "actor_id",
+        "action",
+        "target_type",
+        "target_id",
+        "redacted_metadata",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "audit_events_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "audit_events_pkey",
+        "idx_audit_events_workspace_target"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "audit_events_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "audit_events_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "claim_atom_support": {
+      "check_constraints": {
+        "ck_claim_atom_support_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'INVALIDATED'::text])))",
+        "ck_claim_atom_support_type": "CHECK ((support_type = ANY (ARRAY['DIRECT'::text, 'CONTEXT'::text, 'CONTRADICTS'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "claim_atom_id",
+        "fact_id",
+        "support_type",
+        "validation_run_id",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "claim_atom_support_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "claim_atom_id"
+          ],
+          "name": "fk_claim_atom_support_same_workspace_atom",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "claim_atoms"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "fact_id"
+          ],
+          "name": "fk_claim_atom_support_same_workspace_fact",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "facts"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "validation_run_id"
+          ],
+          "name": "fk_claim_atom_support_same_workspace_validation_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "generation_runs"
+        }
+      ],
+      "indexes": [
+        "claim_atom_support_pkey",
+        "idx_claim_atom_support_workspace_atom",
+        "idx_claim_atom_support_workspace_fact",
+        "idx_claim_atom_support_workspace_validation_run",
+        "uq_claim_atom_support_atom_fact",
+        "uq_claim_atom_support_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "claim_atom_support_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "claim_atom_support_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "claim_atom_support_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "claim_atom_support_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "claim_atoms": {
+      "check_constraints": {
+        "ck_claim_atoms_atom_type": "CHECK ((atom_type = ANY (ARRAY['PROBLEM'::text, 'ACTION'::text, 'TECHNOLOGY'::text, 'RESULT'::text, 'ROLE'::text, 'METRIC'::text])))",
+        "ck_claim_atoms_ordinal_non_negative": "CHECK ((ordinal >= 0))",
+        "ck_claim_atoms_status": "CHECK ((status = ANY (ARRAY['SUPPORTED'::text, 'USER_CONFIRMED'::text, 'UNSUPPORTED'::text, 'STALE'::text])))",
+        "ck_claim_atoms_text_non_empty": "CHECK ((length(btrim(atom_text)) > 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "claim_id",
+        "ordinal",
+        "atom_type",
+        "atom_text",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "claim_atoms_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "claim_id"
+          ],
+          "name": "fk_claim_atoms_same_workspace_claim",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "claims"
+        }
+      ],
+      "indexes": [
+        "claim_atoms_pkey",
+        "idx_claim_atoms_workspace_claim",
+        "uq_claim_atoms_claim_ordinal",
+        "uq_claim_atoms_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "claim_atoms_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "claim_atoms_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "claim_atoms_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "claim_atoms_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "claims": {
+      "check_constraints": {
+        "ck_claims_no_self_supersede": "CHECK (((supersedes_claim_id IS NULL) OR (supersedes_claim_id <> id)))",
+        "ck_claims_status": "CHECK ((status = ANY (ARRAY['DRAFT'::text, 'DRAFT_INVALID'::text, 'SUPPORT_VALIDATED'::text, 'APPROVED'::text, 'REJECTED'::text, 'STALE'::text, 'SUPERSEDED'::text])))",
+        "ck_claims_text_non_empty": "CHECK ((length(btrim(claim_text)) > 0))",
+        "ck_claims_version_positive": "CHECK ((version >= 1))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "generator_run_id",
+        "version",
+        "claim_text",
+        "status",
+        "supersedes_claim_id",
+        "approved_at",
+        "last_verified_at",
+        "last_verification_run_id",
+        "created_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "claims_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_claims_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "generator_run_id"
+          ],
+          "name": "fk_claims_same_workspace_generator_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "generation_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "last_verification_run_id"
+          ],
+          "name": "fk_claims_same_workspace_last_verification_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "generation_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "supersedes_claim_id"
+          ],
+          "name": "fk_claims_same_workspace_supersedes",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "claims"
+        }
+      ],
+      "indexes": [
+        "claims_pkey",
+        "idx_claims_workspace_event",
+        "uq_claims_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "claims_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "claims_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "claims_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "claims_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "content_units": {
+      "check_constraints": {
+        "ck_content_units_anchor_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(anchor)))",
+        "ck_content_units_anchor_object": "CHECK ((jsonb_typeof(anchor) = 'object'::text))",
+        "ck_content_units_anchor_parser_version": "CHECK (((anchor ? 'parser_version'::text) AND (jsonb_typeof((anchor -> 'parser_version'::text)) = 'string'::text) AND (length(btrim((anchor ->> 'parser_version'::text))) > 0)))",
+        "ck_content_units_canonicalization_version_non_empty": "CHECK ((length(btrim(canonicalization_version)) > 0))",
+        "ck_content_units_content_hash_format": "CHECK ((content_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_content_units_content_ref_null": "CHECK ((content_ref IS NULL))",
+        "ck_content_units_expires_at_null": "CHECK ((expires_at IS NULL))",
+        "ck_content_units_ordinal_non_negative": "CHECK ((ordinal >= 0))",
+        "ck_content_units_policy_state": "CHECK ((policy_state = ANY (ARRAY['ACTIVE'::text, 'REDACTED'::text, 'PURGED'::text, 'BLOCKED'::text])))",
+        "ck_content_units_retention_class_none": "CHECK ((retention_class = 'NONE'::text))",
+        "ck_content_units_text_content_null": "CHECK ((text_content IS NULL))",
+        "ck_content_units_unit_type": "CHECK ((unit_type = ANY (ARRAY['PR_TITLE'::text, 'PR_BODY_SECTION'::text, 'ISSUE_SECTION'::text, 'COMMENT'::text, 'REVIEW_COMMENT'::text, 'COMMIT_MESSAGE'::text, 'DIFF_HUNK'::text, 'SYMBOL_CHANGE'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_object_revision_id",
+        "unit_type",
+        "anchor",
+        "text_content",
+        "content_ref",
+        "content_hash",
+        "canonicalization_version",
+        "retention_class",
+        "expires_at",
+        "language",
+        "ordinal",
+        "policy_state",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "content_units_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_object_revision_id"
+          ],
+          "name": "fk_content_units_same_workspace_revision",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_object_revisions"
+        }
+      ],
+      "indexes": [
+        "content_units_pkey",
+        "idx_content_units_workspace_revision",
+        "uq_content_units_revision_ordinal",
+        "uq_content_units_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "content_units_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "content_units_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "content_units_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "content_units_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "contribution_support": {
+      "check_constraints": {
+        "ck_contribution_support_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'INVALIDATED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "contribution_id",
+        "fact_id",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "contribution_support_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "contribution_id"
+          ],
+          "name": "fk_contribution_support_same_workspace_contribution",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "contributions"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "fact_id"
+          ],
+          "name": "fk_contribution_support_same_workspace_fact",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "facts"
+        }
+      ],
+      "indexes": [
+        "contribution_support_pkey",
+        "idx_contribution_support_workspace_contribution",
+        "idx_contribution_support_workspace_fact",
+        "uq_contribution_support_contribution_fact",
+        "uq_contribution_support_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "contribution_support_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "contribution_support_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "contribution_support_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "contribution_support_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "contributions": {
+      "check_constraints": {
+        "ck_contributions_mvp_rule_roles": "CHECK (((origin <> 'RULE'::text) OR (role = ANY (ARRAY['IMPLEMENTED'::text, 'REVIEWED'::text]))))",
+        "ck_contributions_origin": "CHECK ((origin = ANY (ARRAY['RULE'::text, 'USER'::text])))",
+        "ck_contributions_role": "CHECK ((role = ANY (ARRAY['IMPLEMENTED'::text, 'REVIEWED'::text, 'PROPOSED'::text, 'DESIGNED'::text, 'OPERATED'::text, 'MENTORED'::text, 'MEASURED'::text])))",
+        "ck_contributions_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'SOURCE_SUPPORTED'::text, 'USER_CONFIRMED'::text, 'REJECTED'::text, 'STALE'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "identity_id",
+        "role",
+        "origin",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "contributions_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_contributions_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "identity_id"
+          ],
+          "name": "fk_contributions_same_workspace_identity",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "identities"
+        }
+      ],
+      "indexes": [
+        "contributions_pkey",
+        "idx_contributions_workspace_event",
+        "idx_contributions_workspace_identity",
+        "uq_contributions_event_identity_role",
+        "uq_contributions_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "contributions_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "contributions_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "contributions_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "contributions_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "deletion_jobs": {
+      "check_constraints": {
+        "ck_deletion_jobs_checkpoint_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(checkpoint)))",
+        "ck_deletion_jobs_checkpoint_object": "CHECK ((jsonb_typeof(checkpoint) = 'object'::text))",
+        "ck_deletion_jobs_completed_at_consistency": "CHECK ((((status = ANY (ARRAY['SUCCEEDED'::text, 'FAILED'::text])) AND (completed_at IS NOT NULL)) OR ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'PARTIAL'::text])) AND (completed_at IS NULL))))",
+        "ck_deletion_jobs_failure_summary_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(failure_summary)))",
+        "ck_deletion_jobs_failure_summary_object": "CHECK ((jsonb_typeof(failure_summary) = 'object'::text))",
+        "ck_deletion_jobs_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'PARTIAL'::text, 'SUCCEEDED'::text, 'FAILED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "status",
+        "checkpoint",
+        "failure_summary",
+        "requested_by",
+        "requested_at",
+        "completed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "deletion_jobs_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_deletion_jobs_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        }
+      ],
+      "indexes": [
+        "deletion_jobs_pkey",
+        "idx_deletion_jobs_active_fence",
+        "uq_deletion_jobs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "deletion_jobs_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "deletion_jobs_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "event_composite_memberships": {
+      "check_constraints": {
+        "ck_event_composite_memberships_composite_version_positive": "CHECK ((composite_event_version >= 1))",
+        "ck_event_composite_memberships_member_version_positive": "CHECK ((member_event_version >= 1))",
+        "ck_event_composite_memberships_no_self_reference": "CHECK ((composite_event_id <> member_event_id))",
+        "ck_event_composite_memberships_ordinal_non_negative": "CHECK ((ordinal >= 0))",
+        "ck_event_composite_memberships_removed_at_consistency": "CHECK (((status = 'REMOVED'::text) OR (removed_at IS NULL)))",
+        "ck_event_composite_memberships_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'REMOVED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "composite_event_id",
+        "composite_event_version",
+        "member_event_id",
+        "member_event_version",
+        "ordinal",
+        "status",
+        "added_by_review_action_id",
+        "created_at",
+        "removed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "event_composite_memberships_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "composite_event_id"
+          ],
+          "name": "fk_event_composite_same_workspace_composite",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "member_event_id"
+          ],
+          "name": "fk_event_composite_same_workspace_member",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "added_by_review_action_id"
+          ],
+          "name": "fk_event_composite_same_workspace_review_action",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "review_actions"
+        }
+      ],
+      "indexes": [
+        "event_composite_memberships_pkey",
+        "idx_event_composite_memberships_workspace_composite",
+        "uq_event_composite_memberships_active_member",
+        "uq_event_composite_memberships_version_member",
+        "uq_event_composite_memberships_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "event_composite_memberships_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "event_composite_memberships_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "event_composite_memberships_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "event_composite_memberships_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "event_memberships": {
+      "check_constraints": {
+        "ck_event_memberships_origin": "CHECK ((origin = ANY (ARRAY['SOURCE'::text, 'RULE'::text, 'USER'::text])))",
+        "ck_event_memberships_relation_class": "CHECK ((relation_class = ANY (ARRAY['MUST_LINK'::text, 'CONTEXT_ONLY'::text, 'CANNOT_LINK'::text])))",
+        "ck_event_memberships_relation_type_non_empty": "CHECK ((length(btrim(relation_type)) > 0))",
+        "ck_event_memberships_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'INVALIDATED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "source_object_id",
+        "relation_class",
+        "relation_type",
+        "origin",
+        "rationale_code",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "event_memberships_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_event_memberships_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_object_id"
+          ],
+          "name": "fk_event_memberships_same_workspace_source_object",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        }
+      ],
+      "indexes": [
+        "event_memberships_pkey",
+        "idx_event_memberships_workspace_event",
+        "idx_event_memberships_workspace_source_object",
+        "uq_event_memberships_event_source_object_relation_type",
+        "uq_event_memberships_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "event_memberships_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "event_memberships_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "event_memberships_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "event_memberships_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "external_identity_mappings": {
+      "check_constraints": {
+        "ck_external_identity_mappings_email_hash_format": "CHECK (((email_hash IS NULL) OR (email_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text)))",
+        "ck_external_identity_mappings_evidence_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(evidence_metadata)))",
+        "ck_external_identity_mappings_evidence_metadata_object": "CHECK ((jsonb_typeof(evidence_metadata) = 'object'::text))",
+        "ck_external_identity_mappings_has_external_identifier": "CHECK (((external_user_id IS NOT NULL) OR (email_hash IS NOT NULL) OR (username IS NOT NULL)))",
+        "ck_external_identity_mappings_provider": "CHECK ((provider = 'GITHUB'::text))",
+        "ck_external_identity_mappings_revoked_at_consistency": "CHECK (((status = 'REVOKED'::text) OR (revoked_at IS NULL)))",
+        "ck_external_identity_mappings_status": "CHECK ((status = ANY (ARRAY['VERIFIED'::text, 'USER_CONFIRMED'::text, 'HEURISTIC'::text, 'CONFLICTED'::text, 'REVOKED'::text])))",
+        "ck_external_identity_mappings_user_confirmed_method": "CHECK (((status <> 'USER_CONFIRMED'::text) OR (verification_method = 'USER_CONFIRMATION'::text)))",
+        "ck_external_identity_mappings_verification_method": "CHECK ((verification_method = ANY (ARRAY['OAUTH_ACCOUNT'::text, 'PROVIDER_ASSOCIATION'::text, 'USER_CONFIRMATION'::text])))",
+        "ck_external_identity_mappings_verified_method": "CHECK (((status <> 'VERIFIED'::text) OR (verification_method = ANY (ARRAY['OAUTH_ACCOUNT'::text, 'PROVIDER_ASSOCIATION'::text]))))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "identity_id",
+        "provider",
+        "external_user_id",
+        "email_hash",
+        "username",
+        "verification_method",
+        "status",
+        "confidence_reason",
+        "evidence_metadata",
+        "verified_at",
+        "revoked_at",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "external_identity_mappings_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "identity_id"
+          ],
+          "name": "fk_external_identity_mappings_same_workspace_identity",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "identities"
+        }
+      ],
+      "indexes": [
+        "external_identity_mappings_pkey",
+        "idx_external_identity_mappings_workspace_identity",
+        "uq_ext_identity_mappings_verified_external_user",
+        "uq_external_identity_mappings_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "external_identity_mappings_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "external_identity_mappings_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "external_identity_mappings_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "external_identity_mappings_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "fact_support": {
+      "check_constraints": {
+        "ck_fact_support_extracted_span_null": "CHECK ((extracted_span IS NULL))",
+        "ck_fact_support_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(support_metadata)))",
+        "ck_fact_support_metadata_object": "CHECK ((jsonb_typeof(support_metadata) = 'object'::text))",
+        "ck_fact_support_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'INVALIDATED'::text])))",
+        "ck_fact_support_type": "CHECK ((support_type = ANY (ARRAY['DIRECT'::text, 'CONTEXT'::text, 'CONTRADICTS'::text])))",
+        "ck_fact_support_validator": "CHECK ((validator = ANY (ARRAY['RULE'::text, 'USER'::text, 'MODEL'::text])))",
+        "ck_fact_support_validator_version_non_empty": "CHECK ((length(btrim(validator_version)) > 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "fact_id",
+        "content_unit_id",
+        "support_type",
+        "extracted_span",
+        "support_metadata",
+        "validator",
+        "validator_version",
+        "status",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "fact_support_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "content_unit_id"
+          ],
+          "name": "fk_fact_support_same_workspace_content_unit",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "content_units"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "fact_id"
+          ],
+          "name": "fk_fact_support_same_workspace_fact",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "facts"
+        }
+      ],
+      "indexes": [
+        "fact_support_pkey",
+        "idx_fact_support_workspace_content_unit",
+        "idx_fact_support_workspace_fact",
+        "uq_fact_support_fact_unit_type",
+        "uq_fact_support_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "fact_support_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "fact_support_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "fact_support_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "fact_support_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "facts": {
+      "check_constraints": {
+        "ck_facts_extractor_version_non_empty": "CHECK ((length(btrim(extractor_version)) > 0))",
+        "ck_facts_fact_type": "CHECK ((fact_type = ANY (ARRAY['PROBLEM'::text, 'ACTION'::text, 'TECHNOLOGY'::text, 'RESULT'::text, 'ROLE'::text, 'METRIC'::text])))",
+        "ck_facts_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(fact_metadata)))",
+        "ck_facts_metadata_object": "CHECK ((jsonb_typeof(fact_metadata) = 'object'::text))",
+        "ck_facts_normalized_value_no_raw": "CHECK (((normalized_value IS NULL) OR (NOT cm_jsonb_contains_forbidden_raw_key(normalized_value))))",
+        "ck_facts_object_text_non_empty": "CHECK ((length(btrim(object_text)) > 0))",
+        "ck_facts_predicate_non_empty": "CHECK ((length(btrim(predicate)) > 0))",
+        "ck_facts_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'SUPPORTED'::text, 'USER_CONFIRMED'::text, 'CONFLICTED'::text, 'STALE'::text, 'REJECTED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "fact_type",
+        "subject_identity_id",
+        "predicate",
+        "object_text",
+        "normalized_value",
+        "fact_metadata",
+        "status",
+        "extractor_version",
+        "created_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "facts_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_facts_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "subject_identity_id"
+          ],
+          "name": "fk_facts_same_workspace_subject_identity",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "identities"
+        }
+      ],
+      "indexes": [
+        "facts_pkey",
+        "idx_facts_workspace_event",
+        "idx_facts_workspace_subject_identity",
+        "uq_facts_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "facts_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "facts_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "facts_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "facts_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "generation_runs": {
+      "check_constraints": {
+        "ck_generation_runs_algorithm_version_non_empty": "CHECK ((length(btrim(algorithm_version)) > 0))",
+        "ck_generation_runs_cost_estimate_non_negative": "CHECK (((cost_estimate IS NULL) OR (cost_estimate >= (0)::numeric)))",
+        "ck_generation_runs_input_hash_format": "CHECK ((input_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_generation_runs_input_versions_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(input_artifact_versions)))",
+        "ck_generation_runs_input_versions_object": "CHECK ((jsonb_typeof(input_artifact_versions) = 'object'::text))",
+        "ck_generation_runs_latency_ms_non_negative": "CHECK (((latency_ms IS NULL) OR (latency_ms >= 0)))",
+        "ck_generation_runs_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(run_metadata)))",
+        "ck_generation_runs_metadata_object": "CHECK ((jsonb_typeof(run_metadata) = 'object'::text))",
+        "ck_generation_runs_model_non_empty": "CHECK ((length(btrim(model)) > 0))",
+        "ck_generation_runs_prompt_version_non_empty": "CHECK ((length(btrim(prompt_version)) > 0))",
+        "ck_generation_runs_run_type": "CHECK ((run_type = ANY (ARRAY['FACT_CANDIDATE_EXTRACTION'::text, 'FACT_SUPPORT_VALIDATION'::text, 'CLAIM_DRAFT_GENERATION'::text, 'CLAIM_ATOMIZATION'::text, 'CLAIM_SUPPORT_VALIDATION'::text, 'REFETCH_VERIFICATION'::text])))",
+        "ck_generation_runs_status": "CHECK ((status = ANY (ARRAY['RUNNING'::text, 'SUCCEEDED'::text, 'FAILED'::text, 'CANCELED'::text])))",
+        "ck_generation_runs_time_order": "CHECK (((completed_at IS NULL) OR (completed_at >= started_at)))",
+        "ck_generation_runs_token_usage_object_no_raw": "CHECK (((token_usage IS NULL) OR ((jsonb_typeof(token_usage) = 'object'::text) AND (NOT cm_jsonb_contains_forbidden_raw_key(token_usage)))))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "run_type",
+        "input_artifact_versions",
+        "model",
+        "prompt_version",
+        "algorithm_version",
+        "input_hash",
+        "status",
+        "token_usage",
+        "cost_estimate",
+        "latency_ms",
+        "error_code",
+        "run_metadata",
+        "started_at",
+        "completed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_generation_runs_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "generation_runs_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "generation_runs_pkey",
+        "idx_generation_runs_workspace_event",
+        "uq_generation_runs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "generation_runs_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "generation_runs_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "generation_runs_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "generation_runs_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "identities": {
+      "check_constraints": {
+        "ck_identities_display_name_non_empty": "CHECK ((length(btrim(display_name)) > 0))",
+        "ck_identities_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'AMBIGUOUS'::text, 'MERGED'::text, 'REVOKED'::text])))",
+        "ck_identities_type": "CHECK ((identity_type = ANY (ARRAY['PERSON'::text, 'BOT'::text, 'UNKNOWN'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "display_name",
+        "identity_type",
+        "canonical_user_id",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "canonical_user_id"
+          ],
+          "name": "identities_canonical_user_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "users"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "identities_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "identities_pkey",
+        "uq_identities_active_canonical_user_per_workspace",
+        "uq_identities_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "identities_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "identities_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "identities_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "identities_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "job_side_effect_ledger": {
+      "check_constraints": {
+        "ck_job_side_effect_key_non_empty": "CHECK ((length(btrim(logical_effect_key)) > 0))",
+        "ck_job_side_effect_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(effect_metadata)))",
+        "ck_job_side_effect_metadata_object": "CHECK ((jsonb_typeof(effect_metadata) = 'object'::text))"
+      },
+      "columns": [
+        "workspace_id",
+        "logical_effect_key",
+        "job_id",
+        "effect_metadata",
+        "committed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "job_id"
+          ],
+          "name": "fk_job_side_effect_ledger_same_workspace_job",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "jobs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "job_side_effect_ledger_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "job_side_effect_ledger_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "job_side_effect_ledger_api_select",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "job_side_effect_ledger_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "jobs": {
+      "check_constraints": {
+        "ck_jobs_attempt_bounds": "CHECK (((attempt >= 0) AND (max_attempts >= 1) AND (attempt <= max_attempts)))",
+        "ck_jobs_checkpoint_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(checkpoint)))",
+        "ck_jobs_checkpoint_object": "CHECK ((jsonb_typeof(checkpoint) = 'object'::text))",
+        "ck_jobs_completed_at_consistency": "CHECK ((((status = ANY (ARRAY['SUCCEEDED'::text, 'FAILED_TERMINAL'::text, 'CANCELED'::text])) AND (completed_at IS NOT NULL)) OR ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'RETRY_WAIT'::text])) AND (completed_at IS NULL))))",
+        "ck_jobs_error_class": "CHECK (((error_class IS NULL) OR (error_class = ANY (ARRAY['RETRYABLE'::text, 'NON_RETRYABLE'::text, 'POISON_BUDGET_EXHAUSTED'::text, 'CANCELED_BY_FENCE'::text]))))",
+        "ck_jobs_input_hash_sha256": "CHECK ((input_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_jobs_input_manifest_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(input_manifest)))",
+        "ck_jobs_input_manifest_object": "CHECK ((jsonb_typeof(input_manifest) = 'object'::text))",
+        "ck_jobs_job_type_non_empty": "CHECK ((length(btrim(job_type)) > 0))",
+        "ck_jobs_lease_consistency": "CHECK ((((status = 'RUNNING'::text) AND (lease_owner IS NOT NULL) AND (length(btrim(lease_owner)) > 0) AND (lease_token IS NOT NULL) AND (lease_until IS NOT NULL)) OR ((status <> 'RUNNING'::text) AND (lease_owner IS NULL) AND (lease_token IS NULL) AND (lease_until IS NULL))))",
+        "ck_jobs_logical_effect_key_non_empty": "CHECK ((length(btrim(logical_effect_key)) > 0))",
+        "ck_jobs_no_self_parent": "CHECK (((execution_parent_id IS NULL) OR (execution_parent_id <> id)))",
+        "ck_jobs_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'RETRY_WAIT'::text, 'SUCCEEDED'::text, 'FAILED_TERMINAL'::text, 'CANCELED'::text])))",
+        "ck_jobs_terminal_error_consistency": "CHECK (((status <> 'FAILED_TERMINAL'::text) OR ((error_class = ANY (ARRAY['NON_RETRYABLE'::text, 'POISON_BUDGET_EXHAUSTED'::text])) AND (error_code IS NOT NULL) AND (length(btrim(error_code)) > 0))))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "job_type",
+        "target_sync_run_id",
+        "dedupe_key",
+        "input_hash",
+        "input_manifest",
+        "status",
+        "attempt",
+        "max_attempts",
+        "lease_owner",
+        "lease_token",
+        "lease_until",
+        "next_run_at",
+        "checkpoint",
+        "error_class",
+        "error_code",
+        "execution_parent_id",
+        "logical_effect_key",
+        "created_at",
+        "updated_at",
+        "completed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "execution_parent_id"
+          ],
+          "name": "fk_jobs_same_workspace_parent",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "jobs"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "target_sync_run_id"
+          ],
+          "name": "fk_jobs_same_workspace_sync_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "jobs_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_jobs_claimable",
+        "idx_jobs_running_lease_until",
+        "idx_jobs_workspace_sync_run",
+        "jobs_pkey",
+        "uq_jobs_active_or_succeeded_logical_effect",
+        "uq_jobs_workspace_dedupe_key",
+        "uq_jobs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "jobs_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "jobs_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "oauth_connect_states": {
+      "check_constraints": {
+        "chk_oauth_connect_states_consumed_request": "CHECK (((consumed_at IS NULL) OR ((consumed_request_id IS NOT NULL) AND (btrim(consumed_request_id) <> ''::text))))",
+        "chk_oauth_connect_states_expiry": "CHECK ((expires_at > created_at))",
+        "oauth_connect_states_pkce_code_challenge_check": "CHECK ((btrim(pkce_code_challenge) <> ''::text))",
+        "oauth_connect_states_pkce_code_verifier_ref_check": "CHECK ((btrim(pkce_code_verifier_ref) <> ''::text))",
+        "oauth_connect_states_provider_check": "CHECK ((provider = 'GITHUB'::text))",
+        "oauth_connect_states_return_path_check": "CHECK (((return_path ~~ '/%'::text) AND (return_path !~~ '//%'::text) AND (POSITION(('://'::text) IN (return_path)) = 0)))",
+        "oauth_connect_states_state_hash_check": "CHECK ((state_hash ~ '^[0-9a-f]{64}$'::text))"
+      },
+      "columns": [
+        "state_hash",
+        "workspace_id",
+        "actor_user_id",
+        "provider",
+        "pkce_code_challenge",
+        "pkce_code_verifier_ref",
+        "return_path",
+        "expires_at",
+        "consumed_at",
+        "consumed_request_id",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "actor_user_id"
+          ],
+          "name": "fk_oauth_connect_states_membership",
+          "parent_columns": [
+            "workspace_id",
+            "user_id"
+          ],
+          "parent_table": "workspace_memberships"
+        },
+        {
+          "child_columns": [
+            "actor_user_id"
+          ],
+          "name": "oauth_connect_states_actor_user_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "users"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "oauth_connect_states_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_oauth_connect_states_ws_actor_created",
+        "oauth_connect_states_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "oauth_connect_states_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "orphan_secret_cleanups": {
+      "check_constraints": {
+        "orphan_secret_cleanups_attempt_count_check": "CHECK ((attempt_count >= 1))",
+        "orphan_secret_cleanups_failure_reason_check": "CHECK ((btrim(failure_reason) <> ''::text))",
+        "orphan_secret_cleanups_provider_check": "CHECK ((provider = 'GITHUB'::text))",
+        "orphan_secret_cleanups_status_check": "CHECK ((status = ANY (ARRAY['DELETED'::text, 'RETRY_PENDING'::text])))",
+        "orphan_secret_cleanups_token_secret_ref_check": "CHECK ((btrim(token_secret_ref) <> ''::text))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "actor_user_id",
+        "provider",
+        "token_secret_ref",
+        "status",
+        "attempt_count",
+        "failure_reason",
+        "redacted_metadata",
+        "created_at",
+        "updated_at",
+        "resolved_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "actor_user_id"
+          ],
+          "name": "orphan_secret_cleanups_actor_user_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "users"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "orphan_secret_cleanups_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "orphan_secret_cleanups_pkey",
+        "uq_orphan_secret_cleanups_workspace_ref"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "orphan_secret_cleanups_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "orphan_secret_cleanups_worker_rw",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "orphan_secret_cleanups_worker_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "outbox_consumed_effects": {
+      "check_constraints": {
+        "ck_outbox_consumed_consumer_non_empty": "CHECK ((length(btrim(consumer_name)) > 0))",
+        "ck_outbox_consumed_dedupe_non_empty": "CHECK ((length(btrim(dedupe_key)) > 0))"
+      },
+      "columns": [
+        "workspace_id",
+        "consumer_name",
+        "dedupe_key",
+        "outbox_event_id",
+        "consumed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "outbox_event_id"
+          ],
+          "name": "fk_outbox_consumed_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "outbox_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "outbox_consumed_effects_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "outbox_consumed_effects_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "outbox_consumed_effects_api_select",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "outbox_consumed_effects_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "outbox_events": {
+      "check_constraints": {
+        "ck_outbox_aggregate_type_non_empty": "CHECK ((length(btrim(aggregate_type)) > 0))",
+        "ck_outbox_attempt_bounds": "CHECK (((attempt >= 0) AND (max_attempts >= 1) AND (attempt <= max_attempts)))",
+        "ck_outbox_dedupe_key_non_empty": "CHECK ((length(btrim(dedupe_key)) > 0))",
+        "ck_outbox_event_type_non_empty": "CHECK ((length(btrim(event_type)) > 0))",
+        "ck_outbox_payload_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(payload)))",
+        "ck_outbox_payload_object": "CHECK ((jsonb_typeof(payload) = 'object'::text))",
+        "ck_outbox_published_at_consistency": "CHECK ((((status = 'PUBLISHED'::text) AND (published_at IS NOT NULL)) OR ((status <> 'PUBLISHED'::text) AND (published_at IS NULL))))",
+        "ck_outbox_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'PUBLISHED'::text, 'FAILED_TERMINAL'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_type",
+        "aggregate_type",
+        "aggregate_id",
+        "dedupe_key",
+        "payload",
+        "status",
+        "attempt",
+        "max_attempts",
+        "next_attempt_at",
+        "last_error_code",
+        "created_at",
+        "published_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "outbox_events_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_outbox_events_pending_dispatch",
+        "outbox_events_pkey",
+        "uq_outbox_events_single_import_ready_per_run",
+        "uq_outbox_events_workspace_dedupe_key",
+        "uq_outbox_events_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "outbox_events_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "outbox_events_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "review_actions": {
+      "check_constraints": {
+        "ck_review_actions_action": "CHECK ((action = ANY (ARRAY['CONFIRM'::text, 'EDIT'::text, 'SPLIT'::text, 'MERGE'::text, 'DISSOLVE'::text, 'REJECT'::text, 'REOPEN'::text])))",
+        "ck_review_actions_from_version_positive": "CHECK (((from_version IS NULL) OR (from_version >= 1)))",
+        "ck_review_actions_idempotency_key_non_empty": "CHECK ((length(btrim(idempotency_key)) > 0))",
+        "ck_review_actions_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(action_metadata)))",
+        "ck_review_actions_metadata_object": "CHECK ((jsonb_typeof(action_metadata) = 'object'::text))",
+        "ck_review_actions_target_type": "CHECK ((target_type = ANY (ARRAY['WORK_EVENT'::text, 'FACT'::text, 'CONTRIBUTION'::text, 'CLAIM'::text, 'CLAIM_ATOM'::text, 'IDENTITY_MAPPING'::text, 'SOURCE_RESOURCE'::text, 'SOURCE_OBJECT'::text])))",
+        "ck_review_actions_to_version_positive": "CHECK (((to_version IS NULL) OR (to_version >= 1)))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "target_type",
+        "target_id",
+        "action",
+        "actor_user_id",
+        "from_version",
+        "to_version",
+        "idempotency_key",
+        "reason",
+        "action_metadata",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "review_actions_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_review_actions_workspace_target",
+        "review_actions_pkey",
+        "uq_review_actions_idempotency",
+        "uq_review_actions_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "review_actions_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "review_actions_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "source_accounts": {
+      "check_constraints": {
+        "chk_source_accounts_status_revoked": "CHECK ((((status = 'REVOKED'::text) AND (revoked_at IS NOT NULL)) OR ((status = 'ACTIVE'::text) AND (revoked_at IS NULL))))",
+        "ck_source_accounts_no_raw_token_prefix": "CHECK ((((length(btrim(token_secret_ref)) >= 1) AND (length(btrim(token_secret_ref)) <= 255)) AND (token_secret_ref ~ '^[a-zA-Z0-9._:/-]+$'::text) AND (token_secret_ref !~* '^(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_|bearer )'::text)))",
+        "source_accounts_external_account_id_check": "CHECK ((btrim(external_account_id) <> ''::text))",
+        "source_accounts_provider_check": "CHECK ((provider = 'GITHUB'::text))",
+        "source_accounts_status_check": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'REVOKED'::text])))",
+        "source_accounts_token_secret_ref_check": "CHECK (((btrim(token_secret_ref) <> ''::text) AND (token_secret_ref ~ '^[a-zA-Z0-9._:/-]+$'::text)))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "provider",
+        "external_account_id",
+        "token_secret_ref",
+        "scopes",
+        "status",
+        "created_at",
+        "revoked_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "source_accounts_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "source_accounts_pkey",
+        "uq_source_accounts_workspace_id_id",
+        "uq_source_accounts_workspace_provider_external"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "source_accounts_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "source_accounts_worker_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "source_object_revisions": {
+      "check_constraints": {
+        "ck_source_object_revisions_connector_version_non_empty": "CHECK ((length(btrim(connector_version)) > 0))",
+        "ck_source_object_revisions_content_hash_format": "CHECK ((content_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_source_object_revisions_hash_policy_non_empty": "CHECK ((length(btrim(hash_policy_version)) > 0))",
+        "ck_source_object_revisions_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(normalized_metadata)))",
+        "ck_source_object_revisions_metadata_object": "CHECK ((jsonb_typeof(normalized_metadata) = 'object'::text))",
+        "ck_source_object_revisions_schema_version_non_empty": "CHECK ((length(btrim(schema_version)) > 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_object_id",
+        "provider_revision_id",
+        "content_hash",
+        "hash_policy_version",
+        "observed_at",
+        "provider_updated_at",
+        "is_tombstone",
+        "normalized_metadata",
+        "connector_version",
+        "schema_version"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_object_id"
+          ],
+          "name": "fk_source_object_revisions_same_workspace_object",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "source_object_revisions_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_source_object_revisions_workspace_object",
+        "source_object_revisions_pkey",
+        "uq_source_object_revisions_object_content_hash",
+        "uq_source_object_revisions_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "source_object_revisions_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "source_object_revisions_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "source_object_revisions_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "source_objects": {
+      "check_constraints": {
+        "ck_source_objects_lifecycle_state": "CHECK ((lifecycle_state = ANY (ARRAY['ACTIVE'::text, 'DELETED'::text, 'ORPHANED'::text, 'POLICY_REVIEW_REQUIRED'::text])))",
+        "ck_source_objects_pr_association_state": "CHECK (((pr_association_state IS NULL) OR (pr_association_state = ANY (ARRAY['MATCHED_PR'::text, 'NO_MATCH_OBSERVED'::text, 'UNKNOWN'::text]))))",
+        "ck_source_objects_provider_id_non_empty": "CHECK ((length(btrim(provider_object_id)) > 0))",
+        "ck_source_objects_seen_order": "CHECK ((last_seen_at >= first_seen_at))",
+        "ck_source_objects_type": "CHECK ((object_type = ANY (ARRAY['PR'::text, 'COMMIT'::text, 'ISSUE'::text, 'REVIEW'::text, 'COMMENT'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "object_type",
+        "provider_object_id",
+        "lifecycle_state",
+        "pr_association_state",
+        "first_seen_at",
+        "last_seen_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_source_objects_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "source_objects_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_source_objects_workspace_resource",
+        "source_objects_pkey",
+        "uq_source_objects_resource_type_provider_id",
+        "uq_source_objects_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "source_objects_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "source_objects_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "source_objects_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "source_objects_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "source_resources": {
+      "check_constraints": {
+        "ck_source_resources_canonical_url_https": "CHECK ((canonical_url ~ '^https://[^[:space:]@]+/.+'::text))",
+        "ck_source_resources_name_non_empty": "CHECK ((length(btrim(name)) > 0))",
+        "ck_source_resources_policy_version_non_empty": "CHECK ((length(btrim(policy_version)) > 0))",
+        "ck_source_resources_processing_mode": "CHECK ((processing_mode = ANY (ARRAY['PUBLIC_CLOUD'::text, 'PRIVATE_LOCAL'::text, 'PRIVATE_CLOUD_OPT_IN'::text])))",
+        "ck_source_resources_provider_id_non_empty": "CHECK ((length(btrim(provider_resource_id)) > 0))",
+        "ck_source_resources_raw_retention_null": "CHECK ((raw_retention_seconds IS NULL))",
+        "ck_source_resources_raw_storage_mode_none": "CHECK ((raw_storage_mode = 'NONE'::text))",
+        "ck_source_resources_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'PAUSED'::text, 'POLICY_REVIEW_REQUIRED'::text, 'DELETED'::text])))",
+        "ck_source_resources_type": "CHECK ((resource_type = 'GITHUB_REPOSITORY'::text))",
+        "ck_source_resources_visibility": "CHECK ((visibility = ANY (ARRAY['PUBLIC'::text, 'PRIVATE'::text, 'INTERNAL'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_account_id",
+        "provider_resource_id",
+        "resource_type",
+        "name",
+        "canonical_url",
+        "visibility",
+        "processing_mode",
+        "raw_storage_mode",
+        "raw_retention_seconds",
+        "status",
+        "policy_version",
+        "consent_version",
+        "last_visibility_checked_at",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_account_id"
+          ],
+          "name": "fk_source_resources_same_workspace_account",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_accounts"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "source_resources_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_source_resources_workspace_account",
+        "source_resources_pkey",
+        "uq_source_resources_account_provider_id",
+        "uq_source_resources_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "source_resources_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "source_resources_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "source_resources_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_checkpoints": {
+      "check_constraints": {
+        "ck_sync_checkpoints_cursor_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(cursor_metadata)))",
+        "ck_sync_checkpoints_cursor_object": "CHECK ((jsonb_typeof(cursor_metadata) = 'object'::text))",
+        "ck_sync_checkpoints_failures_non_negative": "CHECK (((unresolved_failures IS NULL) OR (unresolved_failures >= 0)))",
+        "ck_sync_checkpoints_page_non_negative": "CHECK (((last_committed_page IS NULL) OR (last_committed_page >= 0)))",
+        "ck_sync_checkpoints_stream_name_non_empty": "CHECK ((length(btrim(stream_name)) > 0))",
+        "ck_sync_checkpoints_stream_status": "CHECK ((stream_status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'SUCCESS'::text, 'PARTIAL'::text, 'PARTIAL_WITH_LIMIT'::text, 'FAILED'::text, 'CANCELED'::text])))",
+        "ck_sync_checkpoints_version_positive": "CHECK ((checkpoint_version >= 1))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "sync_run_id",
+        "stream_name",
+        "stream_status",
+        "last_committed_page",
+        "unresolved_failures",
+        "checkpoint_version",
+        "cursor_metadata",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "sync_run_id"
+          ],
+          "name": "fk_sync_checkpoints_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_checkpoints_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_checkpoints_workspace_run",
+        "sync_checkpoints_pkey",
+        "uq_sync_checkpoints_run_stream",
+        "uq_sync_checkpoints_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "sync_checkpoints_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "sync_checkpoints_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_runs": {
+      "check_constraints": {
+        "ck_sync_runs_failure_reason_presence": "CHECK ((((status = ANY (ARRAY['PARTIAL'::text, 'PARTIAL_WITH_LIMIT'::text, 'FAILED'::text])) AND (failure_reason_code IS NOT NULL) AND (length(btrim(failure_reason_code)) > 0)) OR ((status <> ALL (ARRAY['PARTIAL'::text, 'PARTIAL_WITH_LIMIT'::text, 'FAILED'::text])) AND (failure_reason_code IS NULL))))",
+        "ck_sync_runs_import_ready_and_processing": "CHECK ((((status = 'SUCCESS'::text) AND (import_ready = true)) OR ((status <> 'SUCCESS'::text) AND (import_ready = false) AND (processing_status = 'NOT_STARTED'::text))))",
+        "ck_sync_runs_mode": "CHECK ((mode = 'INITIAL_BACKFILL'::text))",
+        "ck_sync_runs_partial_with_limit_remaining_range": "CHECK (((status <> 'PARTIAL_WITH_LIMIT'::text) OR ((remaining_range IS NOT NULL) AND (length(btrim(remaining_range)) > 0))))",
+        "ck_sync_runs_plan_drift_consistency": "CHECK ((((failure_reason_code = 'PLAN_DRIFT'::text) AND (status = 'PARTIAL'::text) AND (source_drift = true)) OR (((failure_reason_code IS NULL) OR (failure_reason_code <> 'PLAN_DRIFT'::text)) AND (source_drift = false))))",
+        "ck_sync_runs_plan_spec_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(plan_spec)))",
+        "ck_sync_runs_plan_spec_object": "CHECK ((jsonb_typeof(plan_spec) = 'object'::text))",
+        "ck_sync_runs_processing_status": "CHECK ((processing_status = ANY (ARRAY['NOT_STARTED'::text, 'RUNNING'::text, 'BLOCKED_POLICY'::text, 'BLOCKED_SOURCE'::text, 'FAILED'::text, 'COMPLETE'::text])))",
+        "ck_sync_runs_retry_allowed_invariants": "CHECK (((NOT retry_allowed) OR ((status = 'PARTIAL'::text) AND (failure_reason_code = 'TRANSIENT_PROVIDER_ERROR'::text) AND (source_drift = false) AND (has_safe_checkpoint = true) AND (is_abandoned = false))))",
+        "ck_sync_runs_run_version_positive": "CHECK ((run_version >= 1))",
+        "ck_sync_runs_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'SUCCESS'::text, 'PARTIAL'::text, 'PARTIAL_WITH_LIMIT'::text, 'FAILED'::text, 'CANCELED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "plan_id",
+        "mode",
+        "run_version",
+        "status",
+        "processing_status",
+        "import_ready",
+        "plan_spec",
+        "retry_allowed",
+        "failure_reason_code",
+        "has_safe_checkpoint",
+        "source_drift",
+        "observed_at",
+        "processed_range",
+        "remaining_range",
+        "is_abandoned",
+        "started_at",
+        "last_terminal_transition_at",
+        "created_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_sync_runs_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_runs_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_runs_resource_recovery",
+        "sync_runs_pkey",
+        "uq_sync_runs_one_active_per_resource",
+        "uq_sync_runs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "sync_runs_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "sync_runs_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "users": {
+      "check_constraints": {
+        "users_auth_issuer_check": "CHECK ((btrim(auth_issuer) <> ''::text))",
+        "users_auth_subject_check": "CHECK ((btrim(auth_subject) <> ''::text))"
+      },
+      "columns": [
+        "id",
+        "auth_issuer",
+        "auth_subject",
+        "email",
+        "name",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [],
+      "indexes": [
+        "uq_users_auth_issuer_subject",
+        "users_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "users_api_self_or_subject_select",
+          "roles": [
+            "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "work_events": {
+      "check_constraints": {
+        "ck_work_events_anchor_mode": "CHECK ((anchor_mode = ANY (ARRAY['PR'::text, 'PR_SEGMENT'::text, 'DIRECT_COMMIT'::text, 'USER_COMPOSITE'::text])))",
+        "ck_work_events_anchor_scope_no_raw": "CHECK (((anchor_scope IS NULL) OR ((jsonb_typeof(anchor_scope) = 'object'::text) AND (NOT cm_jsonb_contains_forbidden_raw_key(anchor_scope)))))",
+        "ck_work_events_created_by": "CHECK ((created_by = ANY (ARRAY['RULE'::text, 'USER'::text])))",
+        "ck_work_events_direct_commit_anchor": "CHECK (((anchor_mode <> 'DIRECT_COMMIT'::text) OR (primary_anchor_source_object_id IS NOT NULL)))",
+        "ck_work_events_pr_anchor": "CHECK (((anchor_mode <> ALL (ARRAY['PR'::text, 'PR_SEGMENT'::text])) OR (primary_anchor_source_object_id IS NOT NULL)))",
+        "ck_work_events_pr_segment_scope": "CHECK (((anchor_mode <> 'PR_SEGMENT'::text) OR ((anchor_scope IS NOT NULL) AND (jsonb_typeof(anchor_scope) = 'object'::text))))",
+        "ck_work_events_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'CONFIRMED'::text, 'REJECTED'::text, 'STALE'::text, 'SUPERSEDED'::text])))",
+        "ck_work_events_summary_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(summary_metadata)))",
+        "ck_work_events_summary_metadata_object": "CHECK ((jsonb_typeof(summary_metadata) = 'object'::text))",
+        "ck_work_events_time_order": "CHECK (((occurred_start_at IS NULL) OR (occurred_end_at IS NULL) OR (occurred_end_at >= occurred_start_at)))",
+        "ck_work_events_title_non_empty": "CHECK ((length(btrim(title)) > 0))",
+        "ck_work_events_version_positive": "CHECK ((version >= 1))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "primary_anchor_source_object_id",
+        "anchor_mode",
+        "anchor_scope",
+        "version",
+        "title",
+        "problem",
+        "action",
+        "outcome",
+        "summary_metadata",
+        "status",
+        "created_by",
+        "occurred_start_at",
+        "occurred_end_at",
+        "created_at",
+        "reviewed_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "primary_anchor_source_object_id"
+          ],
+          "name": "fk_work_events_same_workspace_primary_anchor",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "work_events_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_work_events_workspace_anchor",
+        "uq_work_events_workspace_id_id",
+        "work_events_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "work_events_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "work_events_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "work_events_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "work_events_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "workspace_memberships": {
+      "check_constraints": {
+        "workspace_memberships_role_check": "CHECK ((role = ANY (ARRAY['OWNER'::text, 'MEMBER'::text, 'VIEWER'::text])))"
+      },
+      "columns": [
+        "workspace_id",
+        "user_id",
+        "role",
+        "revoked_at",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "user_id"
+          ],
+          "name": "workspace_memberships_user_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "users"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "workspace_memberships_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_workspace_memberships_active_user_ws",
+        "workspace_memberships_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "workspace_memberships_api_self_active_select",
+          "roles": [
+            "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "workspaces": {
+      "check_constraints": {
+        "workspaces_name_check": "CHECK ((btrim(name) <> ''::text))"
+      },
+      "columns": [
+        "id",
+        "owner_user_id",
+        "name",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "owner_user_id"
+          ],
+          "name": "workspaces_owner_user_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "users"
+        }
+      ],
+      "indexes": [
+        "workspaces_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "workspaces_api_active_member_select",
+          "roles": [
+            "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    }
+  },
+  "views": {
+    "v_claim_provenance_chain": {
+      "security_invoker": true
+    },
+    "v_claim_verification_summary": {
+      "security_invoker": true
+    }
+  }
+}

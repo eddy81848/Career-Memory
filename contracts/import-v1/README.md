@@ -1,6 +1,81 @@
+# CONTRACT-06 최초 가져오기 인수인계
+
+[OpenAPI 0.5.0-draft](openapi.yaml)는 오너가 승인한 최초 가져오기 네 경로를 담는다. 기준은 `54a8906aaf460e6a5c32a76f8079734411b4d0d6`이다. CONTRACT-06의 승인 항목은 JSON `expected_run_version` 전달과 `409 RESOURCE_VERSION_CONFLICT` 응답이다.
+
+## 승인 반영
+
+| 경로 | 인수인계 |
+| --- | --- |
+| `GET /v1/sync-runs?source_resource_id=…&limit=1` | 실행 ID를 잃었을 때 사용한다. 현재 Workspace·저장소·실행 읽기 권한을 먼저 적용한다. 읽을 수 있는 활성 실행을 우선하고 그 외에는 마지막 종료 전이가 가장 최근인 실행을 최대 한 건 반환한다. 동률은 늦게 생성된 실행이 우선이다. 각 항목의 `import_status.run_version`은 해당 실행의 버전이다. 빈 목록은 그 시점에 읽을 수 있는 실행이 없다는 뜻이다. 직전 접수 여부는 계속 미확정이며, 반환된 실행도 그 요청의 접수를 증명하지 않는다. |
+| `GET /v1/sync-runs/{id}` | ID를 알고 있을 때 페이지 재진입이나 사용자 새로고침에 사용한다. 조회마다 읽기 권한을 확인하고 `run_version`을 반환한다. 종료 후 자동 폴링을 멈추고 수동 재조회에서 이전 `SUCCESS`와 최신 `processing_status`를 함께 읽는다. |
+| `POST /v1/sync-runs` | 동일 Workspace·동작·키·요청은 최초 커밋된 접수부터 24시간 동안 현재 권한 확인 후 원래 `202`의 실행 ID·조회 경로를 복구한다. 성공한 저장소의 재접수와 미완료 계획의 교체는 차단한다. |
+| `POST /v1/sync-runs/{id}/retry` | 안전 checkpoint가 있는 일시 실패의 같은 run·계획만 재개한다. JSON `expected_run_version`이 필수다. 신규 접수에서는 요청 버전과 재시도 가능 여부를 같은 상태 변경 안에서 확인한다. 버전이 다르면 `409 RESOURCE_VERSION_CONFLICT`를 반환하고 실행·계획·checkpoint·Job을 유지한다. 접수가 끝난 동일 키·동일 run·동일 버전 요청은 현재 권한 확인 후 저장된 `202`만 복구한다. |
+
+두 GET은 Job·GitHub 호출·재시도 상태 변경 없이 조회한다. `target_id`와 `status_url`은 같은 실행을 가리킨다. 응답 유실 또는 분류되지 않은 mutation `5xx`에서는 WEB이 GET으로만 자동 복구한다. 원래 키와 동일 요청을 사용자가 직접 다시 보내는 것은 별도의 POST다. 처음 요청이 접수되지 않았다면, 현재 조건을 만족할 때 이 POST가 최초 접수와 작업 생성을 일으킬 수 있다.
+
+재전송은 24시간을 연장하지 않는다. 알려진 만료 키는 새 작업 없이 `409 IDEMPOTENCY_KEY_EXPIRED`를 반환한다. 시간 기반 만료 표식 정리는 보류한다. Source 삭제 정책은 계속 적용되며 정리 보류는 별도 보존 권한을 부여하지 않는다. 표식 정리 시점과 제거 후 지연 재전송의 차단 방식은 별도 결정이 필요하다.
+
+MVP API §3의 공통 형식으로 `error.code`, `message`, `retryable`, `request_id`를 반환한다. `details`는 권한이 확인된 정보에 한해 선택 필드다. [MVP API Specification](https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa)
+
+| 상태와 코드 | Backend·WEB 처리 |
+| --- | --- |
+| `401 SESSION_TERMINATED` | 신뢰된 확인 결과로 세션 종료가 확정된 경우에만 해당한다. WEB은 해당 세션을 정리하고 재인증을 안내한다. |
+| `403 WORKSPACE_SCOPE_VIOLATION` | 공개 가능한 Workspace 문맥에서 확인된 권한 회수다. 해당 범위를 닫고 다른 활성 Workspace와 로그인은 유지한다. |
+| `404 RESOURCE_NOT_FOUND` | 부재·타 Workspace·은닉 대상에는 추적값을 제외하고 동일한 응답을 반환한다. 해당 ID나 존재 단서는 제공하지 않는다. |
+| `503 AUTH_VERIFICATION_UNAVAILABLE` | 인증 확인 일시 장애에서 민감 작업의 쓰기와 Job 생성은 0건이다. WEB은 세션을 유지하고 일시 장애를 안내한다. `retryable`은 나중에 다시 확인할 수 있다는 뜻이다. |
+
+Stub의 인증 결과는 테스트가 주입하는 신뢰된 의존성에서만 온다.
+
+## 미확정 오류
+
+| 로컬 fixture의 빈 응답 | 제품·WEB 결정 대기 |
+| --- | --- |
+| 일반 `401` | 자격 정보 누락이나 분류되지 않은 인증 실패의 응답 매핑. 확인된 세션 종료에는 승인된 `SESSION_TERMINATED`를 사용한다. |
+| 입력 오류 `422` | 본문·버전·키가 누락되거나 잘못됐을 때의 제품 오류 코드·본문과 WEB 안내. 기존 bodyless 요청도 여기에서 거절된다. |
+| 기타 `409` | 안전한 재개 조건을 만족하지 않거나 미완료 계획을 교체하려는 경우의 제품 응답 매핑. 버전 충돌에는 승인된 공통 오류 봉투를 사용한다. |
+
+## WEB 인수인계
+
+상세 조회의 `run_version` 또는 복구 조회의 해당 항목에서 받은 `import_status.run_version`을 같은 실행의 재시도 JSON `expected_run_version`으로 보낸다. 응답 유실은 GET으로 확인한다. 사용자가 기존 접수를 명시적으로 다시 보내면 같은 키와 같은 본문을 사용한다. 최신 버전으로 새 재시도를 시작하려면 사용자가 다시 선택해야 한다. 기존 WEB의 bodyless 호출을 JSON 호출로 바꾸는 작업과 WEB HTTP 회귀 검증이 남아 있다.
+
+| `error.code` | 표시와 조회 | 자동으로 전송하지 않을 요청 |
+| --- | --- | --- |
+| `RESOURCE_VERSION_CONFLICT` | 실행 상태가 바뀌었음을 안내하고 GET으로 최신 상태와 버전만 갱신한다. | 옛 요청 재전송, 새 키·새 버전의 재시도. 새 시도는 사용자 선택 후에만 요청한다. |
+| `IDEMPOTENCY_CONFLICT` | 같은 키에 이전과 다른 요청이 사용됐음을 안내한다. 재시도에서는 실행 ID와 예상 버전의 일치 여부를 확인한다. 현재 상태는 GET으로 확인한다. | 기존 키에 변경한 본문을 재전송하거나 새 키로 자동 대체하는 POST. |
+| `IDEMPOTENCY_KEY_EXPIRED` | 접수 응답 복구 기간이 끝났음을 안내하고, 실행 ID가 있으면 상세 GET, 없으면 복구 GET으로 확인한다. | 만료 키의 자동 재전송 또는 새 키로 자동 전환한 접수·재시도. |
+
+## Notion MVP API 인수인계
+
+아래 문구는 최초 가져오기 경로의 문서 갱신에 사용할 수 있다. [MVP API §3·4·9](https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa)
+
+| 절 | 반영 문구 |
+| --- | --- |
+| §3 공통 오류 | 신규 재시도의 실행 버전이 다르면 `409 RESOURCE_VERSION_CONFLICT`를 공통 `error` 봉투로 반환한다. `retryable=false`이며 WEB은 GET으로 실행 상태를 갱신한다. |
+| §4 Source / Sync API | 상세 GET과 복구 GET 결과는 해당 실행의 `run_version`을 제공한다. `POST /v1/sync-runs/{id}/retry` 요청의 JSON에는 `expected_run_version`이 필수다. 신규 요청은 현재 읽기 권한 확인 뒤 버전과 재시도 가능 여부를 같은 상태 변경 안에서 검사한다. 버전이 다르면 실행·계획·checkpoint·Job을 유지한다. |
+| §9 Async Job | 동일 키·실행·예상 버전으로 24시간 이내에 재전송된 접수는 현재 권한 확인 뒤 원래 `202`를 복구한다. 현재 실행 버전이 달라져도 추가 재시도는 시작하지 않는다. 보존 기간 안에 같은 키에 다른 버전을 제공하면 `IDEMPOTENCY_CONFLICT`, 알려진 만료 키는 `IDEMPOTENCY_KEY_EXPIRED`를 반환한다. |
+
+검증 근거는 [FastAPI 계약 테스트](../../spikes/import-contract/test_contract.py)다. 기존 37건의 범위를 유지해 38건이 통과했다. 버전 A의 저장 응답 복구, 다른 키의 오래된 A 요청에서 오류 봉투와 상태·작업 수 불변, 버전 B 명시 요청의 1회 접수 및 재전송, bodyless 거절을 HTTP 응답으로 확인했다. OpenAPI 검증도 통과했다. 증거는 로컬 stub 범위다.
+
+## 범위 밖
+
+계획 폐기 API·UI는 첫 구간에서 보류한다. 사용자는 실행 상태와 남은 범위를 조회하고 `retry.allowed`가 참인 경우 같은 계획을 재개할 수 있다. `PLAN_DRIFT`·한도 도달·정책 차단 상태에서 새 키나 기간으로 계획을 교체할 수 없다. `simulate_future_abandonment`는 복구 정렬과 미래 이력을 만드는 테스트 함수로, 공개 HTTP 경로는 네 개다.
+
+제품 백엔드·DB 마이그레이션, 실제 Supabase·GitHub·Cloud Run 연동, 배포·Notion 상태, Source Account·Resource 연결과 OAuth 결정, 공용 CI 및 T-106 전체 완료는 별도 작업이다.
+
+## 실제 DB·호스팅 검증 대기
+
+- PostgreSQL에서 실행 생성·재개 상태 전이, Job/outbox, 멱등 키 기록과 원래 `202`를 한 트랜잭션에 커밋하고 Worker 알림은 커밋 뒤에 발생하는지 확인한다. 커밋 전 실패에서 모두 롤백되고, 커밋 후 응답 유실 및 실제 API 재시작 뒤에는 동일 `202`가 복구돼야 한다.
+- 동시에 실행한 접수·재시도에서 DB 제약과 잠금 또는 원자적 조건부 갱신이 중복을 막는지 확인한다. 실행 버전과 재시도 가능 여부를 함께 검사한다. 체크포인트 위치가 같은 실패 A·B에서 A의 재전송은 저장 응답만 복구하고, A의 미접수 요청은 `409 RESOURCE_VERSION_CONFLICT`로 쓰기 없이 거부되며, B의 명시 요청은 한 번만 새 작업을 생성해야 한다.
+- 실제 테넌트 격리와 권한 회수 경합, 24시간 경계, 만료 키와 Source 삭제·표식 정리의 상호작용을 검증한다. 호스팅 인증의 종료·회수·장애와 WEB 세션 유지를 검증한다.
+- 로컬 [FastAPI stub](../../spikes/import-contract/stub.py)은 테스트 시계, 잠금과 인메모리 기록으로만 위 동작을 모의한다. 로컬 통과 증거의 범위는 HTTP 계약과 상태·작업 수 변화다.
+
+---
+
+아래는 `0.3.0-draft`와 CONTRACT-04 당시 기록이다. 현재 계약은 위 CONTRACT-06 인수인계를 따른다. CONTRACT-04 인수인계의 커밋은 `54a8906aaf460e6a5c32a76f8079734411b4d0d6`이다.
+
 # CONTRACT-03 최초 가져오기 복구 검토본
 
-기준은 CONTRACT 커밋 `a0314f2cbcb33f1d34ed486db7b1009dcb4adc59`다. WEB 커밋 `c80008dd28ccf65e03847ebf1763f8a618138d33`의 세 경로 대응을 참고했다. [OpenAPI 0.3.0-draft](openapi.yaml)는 복구 조회와 재전송 정책의 승인 후보다.
+기준은 CONTRACT 커밋 `a0314f2cbcb33f1d34ed486db7b1009dcb4adc59`다. WEB 커밋 `c80008dd28ccf65e03847ebf1763f8a618138d33`의 세 경로 대응을 참고했다. 당시 `0.3.0-draft` 스키마는 `git show 1d754a5bc33cf166d92b1c1ce8568031859ff0a4:contracts/import-v1/openapi.yaml`로 조회한다.
 
 ## WEB에서 사용할 응답
 

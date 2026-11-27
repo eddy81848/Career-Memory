@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: Career Memory Initial Import API
-  version: 0.3.0-draft
+  version: 0.5.0-draft
   description: >
-    T-106 WEB review candidate for import acceptance, recovery, status, and retry.
-    Paths with an undecided response use a response range or default without a
-    payload schema. Product contract approval is pending.
+    CONTRACT-06 records the approved initial import behavior for four
+    operations, including the retry version fields and stale-version error.
+    Source Account and Resource decisions remain pending.
 externalDocs:
   description: MVP API Specification
   url: https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa
@@ -68,9 +68,11 @@ paths:
         terminal state after acceptance or retry, breaking timestamp ties by
         most recent creation. Updates to derived processing do not change this
         order. A readable repository with no readable runs returns an empty
-        list. This lookup only reads existing state and never enqueues work
-        or contacts the provider.
-      x-pending-decisions: [recovery-lookup, session-and-scope]
+        list. An empty result leaves an earlier unconfirmed acceptance unknown.
+        A returned run is repository state and does not identify the earlier
+        POST. WEB automatic recovery uses GET only. This lookup reads current
+        state without enqueuing work, calling GitHub or changing retry state.
+      x-pending-decisions: [session-and-scope]
       parameters:
         - name: source_resource_id
           in: query
@@ -102,13 +104,15 @@ paths:
                         import_status:
                           status: SUCCESS
                           plan_id: synthetic-plan-1
+                          run_version: 2
                           import_ready: true
                           processing_status: BLOCKED_POLICY
                           source_drift: false
                           retry: { allowed: false }
-        "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403":
-          description: Empty response shared by unknown, inaccessible, and other-Workspace repositories.
+        "401": { $ref: "#/components/responses/ImportSessionRequired" }
+        "403": { $ref: "#/components/responses/ImportWorkspaceAccessRevoked" }
+        "404": { $ref: "#/components/responses/ImportResourceConcealed" }
+        "503": { $ref: "#/components/responses/ImportAuthUnavailable" }
         "422":
           description: Empty response for a missing or empty source_resource_id or a limit other than 1.
     post:
@@ -120,10 +124,9 @@ paths:
         202 target. A distinct request while the repository has an active run yields
         SYNC_ALREADY_RUNNING. Include the existing run ID only if the caller
         can currently read that run. After a successful import, the repository
-        rejects further automatic imports. A replacement plan requires
-        a separately confirmed abandonment of the latest terminal unfinished
-        run and an explicit create with a new key. A replay is not a new plan.
-      x-pending-decisions: [session-and-scope, import-defaults, worker-job-identity, idempotency-retention, abandonment-wire]
+        rejects further imports. Changing the key or input range cannot
+        replace an unfinished plan. Plan abandonment is deferred in this slice.
+      x-pending-decisions: [session-and-scope, import-defaults, worker-job-identity, expired-marker-cleanup]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/RequestID"
@@ -140,8 +143,10 @@ paths:
                 max_objects: 5000
       responses:
         "202": { $ref: "#/components/responses/SyncRunAccepted" }
-        "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/ImportSessionRequired" }
+        "403": { $ref: "#/components/responses/ImportWorkspaceAccessRevoked" }
+        "404": { $ref: "#/components/responses/ImportResourceConcealed" }
+        "503": { $ref: "#/components/responses/ImportAuthUnavailable" }
         "409":
           $ref: "#/components/responses/InitialImportConflict"
         "422": { $ref: "#/components/responses/InvalidMutationRequest" }
@@ -157,7 +162,8 @@ paths:
         Use this endpoint on page re-entry or manual refresh when the ID is
         known. Return the latest derived processing status even for a terminal
         import. Automatic import polling can stop at a terminal state.
-        Enable retry from retry.allowed rather than failure_reason.
+        Use retry.allowed to enable retry. The lookup reads stored state without
+        enqueuing work, calling GitHub or changing retry state.
       x-pending-decisions: [session-and-scope, status-vocabularies]
       x-documented-domain-codes: [SYNC_PARTIAL, SYNC_PARTIAL_WITH_LIMIT, IMPORT_SOURCE_DRIFT]
       parameters:
@@ -176,6 +182,7 @@ paths:
                   value:
                     status: PARTIAL
                     plan_id: synthetic-plan-1
+                    run_version: 2
                     failure_reason: TRANSIENT_PROVIDER_ERROR
                     streams:
                       - type: PR
@@ -193,6 +200,7 @@ paths:
                   value:
                     status: PARTIAL_WITH_LIMIT
                     plan_id: synthetic-plan-2
+                    run_version: 2
                     failure_reason: SYNC_PARTIAL_WITH_LIMIT
                     source_drift: false
                     import_ready: false
@@ -204,6 +212,7 @@ paths:
                   value:
                     status: PARTIAL
                     plan_id: synthetic-plan-3
+                    run_version: 2
                     failure_reason: PLAN_DRIFT
                     source_drift: true
                     import_ready: false
@@ -213,6 +222,7 @@ paths:
                   value:
                     status: SUCCESS
                     plan_id: synthetic-plan-4
+                    run_version: 2
                     source_drift: false
                     import_ready: true
                     processing_status: BLOCKED_POLICY
@@ -221,13 +231,16 @@ paths:
                   value:
                     status: PARTIAL
                     plan_id: synthetic-plan-5
+                    run_version: 2
                     failure_reason: SOURCE_POLICY_BLOCKED
                     source_drift: false
                     import_ready: false
                     processing_status: NOT_STARTED
                     retry: { allowed: false }
-        "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/ImportSessionRequired" }
+        "403": { $ref: "#/components/responses/ImportWorkspaceAccessRevoked" }
+        "404": { $ref: "#/components/responses/ImportResourceConcealed" }
+        "503": { $ref: "#/components/responses/ImportAuthUnavailable" }
   /v1/sync-runs/{id}/retry:
     parameters:
       - $ref: "#/components/parameters/SyncRunID"
@@ -235,20 +248,34 @@ paths:
       operationId: retryInitialImport
       summary: Resume the same run from its safe checkpoint
       description: >
-        Send a bodyless request. The caller must have current access on each
-        attempt, including a replay. Retry preserves the run and its plan.
-        A temporary provider failure with a safe checkpoint can be resumed.
-        Plan drift, structurally incomplete required data, policy blocks, and
-        exhausted plan limits require a new plan. An in-window replay returns
-        the original 202 target without another resume.
-      x-pending-decisions: [session-and-scope, worker-job-identity, idempotency-retention]
+        Retry preserves the run and its plan. After current access checks, an
+        in-window replay of an accepted key and identical run and version
+        restores the original 202 before checking current eligibility or version.
+        A new acceptance requires a JSON body with expected_run_version from
+        the selected run's detail or recovery lookup. Compare the version and
+        verify retry eligibility in the same atomic transition that records
+        the work. A version mismatch returns 409 RESOURCE_VERSION_CONFLICT
+        without changing the run, plan, checkpoint or job. Resume only a
+        temporary failure with a safe checkpoint. Plan drift, structural
+        incompleteness, policy blocks and exhausted limits stay visible
+        without resuming or replacing the plan.
+      x-pending-decisions: [session-and-scope, worker-job-identity, expired-marker-cleanup]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/RequestID"
+      requestBody:
+        required: true
+        x-contract-status: APPROVED
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RetryImportRequest" }
+            example: { expected_run_version: 2 }
       responses:
         "202": { $ref: "#/components/responses/SyncRunAccepted" }
-        "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403": { $ref: "#/components/responses/Forbidden" }
+        "401": { $ref: "#/components/responses/ImportSessionRequired" }
+        "403": { $ref: "#/components/responses/ImportWorkspaceAccessRevoked" }
+        "404": { $ref: "#/components/responses/ImportResourceConcealed" }
+        "503": { $ref: "#/components/responses/ImportAuthUnavailable" }
         "409":
           $ref: "#/components/responses/RetryConflict"
         "422": { $ref: "#/components/responses/InvalidMutationRequest" }
@@ -269,12 +296,13 @@ components:
       in: header
       required: true
       description: >
-        Candidate scope is the current Workspace and operation, with separate
-        namespaces for create and retry. Compare the parsed create body or
-        the retry target ID. Preserve the 202 target for 24 hours from acceptance
-        without extending the window on replay. Recheck access before exposing
-        replay or key-conflict information. A known expired key returns
-        IDEMPOTENCY_KEY_EXPIRED while its marker is retained with run history.
+        Scope the key by Workspace and operation. Compare the parsed create
+        body or the retry run and requested version. Recover the original 202
+        target for 24 hours from committed acceptance without extending the
+        window on replay. Recheck current access before returning any replay
+        or conflict. A known expired key returns IDEMPOTENCY_KEY_EXPIRED
+        without creating work. Time-based marker cleanup is deferred and
+        remains subject to the Source deletion policy.
       schema: { type: string, format: uuid }
       example: 00000000-0000-4000-8000-000000000001
     RequestID:
@@ -307,6 +335,94 @@ components:
       description: >
         Insufficient current Workspace membership or role. Concealment of an
         inaccessible object and its exact error mapping await approval.
+    ImportSessionRequired:
+      description: >
+        Confirmed session termination returns the envelope. Missing credentials or unclassified authentication failures can be empty in the fixture. Their product mapping remains open.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/RequestID" }
+        Cache-Control: { $ref: "#/components/headers/PrivateNoStore" }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ImportErrorEnvelope"
+            properties:
+              error:
+                properties:
+                  code: { const: SESSION_TERMINATED }
+                  retryable: { const: false }
+                not: { required: [details] }
+          example:
+            error:
+              code: SESSION_TERMINATED
+              message: The session has ended.
+              retryable: false
+              request_id: synthetic-request-1
+    ImportWorkspaceAccessRevoked:
+      description: >
+        Workspace access was revoked in a context that can be disclosed. The user session is preserved.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/RequestID" }
+        Cache-Control: { $ref: "#/components/headers/PrivateNoStore" }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ImportErrorEnvelope"
+            properties:
+              error:
+                properties:
+                  code: { const: WORKSPACE_SCOPE_VIOLATION }
+                  retryable: { const: false }
+                not: { required: [details] }
+          example:
+            error:
+              code: WORKSPACE_SCOPE_VIOLATION
+              message: Access to the selected workspace has been revoked.
+              retryable: false
+              request_id: synthetic-request-1
+    ImportResourceConcealed:
+      description: >
+        Missing, out-of-Workspace and otherwise concealed resources share this response without target identifiers.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/RequestID" }
+        Cache-Control: { $ref: "#/components/headers/PrivateNoStore" }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ImportErrorEnvelope"
+            properties:
+              error:
+                properties:
+                  code: { const: RESOURCE_NOT_FOUND }
+                  retryable: { const: false }
+                not: { required: [details] }
+          example:
+            error:
+              code: RESOURCE_NOT_FOUND
+              message: The requested resource was not found.
+              retryable: false
+              request_id: synthetic-request-1
+    ImportAuthUnavailable:
+      description: >
+        A confirmed temporary authentication verification failure blocks sensitive work before any write or job. WEB keeps the session and uses read-only recovery. Generic gateway failures can be unclassified.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/RequestID" }
+        Cache-Control: { $ref: "#/components/headers/PrivateNoStore" }
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ImportErrorEnvelope"
+            properties:
+              error:
+                properties:
+                  code: { const: AUTH_VERIFICATION_UNAVAILABLE }
+                  retryable: { const: true }
+                not: { required: [details] }
+          example:
+            error:
+              code: AUTH_VERIFICATION_UNAVAILABLE
+              message: Authentication could not be verified temporarily.
+              retryable: true
+              request_id: synthetic-request-1
     SyncRunAccepted:
       description: Accepted for processing. For retry, target_id and status_url point to the original run.
       headers:
@@ -317,8 +433,9 @@ components:
     InitialImportConflict:
       description: >
         An in-window key identifies a different request, a known key expired,
-        or the repository already has an active run. A rejected restart after
-        success or a plan awaiting abandonment retains the empty response.
+        or the repository already has an active run. Restarting after success
+        or replacing an unfinished plan retains an empty fixture response.
+        A product error code for that rejection remains open.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ImportConflict" }
@@ -327,32 +444,55 @@ components:
               value:
                 error:
                   code: SYNC_ALREADY_RUNNING
+                  message: An import is already active for the repository.
+                  retryable: false
+                  request_id: synthetic-request-1
                   details:
                     existing_run_id: synthetic-run-1
             idempotency:
               value:
                 error:
                   code: IDEMPOTENCY_CONFLICT
+                  message: The request key identifies a different request.
+                  retryable: false
+                  request_id: synthetic-request-1
             expiredKey:
               value:
                 error:
                   code: IDEMPOTENCY_KEY_EXPIRED
+                  message: The request key has expired.
+                  retryable: false
+                  request_id: synthetic-request-1
     RetryConflict:
       description: >
-        An in-window key identifies a different request, a known key expired,
-        or the run is active. When the run cannot resume from a safe checkpoint,
-        the response is empty. Read the run status for retry eligibility.
+        A new request's expected run version is stale, an in-window key
+        identifies a different request, a known key expired, or the run is
+        active. An otherwise ineligible run retains an empty fixture response.
+        The product mapping for that rejection remains open. On a version
+        conflict, use GET to refresh the run before any new user-initiated retry.
       content:
         application/json:
-          schema: { $ref: "#/components/schemas/ImportConflict" }
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ImportConflict"
+              - $ref: "#/components/schemas/RetryVersionConflict"
+          examples:
+            staleVersion:
+              value:
+                error:
+                  code: RESOURCE_VERSION_CONFLICT
+                  message: The expected run version does not match the current run.
+                  retryable: false
+                  request_id: synthetic-request-1
     InvalidMutationRequest:
-      description: Missing or invalid Idempotency-Key, or an invalid request body. The review stub returns an empty body.
+      description: Missing or invalid Idempotency-Key or request body. The empty fixture response leaves product error mapping open.
     UnconfirmedAcceptance:
       description: >
         A server error leaves acceptance unknown. Use the known run ID or
-        repository recovery lookup to check state. Do not automatically send
-        another POST. An explicit resend can use the same key and request
-        within the retention window.
+        repository recovery lookup to check state. Automatic recovery uses GET
+        only. The user can deliberately resend the same key and request
+        within the retention window. If the request never reached acceptance,
+        that submission can be a first acceptance and create work.
   schemas:
     InitialImportRequest:
       type: object
@@ -373,6 +513,16 @@ components:
           description: Requested item limits. Defaulting and validation bounds await approval.
           properties:
             max_objects: { type: integer }
+    RetryImportRequest:
+      x-contract-status: APPROVED
+      type: object
+      additionalProperties: false
+      required: [expected_run_version]
+      properties:
+        expected_run_version:
+          type: integer
+          minimum: 1
+          description: Run version returned by the detail or recovery lookup.
     SyncRunAccepted:
       type: object
       required: [target_id, status_url]
@@ -414,10 +564,17 @@ components:
       enum: [NOT_STARTED, RUNNING, BLOCKED_POLICY, BLOCKED_SOURCE, FAILED, COMPLETE]
     ImportStatus:
       type: object
-      required: [status, plan_id, import_ready, processing_status, source_drift, retry]
+      required: [status, plan_id, import_ready, processing_status, source_drift, retry, run_version]
       description: Optional fields are omitted when unavailable or inapplicable.
       properties:
         status: { $ref: "#/components/schemas/ImportState" }
+        run_version:
+          x-contract-status: APPROVED
+          type: integer
+          minimum: 1
+          description: >
+            Version of this run to send as expected_run_version on retry.
+            A new attempt invalidates an earlier version even if the checkpoint is unchanged.
         plan_id:
           type: string
           description: Identifier of the immutable plan.
@@ -514,18 +671,35 @@ components:
         status: { type: string }
         last_committed_page: { type: integer, minimum: 0 }
         unresolved_failures: { type: integer, minimum: 0 }
-    ImportConflict:
+    ImportErrorEnvelope:
       type: object
+      additionalProperties: false
       required: [error]
       properties:
         error:
           type: object
-          required: [code]
+          additionalProperties: false
+          required: [code, message, retryable, request_id]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            retryable:
+              type: boolean
+              description: A later explicit check may help. WEB never resubmits a POST automatically.
+            request_id: { type: string }
+            details: { type: object }
+    ImportConflict:
+      $ref: "#/components/schemas/ImportErrorEnvelope"
+      properties:
+        error:
+          type: object
           properties:
             code:
               enum: [IDEMPOTENCY_CONFLICT, SYNC_ALREADY_RUNNING, IDEMPOTENCY_KEY_EXPIRED]
+            retryable: { const: false }
             details:
               type: object
+              additionalProperties: false
               required: [existing_run_id]
               properties:
                 existing_run_id:
@@ -536,3 +710,12 @@ components:
               code: { enum: [IDEMPOTENCY_CONFLICT, IDEMPOTENCY_KEY_EXPIRED] }
           then:
             not: { required: [details] }
+    RetryVersionConflict:
+      x-contract-status: APPROVED
+      $ref: "#/components/schemas/ImportErrorEnvelope"
+      properties:
+        error:
+          properties:
+            code: { const: RESOURCE_VERSION_CONFLICT }
+            retryable: { const: false }
+          not: { required: [details] }

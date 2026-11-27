@@ -66,9 +66,9 @@ from career_memory_api.schema_contracts import (
 pytestmark = pytest.mark.postgres
 
 _HOMEBREW_PG18_BIN = Path("/opt/homebrew/opt/postgresql@18/bin")
-_SIBLING_0010_MIGRATION = Path(
-    "/Users/eddy81848/orca/workspaces/Career Memory/"
-    "m1-t101-auth-scope/db/migrations/0010_identity_workspace_source_auth.sql"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_SIBLING_0010_MIGRATION = (
+    _REPO_ROOT / "db" / "migrations" / "0010_identity_workspace_source_auth.sql"
 )
 _SUPERUSER = "cm_pg_superuser"
 _HASH_A = "sha256:" + ("a" * 64)

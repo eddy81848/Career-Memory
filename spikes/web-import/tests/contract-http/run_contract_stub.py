@@ -27,9 +27,8 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, Request
 
-DEFAULT_CONTRACT_DIR = (
-    "/Users/eddy81848/orca/workspaces/Career Memory/"
-    "T-106-Import-Contract/spikes/import-contract"
+DEFAULT_CONTRACT_DIR = str(
+    Path(__file__).resolve().parents[3] / "import-contract"
 )
 CONTRACT_IMPORT_DIR = Path(
     os.environ.get("CONTRACT_IMPORT_DIR", DEFAULT_CONTRACT_DIR)

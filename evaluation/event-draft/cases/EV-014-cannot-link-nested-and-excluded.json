@@ -169,9 +169,9 @@
         "workspace_id": "ws_syn_014",
         "repo_id": "repo_syn_014",
         "anchor_mode": "USER_COMPOSITE",
-        "lifecycle_status": "CANDIDATE",
+        "lifecycle_status": "CONFIRMED",
         "is_active_top_level": true,
-        "version": 1,
+        "version": 2,
         "merge_origin": "USER_MANUAL_MERGE",
         "primary_pr_id": null,
         "source_commit_ids": ["cmt_syn_1401a", "cmt_syn_1402a"],
@@ -239,9 +239,9 @@
         "workspace_id": "ws_syn_014",
         "repo_id": "repo_syn_014",
         "anchor_mode": "PR",
-        "lifecycle_status": "CANDIDATE",
+        "lifecycle_status": "CONFIRMED",
         "is_active_top_level": true,
-        "version": 1,
+        "version": 2,
         "merge_origin": "NONE",
         "primary_pr_id": "pr_syn_1403",
         "source_commit_ids": ["cmt_syn_1403a"],
@@ -292,10 +292,14 @@
       "target_event_ids": ["ev_init_014_m1", "ev_init_014_solo"],
       "target_versions": {
         "ev_init_014_m1": 2,
-        "ev_init_014_solo": 1
+        "ev_init_014_solo": 2
       },
       "payload": {
-        "composite_title": "Invalid attempt to re-merge an already-composed SUPERSEDED member"
+        "composite_title": "Invalid attempt to re-merge an already-composed SUPERSEDED member",
+        "members": [
+          { "event_id": "ev_init_014_m1", "expected_version": 2 },
+          { "event_id": "ev_init_014_solo", "expected_version": 2 }
+        ]
       }
     },
     {
@@ -304,14 +308,18 @@
       "spec_command_name": "UNCONFIRMED",
       "workspace_id": "ws_syn_014",
       "actor_id": "usr_syn_owner_1",
-      "expected_version": 1,
+      "expected_version": 2,
       "target_event_ids": ["ev_init_014_comp", "ev_init_014_solo"],
       "target_versions": {
-        "ev_init_014_comp": 1,
-        "ev_init_014_solo": 1
+        "ev_init_014_comp": 2,
+        "ev_init_014_solo": 2
       },
       "payload": {
-        "composite_title": "Invalid attempt to nest an existing USER_COMPOSITE inside another USER_COMPOSITE"
+        "composite_title": "Invalid attempt to nest an existing USER_COMPOSITE inside another USER_COMPOSITE",
+        "members": [
+          { "event_id": "ev_init_014_comp", "expected_version": 2 },
+          { "event_id": "ev_init_014_solo", "expected_version": 2 }
+        ]
       }
     },
     {
@@ -320,14 +328,18 @@
       "spec_command_name": "UNCONFIRMED",
       "workspace_id": "ws_syn_014",
       "actor_id": "usr_syn_owner_1",
-      "expected_version": 1,
+      "expected_version": 2,
       "target_event_ids": ["ev_init_014_solo", "ev_init_014_excl"],
       "target_versions": {
-        "ev_init_014_solo": 1,
+        "ev_init_014_solo": 2,
         "ev_init_014_excl": 2
       },
       "payload": {
-        "composite_title": "Invalid attempt to merge a REJECTED Event"
+        "composite_title": "Invalid attempt to merge a REJECTED Event",
+        "members": [
+          { "event_id": "ev_init_014_solo", "expected_version": 2 },
+          { "event_id": "ev_init_014_excl", "expected_version": 2 }
+        ]
       }
     }
   ],
@@ -340,9 +352,9 @@
         "workspace_id": "ws_syn_014",
         "repo_id": "repo_syn_014",
         "anchor_mode": "USER_COMPOSITE",
-        "lifecycle_status": "CANDIDATE",
+        "lifecycle_status": "CONFIRMED",
         "is_active_top_level": true,
-        "version": 1,
+        "version": 2,
         "merge_origin": "USER_MANUAL_MERGE",
         "origin_command_id": null,
         "primary_pr_id": null,
@@ -407,9 +419,9 @@
         "workspace_id": "ws_syn_014",
         "repo_id": "repo_syn_014",
         "anchor_mode": "PR",
-        "lifecycle_status": "CANDIDATE",
+        "lifecycle_status": "CONFIRMED",
         "is_active_top_level": true,
-        "version": 1,
+        "version": 2,
         "merge_origin": "NONE",
         "origin_command_id": null,
         "primary_pr_id": "pr_syn_1403",
@@ -508,7 +520,7 @@
     ]
   },
   "rationale": {
-    "summary": "Enforces official Event API rejection codes with zero mutation: nesting a USER_COMPOSITE root returns NESTED_COMPOSITE_NOT_ALLOWED; merging a REJECTED Event returns MEMBER_NOT_ACTIVE; re-merging an already-composed SUPERSEDED member is rejected with zero mutation while leaving precedence between MEMBER_ALREADY_COMPOSED and MEMBER_NOT_ACTIVE UNCONFIRMED. Does NOT bundle all rejections into a catch-all CANNOT_LINK wire code and does NOT invent an append API.",
+    "summary": "Enforces official Event API rejection codes with zero mutation while matching every merge target's expected_version to its actual current version (version 2 across expected_version, target_versions, and payload.members) so no EVENT_VERSION_CONFLICT intrudes: nesting a USER_COMPOSITE root returns NESTED_COMPOSITE_NOT_ALLOWED; merging a REJECTED Event returns MEMBER_NOT_ACTIVE; re-merging an already-composed SUPERSEDED member is rejected with zero mutation while leaving precedence between MEMBER_ALREADY_COMPOSED and MEMBER_NOT_ACTIVE UNCONFIRMED. Does NOT bundle all rejections into a catch-all CANNOT_LINK wire code and does NOT invent an append API.",
     "confirmed_spec_rules": [
       "USER_COMPOSITE_NESTING_FORBIDDEN_WITH_NESTED_COMPOSITE_NOT_ALLOWED",
       "REJECTED_EVENT_MERGE_FORBIDDEN_WITH_MEMBER_NOT_ACTIVE",

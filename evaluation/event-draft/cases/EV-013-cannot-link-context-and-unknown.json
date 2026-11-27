@@ -24,9 +24,16 @@
     ],
     "repositories": [
       {
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "workspace_id": "ws_syn_013",
         "full_name": "acme-syn-lab/auth-core",
+        "default_branch": "main",
+        "synthetic": true
+      },
+      {
+        "repo_id": "repo_syn_013_b",
+        "workspace_id": "ws_syn_013",
+        "full_name": "acme-syn-lab/auth-edge",
         "default_branch": "main",
         "synthetic": true
       }
@@ -35,28 +42,28 @@
       {
         "sync_run_id": "sync_syn_1301_pre",
         "workspace_id": "ws_syn_013",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "run_type": "INITIAL_BACKFILL",
         "status": "SUCCESS",
         "promotes_events": true,
         "completed_at": "2026-10-31T12:00:00Z",
-        "note": "Independent completed precondition import run that produced ev_init_013_pr."
+        "note": "Successful initial import run on repo_syn_013_a that produced ev_init_013_pr."
       },
       {
         "sync_run_id": "sync_syn_1302_partial",
         "workspace_id": "ws_syn_013",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_b",
         "run_type": "INITIAL_BACKFILL",
         "status": "PARTIAL",
         "promotes_events": false,
         "completed_at": "2026-11-01T12:00:00Z",
-        "note": "Separate incomplete import run containing UNKNOWN-association commit cmt_syn_1302; PARTIAL run promotes 0 Events."
+        "note": "Separate incomplete initial import run on repo_syn_013_b containing UNKNOWN-association commit cmt_syn_1302; PARTIAL run promotes 0 Events."
       }
     ],
     "pull_requests": [
       {
         "pr_id": "pr_syn_1301",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "number": 1301,
         "title": "Rotate signing key cache cleanly",
         "body": "Refreshes JWKS cache with jitter.",
@@ -73,7 +80,7 @@
     "commits": [
       {
         "commit_id": "cmt_syn_1301a",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "sha": "1301a00000000000000000000000000000000001",
         "message": "Add jittered JWKS refresh",
         "author_handle": "syn-dev-a",
@@ -89,7 +96,7 @@
       },
       {
         "commit_id": "cmt_syn_1302",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_b",
         "sha": "1302000000000000000000000000000000000002",
         "message": "Adjust key cache TTL fallback",
         "author_handle": "syn-dev-a",
@@ -100,14 +107,14 @@
         "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
         "pr_association_status": "UNKNOWN",
         "associated_pr_id": null,
-        "changed_paths": ["src/auth/jwks_cache.py"],
+        "changed_paths": ["src/edge/ttl_fallback.py"],
         "source_sync_run_id": "sync_syn_1302_partial"
       }
     ],
     "issues_tickets": [
       {
         "ticket_id": "tkt_syn_1301",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "external_key": "SYN-1301",
         "title": "Harden JWKS rotation during spikes",
         "relation_role": "CONTEXT_ONLY"
@@ -117,7 +124,7 @@
       {
         "event_id": "ev_init_013_pr",
         "workspace_id": "ws_syn_013",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "anchor_mode": "PR",
         "lifecycle_status": "CANDIDATE",
         "is_active_top_level": true,
@@ -134,7 +141,7 @@
         },
         "membership_role": "standalone",
         "source_sync_run_id": "sync_syn_1301_pre",
-        "precondition_note": "Independent precondition Event promoted by prior SUCCESS run sync_syn_1301_pre; NOT promoted from PARTIAL run sync_syn_1302_partial.",
+        "precondition_note": "Independent precondition Event promoted by SUCCESS initial import sync_syn_1301_pre on repo_syn_013_a; separate from PARTIAL run sync_syn_1302_partial on repo_syn_013_b.",
         "searchable_as_top_level": true,
         "counted_in_metrics": true
       }
@@ -180,7 +187,7 @@
       {
         "event_id": "ev_init_013_pr",
         "workspace_id": "ws_syn_013",
-        "repo_id": "repo_syn_013",
+        "repo_id": "repo_syn_013_a",
         "anchor_mode": "PR",
         "lifecycle_status": "CANDIDATE",
         "is_active_top_level": true,
@@ -207,7 +214,7 @@
         "source_id": "cmt_syn_1302",
         "logical_disposition": "hold_classification_unknown_assoc",
         "spec_hold_status": "UNCONFIRMED",
-        "hold_reason": "PR association lookup in sync_syn_1302_partial is INCOMPLETE_OR_FAILED (UNKNOWN); PARTIAL run promotes 0 Events and cmt_syn_1302 cannot be merged as a USER_COMPOSITE member.",
+        "hold_reason": "PR association lookup in sync_syn_1302_partial on repo_syn_013_b is INCOMPLETE_OR_FAILED (UNKNOWN); PARTIAL run promotes 0 Events and non-Event commit ID cmt_syn_1302 cannot be merged as a USER_COMPOSITE member.",
         "interpreted_as_no_pr": false,
         "unconfirmed_fields": ["spec_hold_status"]
       }
@@ -260,12 +267,12 @@
         "field_path": "expected_proposal.command_results[*].spec_error_code",
         "category": "TRULY_UNDECIDED_BEHAVIOR",
         "status": "REVIEW_REQUIRED",
-        "question": "Confirm whether passing non-Event IDs (CONTEXT_ONLY ticket or unpromoted UNKNOWN commit) fails at request validation/not-found or returns a specific Event API code (e.g. CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE); do NOT assume both map to a single catch-all CANNOT_LINK wire code."
+        "question": "Confirm whether passing non-Event IDs (CONTEXT_ONLY ticket tkt_syn_1301 or unpromoted UNKNOWN commit cmt_syn_1302 from repo_syn_013_b PARTIAL run) fails at request validation/not-found or returns a specific Event API code (e.g. CANNOT_LINK_CONFLICT / PR_ASSOCIATION_INCOMPLETE); do NOT assume both map to a single catch-all CANNOT_LINK wire code."
       }
     ]
   },
   "rationale": {
-    "summary": "A CONTEXT_ONLY ticket and an unpromoted UNKNOWN-association commit from a separate PARTIAL run (sync_syn_1302_partial) cannot become manual_merge members; both commands are rejected with zero mutation. ev_init_013_pr is explicitly scoped as an independent precondition Event from prior SUCCESS run sync_syn_1301_pre so the PARTIAL run promotes 0 Events. Because CANNOT_LINK is a relation semantic rather than a catch-all wire code, exact wire error codes for non-Event IDs remain UNCONFIRMED.",
+    "summary": "A CONTEXT_ONLY ticket (tkt_syn_1301 on repo_syn_013_a) and an unpromoted UNKNOWN-association commit (cmt_syn_1302 from separate repository repo_syn_013_b PARTIAL run sync_syn_1302_partial) are not Events and cannot become manual_merge members; both commands are rejected with zero mutation. Placing SUCCESS initial import sync_syn_1301_pre on repo_syn_013_a and PARTIAL run sync_syn_1302_partial on repo_syn_013_b avoids conflicting initial backfills on the same repository while proving the PARTIAL run promotes 0 Events. Exact wire error codes for non-Event IDs remain UNCONFIRMED.",
     "confirmed_spec_rules": [
       "ISSUE_TICKET_CONTEXT_ONLY_NO_STANDALONE_EVENT",
       "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED",

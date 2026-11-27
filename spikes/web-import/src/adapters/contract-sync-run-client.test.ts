@@ -8,6 +8,10 @@ import {
   type SyntheticHttpResponse,
   type SyntheticHttpTransport,
 } from "./synthetic-http-transport";
+import {
+  SyntheticOpenApiTransport,
+  type SyntheticOpenApiState,
+} from "./synthetic-openapi-transport";
 
 /**
  * Adapter unit tests against synthetic HTTP responses modeled on CONTRACT
@@ -187,31 +191,37 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       requests[2].headers["Idempotency-Key"]
     );
 
-    // Retry lost response -> resend reuses EXACT SAME retry UUID and omits body
+    // Retry lost response -> explicit resend reuses EXACT SAME retry UUID and JSON expected_run_version body
     const lostRetry = await client.retryInitialImport({
       runId: "synthetic-run-1",
       repo: REPO_A,
+      expectedRunVersion: 3,
     });
     expect(lostRetry.ok).toBe(false);
 
     const resentRetry = await client.retryInitialImport({
       runId: "synthetic-run-1",
       repo: REPO_A,
+      mode: "resend_pending",
     });
     expect(resentRetry.ok).toBe(true);
     expect(requests[4].path).toBe("/v1/sync-runs/synthetic-run-1/retry");
-    expect(requests[4].body).toBeUndefined();
-    expect(requests[5].body).toBeUndefined();
+    expect(requests[4].headers["Content-Type"]).toBe("application/json");
+    expect(requests[4].body).toBe(JSON.stringify({ expected_run_version: 3 }));
+    expect(requests[5].body).toBe(JSON.stringify({ expected_run_version: 3 }));
     expect(requests[4].headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
     expect(requests[5].headers["Idempotency-Key"]).toBe(
       requests[4].headers["Idempotency-Key"]
     );
 
-    // Subsequent distinct retry gets a fresh UUID
+    // Subsequent distinct new retry gets a fresh UUID and latest expected_run_version
     await client.retryInitialImport({
       runId: "synthetic-run-1",
       repo: REPO_A,
+      mode: "new_retry",
+      expectedRunVersion: 5,
     });
+    expect(requests[6].body).toBe(JSON.stringify({ expected_run_version: 5 }));
     expect(requests[6].headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
     expect(requests[6].headers["Idempotency-Key"]).not.toBe(
       requests[5].headers["Idempotency-Key"]
@@ -428,6 +438,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
     const retry409 = await client.retryInitialImport({
       runId: "synthetic-run-1",
       repo: REPO_A,
+      expectedRunVersion: 2,
     });
     expect(retry409.ok).toBe(false);
     if (!retry409.ok) {
@@ -596,21 +607,26 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       }
     });
 
-    it("preserves Idempotency-Key on explicit bodyless retry resend after 502 when server already accepted the retry", async () => {
+    it("preserves Idempotency-Key and expected_run_version body on explicit retry resend after 502 when server already accepted the retry", async () => {
       const originalRunId = "synthetic-run-retry-502";
       let acceptedRetryKey: string | null = null;
+      let acceptedRetryBody: string | undefined;
       const { transport, requests } = createScriptedTransport([
-        // 1st bodyless retry: server accepted retry, gateway returned 502
+        // 1st versioned retry: server accepted retry, gateway returned 502
         (req) => {
           acceptedRetryKey = req.headers["Idempotency-Key"];
+          acceptedRetryBody = req.body;
           return {
             status: 502,
             rawBody: "",
           };
         },
-        // 2nd explicit bodyless retry: replays 202 ONLY for the same Idempotency-Key
+        // 2nd explicit resend: replays 202 ONLY for the same Idempotency-Key and original body
         (req) => {
-          if (req.headers["Idempotency-Key"] === acceptedRetryKey) {
+          if (
+            req.headers["Idempotency-Key"] === acceptedRetryKey &&
+            req.body === acceptedRetryBody
+          ) {
             return {
               status: 202,
               rawBody: JSON.stringify({
@@ -624,7 +640,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
           return {
             status: 409,
             rawBody: JSON.stringify({
-              error: { code: "SYNC_ALREADY_RUNNING" },
+              error: { code: "RESOURCE_VERSION_CONFLICT" },
             }),
           };
         },
@@ -635,22 +651,28 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const first = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        expectedRunVersion: 2,
       });
       expect(first.ok).toBe(false);
       if (!first.ok) {
         expect(first.kind).toBe("uncertain_outcome");
         expect(first.fault.httpStatus).toBe(502);
         expect(first.fault.serverConfirmed).toBe(false);
+        expect(first.pendingRetry).toEqual({
+          runId: originalRunId,
+          expectedRunVersion: 2,
+        });
       }
       expect(requests).toHaveLength(1);
-      expect(requests[0].body).toBeUndefined();
+      expect(requests[0].body).toBe(JSON.stringify({ expected_run_version: 2 }));
 
       const second = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        mode: "resend_pending",
       });
       expect(requests).toHaveLength(2);
-      expect(requests[1].body).toBeUndefined();
+      expect(requests[1].body).toBe(JSON.stringify({ expected_run_version: 2 }));
       expect(requests[0].headers["Idempotency-Key"]).toMatch(UUID_V4_REGEX);
       expect(requests[1].headers["Idempotency-Key"]).toBe(
         requests[0].headers["Idempotency-Key"]
@@ -658,14 +680,15 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       expect(second.ok).toBe(true);
       if (second.ok) {
         expect(second.data.run.runId).toBe(originalRunId);
+        expect(second.data.pendingRetry).toBeNull();
       }
     });
 
-    it("preserves Idempotency-Key on explicit bodyless retry resend after 202 missing required fields", async () => {
+    it("preserves Idempotency-Key and expected_run_version body on explicit retry resend after 202 missing required fields", async () => {
       const originalRunId = "synthetic-run-retry-bad-202";
       let acceptedRetryKey: string | null = null;
       const { transport, requests } = createScriptedTransport([
-        // 1st bodyless retry: server committed retry, 202 body missing status_url
+        // 1st versioned retry: server committed retry, 202 body missing status_url
         (req) => {
           acceptedRetryKey = req.headers["Idempotency-Key"];
           return {
@@ -676,7 +699,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
             }),
           };
         },
-        // 2nd explicit bodyless retry: server replays full 202 on matching key
+        // 2nd explicit resend: server replays full 202 on matching key + body
         (req) => {
           if (req.headers["Idempotency-Key"] === acceptedRetryKey) {
             return {
@@ -697,6 +720,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const first = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        expectedRunVersion: 4,
       });
       expect(first.ok).toBe(false);
       if (!first.ok) {
@@ -705,14 +729,15 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
         expect(first.fault.serverConfirmed).toBe(false);
       }
       expect(requests).toHaveLength(1);
-      expect(requests[0].body).toBeUndefined();
+      expect(requests[0].body).toBe(JSON.stringify({ expected_run_version: 4 }));
 
       const second = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        mode: "resend_pending",
       });
       expect(requests).toHaveLength(2);
-      expect(requests[1].body).toBeUndefined();
+      expect(requests[1].body).toBe(JSON.stringify({ expected_run_version: 4 }));
       expect(requests[1].headers["Idempotency-Key"]).toBe(
         requests[0].headers["Idempotency-Key"]
       );
@@ -734,8 +759,18 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
         () => ({ status: 502, rawBody: "" }),
         // 4: retry run-2 in scope-2 (different retry target) -> 502
         () => ({ status: 502, rawBody: "" }),
-        // 5: retry run-2 in scope-3 (different auth scope) -> 401 (clears keys)
-        () => ({ status: 401, rawBody: "" }),
+        // 5: retry run-2 in scope-3 (different auth scope) -> 401 SESSION_TERMINATED (clears keys)
+        () => ({
+          status: 401,
+          rawBody: JSON.stringify({
+            error: {
+              code: "SESSION_TERMINATED",
+              message: "Session terminated.",
+              retryable: false,
+              request_id: "req-401",
+            },
+          }),
+        }),
         // 6: retry run-2 in scope-3 again after 401 -> 202
         () => ({
           status: 202,
@@ -755,16 +790,26 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       client.setAuthScope("scope-2");
       await client.createInitialImport({ repo: REPO_A });
       await client.createInitialImport({ repo: REPO_B });
-      await client.retryInitialImport({ runId: "run-1", repo: REPO_A });
-      await client.retryInitialImport({ runId: "run-2", repo: REPO_A });
+      await client.retryInitialImport({
+        runId: "run-1",
+        repo: REPO_A,
+        expectedRunVersion: 2,
+      });
       await client.retryInitialImport({
         runId: "run-2",
         repo: REPO_A,
+        expectedRunVersion: 2,
+      });
+      await client.retryInitialImport({
+        runId: "run-2",
+        repo: REPO_A,
+        expectedRunVersion: 2,
         authScope: "scope-3",
       });
       await client.retryInitialImport({
         runId: "run-2",
         repo: REPO_A,
+        expectedRunVersion: 2,
         authScope: "scope-3",
       });
 
@@ -879,6 +924,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const first = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        expectedRunVersion: 2,
       });
       expect(first.ok).toBe(false);
       if (!first.ok) {
@@ -893,12 +939,14 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const second = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        mode: "resend_pending",
       });
       expect(second.ok).toBe(false);
       expect(requests).toHaveLength(2);
       expect(requests[1].headers["Idempotency-Key"]).toBe(
         requests[0].headers["Idempotency-Key"]
       );
+      expect(requests[1].body).toBe(JSON.stringify({ expected_run_version: 2 }));
       expect(client.getStatusUrl(originalRunId)).toBe(
         `/v1/sync-runs/${originalRunId}`
       );
@@ -906,11 +954,13 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const third = await client.retryInitialImport({
         runId: originalRunId,
         repo: REPO_A,
+        mode: "resend_pending",
       });
       expect(third.ok).toBe(true);
       expect(requests[2].headers["Idempotency-Key"]).toBe(
         requests[0].headers["Idempotency-Key"]
       );
+      expect(requests[2].body).toBe(JSON.stringify({ expected_run_version: 2 }));
       if (third.ok) {
         expect(third.data.run.runId).toBe(originalRunId);
       }
@@ -1085,13 +1135,26 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       expect(recordedCreateKeys).toHaveLength(3);
       expect(recordedCreateKeys[2]).toBe(session2PendingKey);
 
-      // Now test late 401 from an old session on retry after logout + re-login
-      const oldRetryPromise = adapter.retryImportRun("synthetic-run-session-2");
+      // Now test late 401 SESSION_TERMINATED from an old session on retry after logout + re-login
+      const oldRetryPromise = adapter.retryImportRun("synthetic-run-session-2", {
+        mode: "new_retry",
+        expectedRunVersion: 2,
+      });
       await Promise.resolve();
       await adapter.signOutService();
       await adapter.signInService();
 
-      resolveSession1Retry401({ status: 401, rawBody: "" });
+      resolveSession1Retry401({
+        status: 401,
+        rawBody: JSON.stringify({
+          error: {
+            code: "SESSION_TERMINATED",
+            message: "Old session terminated.",
+            retryable: false,
+            request_id: "req-old-401",
+          },
+        }),
+      });
       await oldRetryPromise;
 
       // New session MUST still be authenticated (not expired by old session's late 401)!
@@ -1332,10 +1395,11 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       expect(createKeys).toHaveLength(3);
       expect(createKeys[2]).not.toBe(createKeys[0]);
 
-      // 4. Bodyless retry gets 502 then 409 IDEMPOTENCY_KEY_EXPIRED -> clears key, NO auto-POST
+      // 4. Versioned retry gets 502 then 409 IDEMPOTENCY_KEY_EXPIRED -> clears key, NO auto-POST
       const firstRetry = await client.retryInitialImport({
         runId: "run-exp-1",
         repo: REPO_A,
+        expectedRunVersion: 2,
         previousRun: null,
         authScope: "scope-exp",
       });
@@ -1344,6 +1408,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       const expiredRetry = await client.retryInitialImport({
         runId: "run-exp-1",
         repo: REPO_A,
+        mode: "resend_pending",
         previousRun: null,
         authScope: "scope-exp",
       });
@@ -1351,14 +1416,17 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       if (!expiredRetry.ok) {
         expect(expiredRetry.kind).toBe("uncertain_outcome");
         expect(expiredRetry.fault.httpStatus).toBe(409);
+        expect(expiredRetry.fault.errorCode).toBe("IDEMPOTENCY_KEY_EXPIRED");
       }
       expect(retryKeys).toHaveLength(2);
       expect(retryKeys[1]).toBe(retryKeys[0]);
 
-      // Explicit later retry issues fresh key (expired key was cleared)
+      // Explicit later new retry issues fresh key (expired key was cleared)
       const explicitFreshRetry = await client.retryInitialImport({
         runId: "run-exp-1",
         repo: REPO_A,
+        mode: "new_retry",
+        expectedRunVersion: 2,
         previousRun: null,
         authScope: "scope-exp",
       });
@@ -1401,6 +1469,7 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
               status_url: "/v1/sync-runs/synthetic-run-stale-repo-a",
               import_status: {
                 status: "RUNNING",
+                run_version: 2,
                 plan_id: "synthetic-plan-stale",
                 import_ready: false,
                 processing_status: "NOT_STARTED",
@@ -1417,6 +1486,549 @@ describe("ContractSyncRunClient (OpenAPI 0.2.0-draft synthetic HTTP)", () => {
       if (!result.ok) {
         expect(result.kind).toBe("uncertain_outcome");
       }
+    });
+  });
+
+  describe("OpenAPI 0.5.0-draft versioned retry, resend separation, and approved error envelopes", () => {
+    it("reads run_version from detail GET and recovery GET attributed per target_id and forwards expected_run_version JSON", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // 0: detail GET for run-detail-1 -> run_version: 3
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL",
+            run_version: 3,
+            plan_id: "plan-detail-1",
+            failure_reason: "TRANSIENT_PROVIDER_ERROR",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            source_drift: false,
+            retry: { allowed: true, from_safe_checkpoint: true },
+          }),
+        }),
+        // 1: retry POST for run-detail-1 -> expects {"expected_run_version":3}
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_type: "SYNC_RUN",
+            target_id: "run-detail-1",
+            status_url: "/v1/sync-runs/run-detail-1",
+          }),
+        }),
+        // 2: recovery GET for REPO_B -> run-recovered-2 with run_version: 7
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            items: [
+              {
+                target_id: "run-recovered-2",
+                status_url: "/v1/sync-runs/run-recovered-2",
+                import_status: {
+                  status: "PARTIAL",
+                  run_version: 7,
+                  plan_id: "plan-rec-2",
+                  failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  source_drift: false,
+                  retry: { allowed: true, from_safe_checkpoint: true },
+                },
+              },
+            ],
+          }),
+        }),
+        // 3: retry POST for run-recovered-2 -> expects {"expected_run_version":7}
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_type: "SYNC_RUN",
+            target_id: "run-recovered-2",
+            status_url: "/v1/sync-runs/run-recovered-2",
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      const detail = await client.getImportStatus({
+        runId: "run-detail-1",
+        repo: REPO_A,
+      });
+      expect(detail.ok).toBe(true);
+      if (detail.ok) {
+        expect(detail.data.run.runVersion).toBe(3);
+      }
+
+      const detailRetry = await client.retryInitialImport({
+        runId: "run-detail-1",
+        repo: REPO_A,
+      });
+      expect(detailRetry.ok).toBe(true);
+      expect(requests[1].method).toBe("POST");
+      expect(requests[1].headers["Content-Type"]).toBe("application/json");
+      expect(JSON.parse(requests[1].body ?? "{}")).toEqual({
+        expected_run_version: 3,
+      });
+
+      const recovered = await client.recoverLatestRunForRepository({
+        repo: REPO_B,
+      });
+      expect(recovered.ok).toBe(true);
+      if (recovered.ok) {
+        expect(recovered.data.run?.runId).toBe("run-recovered-2");
+        expect(recovered.data.run?.runVersion).toBe(7);
+      }
+
+      const recoveredRetry = await client.retryInitialImport({
+        runId: "run-recovered-2",
+        repo: REPO_B,
+      });
+      expect(recoveredRetry.ok).toBe(true);
+      expect(requests[3].method).toBe("POST");
+      expect(JSON.parse(requests[3].body ?? "{}")).toEqual({
+        expected_run_version: 7,
+      });
+      expect(requests[3].headers["Idempotency-Key"]).not.toBe(
+        requests[1].headers["Idempotency-Key"]
+      );
+    });
+
+    it("sends 0 POST requests when run_version is missing/invalid or belongs to a different run", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // Detail GET returns run_version for run-A ONLY
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL",
+            run_version: 4,
+            plan_id: "plan-a",
+            failure_reason: "TRANSIENT_PROVIDER_ERROR",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            source_drift: false,
+            retry: { allowed: true, from_safe_checkpoint: true },
+          }),
+        }),
+        // Detail GET for run-no-ver omits run_version
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL",
+            plan_id: "plan-no-ver",
+            failure_reason: "TRANSIENT_PROVIDER_ERROR",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            source_drift: false,
+            retry: { allowed: true, from_safe_checkpoint: true },
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+      const runARes = await client.getImportStatus({
+        runId: "run-A",
+        repo: REPO_A,
+      });
+      expect(runARes.ok).toBe(true);
+
+      const noVerRes = await client.getImportStatus({
+        runId: "run-no-ver",
+        repo: REPO_A,
+      });
+      expect(noVerRes.ok).toBe(true);
+      if (noVerRes.ok) {
+        expect(noVerRes.data.run.runVersion).toBeUndefined();
+      }
+
+      // 1. Missing version on run-no-ver -> 0 POST
+      const blockedMissing = await client.retryInitialImport({
+        runId: "run-no-ver",
+        repo: REPO_A,
+      });
+      expect(blockedMissing.ok).toBe(false);
+      if (!blockedMissing.ok) {
+        expect(blockedMissing.fault.title).toContain("run_version");
+      }
+
+      // 2. Invalid version (0 / negative / non-integer) -> 0 POST
+      for (const badVersion of [0, -2, 1.5, Number.NaN]) {
+        const blockedInvalid = await client.retryInitialImport({
+          runId: "run-A",
+          repo: REPO_A,
+          expectedRunVersion: badVersion,
+        });
+        expect(blockedInvalid.ok).toBe(false);
+      }
+
+      // 3. Target mismatch (previousRun is run-A, retrying run-B) -> 0 POST (never borrows run-A's version)
+      const blockedMismatch = await client.retryInitialImport({
+        runId: "run-B",
+        repo: REPO_A,
+        previousRun: runARes.ok ? runARes.data.run : null,
+      });
+      expect(blockedMismatch.ok).toBe(false);
+      if (!blockedMismatch.ok) {
+        expect(blockedMismatch.fault.title).toContain("불일치");
+      }
+
+      expect(requests.filter((r) => r.method === "POST")).toHaveLength(0);
+    });
+
+    it("rejects bodyless or invalid retry requests with 422 in SyntheticOpenApiTransport", async () => {
+      let openApiState: SyntheticOpenApiState = {
+        scenarioId: "partial_retryable",
+        pollStep: 1,
+        runSequence: 1,
+        runVersion: 3,
+        isRetryRecoveryFlow: false,
+        activeRunId: "run_demo_1",
+        activePlanId: "plan-1",
+        failNextPollWithNetworkError: false,
+      };
+      const transport = new SyntheticOpenApiTransport(() => ({
+        isAuthenticated: true,
+        state: openApiState,
+        onStateChange: (next) => {
+          openApiState = next;
+        },
+      }));
+
+      const validKey = "11111111-1111-4111-8111-111111111111";
+
+      // Intentional bodyless retry -> 422
+      const bodyless = await transport.send({
+        method: "POST",
+        path: "/v1/sync-runs/run_demo_1/retry",
+        headers: { "Idempotency-Key": validKey },
+      });
+      expect(bodyless.status).toBe(422);
+
+      // Extra unexpected property -> 422 (additionalProperties: false)
+      const extraField = await transport.send({
+        method: "POST",
+        path: "/v1/sync-runs/run_demo_1/retry",
+        headers: {
+          "Idempotency-Key": validKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ expected_run_version: 3, extra: true }),
+      });
+      expect(extraField.status).toBe(422);
+
+      // Stale version with new key -> 409 RESOURCE_VERSION_CONFLICT
+      const stale = await transport.send({
+        method: "POST",
+        path: "/v1/sync-runs/run_demo_1/retry",
+        headers: {
+          "Idempotency-Key": validKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ expected_run_version: 2 }),
+      });
+      expect(stale.status).toBe(409);
+      expect(JSON.parse(stale.rawBody ?? "{}").error.code).toBe(
+        "RESOURCE_VERSION_CONFLICT"
+      );
+    });
+
+    it("preserves Failure A pending key and original expected_run_version body across intermediate GET for Failure B, while new_retry uses fresh key and Failure B version", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // 0: Failure A retry (v3) -> response lost (network error)
+        () => {
+          throw new Error("LOST_RETRY_A_202");
+        },
+        // 1: Intermediate detail GET observes Failure B (v5)
+        () => ({
+          status: 200,
+          rawBody: JSON.stringify({
+            status: "PARTIAL",
+            run_version: 5,
+            plan_id: "plan-ab",
+            failure_reason: "TRANSIENT_PROVIDER_ERROR",
+            import_ready: false,
+            processing_status: "NOT_STARTED",
+            source_drift: false,
+            retry: { allowed: true, from_safe_checkpoint: true },
+          }),
+        }),
+        // 2: Explicit resend of Failure A -> replays original 202
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "run-ab",
+            status_url: "/v1/sync-runs/run-ab",
+          }),
+        }),
+        // 3: Explicit new_retry for Failure B (v5) -> accepted with new key
+        () => ({
+          status: 202,
+          rawBody: JSON.stringify({
+            status: "PENDING",
+            target_id: "run-ab",
+            status_url: "/v1/sync-runs/run-ab",
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      // 1. Failure A retry loses response -> pendingRetry stores (key A, v3)
+      const lostA = await client.retryInitialImport({
+        runId: "run-ab",
+        repo: REPO_A,
+        expectedRunVersion: 3,
+      });
+      expect(lostA.ok).toBe(false);
+      expect(client.getPendingRetrySummary()).toEqual({
+        runId: "run-ab",
+        expectedRunVersion: 3,
+      });
+
+      // 2. Intermediate GET updates known run_version to 5, MUST NOT overwrite pendingRetry (v3)
+      const getB = await client.getImportStatus({
+        runId: "run-ab",
+        repo: REPO_A,
+      });
+      expect(getB.ok).toBe(true);
+      if (getB.ok) {
+        expect(getB.data.run.runVersion).toBe(5);
+        expect(getB.data.pendingRetry).toEqual({
+          runId: "run-ab",
+          expectedRunVersion: 3,
+        });
+      }
+      // 0 auto-POST during GET
+      expect(requests.filter((r) => r.method === "POST")).toHaveLength(1);
+
+      // 3. Explicit resend sends EXACT original key A + {"expected_run_version":3}
+      const resendA = await client.retryInitialImport({
+        runId: "run-ab",
+        repo: REPO_A,
+        mode: "resend_pending",
+      });
+      expect(resendA.ok).toBe(true);
+      expect(requests[2].headers["Idempotency-Key"]).toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(requests[2].body).toBe(JSON.stringify({ expected_run_version: 3 }));
+      expect(client.getPendingRetrySummary()).toBeNull();
+
+      // 4. Explicit new_retry on Failure B sends FRESH key B + {"expected_run_version":5}
+      const newRetryB = await client.retryInitialImport({
+        runId: "run-ab",
+        repo: REPO_A,
+        mode: "new_retry",
+        expectedRunVersion: 5,
+      });
+      expect(newRetryB.ok).toBe(true);
+      expect(requests[3].headers["Idempotency-Key"]).not.toBe(
+        requests[0].headers["Idempotency-Key"]
+      );
+      expect(requests[3].body).toBe(JSON.stringify({ expected_run_version: 5 }));
+    });
+
+    it("handles approved 0.5.0-draft error envelopes (409 RESOURCE_VERSION_CONFLICT, 401 SESSION_TERMINATED vs empty 401, 403 WORKSPACE_SCOPE_VIOLATION, 404 RESOURCE_NOT_FOUND, 503 AUTH_VERIFICATION_UNAVAILABLE) with 0 auto-POST", async () => {
+      const { transport, requests } = createScriptedTransport([
+        // 0: 409 RESOURCE_VERSION_CONFLICT on retry
+        () => ({
+          status: 409,
+          rawBody: JSON.stringify({
+            error: {
+              code: "RESOURCE_VERSION_CONFLICT",
+              message: "Run version changed.",
+              retryable: false,
+              request_id: "req-ver-conflict",
+            },
+          }),
+        }),
+        // 1: generic bodyless 401 on GET -> NOT confirmed SESSION_TERMINATED!
+        () => ({ status: 401, rawBody: "" }),
+        // 2: 503 AUTH_VERIFICATION_UNAVAILABLE (retryable: true) on retry -> 0 auto-POST, keeps pendingRetry
+        () => ({
+          status: 503,
+          rawBody: JSON.stringify({
+            error: {
+              code: "AUTH_VERIFICATION_UNAVAILABLE",
+              message: "Auth verifier unavailable.",
+              retryable: true,
+              request_id: "req-503-auth",
+            },
+          }),
+        }),
+        // 3: 404 RESOURCE_NOT_FOUND on GET -> neutral, clearActiveRun: true
+        () => ({
+          status: 404,
+          rawBody: JSON.stringify({
+            error: {
+              code: "RESOURCE_NOT_FOUND",
+              message: "Not found.",
+              retryable: false,
+              request_id: "req-404",
+            },
+          }),
+        }),
+        // 4: 403 WORKSPACE_SCOPE_VIOLATION on GET -> workspaceAccessRevoked: true, clears pending keys
+        () => ({
+          status: 403,
+          rawBody: JSON.stringify({
+            error: {
+              code: "WORKSPACE_SCOPE_VIOLATION",
+              message: "Workspace access revoked.",
+              retryable: false,
+              request_id: "req-403-ws",
+            },
+          }),
+        }),
+        // 5: 401 SESSION_TERMINATED on GET -> confirmed session_expired
+        () => ({
+          status: 401,
+          rawBody: JSON.stringify({
+            error: {
+              code: "SESSION_TERMINATED",
+              message: "Session terminated.",
+              retryable: false,
+              request_id: "req-401-term",
+            },
+          }),
+        }),
+      ]);
+
+      const client = new ContractSyncRunClient({ transport });
+
+      // 409 RESOURCE_VERSION_CONFLICT
+      const verConflict = await client.retryInitialImport({
+        runId: "run-err-1",
+        repo: REPO_A,
+        expectedRunVersion: 2,
+      });
+      expect(verConflict.ok).toBe(false);
+      if (!verConflict.ok) {
+        expect(verConflict.kind).toBe("version_conflict");
+        expect(verConflict.fault.httpStatus).toBe(409);
+        expect(verConflict.fault.errorCode).toBe("RESOURCE_VERSION_CONFLICT");
+      }
+
+      // Generic bodyless 401 -> request_rejected (NOT session_expired!)
+      const empty401 = await client.getImportStatus({
+        runId: "run-err-1",
+        repo: REPO_A,
+      });
+      expect(empty401.ok).toBe(false);
+      if (!empty401.ok) {
+        expect(empty401.kind).toBe("request_rejected");
+        expect(empty401.fault.httpStatus).toBe(401);
+        expect(empty401.fault.message).not.toContain("세션이 종료되었습니다");
+      }
+
+      // 503 AUTH_VERIFICATION_UNAVAILABLE -> 0 auto-POST despite retryable: true
+      const auth503 = await client.retryInitialImport({
+        runId: "run-err-1",
+        repo: REPO_A,
+        expectedRunVersion: 3,
+      });
+      expect(auth503.ok).toBe(false);
+      if (!auth503.ok) {
+        expect(auth503.kind).toBe("auth_verification_unavailable");
+        expect(auth503.fault.httpStatus).toBe(503);
+        expect(auth503.fault.errorCode).toBe("AUTH_VERIFICATION_UNAVAILABLE");
+        expect(auth503.pendingRetry).toEqual({
+          runId: "run-err-1",
+          expectedRunVersion: 3,
+        });
+      }
+
+      // 404 RESOURCE_NOT_FOUND -> clearActiveRun, neutral message
+      const notFound = await client.getImportStatus({
+        runId: "run-err-1",
+        repo: REPO_A,
+      });
+      expect(notFound.ok).toBe(false);
+      if (!notFound.ok) {
+        expect(notFound.kind).toBe("resource_not_found");
+        expect(notFound.clearActiveRun).toBe(true);
+        expect(notFound.fault.httpStatus).toBe(404);
+        expect(notFound.fault.errorCode).toBe("RESOURCE_NOT_FOUND");
+        expect(notFound.fault.message).toContain("구별하지 않으며");
+      }
+
+      // 403 WORKSPACE_SCOPE_VIOLATION -> workspaceAccessRevoked, clears pending keys
+      const ws403 = await client.getImportStatus({
+        runId: "run-err-2",
+        repo: REPO_A,
+      });
+      expect(ws403.ok).toBe(false);
+      if (!ws403.ok) {
+        expect(ws403.kind).toBe("workspace_scope_violation");
+        expect(ws403.workspaceAccessRevoked).toBe(true);
+        expect(ws403.pendingRetry).toBeNull();
+      }
+
+      // 401 SESSION_TERMINATED -> confirmed session_expired
+      const term401 = await client.getImportStatus({
+        runId: "run-err-2",
+        repo: REPO_A,
+      });
+      expect(term401.ok).toBe(false);
+      if (!term401.ok) {
+        expect(term401.kind).toBe("session_expired");
+        expect(term401.fault.errorCode).toBe("SESSION_TERMINATED");
+        expect(term401.pendingRetry).toBeNull();
+      }
+
+      // Exactly 6 explicit calls (2 explicit POSTs + 4 explicit GETs), 0 auto-POSTs
+      expect(requests).toHaveLength(6);
+      expect(requests.filter((r) => r.method === "POST")).toHaveLength(2);
+    });
+
+    it("clears pending retry key/body on target switch and never persists it across reload", async () => {
+      window.sessionStorage.clear();
+      const transport: SyntheticHttpTransport = {
+        async send(req) {
+          if (req.method === "POST" && req.path.endsWith("/retry")) {
+            return { status: 502, rawBody: "" };
+          }
+          return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+        },
+      };
+
+      const adapter = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: false,
+        syncRunTransport: transport,
+      });
+
+      const failedRetry = await adapter.retryImportRun("run-persist-check", {
+        mode: "new_retry",
+        expectedRunVersion: 3,
+      });
+      expect(failedRetry.ok).toBe(false);
+      expect(adapter.syncRunClient.getPendingRetrySummary()).toEqual({
+        runId: "run-persist-check",
+        expectedRunVersion: 3,
+      });
+
+      // Browser storage MUST NOT contain pending retry key or expected_run_version
+      const storedRaw =
+        window.sessionStorage.getItem("career_memory_spike_web_import_v1") ?? "";
+      expect(storedRaw).not.toContain("expected_run_version");
+      expect(storedRaw).not.toContain("pendingRetry");
+
+      // Reloaded adapter starts with null pendingRetry
+      const reloaded = new MockFixtureImportAdapter({
+        latencyMs: 0,
+        disableBrowserStorage: false,
+        syncRunTransport: transport,
+      });
+      expect(reloaded.syncRunClient.getPendingRetrySummary()).toBeNull();
+
+      // Switching target repository clears pendingRetry in memory
+      adapter.selectRepository(REPO_B.repoId);
+      expect(adapter.syncRunClient.getPendingRetrySummary()).toBeNull();
+
+      window.sessionStorage.clear();
     });
   });
 });

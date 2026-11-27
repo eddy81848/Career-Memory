@@ -1,14 +1,15 @@
 """Test-only local HTTP runner for CONTRACT's FastAPI stub on 127.0.0.1.
 
-Strictly read-only against CONTRACT commit 1d754a5bc33cf166d92b1c1ce8568031859ff0a4
-(OpenAPI 0.3.0-draft):
-- Imports `FixtureActor`, `FixtureStore`, and `create_app` directly from CONTRACT's
-  `spikes/import-contract/stub.py`.
+Strictly read-only against pinned CONTRACT archive (OpenAPI 0.5.0-draft,
+commit 87f1515cbe74bf02b0aece68904bf9a641c74c60 via CONTRACT_IMPORT_DIR):
+- Imports `FixtureActor`, `FixtureAuthFailure`, `FixtureStore`, and `create_app`
+  directly from CONTRACT's `spikes/import-contract/stub.py`.
 - Binds ONLY to 127.0.0.1 on OS-assigned ephemeral ports.
-- NEVER reads synthetic user or workspace identity from HTTP request headers;
-  `FixtureActor` is injected strictly in Python via `create_app(store, actor)`.
+- NEVER reads synthetic user, workspace, or auth outcomes from HTTP request
+  headers or bodies; identity/failure is injected strictly in Python via
+  `create_app(store, actor)`.
 - Exposes a separate loopback control server ONLY for test setup/observations
-  (never connected to WEB).
+  (never connected to WEB). Never logs full request bodies, tokens, or secrets.
 """
 
 from __future__ import annotations
@@ -41,28 +42,60 @@ if not (CONTRACT_IMPORT_DIR / "stub.py").is_file():
 sys.path.insert(0, str(CONTRACT_IMPORT_DIR))
 
 from contract import CONTRACT  # noqa: E402
-from stub import FixtureActor, FixtureStore, create_app  # noqa: E402
+from stub import (  # noqa: E402
+    FixtureActor,
+    FixtureAuthFailure,
+    FixtureStore,
+    create_app,
+)
 
 STATUS_EXAMPLES = CONTRACT["paths"]["/v1/sync-runs/{id}"]["get"]["responses"]["200"][
     "content"
 ]["application/json"]["examples"]
 
 
-def build_actor(actor_spec: dict[str, Any] | None) -> FixtureActor | None:
+def build_actor(
+    actor_spec: dict[str, Any] | None,
+) -> FixtureActor | FixtureAuthFailure | None:
     if actor_spec is None:
         return None
+    auth_failure = actor_spec.get("auth_failure")
+    if auth_failure == "SESSION_TERMINATED":
+        return FixtureAuthFailure.SESSION_TERMINATED
+    if auth_failure == "VERIFICATION_UNAVAILABLE":
+        return FixtureAuthFailure.VERIFICATION_UNAVAILABLE
     return FixtureActor(
         workspace_id=str(actor_spec["workspace_id"]),
         allowed_resources=frozenset(actor_spec.get("allowed_resources", [])),
         unreadable_runs=frozenset(actor_spec.get("unreadable_runs", [])),
+        workspace_access_revoked=bool(
+            actor_spec.get("workspace_access_revoked", False)
+        ),
     )
+
+
+def extract_retry_expected_run_version(
+    method: str, path: str, body_bytes: bytes
+) -> int | None:
+    """Safely extracts ONLY `expected_run_version` from retry requests without logging full bodies."""
+    if method != "POST" or not path.endswith("/retry") or not body_bytes:
+        return None
+    try:
+        parsed = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        return None
+    if isinstance(parsed, dict):
+        val = parsed.get("expected_run_version")
+        if isinstance(val, int) and not isinstance(val, bool):
+            return val
+    return None
 
 
 class HarnessState:
     def __init__(self) -> None:
         self.clock_offset = timedelta(0)
         self.store = FixtureStore(set(), clock=self.now)
-        self.actor: FixtureActor | None = None
+        self.actor: FixtureActor | FixtureAuthFailure | None = None
         self.app = create_app(self.store, self.actor)
         self.request_log: list[dict[str, Any]] = []
         self.queued_http_responses: list[dict[str, Any]] = []
@@ -112,8 +145,10 @@ state = HarnessState()
 async def contract_asgi_proxy(scope, receive, send):
     """Forwards HTTP traffic directly to CONTRACT's untouched `create_app` instance.
 
-    Records method/path/query_string/Idempotency-Key/body_length/status in memory
-    for test assertions. Does NOT inspect or forward any synthetic identity headers.
+    Records only non-sensitive metadata (method, path, query_string,
+    Idempotency-Key, X-Request-ID, body_length, retry expected_run_version,
+    status). Never logs full request bodies, tokens, cookies, or credentials,
+    and never derives identity from HTTP headers.
     """
     if scope["type"] != "http":
         await state.app(scope, receive, send)
@@ -129,16 +164,19 @@ async def contract_asgi_proxy(scope, receive, send):
     queued = state.pop_matching_queued_response(scope["method"], full_path)
     if queued is not None:
         # Drain request body cleanly before replying with injected HTTP error
-        body_len = 0
+        queued_chunks: list[bytes] = []
         while True:
             message = await receive()
             if message["type"] == "http.request":
-                body_len += len(message.get("body", b""))
+                chunk = message.get("body", b"")
+                if chunk:
+                    queued_chunks.append(chunk)
                 if not message.get("more_body", False):
                     break
             else:
                 break
 
+        queued_body_bytes = b"".join(queued_chunks)
         raw_body = str(queued.get("body", "")).encode("utf-8")
         response_headers: list[tuple[bytes, bytes]] = []
         if queued.get("content_type"):
@@ -170,7 +208,10 @@ async def contract_asgi_proxy(scope, receive, send):
                 "full_path": full_path,
                 "idempotency_key": headers_map.get("idempotency-key"),
                 "request_id": headers_map.get("x-request-id"),
-                "body_length": body_len,
+                "body_length": len(queued_body_bytes),
+                "expected_run_version": extract_retry_expected_run_version(
+                    scope["method"], scope["path"], queued_body_bytes
+                ),
                 "status": status_code,
                 "injected": True,
             }
@@ -196,6 +237,7 @@ async def contract_asgi_proxy(scope, receive, send):
 
     await state.app(scope, recording_receive, recording_send)
 
+    full_body_bytes = b"".join(body_chunks)
     state.request_log.append(
         {
             "method": scope["method"],
@@ -204,7 +246,10 @@ async def contract_asgi_proxy(scope, receive, send):
             "full_path": full_path,
             "idempotency_key": headers_map.get("idempotency-key"),
             "request_id": headers_map.get("x-request-id"),
-            "body_length": sum(len(chunk) for chunk in body_chunks),
+            "body_length": len(full_body_bytes),
+            "expected_run_version": extract_retry_expected_run_version(
+                scope["method"], scope["path"], full_body_bytes
+            ),
             "status": status_code_holder["status"],
             "injected": False,
         }
@@ -274,7 +319,7 @@ async def control_seed_create(request: Request):
     """Seeds an existing run directly in FixtureStore using a Python FixtureActor."""
     body = await request.json()
     actor = build_actor(body["actor"])
-    assert actor is not None
+    assert isinstance(actor, FixtureActor)
     with state.store.lock:
         receipt = state.store.create(actor, body["key"], body["payload"])
     return {"ok": True, "receipt": receipt}
@@ -284,7 +329,11 @@ async def control_seed_create(request: Request):
 def control_state():
     with state.store.lock:
         runs_snapshot = {
-            f"{ws}:{run_id}": dict(run.status)
+            f"{ws}:{run_id}": run.status_snapshot()
+            for (ws, run_id), run in state.store.runs.items()
+        }
+        run_versions = {
+            f"{ws}:{run_id}": run.version
             for (ws, run_id), run in state.store.runs.items()
         }
         create_replays = [
@@ -297,11 +346,18 @@ def control_state():
             for (_ws, op, key) in state.store.replays.keys()
             if op == "retry"
         ]
+        submitted_work = [
+            {"operation": op, "run_id": run_id, "run_version": version}
+            for (op, run_id, version) in state.store.submitted_work
+        ]
         return {
             "run_count": len(state.store.runs),
             "run_ids": [run_id for (_ws, run_id) in state.store.runs.keys()],
+            "run_versions": run_versions,
             "create_replay_count": len(create_replays),
             "retry_replay_count": len(retry_replays),
+            "submitted_work_count": len(submitted_work),
+            "submitted_work": submitted_work,
             "runs": runs_snapshot,
             "request_log": list(state.request_log),
             "clock_offset_seconds": state.clock_offset.total_seconds(),

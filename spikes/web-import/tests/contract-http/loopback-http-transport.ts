@@ -5,14 +5,15 @@ import type {
 } from "@/adapters/synthetic-http-transport";
 
 /**
- * Test-only real loopback HTTP transport for WEB-05 / WEB-06.
+ * Test-only real loopback HTTP transport for WEB-05 / WEB-06 / 0.5.0-draft
+ * contract cross-verification.
  *
- * Connects ONLY the 4 OpenAPI 0.3.0-draft sync-run paths to a local 127.0.0.1
+ * Connects ONLY the 4 OpenAPI 0.5.0-draft sync-run paths to a local 127.0.0.1
  * FastAPI stub launched from CONTRACT's `create_app` + `FixtureActor`:
  *   - POST /v1/sync-runs
  *   - GET  /v1/sync-runs?source_resource_id=...&limit=1
  *   - GET  /v1/sync-runs/{id}
- *   - POST /v1/sync-runs/{id}/retry
+ *   - POST /v1/sync-runs/{id}/retry (JSON {"expected_run_version": <int >= 1>})
  *
  * Strictly test-only: NEVER used by production UI code and NEVER injects
  * synthetic user or workspace identity headers.

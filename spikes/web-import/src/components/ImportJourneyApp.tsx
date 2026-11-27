@@ -11,7 +11,9 @@ import {
   canSubmitInitialImport,
   createInitialImportJourneyState,
   importJourneyReducer,
+  isFullSuccessRun,
   isImportRequestLocked,
+  isSelectedRepositoryImportSucceeded,
 } from "@/domain/state-machine";
 import type { PrototypeScenarioId } from "@/domain/view-models";
 import { ConnectionStatusPanel } from "./ConnectionStatusPanel";
@@ -64,6 +66,7 @@ export function ImportJourneyApp({
   const operationTokenRef = useRef(0);
   const activeRunIdRef = useRef<string | null>(null);
   const selectedRepoIdRef = useRef<string | null>(null);
+  const isAuthScopeReadyRef = useRef(false);
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -101,6 +104,11 @@ export function ImportJourneyApp({
         return;
       }
       if (result.ok) {
+        const isScopeReady =
+          !result.data.workspaceAccessRevoked &&
+          result.data.serviceAuth.status === "authenticated" &&
+          result.data.githubConnection.status === "connected";
+        isAuthScopeReadyRef.current = isScopeReady;
         const resolvedRepoId =
           result.data.latestRun?.repositoryId ??
           (result.data.selectedRepoId &&
@@ -109,8 +117,10 @@ export function ImportJourneyApp({
           )
             ? result.data.selectedRepoId
             : result.data.repositories[0]?.repoId ?? null);
-        selectedRepoIdRef.current = resolvedRepoId;
-        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
+        selectedRepoIdRef.current = isScopeReady ? resolvedRepoId : null;
+        activeRunIdRef.current = isScopeReady
+          ? result.data.latestRun?.runId ?? null
+          : null;
         dispatch({ type: "BOOTSTRAP_SUCCESS", payload: result.data });
       } else {
         dispatch({ type: "BOOTSTRAP_NETWORK_ERROR", fault: result.fault });
@@ -125,8 +135,13 @@ export function ImportJourneyApp({
 
   const pollOnce = useCallback(
     async (runId: string, showRefreshingBanner: boolean) => {
-      // Strictly allow only one status poll in flight at a time.
-      if (inFlightPollRef.current) {
+      // Strictly allow only one status poll in flight at a time, and never poll
+      // outside an authenticated/connected scope or with a stale runId ref.
+      if (
+        inFlightPollRef.current ||
+        !isAuthScopeReadyRef.current ||
+        activeRunIdRef.current !== runId
+      ) {
         return;
       }
       // Cancel any pending scheduled timer before starting (e.g. manual refresh).
@@ -169,11 +184,19 @@ export function ImportJourneyApp({
             return;
           }
 
+          if (
+            updatedGitHubStatus === "permission_revoked" ||
+            updatedGitHubStatus === "disconnected"
+          ) {
+            isAuthScopeReadyRef.current = false;
+          }
+
           selectedRepoIdRef.current = updatedRun.repositoryId;
           dispatch({
             type: "RUN_UPDATED_FROM_SERVER",
             run: updatedRun,
             githubConnection: result.data.githubConnection,
+            pendingRetry: result.data.pendingRetry,
           });
 
           // Schedule next poll even if runId/status/updatedAt did not change,
@@ -186,12 +209,26 @@ export function ImportJourneyApp({
             setPollCycle((cycle) => cycle + 1);
           }
         } else {
+          if (
+            (result.serviceAuth &&
+              result.serviceAuth.status !== "authenticated") ||
+            result.workspaceAccessRevoked
+          ) {
+            isAuthScopeReadyRef.current = false;
+            activeRunIdRef.current = null;
+            selectedRepoIdRef.current = null;
+          } else if (result.clearActiveRun) {
+            activeRunIdRef.current = null;
+          }
           // Never auto-convert a poll error into a new import request; stop polling
           // and surface the unconfirmed fault for explicit user recovery.
           dispatch({
             type: "UNCONFIRMED_FAULT",
             fault: result.fault,
             serviceAuth: result.serviceAuth,
+            workspaceAccessRevoked: result.workspaceAccessRevoked,
+            clearActiveRun: result.clearActiveRun,
+            pendingRetry: result.pendingRetry,
           });
         }
       } finally {
@@ -202,13 +239,14 @@ export function ImportJourneyApp({
   );
 
   // Schedule the next single-flight status poll while actively running.
-  // Stops immediately on terminal state, session expiration, permission revocation,
-  // unconfirmed fault, or screen unmount.
+  // Stops immediately on terminal state, session expiration, Workspace revocation,
+  // permission revocation, unconfirmed fault, or screen unmount.
   useEffect(() => {
     clearPollTimer();
 
     if (
       state.phase !== "ready" ||
+      state.workspaceAccessRevoked ||
       state.serviceAuth.status !== "authenticated" ||
       state.githubConnection.status !== "connected" ||
       state.activeRun?.status !== "running" ||
@@ -228,6 +266,7 @@ export function ImportJourneyApp({
     };
   }, [
     state.phase,
+    state.workspaceAccessRevoked,
     state.serviceAuth.status,
     state.githubConnection.status,
     state.activeRun?.runId,
@@ -261,6 +300,15 @@ export function ImportJourneyApp({
   };
 
   const handleRecoverStatus = useCallback(async () => {
+    if (
+      !isAuthScopeReadyRef.current ||
+      state.workspaceAccessRevoked ||
+      state.serviceAuth.status !== "authenticated" ||
+      state.githubConnection.status !== "connected"
+    ) {
+      return;
+    }
+
     const targetRepoId = selectedRepoIdRef.current ?? state.selectedRepoId;
     if (!targetRepoId || !adapter.recoverRepositoryRun) {
       await runBootstrap(true);
@@ -268,7 +316,10 @@ export function ImportJourneyApp({
     }
 
     const knownRunId =
-      state.activeRun && state.activeRun.repositoryId === targetRepoId
+      activeRunIdRef.current &&
+      state.activeRun &&
+      state.activeRun.runId === activeRunIdRef.current &&
+      state.activeRun.repositoryId === targetRepoId
         ? state.activeRun.runId
         : null;
 
@@ -289,6 +340,7 @@ export function ImportJourneyApp({
     if (
       !isMountedRef.current ||
       token !== operationTokenRef.current ||
+      !isAuthScopeReadyRef.current ||
       selectedRepoIdRef.current !== targetRepoId
     ) {
       return;
@@ -304,18 +356,44 @@ export function ImportJourneyApp({
         run: result.data.run,
         githubConnection: result.data.githubConnection,
         recoveryNotice: result.data.recoveryNotice,
+        pendingRetry: result.data.pendingRetry,
       });
     } else {
+      if (
+        (result.serviceAuth &&
+          result.serviceAuth.status !== "authenticated") ||
+        result.workspaceAccessRevoked
+      ) {
+        isAuthScopeReadyRef.current = false;
+        activeRunIdRef.current = null;
+        selectedRepoIdRef.current = null;
+      } else if (result.clearActiveRun) {
+        activeRunIdRef.current = null;
+      }
       dispatch({
         type: "UNCONFIRMED_FAULT",
         fault: result.fault,
         serviceAuth: result.serviceAuth,
+        workspaceAccessRevoked: result.workspaceAccessRevoked,
+        clearActiveRun: result.clearActiveRun,
+        pendingRetry: result.pendingRetry,
       });
     }
-  }, [adapter, invalidateInFlightOperations, runBootstrap, state.activeRun, state.selectedRepoId]);
+  }, [
+    adapter,
+    invalidateInFlightOperations,
+    runBootstrap,
+    state.activeRun,
+    state.githubConnection.status,
+    state.selectedRepoId,
+    state.serviceAuth.status,
+    state.workspaceAccessRevoked,
+  ]);
 
   const handleSignInService = async () => {
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 로그인 응답을 기다리고 있습니다...",
@@ -325,25 +403,37 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      if (result.data.latestRun !== undefined) {
-        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
-      }
+      const isScopeReady =
+        result.data.serviceAuth.status === "authenticated" &&
+        result.data.githubConnection.status === "connected";
+      isAuthScopeReadyRef.current = isScopeReady;
+      const confirmedRun = isScopeReady ? result.data.latestRun ?? null : null;
+      activeRunIdRef.current = confirmedRun?.runId ?? null;
       selectedRepoIdRef.current =
-        selectedRepoIdRef.current &&
+        confirmedRun?.repositoryId ??
+        (selectedRepoIdRef.current &&
         result.data.repositories.some(
           (repo) => repo.repoId === selectedRepoIdRef.current
         )
           ? selectedRepoIdRef.current
-          : result.data.repositories[0]?.repoId ?? null;
+          : result.data.repositories[0]?.repoId ?? null);
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
-        latestRun: result.data.latestRun,
+        latestRun: confirmedRun,
         clearFault: true,
       });
     } else {
+      if (
+        result.serviceAuth &&
+        result.serviceAuth.status !== "authenticated"
+      ) {
+        isAuthScopeReadyRef.current = false;
+        activeRunIdRef.current = null;
+        selectedRepoIdRef.current = null;
+      }
       dispatch({
         type: "UNCONFIRMED_FAULT",
         fault: result.fault,
@@ -354,6 +444,9 @@ export function ImportJourneyApp({
 
   const handleSignOutService = async () => {
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
+    selectedRepoIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 로그아웃 상태를 반영하는 중입니다...",
@@ -363,16 +456,15 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      if (result.data.latestRun !== undefined) {
-        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
-      }
-      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
+      isAuthScopeReadyRef.current = false;
+      activeRunIdRef.current = null;
+      selectedRepoIdRef.current = null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
-        latestRun: result.data.latestRun,
+        latestRun: null,
         clearFault: true,
       });
     } else {
@@ -383,6 +475,9 @@ export function ImportJourneyApp({
   const handleSimulateSessionExpired = async () => {
     if (!harness) return;
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
+    selectedRepoIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "모의 서비스 세션 만료 상태를 반영하는 중입니다...",
@@ -392,18 +487,23 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
+      isAuthScopeReadyRef.current = false;
+      activeRunIdRef.current = null;
+      selectedRepoIdRef.current = null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
+        latestRun: result.data.latestRun,
       });
     }
   };
 
   const handleConnectGitHub = async () => {
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 연결 응답을 기다리고 있습니다...",
@@ -413,25 +513,37 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      if (result.data.latestRun !== undefined) {
-        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
-      }
+      const isScopeReady =
+        result.data.serviceAuth.status === "authenticated" &&
+        result.data.githubConnection.status === "connected";
+      isAuthScopeReadyRef.current = isScopeReady;
+      const confirmedRun = isScopeReady ? result.data.latestRun ?? null : null;
+      activeRunIdRef.current = confirmedRun?.runId ?? null;
       selectedRepoIdRef.current =
-        selectedRepoIdRef.current &&
+        confirmedRun?.repositoryId ??
+        (selectedRepoIdRef.current &&
         result.data.repositories.some(
           (repo) => repo.repoId === selectedRepoIdRef.current
         )
           ? selectedRepoIdRef.current
-          : result.data.repositories[0]?.repoId ?? null;
+          : result.data.repositories[0]?.repoId ?? null);
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
-        latestRun: result.data.latestRun,
+        latestRun: confirmedRun,
         clearFault: true,
       });
     } else {
+      if (
+        result.serviceAuth &&
+        result.serviceAuth.status !== "authenticated"
+      ) {
+        isAuthScopeReadyRef.current = false;
+        activeRunIdRef.current = null;
+        selectedRepoIdRef.current = null;
+      }
       dispatch({
         type: "UNCONFIRMED_FAULT",
         fault: result.fault,
@@ -442,6 +554,9 @@ export function ImportJourneyApp({
 
   const handleDisconnectGitHub = async () => {
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
+    selectedRepoIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 연결 해제 상태를 반영하는 중입니다...",
@@ -451,12 +566,15 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
+      isAuthScopeReadyRef.current = false;
+      activeRunIdRef.current = null;
+      selectedRepoIdRef.current = null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
+        latestRun: result.data.latestRun,
       });
     }
   };
@@ -464,6 +582,9 @@ export function ImportJourneyApp({
   const handleSimulateGitHubRevoked = async () => {
     if (!harness) return;
     const token = invalidateInFlightOperations();
+    isAuthScopeReadyRef.current = false;
+    activeRunIdRef.current = null;
+    selectedRepoIdRef.current = null;
     dispatch({
       type: "MUTATION_START",
       label: "GitHub 수집 권한 상실 상태를 반영하는 중입니다...",
@@ -473,16 +594,19 @@ export function ImportJourneyApp({
       return;
     }
     if (result.ok) {
-      if (result.data.latestRun !== undefined) {
-        activeRunIdRef.current = result.data.latestRun?.runId ?? null;
-      }
-      selectedRepoIdRef.current = result.data.repositories[0]?.repoId ?? null;
+      isAuthScopeReadyRef.current = false;
+      const revokedRun =
+        result.data.latestRun?.status === "permission_revoked"
+          ? result.data.latestRun
+          : null;
+      activeRunIdRef.current = revokedRun?.runId ?? null;
+      selectedRepoIdRef.current = null;
       dispatch({
         type: "AUTH_AND_CONNECTION_SYNCED",
         serviceAuth: result.data.serviceAuth,
         githubConnection: result.data.githubConnection,
         repositories: result.data.repositories,
-        latestRun: result.data.latestRun,
+        latestRun: revokedRun,
       });
     }
   };
@@ -500,7 +624,40 @@ export function ImportJourneyApp({
       return;
     }
 
-    if (!canSubmitInitialImport(state) || !state.selectedRepoId) {
+    // Guard 2: Block a new initial import request for the same repository
+    // when a succeeded run is already confirmed for the currently selected repo
+    // (including when `activeRun` is null after switching A -> B -> A).
+    // UI-level UX guard only; backend remains authoritative for duplicate/auth checks.
+    if (isSelectedRepositoryImportSucceeded(state)) {
+      const matchingSucceededRun =
+        state.activeRun &&
+        state.activeRun.repositoryId === state.selectedRepoId &&
+        isFullSuccessRun(state.activeRun)
+          ? state.activeRun
+          : null;
+      const selectedRepo = state.repositories.find(
+        (repo) => repo.repoId === state.selectedRepoId
+      );
+      const repoLabel =
+        matchingSucceededRun?.repositoryFullName ??
+        selectedRepo?.fullName ??
+        state.selectedRepoId ??
+        "선택한 저장소";
+      const runSuffix = matchingSucceededRun
+        ? `(${matchingSucceededRun.runId})`
+        : "";
+      dispatch({
+        type: "DUPLICATE_ATTEMPT_BLOCKED",
+        message: `선택한 저장소(${repoLabel})의 최초 가져오기가 이미 성공${runSuffix}으로 확인되었습니다. 같은 저장소에 새 최초 가져오기를 다시 요청하지 않았습니다.`,
+      });
+      return;
+    }
+
+    if (
+      !isAuthScopeReadyRef.current ||
+      !canSubmitInitialImport(state) ||
+      !state.selectedRepoId
+    ) {
       return;
     }
 
@@ -530,12 +687,27 @@ export function ImportJourneyApp({
           run: result.data.run,
           githubConnection: result.data.githubConnection,
           recoveryNotice: result.data.recoveryNotice ?? null,
+          pendingRetry: result.data.pendingRetry,
         });
       } else {
+        if (
+          (result.serviceAuth &&
+            result.serviceAuth.status !== "authenticated") ||
+          result.workspaceAccessRevoked
+        ) {
+          isAuthScopeReadyRef.current = false;
+          activeRunIdRef.current = null;
+          selectedRepoIdRef.current = null;
+        } else if (result.clearActiveRun) {
+          activeRunIdRef.current = null;
+        }
         dispatch({
           type: "UNCONFIRMED_FAULT",
           fault: result.fault,
           serviceAuth: result.serviceAuth,
+          workspaceAccessRevoked: result.workspaceAccessRevoked,
+          clearActiveRun: result.clearActiveRun,
+          pendingRetry: result.pendingRetry,
         });
       }
     } finally {
@@ -545,8 +717,19 @@ export function ImportJourneyApp({
     }
   };
 
+  /**
+   * Starts a brand-new retry against the latest observed retryable run state
+   * (fresh UUID Idempotency-Key + JSON {"expected_run_version": activeRun.runVersion}).
+   * Distinct from `handleResendPendingRetry`.
+   */
   const handleRetryImport = async () => {
-    if (inFlightSubmitTokenRef.current !== null || !state.activeRun) {
+    if (
+      inFlightSubmitTokenRef.current !== null ||
+      !isAuthScopeReadyRef.current ||
+      state.workspaceAccessRevoked ||
+      !state.activeRun ||
+      activeRunIdRef.current !== state.activeRun.runId
+    ) {
       return;
     }
     if (!canExposeRetryAction(state)) {
@@ -556,13 +739,17 @@ export function ImportJourneyApp({
     const token = invalidateInFlightOperations();
     inFlightSubmitTokenRef.current = token;
     const targetRunId = state.activeRun.runId;
+    const expectedRunVersion = state.activeRun.runVersion;
     dispatch({
       type: "RETRY_IMPORT_START",
-      label: `작업(${targetRunId}) 재시도 요청을 서버로 전송 중입니다. 서버 수락 응답 전에는 확정되지 않습니다.`,
+      label: `작업(${targetRunId})의 최신 상태(v${expectedRunVersion ?? "?"})로 새 재시도 요청을 전송 중입니다. 서버 수락 응답 전에는 확정되지 않습니다.`,
     });
 
     try {
-      const result = await adapter.retryImportRun(targetRunId);
+      const result = await adapter.retryImportRun(targetRunId, {
+        mode: "new_retry",
+        expectedRunVersion,
+      });
       if (!isMountedRef.current || token !== operationTokenRef.current) {
         return;
       }
@@ -574,12 +761,95 @@ export function ImportJourneyApp({
           run: result.data.run,
           githubConnection: result.data.githubConnection,
           recoveryNotice: result.data.recoveryNotice ?? null,
+          pendingRetry: result.data.pendingRetry,
         });
       } else {
+        if (
+          (result.serviceAuth &&
+            result.serviceAuth.status !== "authenticated") ||
+          result.workspaceAccessRevoked
+        ) {
+          isAuthScopeReadyRef.current = false;
+          activeRunIdRef.current = null;
+          selectedRepoIdRef.current = null;
+        } else if (result.clearActiveRun) {
+          activeRunIdRef.current = null;
+        }
         dispatch({
           type: "UNCONFIRMED_FAULT",
           fault: result.fault,
           serviceAuth: result.serviceAuth,
+          workspaceAccessRevoked: result.workspaceAccessRevoked,
+          clearActiveRun: result.clearActiveRun,
+          pendingRetry: result.pendingRetry,
+        });
+      }
+    } finally {
+      if (inFlightSubmitTokenRef.current === token) {
+        inFlightSubmitTokenRef.current = null;
+      }
+    }
+  };
+
+  /**
+   * Explicitly resends the exact previously unconfirmed retry request
+   * (same runId, same Idempotency-Key, same original expected_run_version body —
+   * never overwritten by intermediate GET status refreshes).
+   */
+  const handleResendPendingRetry = async () => {
+    if (
+      inFlightSubmitTokenRef.current !== null ||
+      !isAuthScopeReadyRef.current ||
+      state.workspaceAccessRevoked ||
+      !state.pendingRetry
+    ) {
+      return;
+    }
+
+    const pending = state.pendingRetry;
+    const token = invalidateInFlightOperations();
+    inFlightSubmitTokenRef.current = token;
+    dispatch({
+      type: "RETRY_IMPORT_START",
+      label: `작업(${pending.runId})의 이전 미확정 재시도(expected_run_version=${pending.expectedRunVersion})를 동일한 키와 본문으로 다시 전송 중입니다.`,
+    });
+
+    try {
+      const result = await adapter.retryImportRun(pending.runId, {
+        mode: "resend_pending",
+      });
+      if (!isMountedRef.current || token !== operationTokenRef.current) {
+        return;
+      }
+      if (result.ok) {
+        activeRunIdRef.current = result.data.run.runId;
+        selectedRepoIdRef.current = result.data.run.repositoryId;
+        dispatch({
+          type: "RUN_UPDATED_FROM_SERVER",
+          run: result.data.run,
+          githubConnection: result.data.githubConnection,
+          recoveryNotice: result.data.recoveryNotice ?? null,
+          pendingRetry: result.data.pendingRetry,
+        });
+      } else {
+        if (
+          (result.serviceAuth &&
+            result.serviceAuth.status !== "authenticated") ||
+          result.workspaceAccessRevoked
+        ) {
+          isAuthScopeReadyRef.current = false;
+          activeRunIdRef.current = null;
+          selectedRepoIdRef.current = null;
+        } else if (result.clearActiveRun) {
+          activeRunIdRef.current = null;
+        }
+        dispatch({
+          type: "UNCONFIRMED_FAULT",
+          fault: result.fault,
+          serviceAuth: result.serviceAuth,
+          workspaceAccessRevoked: result.workspaceAccessRevoked,
+          clearActiveRun: result.clearActiveRun,
+          pendingRetry: result.pendingRetry,
         });
       }
     } finally {
@@ -685,6 +955,7 @@ export function ImportJourneyApp({
         <RepositorySelector
           serviceAuth={state.serviceAuth}
           githubConnection={state.githubConnection}
+          workspaceAccessRevoked={state.workspaceAccessRevoked}
           repositories={state.repositories}
           selectedRepoId={state.selectedRepoId}
           isSubmitting={
@@ -692,6 +963,7 @@ export function ImportJourneyApp({
             state.phase === "retrying_import"
           }
           isRunActive={state.activeRun?.status === "running"}
+          isSelectedRepoSucceeded={isSelectedRepositoryImportSucceeded(state)}
           canSubmit={canSubmitInitialImport(state)}
           duplicateGuardNotice={state.duplicateGuardNotice}
           onSelectRepo={handleSelectRepo}
@@ -706,6 +978,7 @@ export function ImportJourneyApp({
             }
           }}
           onRetryImport={() => void handleRetryImport()}
+          onResendPendingRetry={() => void handleResendPendingRetry()}
           onReconcileAfterFault={() => void handleRecoverStatus()}
           onCheckRepositoryStatus={() => void handleRecoverStatus()}
           onReconnectGitHub={() => void handleConnectGitHub()}

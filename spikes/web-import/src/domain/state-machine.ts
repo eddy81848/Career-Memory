@@ -2,6 +2,7 @@ import type {
   GitHubConnectionViewModel,
   ImportJourneyState,
   ImportRunViewModel,
+  PendingUnconfirmedRetryViewModel,
   PrototypeScenarioId,
   PublicRepositoryOption,
   RecoveryNoticeViewModel,
@@ -19,6 +20,7 @@ export interface BootstrapPayload {
   recoveredFromReload: boolean;
   recoveryLookupMode?: "detail_get" | "recovery_get" | null;
   recoveryFault?: UnconfirmedFaultViewModel | null;
+  workspaceAccessRevoked?: boolean;
   checkedAt: string;
 }
 
@@ -45,12 +47,14 @@ export type ImportJourneyAction =
       run: ImportRunViewModel;
       githubConnection?: GitHubConnectionViewModel;
       recoveryNotice?: RecoveryNoticeViewModel | null;
+      pendingRetry?: PendingUnconfirmedRetryViewModel | null;
     }
   | {
       type: "RECOVERY_LOOKUP_SYNCED";
       run: ImportRunViewModel | null;
       githubConnection?: GitHubConnectionViewModel;
       recoveryNotice: RecoveryNoticeViewModel;
+      pendingRetry?: PendingUnconfirmedRetryViewModel | null;
     }
   | { type: "DUPLICATE_ATTEMPT_BLOCKED"; message: string }
   | { type: "CLEAR_DUPLICATE_NOTICE" }
@@ -58,6 +62,9 @@ export type ImportJourneyAction =
       type: "UNCONFIRMED_FAULT";
       fault: UnconfirmedFaultViewModel;
       serviceAuth?: ServiceAuthViewModel;
+      workspaceAccessRevoked?: boolean;
+      clearActiveRun?: boolean;
+      pendingRetry?: PendingUnconfirmedRetryViewModel | null;
     }
   | { type: "RESET_TO_IDLE_SELECTION" };
 
@@ -81,6 +88,9 @@ export function createInitialImportJourneyState(): ImportJourneyState {
     repositories: [],
     selectedRepoId: null,
     activeRun: null,
+    succeededRepoIds: [],
+    workspaceAccessRevoked: false,
+    pendingRetry: null,
     pendingActionLabel: "저장된 연결 및 최근 가져오기 상태를 확인하고 있습니다.",
     duplicateGuardNotice: null,
     unconfirmedFault: null,
@@ -105,11 +115,65 @@ export function isImportRequestLocked(state: ImportJourneyState): boolean {
   return state.activeRun?.status === "running";
 }
 
+function recordSucceededRepo(
+  existing: string[],
+  run: ImportRunViewModel | null | undefined
+): string[] {
+  if (!run || !isFullSuccessRun(run)) {
+    return existing;
+  }
+  if (existing.includes(run.repositoryId)) {
+    return existing;
+  }
+  return [...existing, run.repositoryId];
+}
+
+/**
+ * Pure predicate: is the currently selected repository already confirmed as
+ * succeeded (`status === "succeeded"` and `importReady === true`) in the
+ * current auth/connection scope?
+ *
+ * Repository-scoped UI guard (MVP API §4 / Snapshot Import §2-3):
+ * checks both the currently displayed `activeRun` and the session-scoped
+ * `succeededRepoIds` set so switching A -> B -> A keeps A blocked without
+ * globally blocking B, leaking across auth/permission changes, or blocking
+ * manual status checks. Partial results (`partial`), limit outcomes
+ * (`limit_reached`), failures, permission revocations, unconfirmed faults,
+ * and incomplete runs MUST NOT be treated as succeeded. Final duplicate and
+ * authorization enforcement always belongs to the backend server.
+ */
+export function isSelectedRepositoryImportSucceeded(
+  state: ImportJourneyState
+): boolean {
+  if (
+    state.workspaceAccessRevoked ||
+    state.serviceAuth.status !== "authenticated" ||
+    state.githubConnection.status !== "connected" ||
+    !state.selectedRepoId
+  ) {
+    return false;
+  }
+  if (
+    state.activeRun &&
+    state.activeRun.repositoryId === state.selectedRepoId &&
+    isFullSuccessRun(state.activeRun)
+  ) {
+    return true;
+  }
+  return (state.succeededRepoIds ?? []).includes(state.selectedRepoId);
+}
+
 /**
  * Pure predicate: can the user initiate a new initial import?
  */
 export function canSubmitInitialImport(state: ImportJourneyState): boolean {
+  if (state.workspaceAccessRevoked) {
+    return false;
+  }
   if (isImportRequestLocked(state)) {
+    return false;
+  }
+  if (isSelectedRepositoryImportSucceeded(state)) {
     return false;
   }
   if (state.serviceAuth.status !== "authenticated") {
@@ -127,10 +191,13 @@ export function canSubmitInitialImport(state: ImportJourneyState): boolean {
 /**
  * Pure predicate: retry action is ONLY exposed when the server explicitly
  * grants `retryPolicy.allowed === true`, the service session is authenticated,
- * GitHub collection connection is active (not revoked/disconnected), and no
- * request is currently in flight.
+ * Workspace access has not been revoked, GitHub collection connection is active
+ * (not revoked/disconnected), and no request is currently in flight.
  */
 export function canExposeRetryAction(state: ImportJourneyState): boolean {
+  if (state.workspaceAccessRevoked) {
+    return false;
+  }
   const run = state.activeRun;
   if (!run) {
     return false;
@@ -287,37 +354,57 @@ export function importJourneyReducer(
         recoveredFromReload,
         recoveryLookupMode,
         recoveryFault,
+        workspaceAccessRevoked: payloadWorkspaceRevoked,
         checkedAt,
       } = action.payload;
 
-      const selectedRepoId =
-        latestRun?.repositoryId ??
-        (payloadSelectedRepoId &&
-        repositories.some((repo) => repo.repoId === payloadSelectedRepoId)
-          ? payloadSelectedRepoId
-          : state.selectedRepoId &&
-              repositories.some((repo) => repo.repoId === state.selectedRepoId)
-            ? state.selectedRepoId
-            : repositories[0]?.repoId ?? null);
+      const workspaceAccessRevoked = Boolean(payloadWorkspaceRevoked);
+      const effectiveRepos = workspaceAccessRevoked ? [] : repositories;
+      const effectiveLatestRun = workspaceAccessRevoked ? null : latestRun;
+
+      const selectedRepoId = workspaceAccessRevoked
+        ? null
+        : effectiveLatestRun?.repositoryId ??
+          (payloadSelectedRepoId &&
+          effectiveRepos.some((repo) => repo.repoId === payloadSelectedRepoId)
+            ? payloadSelectedRepoId
+            : state.selectedRepoId &&
+                effectiveRepos.some(
+                  (repo) => repo.repoId === state.selectedRepoId
+                )
+              ? state.selectedRepoId
+              : effectiveRepos[0]?.repoId ?? null);
 
       const recoveryNotice =
-        recoveryFault !== undefined && recoveryFault !== null
+        workspaceAccessRevoked ||
+        (recoveryFault !== undefined && recoveryFault !== null)
           ? null
           : buildBootstrapRecoveryNotice({
-              latestRun,
+              latestRun: effectiveLatestRun,
               recoveredFromReload,
               lookupMode: recoveryLookupMode ?? null,
               checkedAt,
             });
+
+      const isScopeActive =
+        !workspaceAccessRevoked &&
+        serviceAuth.status === "authenticated" &&
+        githubConnection.status === "connected";
 
       return {
         ...state,
         phase: "ready",
         serviceAuth,
         githubConnection,
-        repositories,
+        repositories: effectiveRepos,
         selectedRepoId,
-        activeRun: latestRun,
+        activeRun: effectiveLatestRun,
+        succeededRepoIds: isScopeActive
+          ? recordSucceededRepo([], effectiveLatestRun)
+          : [],
+        workspaceAccessRevoked,
+        // Pending retry keys/bodies are NEVER persisted across reloads.
+        pendingRetry: null,
         pendingActionLabel: null,
         duplicateGuardNotice: null,
         unconfirmedFault: recoveryFault ?? null,
@@ -354,6 +441,7 @@ export function importJourneyReducer(
           state.phase === "refreshing_status" ? null : state.pendingActionLabel,
         selectedRepoId: action.repoId,
         activeRun: switchedDifferentRepo ? keepActiveRun : state.activeRun,
+        pendingRetry: switchedDifferentRepo ? null : state.pendingRetry,
         unconfirmedFault: switchedDifferentRepo ? null : state.unconfirmedFault,
         recoveryNotice: switchedDifferentRepo ? null : state.recoveryNotice,
         duplicateGuardNotice: null,
@@ -383,17 +471,41 @@ export function importJourneyReducer(
           ? state.selectedRepoId
           : action.repositories[0]?.repoId ?? null;
 
+      const isAuthValid = action.serviceAuth.status === "authenticated";
+      const isScopeActive =
+        isAuthValid && action.githubConnection.status === "connected";
+
+      // Omitting `latestRun` NEVER inherits the previous scope's `activeRun` or
+      // confirmed success list. Only use an explicit `action.latestRun` confirmed
+      // for the new auth/connection scope.
+      let nextRun: ImportRunViewModel | null = null;
+      if (isScopeActive && action.latestRun) {
+        nextRun = action.latestRun;
+      } else if (
+        isAuthValid &&
+        action.githubConnection.status === "permission_revoked" &&
+        action.latestRun?.status === "permission_revoked"
+      ) {
+        nextRun = action.latestRun;
+      }
+
+      const nextSucceededRepoIds = isScopeActive
+        ? recordSucceededRepo([], nextRun)
+        : [];
+
       return {
         ...state,
         phase: "ready",
         serviceAuth: action.serviceAuth,
         githubConnection: action.githubConnection,
         repositories: action.repositories,
-        selectedRepoId: nextSelected,
-        activeRun:
-          action.latestRun !== undefined ? action.latestRun : state.activeRun,
-        recoveryNotice:
-          action.latestRun === null ? null : state.recoveryNotice,
+        selectedRepoId: nextRun?.repositoryId ?? nextSelected,
+        activeRun: nextRun,
+        succeededRepoIds: nextSucceededRepoIds,
+        workspaceAccessRevoked: false,
+        pendingRetry: null,
+        recoveryNotice: null,
+        duplicateGuardNotice: null,
         pendingActionLabel: null,
         unconfirmedFault: action.clearFault ? null : state.unconfirmedFault,
       };
@@ -429,13 +541,25 @@ export function importJourneyReducer(
         unconfirmedFault: null,
       };
 
-    case "RUN_UPDATED_FROM_SERVER":
+    case "RUN_UPDATED_FROM_SERVER": {
+      const nextGitHub = action.githubConnection ?? state.githubConnection;
+      const isScopeActive =
+        !state.workspaceAccessRevoked &&
+        state.serviceAuth.status === "authenticated" &&
+        nextGitHub.status === "connected";
       return {
         ...state,
         phase: "ready",
         activeRun: action.run,
         selectedRepoId: action.run.repositoryId,
-        githubConnection: action.githubConnection ?? state.githubConnection,
+        githubConnection: nextGitHub,
+        succeededRepoIds: isScopeActive
+          ? recordSucceededRepo(state.succeededRepoIds, action.run)
+          : [],
+        pendingRetry:
+          action.pendingRetry !== undefined
+            ? action.pendingRetry
+            : state.pendingRetry,
         pendingActionLabel: null,
         unconfirmedFault: null,
         recoveryNotice:
@@ -443,18 +567,32 @@ export function importJourneyReducer(
             ? action.recoveryNotice
             : state.recoveryNotice,
       };
+    }
 
-    case "RECOVERY_LOOKUP_SYNCED":
+    case "RECOVERY_LOOKUP_SYNCED": {
+      const nextGitHub = action.githubConnection ?? state.githubConnection;
+      const isScopeActive =
+        !state.workspaceAccessRevoked &&
+        state.serviceAuth.status === "authenticated" &&
+        nextGitHub.status === "connected";
       return {
         ...state,
         phase: "ready",
         activeRun: action.run,
         selectedRepoId: action.run?.repositoryId ?? state.selectedRepoId,
-        githubConnection: action.githubConnection ?? state.githubConnection,
+        githubConnection: nextGitHub,
+        succeededRepoIds: isScopeActive
+          ? recordSucceededRepo(state.succeededRepoIds, action.run)
+          : [],
+        pendingRetry:
+          action.pendingRetry !== undefined
+            ? action.pendingRetry
+            : state.pendingRetry,
         pendingActionLabel: null,
         unconfirmedFault: null,
         recoveryNotice: action.recoveryNotice,
       };
+    }
 
     case "DUPLICATE_ATTEMPT_BLOCKED":
       return {
@@ -468,14 +606,71 @@ export function importJourneyReducer(
         duplicateGuardNotice: null,
       };
 
-    case "UNCONFIRMED_FAULT":
+    case "UNCONFIRMED_FAULT": {
+      const nextServiceAuth = action.serviceAuth ?? state.serviceAuth;
+      const authStillValid = nextServiceAuth.status === "authenticated";
+      const workspaceRevoked =
+        action.workspaceAccessRevoked === true ||
+        action.fault.kind === "workspace_scope_violation";
+
+      if (!authStillValid) {
+        return {
+          ...state,
+          phase: "ready",
+          pendingActionLabel: null,
+          serviceAuth: nextServiceAuth,
+          repositories: [],
+          selectedRepoId: null,
+          activeRun: null,
+          succeededRepoIds: [],
+          workspaceAccessRevoked: false,
+          pendingRetry: null,
+          recoveryNotice: null,
+          duplicateGuardNotice: null,
+          unconfirmedFault: action.fault,
+        };
+      }
+
+      if (workspaceRevoked) {
+        // 403 WORKSPACE_SCOPE_VIOLATION: keep login active (`serviceAuth` stays authenticated),
+        // close Workspace repos, run details, and polling.
+        return {
+          ...state,
+          phase: "ready",
+          pendingActionLabel: null,
+          serviceAuth: nextServiceAuth,
+          repositories: [],
+          selectedRepoId: null,
+          activeRun: null,
+          succeededRepoIds: [],
+          workspaceAccessRevoked: true,
+          pendingRetry: null,
+          recoveryNotice: null,
+          duplicateGuardNotice: null,
+          unconfirmedFault: action.fault,
+        };
+      }
+
+      const clearActiveRun =
+        action.clearActiveRun === true ||
+        action.fault.kind === "resource_not_found";
+
       return {
         ...state,
         phase: "ready",
         pendingActionLabel: null,
-        serviceAuth: action.serviceAuth ?? state.serviceAuth,
+        serviceAuth: nextServiceAuth,
+        activeRun: clearActiveRun ? null : state.activeRun,
+        recoveryNotice: clearActiveRun ? null : state.recoveryNotice,
+        pendingRetry:
+          action.pendingRetry !== undefined
+            ? action.pendingRetry
+            : clearActiveRun
+              ? null
+              : state.pendingRetry,
         unconfirmedFault: action.fault,
       };
+    }
 
     case "RESET_TO_IDLE_SELECTION":
       if (isImportRequestLocked(state)) {
@@ -488,6 +683,9 @@ export function importJourneyReducer(
       return {
         ...state,
         activeRun: null,
+        succeededRepoIds: [],
+        workspaceAccessRevoked: false,
+        pendingRetry: null,
         unconfirmedFault: null,
         duplicateGuardNotice: null,
         recoveryNotice: null,

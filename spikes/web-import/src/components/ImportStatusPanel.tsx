@@ -4,6 +4,7 @@ import React from "react";
 import {
   canExposeRetryAction,
   hasDerivedStageLag,
+  isSelectedRepositoryImportSucceeded,
 } from "@/domain/state-machine";
 import type {
   DerivedStageStatus,
@@ -15,6 +16,7 @@ interface ImportStatusPanelProps {
   state: ImportJourneyState;
   onManualRefresh: () => void;
   onRetryImport: () => void;
+  onResendPendingRetry?: () => void;
   onReconcileAfterFault: () => void;
   onCheckRepositoryStatus?: () => void;
   onReconnectGitHub: () => void;
@@ -90,13 +92,21 @@ export function ImportStatusPanel({
   state,
   onManualRefresh,
   onRetryImport,
+  onResendPendingRetry,
   onReconcileAfterFault,
   onCheckRepositoryStatus,
   onReconnectGitHub,
   onReAuthenticateService,
 }: ImportStatusPanelProps) {
-  const { phase, activeRun, pendingActionLabel, unconfirmedFault, recoveryNotice } =
-    state;
+  const {
+    phase,
+    activeRun,
+    pendingActionLabel,
+    unconfirmedFault,
+    recoveryNotice,
+    pendingRetry,
+    workspaceAccessRevoked,
+  } = state;
 
   const isBusy =
     phase === "bootstrapping" ||
@@ -105,7 +115,15 @@ export function ImportStatusPanel({
     phase === "refreshing_status";
 
   const showRetryButton = canExposeRetryAction(state);
+  const showResendPendingRetryPanel = Boolean(
+    pendingRetry &&
+      onResendPendingRetry &&
+      !workspaceAccessRevoked &&
+      state.serviceAuth.status === "authenticated" &&
+      state.githubConnection.status === "connected"
+  );
   const derivedLag = hasDerivedStageLag(activeRun);
+  const selectedRepoAlreadySucceeded = isSelectedRepositoryImportSucceeded(state);
 
   return (
     <section
@@ -178,12 +196,15 @@ export function ImportStatusPanel({
         </div>
       )}
 
-      {/* Unconfirmed transport/session/conflict/empty-body/uncertain-outcome fault */}
+      {/* Unconfirmed transport/session/scope/conflict/empty-body/uncertain-outcome fault */}
       {unconfirmedFault && (
         <div
           className={`status-banner ${
             unconfirmedFault.kind === "uncertain_outcome" ||
-            unconfirmedFault.kind === "network_error"
+            unconfirmedFault.kind === "network_error" ||
+            unconfirmedFault.kind === "version_conflict" ||
+            unconfirmedFault.kind === "auth_verification_unavailable" ||
+            unconfirmedFault.kind === "resource_not_found"
               ? "status-banner--warning"
               : "status-banner--danger"
           }`}
@@ -191,25 +212,37 @@ export function ImportStatusPanel({
           aria-live="assertive"
           data-testid="unconfirmed-fault-banner"
           data-fault-kind={unconfirmedFault.kind}
+          data-error-code={unconfirmedFault.errorCode ?? ""}
         >
           <div className="status-banner__top">
             <span
               className={`badge ${
                 unconfirmedFault.kind === "uncertain_outcome" ||
-                unconfirmedFault.kind === "network_error"
+                unconfirmedFault.kind === "network_error" ||
+                unconfirmedFault.kind === "version_conflict" ||
+                unconfirmedFault.kind === "auth_verification_unavailable" ||
+                unconfirmedFault.kind === "resource_not_found"
                   ? "badge--warning"
                   : "badge--danger"
               }`}
             >
               {unconfirmedFault.kind === "session_expired"
                 ? "세션 만료 — 요청 미확정"
-                : unconfirmedFault.kind === "network_error"
-                  ? "네트워크 실패 — 서버 미확정"
-                  : unconfirmedFault.kind === "uncertain_outcome"
-                    ? `처리 여부 미확정${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""}`
-                    : unconfirmedFault.kind === "request_rejected"
-                      ? `요청 처리 불가${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""} — 일반 안내`
-                      : "중복 충돌 — 요청 거절"}
+                : unconfirmedFault.kind === "workspace_scope_violation"
+                  ? "Workspace 접근 권한 없음 (로그인 유지)"
+                  : unconfirmedFault.kind === "resource_not_found"
+                    ? "대상 확인 불가 (HTTP 404)"
+                    : unconfirmedFault.kind === "auth_verification_unavailable"
+                      ? "인증 검증 일시 장애 (HTTP 503 · 로그인 유지)"
+                      : unconfirmedFault.kind === "version_conflict"
+                        ? "실행 상태 변경 충돌 (HTTP 409)"
+                        : unconfirmedFault.kind === "network_error"
+                          ? "네트워크 실패 — 서버 미확정"
+                          : unconfirmedFault.kind === "uncertain_outcome"
+                            ? `처리 여부 미확정${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""}`
+                            : unconfirmedFault.kind === "request_rejected"
+                              ? `요청 처리 불가${unconfirmedFault.httpStatus ? ` (HTTP ${unconfirmedFault.httpStatus})` : ""} — 일반 안내`
+                              : "중복 충돌 — 요청 거절"}
             </span>
           </div>
           <p className="status-banner__headline">{unconfirmedFault.title}</p>
@@ -229,19 +262,64 @@ export function ImportStatusPanel({
                 모의 서비스 다시 로그인
               </button>
             )}
-            {(unconfirmedFault.kind === "network_error" ||
-              unconfirmedFault.kind === "uncertain_outcome" ||
-              unconfirmedFault.kind === "duplicate_conflict" ||
-              unconfirmedFault.kind === "request_rejected") && (
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                onClick={onReconcileAfterFault}
-                disabled={isBusy}
-              >
-                서버 상태 다시 확인
-              </button>
-            )}
+            {!workspaceAccessRevoked &&
+              (unconfirmedFault.kind === "network_error" ||
+                unconfirmedFault.kind === "uncertain_outcome" ||
+                unconfirmedFault.kind === "version_conflict" ||
+                unconfirmedFault.kind === "auth_verification_unavailable" ||
+                unconfirmedFault.kind === "resource_not_found" ||
+                unconfirmedFault.kind === "duplicate_conflict" ||
+                unconfirmedFault.kind === "request_rejected") && (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={onReconcileAfterFault}
+                  disabled={isBusy}
+                >
+                  서버 상태 다시 확인
+                </button>
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* Explicit resend panel for a previous unconfirmed retry (separated from new retry on latest failure) */}
+      {showResendPendingRetryPanel && pendingRetry && (
+        <div
+          className="status-banner status-banner--warning"
+          role="region"
+          aria-label="이전 미확정 재시도 재전송"
+          data-testid="pending-retry-resend-panel"
+        >
+          <div className="status-banner__top">
+            <span className="badge badge--warning">
+              이전 미확정 재시도 재전송 (별도 POST 동작)
+            </span>
+            <span className="mono run-id-chip">
+              {pendingRetry.runId} · expected_run_version=
+              {pendingRetry.expectedRunVersion}
+            </span>
+          </div>
+          <p className="status-banner__headline">
+            이전 미확정 재시도 요청을 원래 키와 본문 그대로 다시 보낼 수 있습니다
+          </p>
+          <p className="status-banner__detail">
+            이 버튼은 읽기 전용 상태 조회(GET)가 아니라{" "}
+            <strong>동일한 Idempotency-Key와 원래 expected_run_version({pendingRetry.expectedRunVersion}) 본문으로 POST를 다시 전송</strong>
+            합니다. 서버가 원래 요청을 이미 접수했다면 추가 작업 없이 기존 202
+            응답만 복구하지만, 원래 요청이 접수되지 않았다면 이 재전송이 새
+            작업의 최초 접수가 될 수 있습니다.
+          </p>
+          <div className="action-row">
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              data-testid="resend-pending-retry-button"
+              onClick={onResendPendingRetry}
+              disabled={isBusy}
+            >
+              이전 미확정 재시도 그대로 재전송 (v{pendingRetry.expectedRunVersion})
+            </button>
           </div>
         </div>
       )}
@@ -249,12 +327,18 @@ export function ImportStatusPanel({
       {/* Idle state when no run exists and not pending */}
       {!activeRun && !isBusy && !unconfirmedFault && (
         <div className="empty-state" role="status" data-testid="import-idle-state">
-          <p className="empty-state__title">아직 요청된 최초 가져오기가 없습니다</p>
+          <p className="empty-state__title">
+            {selectedRepoAlreadySucceeded
+              ? "선택한 저장소의 최초 가져오기가 이미 성공으로 확인되었습니다"
+              : "아직 요청된 최초 가져오기가 없습니다"}
+          </p>
           <p className="empty-state__body">
-            위에서 공개 저장소 1곳을 선택한 뒤 &ldquo;최초 가져오기 요청&rdquo;을
-            실행하면 서버 응답 기반 상태가 여기에 표시됩니다.
+            {selectedRepoAlreadySucceeded
+              ? "같은 저장소에 새 최초 가져오기를 다시 요청할 수 없습니다. 최신 상태나 후속 처리 차단 여부를 확인하려면 아래 '서버 상태 확인'을 사용하세요."
+              : "위에서 공개 저장소 1곳을 선택한 뒤 \"최초 가져오기 요청\"을 실행하면 서버 응답 기반 상태가 여기에 표시됩니다."}
           </p>
           {onCheckRepositoryStatus &&
+            !workspaceAccessRevoked &&
             state.serviceAuth.status === "authenticated" &&
             state.githubConnection.status === "connected" &&
             state.selectedRepoId && (
@@ -273,8 +357,10 @@ export function ImportStatusPanel({
         </div>
       )}
 
-      {/* Active / Terminal Server-Reported Run */}
-      {activeRun && (
+      {/* Active / Terminal Server-Reported Run (never rendered when session is unauthenticated/expired or Workspace access revoked) */}
+      {activeRun &&
+        state.serviceAuth.status === "authenticated" &&
+        !workspaceAccessRevoked && (
         <div className="run-container" data-testid="import-run-details">
           {(() => {
             const banner = getRunStatusBanner(activeRun.status);
@@ -301,6 +387,9 @@ export function ImportStatusPanel({
                   </span>
                   <span className="mono run-id-chip">
                     {activeRun.runId}
+                    {activeRun.runVersion !== undefined
+                      ? ` · v${activeRun.runVersion}`
+                      : ""}
                     {activeRun.planId ? ` · ${activeRun.planId}` : ""} · 시도 #
                     {activeRun.attemptNumber}
                   </span>
@@ -582,7 +671,13 @@ export function ImportStatusPanel({
                   onClick={onRetryImport}
                   disabled={isBusy}
                 >
-                  가져오기 재시도
+                  {pendingRetry
+                    ? `최신 상태로 새 재시도${
+                        activeRun.runVersion !== undefined
+                          ? ` (v${activeRun.runVersion})`
+                          : ""
+                      }`
+                    : "가져오기 재시도"}
                 </button>
               )}
 

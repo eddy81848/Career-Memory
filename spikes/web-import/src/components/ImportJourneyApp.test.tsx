@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import type {
@@ -1320,7 +1320,7 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(capturedKeys[1]).toBe(capturedKeys[0]);
   });
 
-  it("handles bodyless retry 502 and mismatched retry 202 without moving runs or auto-POSTing, then succeeds on explicit resend with same key", async () => {
+  it("handles versioned retry 502 and mismatched retry 202 without moving runs or auto-POSTing, then succeeds on explicit resend with same key and original body", async () => {
     const user = userEvent.setup();
     const originalRunId = "synthetic-run-ui-retry-guard";
     const retryKeys: string[] = [];
@@ -1377,8 +1377,9 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
                 status: 200,
                 rawBody: JSON.stringify({
                   status: "PARTIAL",
+                  run_version: 3,
                   plan_id: "synthetic-plan-retry-guard",
-                  failure_reason: "UPSTREAM_TEMP_ERROR",
+                  failure_reason: "TRANSIENT_PROVIDER_ERROR",
                   import_ready: false,
                   processing_status: "NOT_STARTED",
                   source_drift: false,
@@ -1390,6 +1391,7 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
               status: 200,
               rawBody: JSON.stringify({
                 status: "SUCCESS",
+                run_version: 5,
                 plan_id: "synthetic-plan-retry-guard",
                 import_ready: true,
                 processing_status: "COMPLETE",
@@ -1417,7 +1419,7 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       );
     });
 
-    // 1st explicit bodyless retry -> 502 uncertain_outcome, stays on originalRunId
+    // 1st explicit versioned retry -> 502 uncertain_outcome, stays on originalRunId, exposes separate resend button
     await user.click(screen.getByTestId("retry-import-button"));
     await waitFor(() => {
       expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
@@ -1425,11 +1427,12 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
       );
     });
     expect(screen.getByTestId("run-status-banner")).toHaveTextContent(originalRunId);
+    expect(screen.getByTestId("resend-pending-retry-button")).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(retryKeys).toHaveLength(1);
 
-    // 2nd explicit bodyless retry -> mismatched 202 (other run), must NOT navigate or poll other run
-    await user.click(screen.getByTestId("retry-import-button"));
+    // 2nd explicit resend -> mismatched 202 (other run), must NOT navigate or poll other run
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
     await waitFor(() => {
       expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
         "처리 여부 미확정 (HTTP 202)"
@@ -1441,8 +1444,8 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     );
     expect(getPaths).not.toContain("/v1/sync-runs/synthetic-run-hijack-999");
 
-    // 3rd explicit bodyless retry -> valid 202 for originalRunId -> succeeds
-    await user.click(screen.getByTestId("retry-import-button"));
+    // 3rd explicit resend -> valid 202 for originalRunId -> succeeds
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
     await waitFor(() => {
       expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
         "data-run-status",
@@ -1453,7 +1456,11 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     expect(retryKeys).toHaveLength(3);
     expect(retryKeys[1]).toBe(retryKeys[0]);
     expect(retryKeys[2]).toBe(retryKeys[0]);
-    expect(retryBodies).toEqual([undefined, undefined, undefined]);
+    expect(retryBodies).toEqual([
+      JSON.stringify({ expected_run_version: 3 }),
+      JSON.stringify({ expected_run_version: 3 }),
+      JSON.stringify({ expected_run_version: 3 }),
+    ]);
     expect(getPaths).not.toContain("/v1/sync-runs/synthetic-run-hijack-999");
   });
 
@@ -1928,5 +1935,956 @@ describe("ImportJourneyApp — UI fixture journey verification", () => {
     // Still terminal -> NO automatic polling restarts after manual refresh
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(detailCalls).toBe(1);
+  });
+
+  it("blocks additional startInitialImport calls on the same succeeded repository (CTA + handler) while keeping manual status GET and other repositories unblocked", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_full",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    const startButton = screen.getByTestId("start-import-button");
+    await user.click(startButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Button remains visible (not hidden), disabled, and aria-disabled for the same succeeded repo
+    expect(startButton).toBeVisible();
+    expect(startButton).toBeDisabled();
+    expect(startButton).toHaveAttribute("aria-disabled", "true");
+
+    // Clicking disabled CTA emits 0 additional startInitialImport calls
+    await user.click(startButton);
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Invoke React onClick handler directly to prove handleSubmitImport also guards
+    // even if button disabled state were bypassed -> 0 additional calls!
+    const reactPropsKey = Object.keys(startButton).find((key) =>
+      key.startsWith("__reactProps$")
+    );
+    expect(reactPropsKey).toBeDefined();
+    const onClick = (
+      startButton as unknown as Record<string, { onClick?: () => void }>
+    )[reactPropsKey!].onClick;
+    expect(typeof onClick).toBe("function");
+    await act(async () => {
+      onClick!();
+    });
+    expect(screen.getByTestId("duplicate-guard-alert")).toHaveTextContent(
+      "이미 성공"
+    );
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Manual status GET remains unblocked on the succeeded repository
+    const pollsBeforeManual = adapter.pollCallCount;
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(adapter.pollCallCount).toBeGreaterThan(pollsBeforeManual);
+    });
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Switching to a different repository re-enables submitting a new initial import
+    await user.click(
+      screen.getByRole("radio", { name: /design-tokens-kit/i })
+    );
+    expect(startButton).toBeEnabled();
+    expect(startButton).toHaveAttribute("aria-disabled", "false");
+    await user.click(startButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "design-tokens-kit"
+      );
+    });
+    expect(adapter.startImportCallCount).toBe(2);
+  });
+
+  it("does not treat PARTIAL, PARTIAL_WITH_LIMIT, or unconfirmed responses as succeeded on the same repository", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "partial_non_retryable",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    const startButton = screen.getByTestId("start-import-button");
+
+    // 1. PARTIAL (import_ready=false, retry disabled) is NOT treated as succeeded
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "partial"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: false"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(startButton).toBeEnabled();
+
+    // 2. PARTIAL_WITH_LIMIT (import_ready=false, retry disabled) is NOT treated as succeeded
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "limit_cap_blocked"
+    );
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "limit_reached"
+      );
+    });
+    expect(screen.getByTestId("import-ready-badge")).toHaveTextContent(
+      "import_ready: false"
+    );
+    expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
+    expect(startButton).toBeEnabled();
+
+    // 3. Unconfirmed network failure is NOT treated as succeeded
+    await user.selectOptions(
+      screen.getByLabelText(/응답 시나리오/i),
+      "network_error_on_submit"
+    );
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "network_error"
+      );
+    });
+    expect(startButton).toBeEnabled();
+  });
+
+  it("keeps A blocked after A succeeds -> select B -> reselect A (with activeRun=null), without throwing in handler, showing B's run on A, or auto-POSTing", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_full",
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    const repoARadio = await screen.findByRole("radio", {
+      name: /ledger-engine/i,
+    });
+    const repoBRadio = screen.getByRole("radio", {
+      name: /design-tokens-kit/i,
+    });
+    const startButton = screen.getByTestId("start-import-button");
+
+    // 1. A succeeds
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(adapter.startImportCallCount).toBe(1);
+    expect(startButton).toBeDisabled();
+
+    // 2. Switch to B -> B is allowed and can submit its own import
+    await user.click(repoBRadio);
+    expect(repoBRadio).toBeChecked();
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(startButton).toBeEnabled();
+    expect(adapter.startImportCallCount).toBe(1);
+
+    // Run B to completion so we also verify B's details NEVER appear on A
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "design-tokens-kit"
+      );
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(adapter.startImportCallCount).toBe(2);
+
+    // 3. Reselect A -> activeRun is null (B's run cleared), NO auto-POST, A's CTA stays disabled
+    await user.click(repoARadio);
+    expect(repoARadio).toBeChecked();
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(screen.queryByText(/design-tokens-kit.*완료/)).not.toBeInTheDocument();
+    expect(startButton).toBeVisible();
+    expect(startButton).toBeDisabled();
+    expect(startButton).toHaveAttribute("aria-disabled", "true");
+    expect(adapter.startImportCallCount).toBe(2);
+
+    // Clicking disabled CTA -> 0 additional startInitialImport calls
+    await user.click(startButton);
+    expect(adapter.startImportCallCount).toBe(2);
+
+    // Directly invoke handleSubmitImport while activeRun is null to prove it
+    // NEVER throws (no activeRun! dereference) and emits 0 additional calls!
+    const reactPropsKey = Object.keys(startButton).find((key) =>
+      key.startsWith("__reactProps$")
+    );
+    expect(reactPropsKey).toBeDefined();
+    const onClick = (
+      startButton as unknown as Record<string, { onClick?: () => void }>
+    )[reactPropsKey!].onClick;
+    expect(typeof onClick).toBe("function");
+    await act(async () => {
+      onClick!();
+    });
+    expect(screen.getByTestId("duplicate-guard-alert")).toHaveTextContent(
+      "ledger-engine"
+    );
+    expect(adapter.startImportCallCount).toBe(2);
+
+    // Manual read-only status check on A remains available and does NOT issue POST
+    const checkStatusBtn = screen.getByTestId("check-repository-status-button");
+    expect(checkStatusBtn).toBeEnabled();
+    await user.click(checkStatusBtn);
+    await waitFor(() => {
+      expect(screen.getByTestId("reload-recovery-notice")).toBeInTheDocument();
+    });
+    expect(adapter.startImportCallCount).toBe(2);
+  });
+
+  it("hides prior run details on session expiry, never leaks prior run/success when new scope omits latestRun, and makes 0 lookups/submits with prior runId", async () => {
+    const user = userEvent.setup();
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      initialScenario: "success_full",
+    });
+
+    const polledRunIds: string[] = [];
+    const recoveredKnownRunIds: Array<string | null | undefined> = [];
+    const submittedRepoIds: string[] = [];
+
+    // Wrap adapter to simulate an auth/session response that omits `latestRun`
+    // (the exact regression scenario) and track every runId passed to lookup/poll/submit.
+    const originalSimulateExpired = adapter.simulateSessionExpired.bind(adapter);
+    const originalSignIn = adapter.signInService.bind(adapter);
+    const originalPoll = adapter.pollImportRun.bind(adapter);
+    const originalRecover = adapter.recoverRepositoryRun.bind(adapter);
+    const originalStart = adapter.startInitialImport.bind(adapter);
+
+    let latePollGate: ReturnType<typeof createControlledDeferred<void>> | null =
+      null;
+
+    adapter.simulateSessionExpired = async () => {
+      const res = await originalSimulateExpired();
+      if (!res.ok) return res;
+      // Intentionally omit `latestRun` to test reducer + ref cleanup
+      return {
+        ok: true,
+        data: {
+          serviceAuth: res.data.serviceAuth,
+          githubConnection: res.data.githubConnection,
+          repositories: res.data.repositories,
+        },
+      };
+    };
+
+    adapter.signInService = async () => {
+      const res = await originalSignIn();
+      if (!res.ok) return res;
+      // Intentionally omit `latestRun` and switch synthetic account identity
+      return {
+        ok: true,
+        data: {
+          serviceAuth: {
+            ...res.data.serviceAuth,
+            account: {
+              syntheticUserId: "usr_demo_account_2",
+              displayName: "민수 (새 계정 모의)",
+              email: "minsu.demo@example.invalid",
+            },
+          },
+          githubConnection: res.data.githubConnection,
+          repositories: res.data.repositories,
+        },
+      };
+    };
+
+    adapter.pollImportRun = async (runId: string) => {
+      polledRunIds.push(runId);
+      const result = await originalPoll(runId);
+      if (latePollGate) {
+        await latePollGate.promise;
+      }
+      return result;
+    };
+
+    adapter.recoverRepositoryRun = async (input) => {
+      recoveredKnownRunIds.push(input.knownRunId);
+      return originalRecover(input);
+    };
+
+    adapter.startInitialImport = async (input) => {
+      submittedRepoIds.push(input.repoId);
+      return originalStart(input);
+    };
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    const startButton = screen.getByTestId("start-import-button");
+
+    // 1. Account 1 succeeds on repo A
+    await user.click(startButton);
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    const acct1RunText = screen.getByTestId("run-status-banner").textContent ?? "";
+    const acct1RunIdMatch = acct1RunText.match(/run_demo_\d+/);
+    expect(acct1RunIdMatch).not.toBeNull();
+    const acct1RunId = acct1RunIdMatch![0];
+    expect(startButton).toBeDisabled();
+
+    // Start a slow manual detail poll for Account 1's run, then expire session mid-flight
+    latePollGate = createControlledDeferred<void>();
+    await user.click(screen.getByTestId("manual-refresh-status-button"));
+    await waitFor(() => {
+      expect(polledRunIds[polledRunIds.length - 1]).toBe(acct1RunId);
+    });
+    const pollsBeforeExpiry = polledRunIds.length;
+
+    // 2. Confirmed session expiration (with latestRun omitted)
+    await user.click(screen.getByRole("button", { name: "세션 만료 시뮬레이션" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("service-auth-badge")).toHaveTextContent(
+        "세션 만료"
+      );
+    });
+
+    // Previous run details and recovery notice MUST NOT be rendered while expired
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reload-recovery-notice")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manual-refresh-status-button")
+    ).not.toBeInTheDocument();
+
+    // 3. New Account 2 signs in (with latestRun omitted)
+    await user.click(
+      screen.getByRole("button", { name: "모의 서비스 다시 로그인" })
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("service-auth-badge")).toHaveTextContent(
+        "로그인 활성"
+      );
+    });
+
+    // Release Account 1's late poll response -> MUST NOT overwrite Account 2's screen!
+    latePollGate.resolve();
+    latePollGate = null;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    // Also verify a stray pollImportRun with Account 1's runId is rejected by adapter in Account 2's session
+    const strayPoll = await originalPoll(acct1RunId);
+    expect(strayPoll.ok).toBe(false);
+
+    // Account 2 MUST NOT see Account 1's run details or inherit Account 1's repo A block
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reload-recovery-notice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("start-import-button")).toBeEnabled();
+    expect(screen.getByTestId("start-import-button")).toHaveAttribute(
+      "aria-disabled",
+      "false"
+    );
+
+    // Manual status check for Account 2 MUST pass knownRunId: null (0 uses of Account 1's runId!)
+    await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(recoveredKnownRunIds).toHaveLength(1);
+    });
+    expect(recoveredKnownRunIds).toEqual([null]);
+    expect(polledRunIds.length).toBe(pollsBeforeExpiry);
+
+    // Account 2 can submit repo A cleanly without inheriting Account 1's block
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(submittedRepoIds).toHaveLength(2);
+    expect(screen.getByTestId("run-status-banner")).not.toHaveTextContent(
+      acct1RunId
+    );
+  });
+
+  it("keeps the user signed in on temporary auth service outage (503) while surfacing unconfirmed guidance and issuing 0 auto-POSTs", async () => {
+    const user = userEvent.setup();
+    let postCalls = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST") {
+            postCalls += 1;
+          }
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+          }
+          return { status: 503, rawBody: "" };
+        },
+      },
+    });
+
+    // Inject temporary 503 on manual repository status lookup
+    const originalRecover = adapter.recoverRepositoryRun.bind(adapter);
+    adapter.recoverRepositoryRun = async (input) => {
+      await originalRecover(input);
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: {
+          kind: "uncertain_outcome",
+          httpStatus: 503,
+          title: "인증 서비스 일시 장애 (HTTP 503)",
+          message:
+            "일시적인 인증 확인 지연으로 요청을 중단했습니다. 로그아웃하지 않았습니다.",
+          serverConfirmed: false,
+          actionGuidance: "잠시 후 서버 상태를 다시 확인하세요.",
+        },
+      };
+    };
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("check-repository-status-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "uncertain_outcome"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "HTTP 503"
+    );
+    // MUST stay authenticated (NOT logged out by a temporary outage!)
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent(
+      "로그인 활성"
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(postCalls).toBe(0);
+  });
+
+  it("separates explicit resend of unconfirmed Failure A retry (same key + v3) from new retry on Failure B (fresh key + v5) after intermediate GET", async () => {
+    const user = userEvent.setup();
+    const runId = "synthetic-run-ab-ui";
+    const retryLog: Array<{ key: string; body: string | undefined }> = [];
+    let getCount = 0;
+    let serverPhase: "failure_a" | "failure_b" | "succeeded" = "failure_a";
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+          }
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: runId,
+                status_url: `/v1/sync-runs/${runId}`,
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === `/v1/sync-runs/${runId}`) {
+            getCount += 1;
+            if (serverPhase === "failure_a") {
+              return {
+                status: 200,
+                rawBody: JSON.stringify({
+                  status: "PARTIAL",
+                  run_version: 3,
+                  plan_id: "plan-ab",
+                  failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  source_drift: false,
+                  retry: { allowed: true, from_safe_checkpoint: true },
+                }),
+              };
+            }
+            if (serverPhase === "failure_b") {
+              return {
+                status: 200,
+                rawBody: JSON.stringify({
+                  status: "PARTIAL",
+                  run_version: 5,
+                  plan_id: "plan-ab",
+                  failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                  import_ready: false,
+                  processing_status: "NOT_STARTED",
+                  source_drift: false,
+                  retry: { allowed: true, from_safe_checkpoint: true },
+                }),
+              };
+            }
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "SUCCESS",
+                run_version: 7,
+                plan_id: "plan-ab",
+                import_ready: true,
+                processing_status: "COMPLETE",
+                source_drift: false,
+                retry: { allowed: false },
+              }),
+            };
+          }
+          if (req.method === "POST" && req.path === `/v1/sync-runs/${runId}/retry`) {
+            retryLog.push({
+              key: req.headers["Idempotency-Key"],
+              body: req.body,
+            });
+            if (retryLog.length === 1) {
+              // Server accepted Failure A retry & advanced to Failure B, but response was dropped
+              serverPhase = "failure_b";
+              throw new Error("DROPPED_RETRY_A_RESPONSE");
+            }
+            if (retryLog.length === 2) {
+              // Replay of Failure A returns original 202 without advancing past Failure B
+              return {
+                status: 202,
+                rawBody: JSON.stringify({
+                  status: "PENDING",
+                  target_id: runId,
+                  status_url: `/v1/sync-runs/${runId}`,
+                }),
+              };
+            }
+            // New retry on Failure B (v5) succeeds
+            serverPhase = "succeeded";
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: runId,
+                status_url: `/v1/sync-runs/${runId}`,
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent("v3");
+    });
+
+    // 1. Click retry on Failure A (v3) -> response dropped -> 0 auto-POST
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "network_error"
+      );
+    });
+    expect(screen.getByTestId("pending-retry-resend-panel")).toHaveTextContent(
+      "새 작업의 최초 접수가 될 수 있습니다"
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(retryLog).toHaveLength(1);
+
+    // 2. Manual GET refresh observes Failure B (v5) without auto-POSTing or overwriting pending A (v3)
+    const getsBeforeRefresh = getCount;
+    await user.click(screen.getByRole("button", { name: "서버 상태 다시 확인" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent("v5");
+    });
+    expect(getCount).toBeGreaterThan(getsBeforeRefresh);
+    expect(retryLog).toHaveLength(1);
+
+    // Both separated buttons are visible with distinct versions
+    expect(screen.getByTestId("resend-pending-retry-button")).toHaveTextContent(
+      "v3"
+    );
+    expect(screen.getByTestId("retry-import-button")).toHaveTextContent("v5");
+
+    // 3. Explicit resend of Failure A sends EXACT original key A + {"expected_run_version":3}
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
+    await waitFor(() => {
+      expect(retryLog).toHaveLength(2);
+    });
+    expect(retryLog[1].key).toBe(retryLog[0].key);
+    expect(retryLog[1].body).toBe(JSON.stringify({ expected_run_version: 3 }));
+
+    // Next GET settles on Failure B (v5) and pending-retry panel is cleared
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "partial"
+      );
+      expect(
+        screen.queryByTestId("pending-retry-resend-panel")
+      ).not.toBeInTheDocument();
+    });
+
+    // 4. Explicit new retry on Failure B sends a FRESH key B (!= key A) + {"expected_run_version":5}
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "succeeded"
+      );
+    });
+    expect(retryLog).toHaveLength(3);
+    expect(retryLog[2].key).not.toBe(retryLog[0].key);
+    expect(retryLog[2].body).toBe(JSON.stringify({ expected_run_version: 5 }));
+  });
+
+  it("blocks retry POST (0 POSTs) and guides GET status refresh when run_version is absent", async () => {
+    const user = userEvent.setup();
+    const runId = "synthetic-run-no-ver";
+    let retryPostCalls = 0;
+
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+          }
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: runId,
+                status_url: `/v1/sync-runs/${runId}`,
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === `/v1/sync-runs/${runId}`) {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "PARTIAL",
+                // run_version intentionally omitted
+                plan_id: "plan-no-ver",
+                failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                import_ready: false,
+                processing_status: "NOT_STARTED",
+                source_drift: false,
+                retry: { allowed: true, from_safe_checkpoint: true },
+              }),
+            };
+          }
+          if (req.method === "POST" && req.path.endsWith("/retry")) {
+            retryPostCalls += 1;
+            return { status: 422, rawBody: "" };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={15} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("retry-import-button")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+        "run_version"
+      );
+    });
+    expect(retryPostCalls).toBe(0);
+  });
+
+  it("handles 0.5.0-draft 409 RESOURCE_VERSION_CONFLICT, 403 WORKSPACE_SCOPE_VIOLATION, 404 RESOURCE_NOT_FOUND, 503 AUTH_VERIFICATION_UNAVAILABLE, and empty 401 safely in UI with 0 auto-POST", async () => {
+    const user = userEvent.setup();
+
+    // Case 1: 409 RESOURCE_VERSION_CONFLICT on retry -> guides GET, 0 auto-POST
+    let conflictRetryPosts = 0;
+    const conflictAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+          }
+          if (req.method === "POST" && req.path === "/v1/sync-runs") {
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: "run-ver-conflict",
+                status_url: "/v1/sync-runs/run-ver-conflict",
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === "/v1/sync-runs/run-ver-conflict") {
+            return {
+              status: 200,
+              rawBody: JSON.stringify({
+                status: "PARTIAL",
+                run_version: 2,
+                plan_id: "plan-vc",
+                failure_reason: "TRANSIENT_PROVIDER_ERROR",
+                import_ready: false,
+                processing_status: "NOT_STARTED",
+                source_drift: false,
+                retry: { allowed: true, from_safe_checkpoint: true },
+              }),
+            };
+          }
+          if (req.method === "POST" && req.path === "/v1/sync-runs/run-ver-conflict/retry") {
+            conflictRetryPosts += 1;
+            return {
+              status: 409,
+              rawBody: JSON.stringify({
+                error: {
+                  code: "RESOURCE_VERSION_CONFLICT",
+                  message: "Run version changed.",
+                  retryable: false,
+                  request_id: "req-vc",
+                },
+              }),
+            };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+    const r1 = render(
+      <ImportJourneyApp
+        adapter={conflictAdapter}
+        harness={conflictAdapter}
+        pollIntervalMs={15}
+      />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("retry-import-button")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "version_conflict"
+      );
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(conflictRetryPosts).toBe(1);
+    r1.unmount();
+
+    // Case 2: 403 WORKSPACE_SCOPE_VIOLATION closes Workspace repos/run/polling while keeping login
+    let wsPostCount = 0;
+    let wsPollCount = 0;
+    const wsAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST") {
+            wsPostCount += 1;
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: "run-ws-revoked",
+                status_url: "/v1/sync-runs/run-ws-revoked",
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === "/v1/sync-runs/run-ws-revoked") {
+            wsPollCount += 1;
+            return {
+              status: 403,
+              rawBody: JSON.stringify({
+                error: {
+                  code: "WORKSPACE_SCOPE_VIOLATION",
+                  message: "No workspace access.",
+                  retryable: false,
+                  request_id: "req-ws",
+                },
+              }),
+            };
+          }
+          return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+        },
+      },
+    });
+    const r2 = render(
+      <ImportJourneyApp adapter={wsAdapter} harness={wsAdapter} pollIntervalMs={15} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "workspace_scope_violation"
+      );
+    });
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    expect(screen.getByTestId("repo-selector-blocked")).toHaveTextContent(
+      "Workspace"
+    );
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    const pollsAfterWsRevoked = wsPollCount;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(wsPollCount).toBe(pollsAfterWsRevoked);
+    expect(wsPostCount).toBe(1);
+    r2.unmount();
+
+    // Case 3: 404 RESOURCE_NOT_FOUND hides previous run details with neutral message + 503 AUTH_VERIFICATION_UNAVAILABLE + empty 401 keep login
+    let postCount3 = 0;
+    let detailCall3 = 0;
+    const errAdapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: {
+        async send(req) {
+          if (req.method === "POST") {
+            postCount3 += 1;
+            return {
+              status: 202,
+              rawBody: JSON.stringify({
+                status: "PENDING",
+                target_id: "run-err-cases",
+                status_url: "/v1/sync-runs/run-err-cases",
+              }),
+            };
+          }
+          if (req.method === "GET" && req.path === "/v1/sync-runs/run-err-cases") {
+            detailCall3 += 1;
+            if (detailCall3 === 1) {
+              return {
+                status: 404,
+                rawBody: JSON.stringify({
+                  error: {
+                    code: "RESOURCE_NOT_FOUND",
+                    message: "Resource not found.",
+                    retryable: false,
+                    request_id: "req-404-ui",
+                  },
+                }),
+              };
+            }
+          }
+          if (req.method === "GET" && req.path.startsWith("/v1/sync-runs?")) {
+            if (detailCall3 === 0) {
+              return { status: 200, rawBody: JSON.stringify({ items: [] }) };
+            }
+            if (detailCall3 === 1) {
+              detailCall3 += 1;
+              return {
+                status: 503,
+                rawBody: JSON.stringify({
+                  error: {
+                    code: "AUTH_VERIFICATION_UNAVAILABLE",
+                    message: "Auth check unavailable.",
+                    retryable: true,
+                    request_id: "req-503-ui",
+                  },
+                }),
+              };
+            }
+            return { status: 401, rawBody: "" };
+          }
+          return { status: 404, rawBody: "" };
+        },
+      },
+    });
+    const r3 = render(
+      <ImportJourneyApp adapter={errAdapter} harness={errAdapter} pollIntervalMs={15} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    // 404 RESOURCE_NOT_FOUND
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "resource_not_found"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "구별하지 않으며"
+    );
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+
+    // 503 AUTH_VERIFICATION_UNAVAILABLE (retryable: true) -> login stays active, 0 auto-POST
+    await user.click(screen.getByRole("button", { name: "서버 상태 다시 확인" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "auth_verification_unavailable"
+      );
+    });
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+
+    // Generic empty 401 -> request_rejected (NOT session_expired), login stays active
+    await user.click(screen.getByRole("button", { name: "서버 상태 다시 확인" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "request_rejected"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "HTTP 401"
+    );
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(postCount3).toBe(1);
+    r3.unmount();
   });
 });

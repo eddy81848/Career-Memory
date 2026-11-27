@@ -13,13 +13,14 @@ import { ImportJourneyApp } from "@/components/ImportJourneyApp";
 import { LoopbackContractHttpTransport } from "./loopback-http-transport";
 
 /**
- * WEB-05 / WEB-06 REAL LOCAL LOOPBACK HTTP INTEGRATION TESTS.
+ * REAL LOCAL LOOPBACK HTTP INTEGRATION TESTS (OpenAPI 0.5.0-draft).
  *
- * Launches CONTRACT's actual FastAPI stub (`create_app` + `FixtureActor` from
- * commit 1d754a5bc33cf166d92b1c1ce8568031859ff0a4, OpenAPI 0.3.0-draft, read-only)
- * on 127.0.0.1 and connects ONLY the 4 OpenAPI sync-run endpoints through WEB's
- * existing HTTP adapter boundary (`SyntheticHttpTransport` -> `ContractSyncRunClient`
- * -> `MockFixtureImportAdapter` -> `ImportJourneyApp`).
+ * Launches CONTRACT's actual FastAPI stub (`create_app` + `FixtureActor` /
+ * `FixtureAuthFailure` from pinned commit 87f1515cbe74bf02b0aece68904bf9a641c74c60,
+ * OpenAPI 0.5.0-draft, read-only archive via CONTRACT_IMPORT_DIR) on 127.0.0.1
+ * and connects ONLY the 4 OpenAPI sync-run endpoints through WEB's existing HTTP
+ * adapter boundary (`SyntheticHttpTransport` -> `ContractSyncRunClient` ->
+ * `MockFixtureImportAdapter` -> `ImportJourneyApp`).
  *
  * Strictly test-only. Never reads synthetic identity from browser headers.
  * Always terminates the stub server in afterAll.
@@ -30,9 +31,11 @@ const REPO_1 = SYNTHETIC_PUBLIC_REPOSITORIES[0]; // repo_demo_ledger_01
 const REPO_2 = SYNTHETIC_PUBLIC_REPOSITORIES[1]; // repo_demo_tokens_02
 
 interface StubActorSpec {
-  workspace_id: string;
-  allowed_resources: string[];
+  workspace_id?: string;
+  allowed_resources?: string[];
   unreadable_runs?: string[];
+  workspace_access_revoked?: boolean;
+  auth_failure?: "SESSION_TERMINATED" | "VERIFICATION_UNAVAILABLE" | null;
 }
 
 interface StubRequestLogEntry {
@@ -43,15 +46,25 @@ interface StubRequestLogEntry {
   idempotency_key: string | null;
   request_id: string | null;
   body_length: number;
+  expected_run_version: number | null;
   status: number | null;
   injected?: boolean;
+}
+
+interface StubSubmittedWorkEntry {
+  operation: "create" | "retry";
+  run_id: string;
+  run_version: number;
 }
 
 interface StubStateSnapshot {
   run_count: number;
   run_ids: string[];
+  run_versions: Record<string, number>;
   create_replay_count: number;
   retry_replay_count: number;
+  submitted_work_count: number;
+  submitted_work: StubSubmittedWorkEntry[];
   runs: Record<string, Record<string, unknown>>;
   request_log: StubRequestLogEntry[];
   clock_offset_seconds?: number;
@@ -414,7 +427,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     ).toBe(true);
   });
 
-  it("executes bodyless retry over real 127.0.0.1 HTTP for retryable transientPartial and recovers to SUCCESS", async () => {
+  it("executes versioned retry (expected_run_version JSON) over real 127.0.0.1 HTTP for retryable transientPartial, rejects bodyless retry with 422, and recovers to SUCCESS", async () => {
     await resetStub();
     const user = userEvent.setup();
     const transport = new LoopbackContractHttpTransport(contractUrl);
@@ -437,7 +450,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       );
     });
 
-    // Apply OpenAPI transientPartial example -> retry.allowed=true, from_safe_checkpoint=true
+    // Apply OpenAPI transientPartial example -> retry.allowed=true, from_safe_checkpoint=true, run_version=2
     await observeRun({ runId: "synthetic-run-1", example: "transientPartial" });
 
     await waitFor(() => {
@@ -450,6 +463,21 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       "import_ready: false"
     );
 
+    // Intentional bodyless retry rejection check against real 0.5.0-draft stub -> 422, 0 new work
+    const rawBodylessRetry = await fetch(
+      `${contractUrl}/v1/sync-runs/synthetic-run-1/retry`,
+      {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": "00000000-0000-4000-8000-000000000999",
+        },
+      }
+    );
+    expect(rawBodylessRetry.status).toBe(422);
+    expect(await rawBodylessRetry.text()).toBe("");
+    const stateAfterBodyless = await getStubState();
+    expect(stateAfterBodyless.submitted_work_count).toBe(1);
+
     const retryBtn = screen.getByTestId("retry-import-button");
     expect(retryBtn).toBeEnabled();
     await user.click(retryBtn);
@@ -461,18 +489,20 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       );
     });
 
-    // Verify stub received a strictly bodyless POST /v1/sync-runs/synthetic-run-1/retry -> 202
+    // Verify stub received JSON {"expected_run_version": 2} POST /v1/sync-runs/synthetic-run-1/retry -> 202
     const afterRetryState = await getStubState();
-    const retryLog = afterRetryState.request_log.find(
+    const acceptedRetryLog = afterRetryState.request_log.find(
       (entry) =>
         entry.method === "POST" &&
-        entry.path === "/v1/sync-runs/synthetic-run-1/retry"
+        entry.path === "/v1/sync-runs/synthetic-run-1/retry" &&
+        entry.status === 202
     );
-    expect(retryLog).toBeDefined();
-    expect(retryLog?.body_length).toBe(0);
-    expect(retryLog?.status).toBe(202);
-    expect(retryLog?.idempotency_key).toMatch(UUID_V4_REGEX);
+    expect(acceptedRetryLog).toBeDefined();
+    expect(acceptedRetryLog?.expected_run_version).toBe(2);
+    expect(acceptedRetryLog?.body_length).toBeGreaterThan(0);
+    expect(acceptedRetryLog?.idempotency_key).toMatch(UUID_V4_REGEX);
     expect(afterRetryState.retry_replay_count).toBe(1);
+    expect(afterRetryState.submitted_work_count).toBe(2);
 
     await observeRun({
       runId: "synthetic-run-1",
@@ -528,8 +558,13 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     );
     expect(screen.queryByTestId("retry-import-button")).not.toBeInTheDocument();
 
-    // Also confirm stub rejects any direct retry on PARTIAL_WITH_LIMIT with empty 409
+    // Also confirm stub rejects any direct versioned retry on PARTIAL_WITH_LIMIT with empty 409
     const directClient = new ContractSyncRunClient({ transport });
+    const statusBefore = await directClient.getImportStatus({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+    });
+    expect(statusBefore.ok).toBe(true);
     const rejectedRetry = await directClient.retryInitialImport({
       runId: "synthetic-run-1",
       repo: REPO_1,
@@ -685,7 +720,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     ).toBe(false);
   });
 
-  it("handles real empty 401/403/409/422 error bodies without JSON errors and ignores spoofed identity headers", async () => {
+  it("handles real empty 401/409/422 and 0.5.0-draft 404 RESOURCE_NOT_FOUND without JSON errors and ignores spoofed identity headers", async () => {
     // 1. actor=None -> stub ignores browser Authorization / X-Workspace-ID headers and returns empty 401
     await resetStub({ actor: null });
     const rawSpoof = await fetch(`${contractUrl}/v1/sync-runs`, {
@@ -704,16 +739,17 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     expect(rawSpoof.status).toBe(401);
     expect(await rawSpoof.text()).toBe("");
 
+    // Generic empty 401 is treated as neutral generic error (NOT confirmed SESSION_TERMINATED)
     const transport401 = new LoopbackContractHttpTransport(contractUrl);
     const client401 = new ContractSyncRunClient({ transport: transport401 });
     const res401 = await client401.createInitialImport({ repo: REPO_1 });
     expect(res401.ok).toBe(false);
     if (!res401.ok) {
-      expect(res401.kind).toBe("session_expired");
+      expect(res401.kind).toBe("request_rejected");
       expect(res401.fault.httpStatus).toBe(401);
     }
 
-    // 2. Empty 403 on unauthorized repo
+    // 2. Unauthorized repo -> 0.5.0-draft returns 404 RESOURCE_NOT_FOUND (hides existence vs unauthorized)
     await resetStub({
       resources: [
         [WORKSPACE_ID, REPO_1.repoId],
@@ -726,12 +762,13 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     });
     const transport = new LoopbackContractHttpTransport(contractUrl);
     const client = new ContractSyncRunClient({ transport });
-    const res403 = await client.createInitialImport({ repo: REPO_2 });
-    expect(res403.ok).toBe(false);
-    if (!res403.ok) {
-      expect(res403.kind).toBe("request_rejected");
-      expect(res403.fault.httpStatus).toBe(403);
-      expect(res403.fault.message).toContain("세부 사유를 특정할 수 없습니다");
+    const res404 = await client.createInitialImport({ repo: REPO_2 });
+    expect(res404.ok).toBe(false);
+    if (!res404.ok) {
+      expect(res404.kind).toBe("resource_not_found");
+      expect(res404.fault.httpStatus).toBe(404);
+      expect(res404.fault.errorCode).toBe("RESOURCE_NOT_FOUND");
+      expect(res404.fault.message).toContain("구별하지 않으며");
     }
 
     // 3. Empty 409 when creating again after terminal SUCCESS
@@ -839,7 +876,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
     expect(afterResendState.create_replay_count).toBe(1);
   });
 
-  it("drops bodyless retry 202 response AFTER stub accepts: no auto-POST, explicit resend with same key replays same run without adding a new retry", async () => {
+  it("drops versioned retry 202 response AFTER stub accepts: no auto-POST, explicit resend with same key and original expected_run_version replays same run with 0 additional work", async () => {
     await resetStub();
     const user = userEvent.setup();
     const transport = new LoopbackContractHttpTransport(contractUrl);
@@ -869,7 +906,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       );
     });
 
-    // Drop the real 202 response AFTER the stub accepted the bodyless retry!
+    // Drop the real 202 response AFTER the stub accepted the versioned retry!
     let droppedRetryStatus: number | null = null;
     transport.queueAfterResponseHook(({ response }) => {
       droppedRetryStatus = response.status;
@@ -885,6 +922,7 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       );
     });
     expect(droppedRetryStatus).toBe(202);
+    expect(screen.getByTestId("resend-pending-retry-button")).toBeInTheDocument();
 
     // Wait briefly and verify ZERO automatic retry POST occurred!
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -893,14 +931,15 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       (r) => r.method === "POST" && r.path === "/v1/sync-runs/synthetic-run-1/retry"
     );
     expect(postRetriesBeforeResend).toHaveLength(1);
-    expect(postRetriesBeforeResend[0].body_length).toBe(0);
+    expect(postRetriesBeforeResend[0].expected_run_version).toBe(2);
     expect(afterDropState.retry_replay_count).toBe(1);
+    expect(afterDropState.submitted_work_count).toBe(2);
     expect(
       afterDropState.runs[`${WORKSPACE_ID}:synthetic-run-1`]?.status
     ).toBe("PENDING");
 
-    // Explicit user resend -> reuses EXACT SAME retry Idempotency-Key -> stub replays synthetic-run-1
-    await user.click(screen.getByTestId("retry-import-button"));
+    // Explicit user resend -> reuses EXACT SAME retry Idempotency-Key & expected_run_version=2 -> replays 202, 0 new work!
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
 
     await waitFor(() => {
       expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
@@ -914,14 +953,15 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
       (r) => r.method === "POST" && r.path === "/v1/sync-runs/synthetic-run-1/retry"
     );
     expect(postRetriesAfterResend).toHaveLength(2);
-    expect(postRetriesAfterResend[1].body_length).toBe(0);
+    expect(postRetriesAfterResend[1].expected_run_version).toBe(2);
     expect(postRetriesAfterResend[1].idempotency_key).toBe(
       postRetriesAfterResend[0].idempotency_key
     );
     expect(postRetriesAfterResend[1].status).toBe(202);
-    // Stub MUST NOT have created a second run or second retry record!
+    // Stub MUST NOT have created a second run, second retry replay, or additional submitted work!
     expect(afterResendState.run_count).toBe(1);
     expect(afterResendState.retry_replay_count).toBe(1);
+    expect(afterResendState.submitted_work_count).toBe(2);
   });
 
   it("isolates late real 202 and late real 401 from an old session after logout/session change so new session UI, stored run, and pending key stay untouched", async () => {
@@ -1043,8 +1083,8 @@ describe("WEB-05 real 127.0.0.1 FastAPI contract stub integration", () => {
 
     await screen.findByRole("radio", { name: /ledger-engine/i });
 
-    // Expire stub session right before Session 1 submits (after initial mount finishes)
-    await setStubActor(null);
+    // Expire stub session with real 401 SESSION_TERMINATED right before Session 1 submits
+    await setStubActor({ auth_failure: "SESSION_TERMINATED" });
     transportB.queueAfterResponseHook(
       async ({ response }) => {
         capturedLate401Status = response.status;
@@ -1555,9 +1595,27 @@ describe("WEB-06 real 127.0.0.1 FastAPI contract stub recovery & edge cases (Ope
       );
     });
 
-    // Empty 403 on unauthorized REPO_2 recovery GET -> neutral banner, zero POST
+    // Unauthorized REPO_2 recovery GET -> real 0.5.0-draft 404 RESOURCE_NOT_FOUND, zero POST
     await user.click(screen.getByRole("radio", { name: /design-tokens-kit/i }));
     await user.click(screen.getByTestId("check-repository-status-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "resource_not_found"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "HTTP 404"
+    );
+
+    // Real empty 403 over 127.0.0.1 -> neutral banner, zero POST
+    await queueStubHttpResponse({
+      status: 403,
+      body: "",
+      method: "GET",
+      pathPrefix: "/v1/sync-runs?",
+    });
+    await user.click(screen.getByRole("button", { name: "서버 상태 다시 확인" }));
     await waitFor(() => {
       expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
         "data-fault-kind",
@@ -1687,7 +1745,7 @@ describe("WEB-06 real 127.0.0.1 FastAPI contract stub recovery & edge cases (Ope
     });
 
     await advanceStubClock({ hours: 25 });
-    await user.click(screen.getByTestId("retry-import-button"));
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
     await waitFor(() => {
       expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
         "IDEMPOTENCY_KEY_EXPIRED"
@@ -1704,9 +1762,11 @@ describe("WEB-06 real 127.0.0.1 FastAPI contract stub recovery & edge cases (Ope
     expect(retryPosts).toHaveLength(2);
     expect(retryPosts[0].status).toBe(202);
     expect(retryPosts[1].status).toBe(409);
-    expect(retryPosts[1].body_length).toBe(0);
+    expect(retryPosts[0].expected_run_version).toBe(2);
+    expect(retryPosts[1].expected_run_version).toBe(2);
     expect(retryPosts[1].idempotency_key).toBe(retryPosts[0].idempotency_key);
     expect(stateAfterRetryExpiry.retry_replay_count).toBe(1);
+    expect(stateAfterRetryExpiry.submitted_work_count).toBe(2);
   });
 
   it("rejects mismatched target_id/status_url in recovery GET response without polling mismatched path or auto-POSTing", async () => {
@@ -1907,5 +1967,495 @@ describe("WEB-06 real 127.0.0.1 FastAPI contract stub recovery & edge cases (Ope
     expect(
       transportSession.sentRequests.filter((req) => req.method === "POST")
     ).toHaveLength(0);
+  });
+});
+
+describe("OpenAPI 0.5.0-draft (87f1515) real 127.0.0.1 loopback cross-verification", () => {
+  it("forwards per-run run_version from detail GET and recovery GET into retry JSON body, and sends 0 POST when version is absent or target mismatches", async () => {
+    await resetStub();
+    const transport = new LoopbackContractHttpTransport(contractUrl);
+    const client = new ContractSyncRunClient({ transport });
+
+    // Seed two separate runs: synthetic-run-1 (REPO_1) and synthetic-run-2 (REPO_2)
+    const run1 = await seedExistingRun({
+      repoId: REPO_1.repoId,
+      key: "00000000-0000-4000-8000-000000000701",
+    });
+    const run2 = await seedExistingRun({
+      repoId: REPO_2.repoId,
+      key: "00000000-0000-4000-8000-000000000702",
+    });
+    expect(run1.target_id).toBe("synthetic-run-1");
+    expect(run2.target_id).toBe("synthetic-run-2");
+
+    // Advance run1 to version 2 (transientPartial) and run2 to version 3 (RUNNING -> transientPartial)
+    await observeRun({ runId: "synthetic-run-1", example: "transientPartial" });
+    await observeRun({
+      runId: "synthetic-run-2",
+      observation: {
+        status: "RUNNING",
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        source_drift: false,
+        retry: { allowed: false },
+      },
+    });
+    await observeRun({ runId: "synthetic-run-2", example: "transientPartial" });
+
+    // 1. Detail GET reads run_version=2 for synthetic-run-1 -> retry sends expected_run_version=2
+    const detail1 = await client.getImportStatus({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+    });
+    expect(detail1.ok).toBe(true);
+    if (!detail1.ok) return;
+    expect(detail1.data.run.runVersion).toBe(2);
+
+    // Target mismatch (passing run1's ViewModel while targeting synthetic-run-2) -> 0 POST!
+    const mismatchBlocked = await client.retryInitialImport({
+      runId: "synthetic-run-2",
+      repo: REPO_2,
+      previousRun: detail1.data.run,
+    });
+    expect(mismatchBlocked.ok).toBe(false);
+
+    // Stripped run_version on detail GET -> 0 POST!
+    transport.queueAfterResponseHook(
+      ({ response }) => {
+        const body = JSON.parse(response.rawBody ?? "{}") as Record<string, unknown>;
+        delete body.run_version;
+        return { ...response, rawBody: JSON.stringify(body) };
+      },
+      (req) => req.method === "GET" && req.path === "/v1/sync-runs/synthetic-run-1"
+    );
+    const missingVerDetail = await client.getImportStatus({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+    });
+    expect(missingVerDetail.ok).toBe(true);
+    if (missingVerDetail.ok) {
+      expect(missingVerDetail.data.run.runVersion).toBeUndefined();
+    }
+    const missingVerBlocked = await client.retryInitialImport({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+      previousRun: missingVerDetail.ok ? missingVerDetail.data.run : null,
+    });
+    expect(missingVerBlocked.ok).toBe(false);
+
+    // Verify 0 POSTs sent so far (2 seeded creates in submitted_work, 0 HTTP POSTs)
+    const beforeValidRetries = await getStubState();
+    expect(
+      beforeValidRetries.request_log.filter((r) => r.method === "POST")
+    ).toHaveLength(0);
+    expect(beforeValidRetries.submitted_work_count).toBe(2);
+
+    // Now re-read valid run_version via detail GET for synthetic-run-1 and retry
+    const freshDetail1 = await client.getImportStatus({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+    });
+    expect(freshDetail1.ok && freshDetail1.data.run.runVersion).toBe(2);
+    const retry1 = await client.retryInitialImport({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+    });
+    expect(retry1.ok).toBe(true);
+
+    // 2. Recovery GET reads items[0].import_status.run_version=3 for synthetic-run-2 -> retry sends expected_run_version=3
+    const recovered2 = await client.recoverLatestRunForRepository({
+      repo: REPO_2,
+    });
+    expect(recovered2.ok).toBe(true);
+    if (!recovered2.ok) return;
+    expect(recovered2.data.run?.runId).toBe("synthetic-run-2");
+    expect(recovered2.data.run?.runVersion).toBe(3);
+
+    const retry2 = await client.retryInitialImport({
+      runId: "synthetic-run-2",
+      repo: REPO_2,
+    });
+    expect(retry2.ok).toBe(true);
+
+    const finalState = await getStubState();
+    const retryLogs = finalState.request_log.filter(
+      (r) => r.method === "POST" && r.path.endsWith("/retry")
+    );
+    expect(retryLogs).toHaveLength(2);
+    expect(retryLogs[0].path).toBe("/v1/sync-runs/synthetic-run-1/retry");
+    expect(retryLogs[0].expected_run_version).toBe(2);
+    expect(retryLogs[0].status).toBe(202);
+    expect(retryLogs[1].path).toBe("/v1/sync-runs/synthetic-run-2/retry");
+    expect(retryLogs[1].expected_run_version).toBe(3);
+    expect(retryLogs[1].status).toBe(202);
+    expect(retryLogs[1].idempotency_key).not.toBe(retryLogs[0].idempotency_key);
+    expect(finalState.submitted_work_count).toBe(4);
+  });
+
+  it("handles Failure A lost 202 -> Failure B GET (0 auto-POST) -> explicit resend of A (0 new work) -> stale 409 RESOURCE_VERSION_CONFLICT & 409 IDEMPOTENCY_CONFLICT (0 new work) -> new retry on B (+1 work) over real 127.0.0.1 HTTP", async () => {
+    await resetStub();
+    const user = userEvent.setup();
+    const transport = new LoopbackContractHttpTransport(contractUrl);
+    const adapter = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport,
+    });
+
+    render(
+      <ImportJourneyApp adapter={adapter} harness={adapter} pollIntervalMs={30} />
+    );
+
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    // 1. Reach Failure A (run_version = 2)
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "PARTIAL",
+        failure_reason: "TRANSIENT_PROVIDER_ERROR",
+        streams: [
+          { type: "PR", status: "PARTIAL", last_committed_page: 7, unresolved_failures: 1 },
+        ],
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        source_drift: false,
+        processed_range: "2025-09-23 through 2026-08-31",
+        remaining_range: "2026-09-01 through 2026-10-05",
+        retry: { allowed: true, from_safe_checkpoint: true },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent("v2");
+      expect(screen.getByTestId("retry-import-button")).toBeEnabled();
+    });
+
+    // 2. Retry Failure A -> stub accepts (submitted_work_count=2, version=3), response 202 dropped!
+    let droppedRetryAStatus: number | null = null;
+    transport.queueAfterResponseHook(
+      ({ response }) => {
+        droppedRetryAStatus = response.status;
+        throw new Error("DROPPED_FAILURE_A_RETRY_202");
+      },
+      (req) =>
+        req.method === "POST" &&
+        req.path === "/v1/sync-runs/synthetic-run-1/retry"
+    );
+
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "network_error"
+      );
+    });
+    expect(droppedRetryAStatus).toBe(202);
+    expect(screen.getByTestId("pending-retry-resend-panel")).toHaveTextContent(
+      "v2"
+    );
+
+    // 3. Server advances accepted retry to Failure B (run_version = 4)
+    await observeRun({
+      runId: "synthetic-run-1",
+      observation: {
+        status: "PARTIAL",
+        failure_reason: "TRANSIENT_PROVIDER_ERROR",
+        streams: [
+          { type: "PR", status: "PARTIAL", last_committed_page: 12, unresolved_failures: 1 },
+        ],
+        import_ready: false,
+        processing_status: "NOT_STARTED",
+        source_drift: false,
+        processed_range: "2025-09-23 through 2026-09-15",
+        remaining_range: "2026-09-16 through 2026-10-05",
+        retry: { allowed: true, from_safe_checkpoint: true },
+      },
+    });
+
+    const stateBeforeGetRecovery = await getStubState();
+    const postsBeforeGetRecovery = stateBeforeGetRecovery.request_log.filter(
+      (r) => r.method === "POST"
+    ).length;
+    expect(stateBeforeGetRecovery.submitted_work_count).toBe(2);
+    expect(
+      stateBeforeGetRecovery.run_versions[`${WORKSPACE_ID}:synthetic-run-1`]
+    ).toBe(4);
+
+    // 4. User clicks GET refresh ("서버 상태 다시 확인") -> GET ONLY (0 auto-POST), shows v4 AND preserves pending resend for v2!
+    await user.click(screen.getByRole("button", { name: "서버 상태 다시 확인" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent("v4");
+    });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const stateAfterGetRecovery = await getStubState();
+    expect(
+      stateAfterGetRecovery.request_log.filter((r) => r.method === "POST").length
+    ).toBe(postsBeforeGetRecovery);
+    expect(stateAfterGetRecovery.submitted_work_count).toBe(2);
+    expect(screen.getByTestId("resend-pending-retry-button")).toHaveTextContent(
+      "v2"
+    );
+    expect(screen.getByTestId("retry-import-button")).toHaveTextContent("v4");
+
+    // 5. Explicit resend of Failure A -> sends EXACT original key A + expected_run_version=2 -> replays 202 with 0 NEW WORK!
+    await user.click(screen.getByTestId("resend-pending-retry-button"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("pending-retry-resend-panel")
+      ).not.toBeInTheDocument();
+    });
+    // Next GET settles back onto Failure B (v4)
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "partial"
+      );
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent("v4");
+    });
+
+    const stateAfterResendA = await getStubState();
+    const retryLogsAfterResend = stateAfterResendA.request_log.filter(
+      (r) => r.method === "POST" && r.path === "/v1/sync-runs/synthetic-run-1/retry"
+    );
+    expect(retryLogsAfterResend).toHaveLength(2);
+    expect(retryLogsAfterResend[1].idempotency_key).toBe(
+      retryLogsAfterResend[0].idempotency_key
+    );
+    expect(retryLogsAfterResend[1].expected_run_version).toBe(2);
+    expect(retryLogsAfterResend[1].status).toBe(202);
+    // Additional work MUST be 0!
+    expect(stateAfterResendA.submitted_work_count).toBe(2);
+    expect(
+      stateAfterResendA.run_versions[`${WORKSPACE_ID}:synthetic-run-1`]
+    ).toBe(4);
+
+    // 6. Different key + stale version A (2) -> real 409 RESOURCE_VERSION_CONFLICT, 0 new work, 0 auto-POST
+    const probeClient = new ContractSyncRunClient({ transport });
+    const staleConflict = await probeClient.retryInitialImport({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+      expectedRunVersion: 2,
+    });
+    expect(staleConflict.ok).toBe(false);
+    if (!staleConflict.ok) {
+      expect(staleConflict.kind).toBe("version_conflict");
+      expect(staleConflict.fault.httpStatus).toBe(409);
+      expect(staleConflict.fault.errorCode).toBe("RESOURCE_VERSION_CONFLICT");
+    }
+
+    // 7. Same key A + changed expected_run_version (4) -> real 409 IDEMPOTENCY_CONFLICT, 0 new work, 0 auto-POST
+    const keyA = retryLogsAfterResend[0].idempotency_key!;
+    const idempProbeClient = new ContractSyncRunClient({
+      transport,
+      keyGenerator: () => keyA,
+    });
+    const idempConflict = await idempProbeClient.retryInitialImport({
+      runId: "synthetic-run-1",
+      repo: REPO_1,
+      expectedRunVersion: 4,
+    });
+    expect(idempConflict.ok).toBe(false);
+    if (!idempConflict.ok) {
+      expect(idempConflict.kind).toBe("duplicate_conflict");
+      expect(idempConflict.fault.httpStatus).toBe(409);
+      expect(idempConflict.fault.errorCode).toBe("IDEMPOTENCY_CONFLICT");
+    }
+
+    const stateAfterConflicts = await getStubState();
+    expect(stateAfterConflicts.submitted_work_count).toBe(2);
+    expect(
+      stateAfterConflicts.run_versions[`${WORKSPACE_ID}:synthetic-run-1`]
+    ).toBe(4);
+
+    // 8. Explicit NEW retry on Failure B via UI button -> fresh key B (!= key A) + expected_run_version=4 -> +1 work!
+    await user.click(screen.getByTestId("retry-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveAttribute(
+        "data-run-status",
+        "running"
+      );
+    });
+
+    const stateAfterNewRetryB = await getStubState();
+    const allRetryLogs = stateAfterNewRetryB.request_log.filter(
+      (r) => r.method === "POST" && r.path === "/v1/sync-runs/synthetic-run-1/retry"
+    );
+    expect(allRetryLogs).toHaveLength(5);
+    // [0]: Failure A initial (202, v2, keyA) -> work #2
+    // [1]: Failure A explicit resend (202, v2, keyA) -> +0 work
+    // [2]: Stale new key + v2 (409 RESOURCE_VERSION_CONFLICT) -> +0 work
+    // [3]: Same keyA + v4 (409 IDEMPOTENCY_CONFLICT) -> +0 work
+    // [4]: Failure B new retry (202, v4, keyB != keyA) -> work #3 (+1 work)
+    expect(allRetryLogs[2].status).toBe(409);
+    expect(allRetryLogs[3].status).toBe(409);
+    expect(allRetryLogs[4].status).toBe(202);
+    expect(allRetryLogs[4].expected_run_version).toBe(4);
+    expect(allRetryLogs[4].idempotency_key).not.toBe(keyA);
+    expect(stateAfterNewRetryB.submitted_work_count).toBe(3);
+    expect(stateAfterNewRetryB.submitted_work[2]).toEqual({
+      operation: "retry",
+      run_id: "synthetic-run-1",
+      run_version: 5,
+    });
+  });
+
+  it("verifies 401 SESSION_TERMINATED, 403 WORKSPACE_SCOPE_VIOLATION, 404 RESOURCE_NOT_FOUND, and 503 AUTH_VERIFICATION_UNAVAILABLE over real 127.0.0.1 HTTP with 0 auto-POST and no prior data leakage", async () => {
+    const user = userEvent.setup();
+
+    // --- 1. 401 SESSION_TERMINATED -> clears session & hides prior run details, 0 auto-POST ---
+    await resetStub();
+    const transport1 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter1 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport1,
+    });
+    const m1 = render(
+      <ImportJourneyApp adapter={adapter1} harness={adapter1} pollIntervalMs={30} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    await setStubActor({ auth_failure: "SESSION_TERMINATED" });
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "session_expired"
+      );
+    });
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("세션 만료");
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    const s1 = await getStubState();
+    expect(s1.request_log.filter((r) => r.method === "POST")).toHaveLength(1);
+    m1.unmount();
+
+    // --- 2. 403 WORKSPACE_SCOPE_VIOLATION -> closes Workspace repos/run/polling, keeps login, 0 auto-POST ---
+    await resetStub();
+    const transport2 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter2 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport2,
+    });
+    const m2 = render(
+      <ImportJourneyApp adapter={adapter2} harness={adapter2} pollIntervalMs={30} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    await setStubActor({
+      workspace_id: WORKSPACE_ID,
+      allowed_resources: [REPO_1.repoId, REPO_2.repoId],
+      workspace_access_revoked: true,
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "workspace_scope_violation"
+      );
+    });
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    expect(screen.getByTestId("repo-selector-blocked")).toHaveTextContent("Workspace");
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    const s2BeforeWait = await getStubState();
+    const getsAfterWsRevoked = s2BeforeWait.request_log.filter(
+      (r) => r.method === "GET"
+    ).length;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const s2AfterWait = await getStubState();
+    expect(
+      s2AfterWait.request_log.filter((r) => r.method === "GET").length
+    ).toBe(getsAfterWsRevoked);
+    expect(s2AfterWait.request_log.filter((r) => r.method === "POST")).toHaveLength(1);
+    m2.unmount();
+
+    // --- 3. 404 RESOURCE_NOT_FOUND -> neutral message, hides prior run details, keeps login, 0 auto-POST ---
+    await resetStub();
+    const transport3 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter3 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport3,
+    });
+    const m3 = render(
+      <ImportJourneyApp adapter={adapter3} harness={adapter3} pollIntervalMs={30} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    await setStubActor({
+      workspace_id: WORKSPACE_ID,
+      allowed_resources: [REPO_1.repoId, REPO_2.repoId],
+      unreadable_runs: ["synthetic-run-1"],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "resource_not_found"
+      );
+    });
+    expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveTextContent(
+      "구별하지 않으며"
+    );
+    expect(screen.queryByTestId("import-run-details")).not.toBeInTheDocument();
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    const s3 = await getStubState();
+    expect(s3.request_log.filter((r) => r.method === "POST")).toHaveLength(1);
+    m3.unmount();
+
+    // --- 4. 503 AUTH_VERIFICATION_UNAVAILABLE (retryable: true) -> keeps login, 0 auto-POST ---
+    await resetStub();
+    const transport4 = new LoopbackContractHttpTransport(contractUrl);
+    const adapter4 = new MockFixtureImportAdapter({
+      latencyMs: 0,
+      disableBrowserStorage: true,
+      syncRunTransport: transport4,
+    });
+    const m4 = render(
+      <ImportJourneyApp adapter={adapter4} harness={adapter4} pollIntervalMs={30} />
+    );
+    await screen.findByRole("radio", { name: /ledger-engine/i });
+    await user.click(screen.getByTestId("start-import-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("run-status-banner")).toHaveTextContent(
+        "synthetic-run-1"
+      );
+    });
+
+    await setStubActor({ auth_failure: "VERIFICATION_UNAVAILABLE" });
+    await waitFor(() => {
+      expect(screen.getByTestId("unconfirmed-fault-banner")).toHaveAttribute(
+        "data-fault-kind",
+        "auth_verification_unavailable"
+      );
+    });
+    expect(screen.getByTestId("service-auth-badge")).toHaveTextContent("로그인 활성");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const s4 = await getStubState();
+    expect(s4.request_log.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(s4.submitted_work_count).toBe(1);
+    m4.unmount();
   });
 });

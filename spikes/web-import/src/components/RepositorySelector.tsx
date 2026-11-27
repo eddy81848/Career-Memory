@@ -10,10 +10,12 @@ import type {
 interface RepositorySelectorProps {
   serviceAuth: ServiceAuthViewModel;
   githubConnection: GitHubConnectionViewModel;
+  workspaceAccessRevoked?: boolean;
   repositories: PublicRepositoryOption[];
   selectedRepoId: string | null;
   isSubmitting: boolean;
   isRunActive: boolean;
+  isSelectedRepoSucceeded?: boolean;
   canSubmit: boolean;
   duplicateGuardNotice: string | null;
   onSelectRepo: (repoId: string) => void;
@@ -23,16 +25,19 @@ interface RepositorySelectorProps {
 export function RepositorySelector({
   serviceAuth,
   githubConnection,
+  workspaceAccessRevoked = false,
   repositories,
   selectedRepoId,
   isSubmitting,
   isRunActive,
+  isSelectedRepoSucceeded = false,
   canSubmit,
   duplicateGuardNotice,
   onSelectRepo,
   onSubmitImport,
 }: RepositorySelectorProps) {
   const isConnectionReady =
+    !workspaceAccessRevoked &&
     serviceAuth.status === "authenticated" &&
     githubConnection.status === "connected";
 
@@ -45,6 +50,9 @@ export function RepositorySelector({
   } else if (serviceAuth.status !== "authenticated") {
     blockingReason =
       "Career Memory 모의 서비스에 로그인해야 공개 저장소를 조회하고 가져올 수 있습니다.";
+  } else if (workspaceAccessRevoked) {
+    blockingReason =
+      "현재 Workspace에 대한 접근 권한이 없어 저장소 목록과 가져오기 요청이 닫혔습니다. Career Memory 서비스 로그인은 유지됩니다.";
   } else if (githubConnection.status === "permission_revoked") {
     blockingReason =
       "GitHub 수집 권한이 상실되었습니다. 상단에서 'GitHub 수집 연결 다시 설정'을 먼저 완료하세요.";
@@ -169,19 +177,25 @@ export function RepositorySelector({
           data-testid="start-import-button"
           aria-disabled={!canSubmit}
           aria-busy={isSubmitting}
-          disabled={!isConnectionReady && !isLockedByActiveRequest}
+          disabled={
+            isSelectedRepoSucceeded ||
+            (!isConnectionReady && !isLockedByActiveRequest)
+          }
           onClick={onSubmitImport}
         >
           {isSubmitting
             ? "최초 가져오기 요청 전송 중 (서버 응답 대기)..."
             : isRunActive
               ? "최초 가져오기 실행 중 (중복 요청 방지됨)"
-              : "최초 가져오기 요청"}
+              : isSelectedRepoSucceeded
+                ? "선택한 저장소 최초 가져오기 완료 (재요청 불가)"
+                : "최초 가져오기 요청"}
         </button>
 
         <p className="field-help" id="submit-confirm-policy">
-          버튼을 누르더라도 서버 응답을 받기 전에는 가져오기 시작이 확정된
-          것으로 표시하지 않습니다.
+          {isSelectedRepoSucceeded
+            ? "현재 선택한 저장소의 최초 가져오기가 이미 성공으로 확인되어 새 최초 가져오기 요청이 차단되었습니다. 최신 상태 재조회는 아래 상태 확인 버튼을 사용하거나 다른 공개 저장소를 선택하세요."
+            : "버튼을 누르더라도 서버 응답을 받기 전에는 가져오기 시작이 확정된 것으로 표시하지 않습니다."}
         </p>
       </div>
     </section>

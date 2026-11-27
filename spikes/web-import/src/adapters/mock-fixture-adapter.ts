@@ -27,6 +27,7 @@ import type {
   PrototypeHarnessControls,
   RecoverRepositoryRunInput,
   RecoverRepositoryRunPayload,
+  RetryImportRunOptions,
   RunSyncPayload,
   StartInitialImportInput,
 } from "./import-service-adapter";
@@ -44,9 +45,9 @@ import {
  * - ONLY the 4 sync-run paths (`POST /v1/sync-runs`,
  *   `GET /v1/sync-runs?source_resource_id=...&limit=1`, `GET <status_url>`,
  *   `POST /v1/sync-runs/{id}/retry`) execute through `ContractSyncRunClient`
- *   matching OpenAPI 0.3.0-draft (CONTRACT commit
- *   1d754a5bc33cf166d92b1c1ce8568031859ff0a4).
- * - Pending Idempotency-Keys are NEVER persisted in browser storage.
+ *   matching OpenAPI 0.5.0-draft (CONTRACT commit
+ *   87f1515cbe74bf02b0aece68904bf9a641c74c60).
+ * - Pending Idempotency-Keys and retry bodies are NEVER persisted in browser storage.
  */
 
 const PROTOTYPE_STORAGE_KEY = "career_memory_spike_web_import_v1";
@@ -61,6 +62,7 @@ interface PersistedPrototypeSnapshot {
   scenarioId: PrototypeScenarioId;
   pollStep: number;
   runSequence: number;
+  runVersion: number;
   isRetryRecoveryFlow: boolean;
   activePlanId: string | null;
 }
@@ -200,6 +202,7 @@ export class MockFixtureImportAdapter
         scenarioId: options.initialScenario ?? "success_full",
         pollStep: 0,
         runSequence: 100,
+        runVersion: 1,
         isRetryRecoveryFlow: false,
         activePlanId: null,
       };
@@ -211,6 +214,7 @@ export class MockFixtureImportAdapter
         scenarioId: this.state.scenarioId,
         pollStep: this.state.pollStep,
         runSequence: this.state.runSequence,
+        runVersion: this.state.runVersion,
         isRetryRecoveryFlow: this.state.isRetryRecoveryFlow,
         activeRunId: this.state.latestRun?.runId ?? null,
         activePlanId: this.state.activePlanId,
@@ -222,6 +226,7 @@ export class MockFixtureImportAdapter
           ...this.state,
           pollStep: next.pollStep,
           runSequence: next.runSequence,
+          runVersion: next.runVersion,
           isRetryRecoveryFlow: next.isRetryRecoveryFlow,
           activePlanId: next.activePlanId,
         };
@@ -266,6 +271,7 @@ export class MockFixtureImportAdapter
       return;
     }
     this.selectionGeneration += 1;
+    this.syncRunClient.clearPendingKeysForTargetChange(repoId);
     const keepRun =
       this.state.latestRun && this.state.latestRun.repositoryId === repoId
         ? this.state.latestRun
@@ -331,6 +337,7 @@ export class MockFixtureImportAdapter
         scenarioId: parsed.scenarioId,
         pollStep: parsed.pollStep ?? 0,
         runSequence: parsed.runSequence ?? 100,
+        runVersion: parsed.runVersion ?? 1,
         isRetryRecoveryFlow: parsed.isRetryRecoveryFlow ?? false,
         activePlanId: parsed.activePlanId ?? null,
       };
@@ -427,6 +434,69 @@ export class MockFixtureImportAdapter
     };
   }
 
+  private applyClientFailureToAdapterState<T>(
+    result: Extract<AdapterResult<T>, { ok: false }>
+  ): Extract<AdapterResult<T>, { ok: false }> {
+    if (result.kind === "session_expired") {
+      this.state = {
+        ...this.state,
+        latestRun: null,
+        latestRunSessionId: null,
+        serviceAuth: {
+          ...SYNTHETIC_EXPIRED_AUTH,
+          lastCheckedAt: nowIso(),
+        },
+      };
+      this.advanceAuthScope();
+      this.persistSnapshot();
+      return {
+        ...result,
+        serviceAuth: { ...this.state.serviceAuth },
+        pendingRetry: null,
+      };
+    }
+
+    if (
+      result.kind === "workspace_scope_violation" ||
+      result.workspaceAccessRevoked
+    ) {
+      this.state = {
+        ...this.state,
+        latestRun: null,
+        latestRunSessionId: null,
+      };
+      this.advanceAuthScope();
+      this.persistSnapshot();
+      return {
+        ...result,
+        workspaceAccessRevoked: true,
+        pendingRetry: null,
+      };
+    }
+
+    if (result.kind === "resource_not_found" || result.clearActiveRun) {
+      this.state = {
+        ...this.state,
+        latestRun: null,
+        latestRunSessionId: null,
+      };
+      this.persistSnapshot();
+      return {
+        ...result,
+        clearActiveRun: true,
+        pendingRetry: this.syncRunClient.getPendingRetrySummary(),
+      };
+    }
+
+    return {
+      ...result,
+      pendingRetry:
+        result.pendingRetry !== undefined
+          ? result.pendingRetry
+          : this.syncRunClient.getPendingRetrySummary(),
+    };
+  }
+
   public async bootstrapSession(options?: {
     simulateReload?: boolean;
     selectedRepoId?: string | null;
@@ -478,6 +548,7 @@ export class MockFixtureImportAdapter
 
     let recoveryLookupMode: "detail_get" | "recovery_get" | null = null;
     let recoveryFault: UnconfirmedFaultViewModel | null = null;
+    let workspaceAccessRevoked = false;
 
     if (
       this.state.serviceAuth.status === "authenticated" &&
@@ -529,19 +600,11 @@ export class MockFixtureImportAdapter
             this.advanceAuthScope();
           }
         } else {
-          if (detailResult.kind === "session_expired") {
-            this.state = {
-              ...this.state,
-              serviceAuth: {
-                ...SYNTHETIC_EXPIRED_AUTH,
-                lastCheckedAt: nowIso(),
-              },
-              latestRun: null,
-              latestRunSessionId: null,
-            };
-            this.advanceAuthScope();
+          const handled = this.applyClientFailureToAdapterState(detailResult);
+          if (handled.workspaceAccessRevoked) {
+            workspaceAccessRevoked = true;
           }
-          recoveryFault = detailResult.fault;
+          recoveryFault = handled.fault;
         }
       } else {
         recoveryLookupMode = "recovery_get";
@@ -571,19 +634,11 @@ export class MockFixtureImportAdapter
             latestRunSessionId: recoveredRun ? this.state.sessionId : null,
           };
         } else {
-          if (recoveryResult.kind === "session_expired") {
-            this.state = {
-              ...this.state,
-              serviceAuth: {
-                ...SYNTHETIC_EXPIRED_AUTH,
-                lastCheckedAt: nowIso(),
-              },
-              latestRun: null,
-              latestRunSessionId: null,
-            };
-            this.advanceAuthScope();
+          const handled = this.applyClientFailureToAdapterState(recoveryResult);
+          if (handled.workspaceAccessRevoked) {
+            workspaceAccessRevoked = true;
           }
-          recoveryFault = recoveryResult.fault;
+          recoveryFault = handled.fault;
         }
       }
     }
@@ -596,15 +651,19 @@ export class MockFixtureImportAdapter
       data: {
         serviceAuth: { ...this.state.serviceAuth, lastCheckedAt: checkedAt },
         githubConnection: { ...this.state.githubConnection },
-        repositories: this.getAvailableRepositories(),
-        selectedRepoId: this.state.selectedRepoId,
-        latestRun: this.state.latestRun
-          ? structuredClone(this.state.latestRun)
-          : null,
+        repositories: workspaceAccessRevoked
+          ? []
+          : this.getAvailableRepositories(),
+        selectedRepoId: workspaceAccessRevoked ? null : this.state.selectedRepoId,
+        latestRun:
+          workspaceAccessRevoked || !this.state.latestRun
+            ? null
+            : structuredClone(this.state.latestRun),
         scenarioId: this.state.scenarioId,
         recoveredFromReload: Boolean(options?.simulateReload || hadPersistedRun),
         recoveryLookupMode,
         recoveryFault,
+        workspaceAccessRevoked,
         checkedAt,
       },
     };
@@ -633,10 +692,12 @@ export class MockFixtureImportAdapter
     }
 
     const repo = findRepo(targetRepoId);
-    const matchingRun = this.findMatchingKnownRun(
-      targetRepoId,
-      input.knownRunId ?? null
-    );
+    // When caller explicitly passes `knownRunId: null`, use repository recovery GET
+    // rather than inheriting any adapter-side cached runId.
+    const matchingRun =
+      input.knownRunId === null
+        ? null
+        : this.findMatchingKnownRun(targetRepoId, input.knownRunId);
     this.revokedDuringLastPoll = false;
 
     if (matchingRun) {
@@ -661,22 +722,7 @@ export class MockFixtureImportAdapter
       }
 
       if (!detailResult.ok) {
-        if (detailResult.kind === "session_expired") {
-          this.state = {
-            ...this.state,
-            serviceAuth: {
-              ...SYNTHETIC_EXPIRED_AUTH,
-              lastCheckedAt: nowIso(),
-            },
-          };
-          this.advanceAuthScope();
-          this.persistSnapshot();
-          return {
-            ...detailResult,
-            serviceAuth: { ...this.state.serviceAuth },
-          };
-        }
-        return detailResult;
+        return this.applyClientFailureToAdapterState(detailResult);
       }
 
       let nextRun = detailResult.data.run;
@@ -709,6 +755,9 @@ export class MockFixtureImportAdapter
             lookupMode: "detail_get",
             checkedAt,
           }),
+          pendingRetry:
+            detailResult.data.pendingRetry ??
+            this.syncRunClient.getPendingRetrySummary(),
           checkedAt,
         },
       };
@@ -733,22 +782,7 @@ export class MockFixtureImportAdapter
     }
 
     if (!recoveryResult.ok) {
-      if (recoveryResult.kind === "session_expired") {
-        this.state = {
-          ...this.state,
-          serviceAuth: {
-            ...SYNTHETIC_EXPIRED_AUTH,
-            lastCheckedAt: nowIso(),
-          },
-        };
-        this.advanceAuthScope();
-        this.persistSnapshot();
-        return {
-          ...recoveryResult,
-          serviceAuth: { ...this.state.serviceAuth },
-        };
-      }
-      return recoveryResult;
+      return this.applyClientFailureToAdapterState(recoveryResult);
     }
 
     const recoveredRun = recoveryResult.data.run;
@@ -771,6 +805,9 @@ export class MockFixtureImportAdapter
           lookupMode: "recovery_get",
           checkedAt,
         }),
+        pendingRetry:
+          recoveryResult.data.pendingRetry ??
+          this.syncRunClient.getPendingRetrySummary(),
         checkedAt,
       },
     };
@@ -836,6 +873,8 @@ export class MockFixtureImportAdapter
     await sleep(this.latencyMs);
     this.state = {
       ...this.state,
+      latestRun: null,
+      latestRunSessionId: null,
       serviceAuth: {
         ...SYNTHETIC_EXPIRED_AUTH,
         lastCheckedAt: nowIso(),
@@ -850,6 +889,7 @@ export class MockFixtureImportAdapter
         serviceAuth: { ...this.state.serviceAuth },
         githubConnection: { ...this.state.githubConnection },
         repositories: [],
+        latestRun: null,
       },
     };
   }
@@ -873,18 +913,14 @@ export class MockFixtureImportAdapter
       };
     }
 
-    const nextRun =
-      this.state.latestRun?.status === "permission_revoked"
-        ? null
-        : this.state.latestRun;
-
     this.state = {
       ...this.state,
       githubConnection: {
         ...SYNTHETIC_CONNECTED_GITHUB,
         connectedAt: nowIso(),
       },
-      latestRun: nextRun,
+      latestRun: null,
+      latestRunSessionId: null,
     };
     this.advanceAuthScope();
     this.persistSnapshot();
@@ -895,7 +931,7 @@ export class MockFixtureImportAdapter
         serviceAuth: { ...this.state.serviceAuth },
         githubConnection: { ...this.state.githubConnection },
         repositories: this.getAvailableRepositories(),
-        latestRun: nextRun ? structuredClone(nextRun) : null,
+        latestRun: null,
       },
     };
   }
@@ -906,6 +942,8 @@ export class MockFixtureImportAdapter
     await sleep(this.latencyMs);
     this.state = {
       ...this.state,
+      latestRun: null,
+      latestRunSessionId: null,
       githubConnection: { ...SYNTHETIC_DISCONNECTED_GITHUB },
     };
     this.advanceAuthScope();
@@ -917,6 +955,7 @@ export class MockFixtureImportAdapter
         serviceAuth: { ...this.state.serviceAuth },
         githubConnection: { ...this.state.githubConnection },
         repositories: [],
+        latestRun: null,
       },
     };
   }
@@ -928,12 +967,13 @@ export class MockFixtureImportAdapter
     const updatedRun =
       this.state.latestRun && this.state.latestRun.status === "running"
         ? buildPermissionRevokedRun(this.state.latestRun)
-        : this.state.latestRun;
+        : null;
 
     this.state = {
       ...this.state,
       githubConnection: { ...SYNTHETIC_REVOKED_GITHUB },
       latestRun: updatedRun,
+      latestRunSessionId: updatedRun ? this.state.sessionId : null,
     };
     this.advanceAuthScope();
     this.persistSnapshot();
@@ -1007,22 +1047,7 @@ export class MockFixtureImportAdapter
     }
 
     if (!result.ok) {
-      if (result.kind === "session_expired") {
-        this.state = {
-          ...this.state,
-          serviceAuth: {
-            ...SYNTHETIC_EXPIRED_AUTH,
-            lastCheckedAt: nowIso(),
-          },
-        };
-        this.advanceAuthScope();
-        this.persistSnapshot();
-        return {
-          ...result,
-          serviceAuth: { ...this.state.serviceAuth },
-        };
-      }
-      return result;
+      return this.applyClientFailureToAdapterState(result);
     }
 
     this.state = {
@@ -1039,6 +1064,9 @@ export class MockFixtureImportAdapter
         run: structuredClone(result.data.run),
         githubConnection: { ...this.state.githubConnection },
         recoveryNotice: result.data.recoveryNotice,
+        pendingRetry:
+          result.data.pendingRetry ??
+          this.syncRunClient.getPendingRetrySummary(),
       },
     };
   }
@@ -1050,10 +1078,20 @@ export class MockFixtureImportAdapter
     const requestAuthScope = this.getCurrentAuthScope();
     const requestSelectionGen = this.selectionGeneration;
     const current = this.state.latestRun;
-    const targetRepoId =
-      current?.repositoryId ??
-      this.state.selectedRepoId ??
-      SYNTHETIC_PUBLIC_REPOSITORIES[0].repoId;
+    if (
+      this.state.serviceAuth.status !== "authenticated" ||
+      this.state.githubConnection.status !== "connected" ||
+      !current ||
+      current.runId !== runId ||
+      this.state.latestRunSessionId !== this.state.sessionId
+    ) {
+      return {
+        ok: false,
+        kind: "uncertain_outcome",
+        fault: this.buildStaleLookupFault(),
+      };
+    }
+    const targetRepoId = current.repositoryId;
     await sleep(this.latencyMs);
 
     if (
@@ -1090,22 +1128,7 @@ export class MockFixtureImportAdapter
     }
 
     if (!result.ok) {
-      if (result.kind === "session_expired") {
-        this.state = {
-          ...this.state,
-          serviceAuth: {
-            ...SYNTHETIC_EXPIRED_AUTH,
-            lastCheckedAt: nowIso(),
-          },
-        };
-        this.advanceAuthScope();
-        this.persistSnapshot();
-        return {
-          ...result,
-          serviceAuth: { ...this.state.serviceAuth },
-        };
-      }
-      return result;
+      return this.applyClientFailureToAdapterState(result);
     }
 
     let nextRun = result.data.run;
@@ -1132,12 +1155,16 @@ export class MockFixtureImportAdapter
       data: {
         run: structuredClone(nextRun),
         githubConnection: { ...nextGitHub },
+        pendingRetry:
+          result.data.pendingRetry ??
+          this.syncRunClient.getPendingRetrySummary(),
       },
     };
   }
 
   public async retryImportRun(
-    runId: string
+    runId: string,
+    options?: RetryImportRunOptions
   ): Promise<AdapterResult<RunSyncPayload>> {
     this.retryImportCallCount += 1;
     const requestAuthScope = this.getCurrentAuthScope();
@@ -1168,6 +1195,8 @@ export class MockFixtureImportAdapter
     const result = await this.syncRunClient.retryInitialImport({
       runId,
       repo,
+      mode: options?.mode,
+      expectedRunVersion: options?.expectedRunVersion,
       previousRun: current,
       authScope: requestAuthScope,
     });
@@ -1188,22 +1217,7 @@ export class MockFixtureImportAdapter
     }
 
     if (!result.ok) {
-      if (result.kind === "session_expired") {
-        this.state = {
-          ...this.state,
-          serviceAuth: {
-            ...SYNTHETIC_EXPIRED_AUTH,
-            lastCheckedAt: nowIso(),
-          },
-        };
-        this.advanceAuthScope();
-        this.persistSnapshot();
-        return {
-          ...result,
-          serviceAuth: { ...this.state.serviceAuth },
-        };
-      }
-      return result;
+      return this.applyClientFailureToAdapterState(result);
     }
 
     this.state = {
@@ -1220,19 +1234,23 @@ export class MockFixtureImportAdapter
         run: structuredClone(result.data.run),
         githubConnection: { ...this.state.githubConnection },
         recoveryNotice: result.data.recoveryNotice,
+        pendingRetry:
+          result.data.pendingRetry ??
+          this.syncRunClient.getPendingRetrySummary(),
       },
     };
   }
 
   public async resetActiveRun(): Promise<AdapterResult<ConnectionSyncPayload>> {
     await sleep(Math.min(this.latencyMs, 60));
-    this.syncRunClient.clearPendingKeys();
+    this.syncRunClient.clearAllCachesAndPendingKeys();
     this.defaultOpenApiTransport.clearIdempotencyLog();
     this.state = {
       ...this.state,
       latestRun: null,
       latestRunSessionId: null,
       pollStep: 0,
+      runVersion: 1,
       isRetryRecoveryFlow: false,
       activePlanId: null,
     };

@@ -159,6 +159,8 @@ export interface ImportErrorViewModel {
 
 export interface ImportRunViewModel {
   runId: string;
+  /** Server-reported optimistic concurrency version attributed strictly to `runId` (OpenAPI 0.5.0-draft). */
+  runVersion?: number;
   statusUrl?: string;
   planId?: string;
   repositoryId: string;
@@ -180,14 +182,32 @@ export interface ImportRunViewModel {
   error: ImportErrorViewModel | null;
 }
 
+/**
+ * In-memory summary of a previous retry request whose server acceptance is
+ * unconfirmed (e.g. lost 202 response or unclassified 5xx).
+ * Kept strictly in memory (never persisted across reloads) so the UI can
+ * present an explicit "resend exact previous retry" action distinct from
+ * starting a new retry against a newer run version.
+ */
+export interface PendingUnconfirmedRetryViewModel {
+  runId: string;
+  expectedRunVersion: number;
+}
+
 export interface UnconfirmedFaultViewModel {
   kind:
     | "session_expired"
+    | "workspace_scope_violation"
+    | "resource_not_found"
+    | "auth_verification_unavailable"
+    | "version_conflict"
     | "network_error"
     | "uncertain_outcome"
     | "duplicate_conflict"
     | "request_rejected";
   httpStatus?: number;
+  errorCode?: string;
+  requestId?: string;
   title: string;
   message: string;
   serverConfirmed: false;
@@ -246,6 +266,24 @@ export interface ImportJourneyState {
   repositories: PublicRepositoryOption[];
   selectedRepoId: string | null;
   activeRun: ImportRunViewModel | null;
+  /**
+   * In-memory list of repository IDs whose initial import was confirmed as
+   * succeeded (`status === "succeeded"` and `importReady === true`) in the
+   * current authenticated/connected scope. Never persisted; cleared on
+   * logout, session expiration, permission/connection change, or reset.
+   */
+  succeededRepoIds: string[];
+  /**
+   * True when the server returned `403 WORKSPACE_SCOPE_VIOLATION`.
+   * Closes this Workspace's repositories/runs/polling while keeping the user
+   * logged in (`serviceAuth.status === "authenticated"`).
+   */
+  workspaceAccessRevoked: boolean;
+  /**
+   * In-memory summary of an unconfirmed previous retry for explicit resend
+   * (same runId, same Idempotency-Key, same original expected_run_version).
+   */
+  pendingRetry: PendingUnconfirmedRetryViewModel | null;
   pendingActionLabel: string | null;
   duplicateGuardNotice: string | null;
   unconfirmedFault: UnconfirmedFaultViewModel | null;

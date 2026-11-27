@@ -1,10 +1,13 @@
 import type { PrototypeScenarioId } from "@/domain/view-models";
 import {
+  isValidRunVersion,
   parseOptionalJsonBody,
   UUID_V4_REGEX,
   type ImportConflictDto,
+  type ImportErrorEnvelopeDto,
   type ImportStatusDto,
   type InitialImportRequestDto,
+  type RetryImportRequestDto,
   type SyncRunAcceptedDto,
   type SyntheticHttpRequest,
   type SyntheticHttpResponse,
@@ -12,9 +15,10 @@ import {
 } from "./synthetic-http-transport";
 
 /**
- * In-memory synthetic HTTP responder matching OpenAPI 0.2.0-draft examples
- * (CONTRACT commit a0314f2cbcb33f1d34ed486db7b1009dcb4adc59) for ONLY:
+ * In-memory synthetic HTTP responder matching OpenAPI 0.5.0-draft
+ * (CONTRACT commit 87f1515cbe74bf02b0aece68904bf9a641c74c60) for ONLY:
  *   - POST /v1/sync-runs
+ *   - GET  /v1/sync-runs?source_resource_id=...&limit=1
  *   - GET  /v1/sync-runs/{id}
  *   - POST /v1/sync-runs/{id}/retry
  *
@@ -25,6 +29,7 @@ export interface SyntheticOpenApiState {
   scenarioId: PrototypeScenarioId;
   pollStep: number;
   runSequence: number;
+  runVersion: number;
   isRetryRecoveryFlow: boolean;
   activeRunId: string | null;
   activePlanId: string | null;
@@ -48,7 +53,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
   >();
   private readonly retryIdempotencyRecords = new Map<
     string,
-    { runId: string; accepted: SyncRunAcceptedDto }
+    { runId: string; expectedRunVersion: number; accepted: SyncRunAcceptedDto }
   >();
 
   constructor(
@@ -70,6 +75,43 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
   private echoHeaders(request: SyntheticHttpRequest): Record<string, string> {
     const reqId = request.headers["X-Request-ID"];
     return reqId ? { "X-Request-ID": reqId } : {};
+  }
+
+  private buildErrorEnvelope(
+    request: SyntheticHttpRequest,
+    code: string,
+    message: string,
+    retryable = false,
+    details?: { existing_run_id?: string }
+  ): ImportErrorEnvelopeDto {
+    const requestId = request.headers["X-Request-ID"] ?? "synthetic-req-0";
+    return {
+      error: {
+        code,
+        message,
+        retryable,
+        request_id: requestId,
+        ...(details ? { details } : {}),
+      },
+    };
+  }
+
+  private buildSessionTerminatedResponse(
+    request: SyntheticHttpRequest,
+    headers: Record<string, string>
+  ): SyntheticHttpResponse {
+    return {
+      status: 401,
+      headers: { ...headers, "Content-Type": "application/json" },
+      rawBody: JSON.stringify(
+        this.buildErrorEnvelope(
+          request,
+          "SESSION_TERMINATED",
+          "Service session has been terminated.",
+          false
+        )
+      ),
+    };
   }
 
   public async send(
@@ -103,7 +145,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     const getMatch = request.path.match(/^\/v1\/sync-runs\/([^/?#]+)$/);
     if (request.method === "GET" && getMatch) {
       const runId = decodeURIComponent(getMatch[1]);
-      return this.handleGetStatus(runId, ctx, headers);
+      return this.handleGetStatus(request, runId, ctx, headers);
     }
 
     return { status: 404, headers, rawBody: "" };
@@ -115,7 +157,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     headers: Record<string, string>
   ): SyntheticHttpResponse {
     if (!ctx.isAuthenticated) {
-      return { status: 401, headers, rawBody: "" };
+      return this.buildSessionTerminatedResponse(request, headers);
     }
 
     const queryIndex = request.path.indexOf("?");
@@ -152,7 +194,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     }
 
     if (!isAuthenticated || state.scenarioId === "session_expired_on_submit") {
-      return { status: 401, headers, rawBody: "" };
+      return this.buildSessionTerminatedResponse(request, headers);
     }
 
     // Empty-body review stub responses (no JSON body!)
@@ -166,7 +208,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       return { status: 422, headers, rawBody: "" };
     }
 
-    // Validate UUID Idempotency-Key & JSON body per OpenAPI 0.2.0-draft -> empty 422
+    // Validate UUID Idempotency-Key & JSON body per OpenAPI 0.5.0-draft -> empty 422
     const key = request.headers["Idempotency-Key"];
     if (!key || !UUID_V4_REGEX.test(key)) {
       return { status: 422, headers, rawBody: "" };
@@ -193,7 +235,12 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     if (prior) {
       if (prior.fingerprint !== fingerprint) {
         const conflict: ImportConflictDto = {
-          error: { code: "IDEMPOTENCY_CONFLICT" },
+          error: {
+            code: "IDEMPOTENCY_CONFLICT",
+            message: "Idempotency-Key was reused with a different request payload.",
+            retryable: false,
+            request_id: request.headers["X-Request-ID"] ?? "synthetic-req-0",
+          },
         };
         return {
           status: 409,
@@ -216,11 +263,15 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
         activeRunId: existingRunId,
         activePlanId: "synthetic-plan-existing-1",
         pollStep: 0,
+        runVersion: 1,
         isRetryRecoveryFlow: false,
       });
       const conflict: ImportConflictDto = {
         error: {
           code: "SYNC_ALREADY_RUNNING",
+          message: "An active sync run already exists for this source resource.",
+          retryable: false,
+          request_id: request.headers["X-Request-ID"] ?? "synthetic-req-0",
           details: { existing_run_id: existingRunId },
         },
       };
@@ -239,7 +290,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       target_type: "SYNC_RUN",
       target_id: targetId,
       status_url: `/v1/sync-runs/${targetId}`,
-      // Intentionally omit job_id (optional per OpenAPI 0.2.0-draft)
+      // Intentionally omit job_id (optional per OpenAPI 0.5.0-draft)
     };
 
     this.createIdempotencyRecords.set(key, { fingerprint, accepted });
@@ -247,6 +298,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       ...state,
       runSequence: nextSeq,
       pollStep: 0,
+      runVersion: 1,
       isRetryRecoveryFlow: false,
       activeRunId: targetId,
       activePlanId: planId,
@@ -268,24 +320,53 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     const { isAuthenticated, state, onStateChange } = ctx;
 
     if (!isAuthenticated) {
-      return { status: 401, headers, rawBody: "" };
+      return this.buildSessionTerminatedResponse(request, headers);
     }
 
-    // Retry must be bodyless and include UUID Idempotency-Key
+    // OpenAPI 0.5.0-draft: retry requires UUID Idempotency-Key + JSON {"expected_run_version": <int >= 1>}
     const key = request.headers["Idempotency-Key"];
+    if (!key || !UUID_V4_REGEX.test(key)) {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    const parsedBody = parseOptionalJsonBody<Record<string, unknown>>(
+      request.body
+    );
     if (
-      !key ||
-      !UUID_V4_REGEX.test(key) ||
-      (request.body !== undefined && request.body.length > 0)
+      parsedBody.empty ||
+      parsedBody.invalidJson ||
+      !parsedBody.value ||
+      typeof parsedBody.value !== "object" ||
+      Array.isArray(parsedBody.value)
     ) {
       return { status: 422, headers, rawBody: "" };
     }
 
+    const bodyKeys = Object.keys(parsedBody.value);
+    const expectedRunVersion = (parsedBody.value as Partial<RetryImportRequestDto>)
+      .expected_run_version;
+    if (
+      bodyKeys.length !== 1 ||
+      bodyKeys[0] !== "expected_run_version" ||
+      !isValidRunVersion(expectedRunVersion)
+    ) {
+      return { status: 422, headers, rawBody: "" };
+    }
+
+    // Idempotency replay runs BEFORE version conflict check per OpenAPI 0.5.0-draft
     const prior = this.retryIdempotencyRecords.get(key);
     if (prior) {
-      if (prior.runId !== runId) {
+      if (
+        prior.runId !== runId ||
+        prior.expectedRunVersion !== expectedRunVersion
+      ) {
         const conflict: ImportConflictDto = {
-          error: { code: "IDEMPOTENCY_CONFLICT" },
+          error: {
+            code: "IDEMPOTENCY_CONFLICT",
+            message: "Idempotency-Key was reused with a different retry request.",
+            retryable: false,
+            request_id: request.headers["X-Request-ID"] ?? "synthetic-req-0",
+          },
         };
         return {
           status: 409,
@@ -300,7 +381,27 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       };
     }
 
-    // OpenAPI 0.2.0-draft: retry returns the ORIGINAL run's target_id and status_url
+    const currentVersion = isValidRunVersion(state.runVersion)
+      ? state.runVersion
+      : 1;
+    if (expectedRunVersion !== currentVersion) {
+      const conflict: ImportConflictDto = {
+        error: {
+          code: "RESOURCE_VERSION_CONFLICT",
+          message:
+            "Sync run state changed before retry was processed; refresh run status.",
+          retryable: false,
+          request_id: request.headers["X-Request-ID"] ?? "synthetic-req-0",
+        },
+      };
+      return {
+        status: 409,
+        headers: { ...headers, "Content-Type": "application/json" },
+        rawBody: JSON.stringify(conflict),
+      };
+    }
+
+    // OpenAPI 0.5.0-draft: retry returns the ORIGINAL run's target_id and status_url
     const accepted: SyncRunAcceptedDto = {
       status: "PENDING",
       target_type: "SYNC_RUN",
@@ -308,10 +409,16 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       status_url: `/v1/sync-runs/${encodeURIComponent(runId)}`,
     };
 
-    this.retryIdempotencyRecords.set(key, { runId, accepted });
+    const nextVersion = currentVersion + 1;
+    this.retryIdempotencyRecords.set(key, {
+      runId,
+      expectedRunVersion,
+      accepted,
+    });
     onStateChange({
       ...state,
       pollStep: 0,
+      runVersion: nextVersion,
       isRetryRecoveryFlow: true,
       activeRunId: runId,
     });
@@ -324,6 +431,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
   }
 
   private handleGetStatus(
+    request: SyntheticHttpRequest,
     runId: string,
     ctx: ReturnType<SyntheticOpenApiTransport["getContext"]>,
     headers: Record<string, string>
@@ -340,20 +448,25 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     }
 
     if (!isAuthenticated) {
-      return { status: 401, headers, rawBody: "" };
+      return this.buildSessionTerminatedResponse(request, headers);
     }
 
     const nextStep = state.pollStep + 1;
+    const currentVersion = isValidRunVersion(state.runVersion)
+      ? state.runVersion
+      : 1;
+    const nextVersion = currentVersion + 1;
     const planId = state.activePlanId ?? `synthetic-plan-${runId}`;
     const observedAt = new Date().toISOString();
 
     // Existing run attached via 409 SYNC_ALREADY_RUNNING -> RUNNING then SUCCESS
     if (state.scenarioId === "conflict_existing_run") {
-      onStateChange({ ...state, pollStep: nextStep });
+      onStateChange({ ...state, pollStep: nextStep, runVersion: nextVersion });
       const dto: ImportStatusDto =
         nextStep === 1
           ? {
               status: "RUNNING",
+              run_version: nextVersion,
               plan_id: planId,
               import_ready: false,
               processing_status: "NOT_STARTED",
@@ -365,6 +478,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
             }
           : {
               status: "SUCCESS",
+              run_version: nextVersion,
               plan_id: planId,
               import_ready: true,
               processing_status: "COMPLETE",
@@ -382,9 +496,10 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
 
     // Slow reload recovery stays RUNNING across 3 polls before SUCCESS
     if (state.scenarioId === "running_slow_for_reload" && nextStep < 4) {
-      onStateChange({ ...state, pollStep: nextStep });
+      onStateChange({ ...state, pollStep: nextStep, runVersion: nextVersion });
       const dto: ImportStatusDto = {
         status: "RUNNING",
+        run_version: nextVersion,
         plan_id: planId,
         import_ready: false,
         processing_status: "NOT_STARTED",
@@ -406,9 +521,10 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       (state.scenarioId === "success_full" || state.isRetryRecoveryFlow) &&
       nextStep === 1
     ) {
-      onStateChange({ ...state, pollStep: nextStep });
+      onStateChange({ ...state, pollStep: nextStep, runVersion: nextVersion });
       const dto: ImportStatusDto = {
         status: "RUNNING",
+        run_version: nextVersion,
         plan_id: planId,
         import_ready: false,
         processing_status: "NOT_STARTED",
@@ -426,11 +542,12 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       };
     }
 
-    onStateChange({ ...state, pollStep: nextStep });
+    onStateChange({ ...state, pollStep: nextStep, runVersion: nextVersion });
 
     if (state.isRetryRecoveryFlow) {
       const dto: ImportStatusDto = {
         status: "SUCCESS",
+        run_version: nextVersion,
         plan_id: planId,
         import_ready: true,
         processing_status: "COMPLETE",
@@ -449,6 +566,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
     const dto = this.buildScenarioTerminalDto({
       scenarioId: state.scenarioId,
       planId,
+      runVersion: nextVersion,
       observedAt,
       onGitHubPermissionRevoked,
     });
@@ -463,10 +581,11 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
   private buildScenarioTerminalDto(params: {
     scenarioId: PrototypeScenarioId;
     planId: string;
+    runVersion: number;
     observedAt: string;
     onGitHubPermissionRevoked?: () => void;
   }): ImportStatusDto {
-    const { scenarioId, planId, observedAt } = params;
+    const { scenarioId, planId, runVersion, observedAt } = params;
 
     switch (scenarioId) {
       case "success_full":
@@ -479,6 +598,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "empty_422":
         return {
           status: "SUCCESS",
+          run_version: runVersion,
           plan_id: planId,
           import_ready: true,
           processing_status: "COMPLETE",
@@ -491,6 +611,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "success_import_ready_derived_pending":
         return {
           status: "SUCCESS",
+          run_version: runVersion,
           plan_id: planId,
           import_ready: true,
           processing_status: "FAILED",
@@ -503,6 +624,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "success_blocked_policy":
         return {
           status: "SUCCESS",
+          run_version: runVersion,
           plan_id: planId,
           import_ready: true,
           processing_status: "BLOCKED_POLICY",
@@ -515,6 +637,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "success_blocked_source":
         return {
           status: "SUCCESS",
+          run_version: runVersion,
           plan_id: planId,
           import_ready: true,
           processing_status: "BLOCKED_SOURCE",
@@ -527,6 +650,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "partial_retryable":
         return {
           status: "PARTIAL",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "TRANSIENT_PROVIDER_ERROR",
           streams: [
@@ -550,6 +674,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "partial_non_retryable":
         return {
           status: "PARTIAL",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "SOURCE_POLICY_BLOCKED",
           import_ready: false,
@@ -563,6 +688,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "partial_plan_drift":
         return {
           status: "PARTIAL",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "PLAN_DRIFT",
           import_ready: false,
@@ -576,6 +702,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "limit_rate_limited":
         return {
           status: "PARTIAL",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "TRANSIENT_PROVIDER_ERROR",
           import_ready: false,
@@ -591,6 +718,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "limit_cap_blocked":
         return {
           status: "PARTIAL_WITH_LIMIT",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "SYNC_PARTIAL_WITH_LIMIT",
           import_ready: false,
@@ -606,6 +734,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "error_retryable":
         return {
           status: "PARTIAL",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "TRANSIENT_PROVIDER_ERROR",
           import_ready: false,
@@ -618,6 +747,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
       case "error_non_retryable":
         return {
           status: "FAILED",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "MOCK_REPO_UNSUPPORTED_STRUCTURE",
           import_ready: false,
@@ -631,6 +761,7 @@ export class SyntheticOpenApiTransport implements SyntheticHttpTransport {
         params.onGitHubPermissionRevoked?.();
         return {
           status: "FAILED",
+          run_version: runVersion,
           plan_id: planId,
           failure_reason: "SOURCE_PERMISSION_REVOKED",
           import_ready: false,

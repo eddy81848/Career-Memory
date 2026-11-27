@@ -2,6 +2,7 @@ import type { BootstrapPayload } from "@/domain/state-machine";
 import type {
   GitHubConnectionViewModel,
   ImportRunViewModel,
+  PendingUnconfirmedRetryViewModel,
   PrototypeScenarioId,
   PublicRepositoryOption,
   RecoveryNoticeViewModel,
@@ -12,9 +13,9 @@ import type {
 /**
  * Transport-agnostic Service Adapter port.
  *
- * The 3 sync-run operations map OpenAPI 0.2.0-draft synthetic HTTP responses
- * inside the adapter layer; auth/GitHub connection/repo list remain mock UI
- * fixtures until their contracts are approved.
+ * The 4 sync-run operations map OpenAPI 0.5.0-draft HTTP responses inside the
+ * adapter layer; auth/GitHub connection/repo list remain mock UI fixtures until
+ * their product contracts are approved.
  */
 
 export type AdapterResult<T> =
@@ -24,6 +25,9 @@ export type AdapterResult<T> =
       kind: UnconfirmedFaultViewModel["kind"];
       fault: UnconfirmedFaultViewModel;
       serviceAuth?: ServiceAuthViewModel;
+      workspaceAccessRevoked?: boolean;
+      clearActiveRun?: boolean;
+      pendingRetry?: PendingUnconfirmedRetryViewModel | null;
     };
 
 export interface ConnectionSyncPayload {
@@ -37,11 +41,24 @@ export interface RunSyncPayload {
   run: ImportRunViewModel;
   githubConnection?: GitHubConnectionViewModel;
   recoveryNotice?: RecoveryNoticeViewModel | null;
+  pendingRetry?: PendingUnconfirmedRetryViewModel | null;
 }
 
 export interface StartInitialImportInput {
   repoId: string;
   idempotencyKey?: string;
+}
+
+export interface RetryImportRunOptions {
+  /**
+   * - `"new_retry"` (default): starts a brand-new retry against the latest
+   *   observed run state using a fresh UUID Idempotency-Key and `expectedRunVersion`.
+   * - `"resend_pending"`: explicitly resends the exact previously unconfirmed
+   *   retry (same runId, same Idempotency-Key, same original expected_run_version).
+   */
+  mode?: "new_retry" | "resend_pending";
+  /** Run version attributed to `runId` (required for `"new_retry"`). */
+  expectedRunVersion?: number;
 }
 
 export interface RecoverRepositoryRunInput {
@@ -54,6 +71,7 @@ export interface RecoverRepositoryRunPayload {
   lookupMode: "detail_get" | "recovery_get";
   githubConnection?: GitHubConnectionViewModel;
   recoveryNotice: RecoveryNoticeViewModel;
+  pendingRetry?: PendingUnconfirmedRetryViewModel | null;
   checkedAt: string;
 }
 
@@ -81,7 +99,10 @@ export interface ImportServiceAdapter {
     input: RecoverRepositoryRunInput
   ): Promise<AdapterResult<RecoverRepositoryRunPayload>>;
 
-  retryImportRun(runId: string): Promise<AdapterResult<RunSyncPayload>>;
+  retryImportRun(
+    runId: string,
+    options?: RetryImportRunOptions
+  ): Promise<AdapterResult<RunSyncPayload>>;
 
   resetActiveRun(): Promise<AdapterResult<ConnectionSyncPayload>>;
 }

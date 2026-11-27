@@ -7,8 +7,8 @@ import type {
 } from "@/domain/view-models";
 
 /**
- * Synthetic HTTP transport types and OpenAPI 0.2.0-draft (CONTRACT commit
- * a0314f2cbcb33f1d34ed486db7b1009dcb4adc59) DTO definitions & pure mappers.
+ * Synthetic HTTP transport types and OpenAPI 0.5.0-draft (CONTRACT commit
+ * 87f1515cbe74bf02b0aece68904bf9a641c74c60) DTO definitions & pure mappers.
  *
  * Strictly synthetic / in-memory — NO real network calls are performed here.
  */
@@ -23,7 +23,7 @@ export interface SyntheticHttpRequest {
 export interface SyntheticHttpResponse {
   status: number;
   headers?: Record<string, string>;
-  /** Raw body string; empty string or undefined for bodyless 401/403/409/422. */
+  /** Raw body string; empty string or undefined for bodyless fixture errors. */
   rawBody?: string;
 }
 
@@ -31,7 +31,7 @@ export interface SyntheticHttpTransport {
   send(request: SyntheticHttpRequest): Promise<SyntheticHttpResponse>;
 }
 
-/** OpenAPI 0.2.0-draft DTOs for the 3 sync-run paths ONLY */
+/** OpenAPI 0.5.0-draft DTOs for the 4 sync-run paths ONLY */
 export interface InitialImportRequestDto {
   source_resource_id: string;
   mode: "INITIAL_BACKFILL";
@@ -39,6 +39,10 @@ export interface InitialImportRequestDto {
   limits?: {
     max_objects?: number;
   };
+}
+
+export interface RetryImportRequestDto {
+  expected_run_version: number;
 }
 
 export interface SyncRunAcceptedDto {
@@ -69,6 +73,8 @@ export interface StreamProgressDto {
 
 export interface ImportStatusDto {
   status: OpenApiImportState;
+  /** Optimistic concurrency version attributed to this run (integer >= 1). */
+  run_version?: number;
   plan_id: string;
   failure_reason?: string;
   streams?: StreamProgressDto[];
@@ -84,12 +90,28 @@ export interface ImportStatusDto {
   };
 }
 
+export interface ImportErrorEnvelopeDto {
+  error: {
+    code: string;
+    message?: string;
+    retryable?: boolean;
+    request_id?: string;
+    details?: {
+      existing_run_id?: string;
+    };
+  };
+}
+
 export interface ImportConflictDto {
   error: {
     code:
       | "IDEMPOTENCY_CONFLICT"
       | "SYNC_ALREADY_RUNNING"
-      | "IDEMPOTENCY_KEY_EXPIRED";
+      | "IDEMPOTENCY_KEY_EXPIRED"
+      | "RESOURCE_VERSION_CONFLICT";
+    message?: string;
+    retryable?: boolean;
+    request_id?: string;
     details?: {
       existing_run_id?: string;
     };
@@ -104,6 +126,10 @@ export interface RecoveredSyncRunItemDto {
 
 export interface RecoveredSyncRunsDto {
   items: RecoveredSyncRunItemDto[];
+}
+
+export function isValidRunVersion(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
 const VALID_IMPORT_STATES = new Set<string>([
@@ -448,8 +474,13 @@ export function mapImportStatusDtoToViewModel(params: {
   // Enforce contract invariant: PARTIAL / PARTIAL_WITH_LIMIT / FAILED / CANCELED / PENDING / RUNNING => import_ready=false
   const importReady = dto.status === "SUCCESS" ? Boolean(dto.import_ready) : false;
 
+  const runVersion = isValidRunVersion(dto.run_version)
+    ? dto.run_version
+    : undefined;
+
   const base = {
     runId,
+    ...(runVersion !== undefined ? { runVersion } : {}),
     statusUrl,
     planId: dto.plan_id,
     repositoryId: repo.repoId,

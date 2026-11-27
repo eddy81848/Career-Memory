@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from career_memory_api.authz import WorkspaceAccessContext
+from career_memory_api.event_candidates.models import CandidateBuildResult
+from career_memory_api.event_candidates.postgres_builder import PostgresEventCandidateBuilder
 from career_memory_api.initial_import.derived_units import (
     DerivedUnitIngestionProcessor,
     DerivedUnitIngestionResult,
@@ -34,6 +36,7 @@ class WorkerStepResult:
     job_final_status: JobStatus
     execution: InitialBackfillExecutionResult
     derived_units: DerivedUnitIngestionResult | None = None
+    event_candidates: CandidateBuildResult | None = None
     effect_applied: bool = False
 
 
@@ -56,11 +59,13 @@ class InitialBackfillJobWorker:
         job_runtime: PostgresJobRuntime,
         orchestrator: InitialBackfillOrchestrator,
         derived_unit_processor: DerivedUnitIngestionProcessor | None = None,
+        event_candidate_builder: PostgresEventCandidateBuilder | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._job_runtime = job_runtime
         self._orchestrator = orchestrator
         self._derived_unit_processor = derived_unit_processor
+        self._event_candidate_builder = event_candidate_builder
         self._clock = clock or (lambda: datetime.now(UTC))
 
     def claim_and_execute_next(
@@ -71,6 +76,7 @@ class InitialBackfillJobWorker:
         access: WorkspaceAccessContext | None = None,
         lease_duration: timedelta = timedelta(seconds=60),
         run_derived_units: bool = True,
+        run_event_candidate_builder: bool = True,
         now: datetime | None = None,
     ) -> WorkerStepResult | None:
         """Claim and execute the next ready `INITIAL_BACKFILL_SYNC` job, or return None."""
@@ -89,6 +95,7 @@ class InitialBackfillJobWorker:
             access=access,
             lease_extension=lease_duration,
             run_derived_units=run_derived_units,
+            run_event_candidate_builder=run_event_candidate_builder,
             now=ts,
         )
 
@@ -99,6 +106,7 @@ class InitialBackfillJobWorker:
         access: WorkspaceAccessContext | None = None,
         lease_extension: timedelta = timedelta(seconds=60),
         run_derived_units: bool = True,
+        run_event_candidate_builder: bool = True,
         now: datetime | None = None,
     ) -> WorkerStepResult:
         """Execute an already-claimed `ClaimedJob` with lease heartbeat and terminal settlement."""
@@ -133,6 +141,7 @@ class InitialBackfillJobWorker:
         )
 
         derived_res: DerivedUnitIngestionResult | None = None
+        candidate_res: CandidateBuildResult | None = None
         effect_applied = False
         final_job_status: JobStatus
 
@@ -162,6 +171,17 @@ class InitialBackfillJobWorker:
                 and execution.import_ready
             ):
                 derived_res = self._derived_unit_processor.process_import_ready_run(
+                    workspace_id=job.workspace_id,
+                    sync_run_id=execution.sync_run_id,
+                    now=self._clock(),
+                )
+
+            if (
+                run_event_candidate_builder
+                and self._event_candidate_builder is not None
+                and execution.import_ready
+            ):
+                candidate_res = self._event_candidate_builder.build_candidates_for_sync_run(
                     workspace_id=job.workspace_id,
                     sync_run_id=execution.sync_run_id,
                     now=self._clock(),
@@ -200,6 +220,7 @@ class InitialBackfillJobWorker:
             job_final_status=final_job_status,
             execution=execution,
             derived_units=derived_res,
+            event_candidates=candidate_res,
             effect_applied=effect_applied,
         )
 

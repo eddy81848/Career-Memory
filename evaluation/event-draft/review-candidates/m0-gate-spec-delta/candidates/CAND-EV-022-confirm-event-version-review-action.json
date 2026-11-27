@@ -1,0 +1,317 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "CAND-EV-022",
+  "candidate_kind": "NEW_CASE_CANDIDATE",
+  "target_case_id": "EV-022",
+  "baseline_case_ref": null,
+  "slug": "user-confirm-event-version-and-review-action",
+  "title": "User confirm via POST /work-events/{id}/actions/confirm transitions CANDIDATE Event to CONFIRMED with new version and domain ReviewAction CONFIRM (no separate Keep API)",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_cand_workflow_audit",
+    "source_lineage_group": "src_workflow_audit",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "CAND-EV-022",
+      "CAND-EV-023"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-4-KEEP-EDIT-TRACKING",
+    "notion_clauses": [
+      "Event Guide §6·7 (https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f)",
+      "MVP API §5 — POST /work-events/{id}/actions/confirm (https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa)",
+      "DB Model — Domain ReviewAction CONFIRM (https://app.notion.com/p/3e3f86591b5f811bb88be70b33e10af5)",
+      "T-001B Acceptance (https://app.notion.com/p/3f1f86591b5f813a91cbde08a573a246)"
+    ],
+    "existing_gap": "Audit of EV-001..EV-018 confirmed 0 cases test user confirm (MVP API §5 POST /work-events/{id}/actions/confirm), new version creation on confirm, or DB Model domain ReviewAction CONFIRM tracking.",
+    "synthetic_input_summary": "SUCCESS INITIAL_BACKFILL on acme-syn-lab/workflow-audit (same synthetic source lineage as CAND-EV-023). Single active PR CANDIDATE ev_init_022_1 at version=1 receives confirm command mapped to MVP API §5 POST /work-events/{id}/actions/confirm with expected_version=1 and idempotency_key.",
+    "expected_behavior_summary": "ev_init_022_1 transitions from CANDIDATE (v1) to CONFIRMED (v2, is_active_top_level=true, prior_version_preserved=true, anchor_mode='PR' unchanged) and records 1 domain ReviewAction CONFIRM (rev_exp_022_1, from_version=1, to_version=2, is_event_merge=false) while keeping external_response_action_token='UNCONFIRMED'. UI label 'Keep' is NOT invented as a separate API endpoint or action.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap4_keep_edit_tracking",
+      "test_delta_candidates.py::test_confirm_requires_version_bump_review_action_and_no_invented_keep_api"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_CONFIRM_EDIT_COMMANDS_AND_REVIEW_ACTION",
+      "base_schema_path": "schemas/case.schema.json#/properties/user_commands & expected_proposal",
+      "limitation": "case.schema.json command_action enum lacks 'confirm' and 'edit' and spec_command_name only allows 'UNCONFIRMED'; initial_events[*]/events[*] lack curated title/summary and previous_version/prior_version_preserved; expected_proposal lacks review_actions array separating DB Model domain ReviewAction (CONFIRM/EDIT) from unconfirmed external response tokens.",
+      "candidate_representation": "Added command_action 'confirm' with confirmed MVP API §5 route spec_command_name='POST /work-events/{id}/actions/confirm', event title/summary/previous_version/prior_version_preserved, and expected_proposal.review_actions with domain_review_action='CONFIRM' and external_response_action_token='UNCONFIRMED'.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-CMD-CONFIRM-01",
+      "REQ-EV-REVIEW-ACTION-01"
+    ],
+    "draft_test_ids": [
+      "T-001B-DELTA-05"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [],
+    "scenario_tags": [
+      "user_confirm",
+      "mvp_api_confirm_endpoint",
+      "ui_keep_not_invented_api_name",
+      "lifecycle_confirmed",
+      "new_event_version",
+      "domain_review_action_confirm",
+      "curation_command",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_022",
+        "name": "Synthetic Workspace Workflow",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_022",
+        "workspace_id": "ws_syn_022",
+        "full_name": "acme-syn-lab/workflow-audit",
+        "default_branch": "main",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_022",
+        "workspace_id": "ws_syn_022",
+        "repo_id": "repo_syn_022",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T13:30:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_2201",
+        "repo_id": "repo_syn_022",
+        "number": 2201,
+        "title": "Add async webhook dispatcher",
+        "body": "Moves outbound webhook delivery onto bounded async worker queues.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/async-webhook-dispatcher",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-23T11:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2201a"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_022"
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_2201a",
+        "repo_id": "repo_syn_022",
+        "sha": "2201a00000000000000000000000000000000001",
+        "message": "Implement bounded async webhook dispatcher queue",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-23T10:15:00Z",
+        "branch_name": "feat/async-webhook-dispatcher",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2201",
+        "changed_paths": [
+          "src/webhooks/dispatcher.py"
+        ],
+        "source_sync_run_id": "sync_syn_022"
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_022_1",
+        "workspace_id": "ws_syn_022",
+        "repo_id": "repo_syn_022",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_2201",
+        "source_commit_ids": [
+          "cmt_syn_2201a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add async webhook dispatcher",
+        "summary": "Initial candidate summary for outbound webhook dispatcher PR.",
+        "source_sync_run_id": "sync_syn_022",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "event_relations": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_022_confirm",
+      "command_action": "confirm",
+      "spec_command_name": "POST /work-events/{id}/actions/confirm",
+      "ui_label_distinction_note": "MVP API §5 already defines POST /work-events/{id}/actions/confirm; UI label 'Keep' maps to this confirm endpoint and MUST NOT be invented as a separate Keep API.",
+      "workspace_id": "ws_syn_022",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "idempotency_key": "idem_syn_022_confirm_1",
+      "target_event_ids": [
+        "ev_init_022_1"
+      ],
+      "target_versions": {
+        "ev_init_022_1": 1
+      },
+      "payload": {
+        "reason": "Confirmed as a relevant career work event"
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_022_1",
+        "workspace_id": "ws_syn_022",
+        "repo_id": "repo_syn_022",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CONFIRMED",
+        "is_active_top_level": true,
+        "version": 2,
+        "previous_version": 1,
+        "prior_version_preserved": true,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_022_confirm",
+        "primary_pr_id": "pr_syn_2201",
+        "source_commit_ids": [
+          "cmt_syn_2201a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add async webhook dispatcher",
+        "summary": "Initial candidate summary for outbound webhook dispatcher PR.",
+        "title_hint": "Add async webhook dispatcher",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_022_confirm",
+        "outcome": "ACCEPTED",
+        "rejection_category": null,
+        "spec_error_code": null,
+        "state_mutated": true,
+        "resulting_event_ids": [
+          "ev_init_022_1"
+        ],
+        "unconfirmed_fields": [
+          "http_status"
+        ]
+      }
+    ],
+    "review_actions": [
+      {
+        "review_action_id": "rev_exp_022_1",
+        "command_id": "cmd_syn_022_confirm",
+        "event_id": "ev_init_022_1",
+        "actor_id": "usr_syn_owner_1",
+        "logical_action": "confirm",
+        "domain_review_action": "CONFIRM",
+        "external_response_action_token": "UNCONFIRMED",
+        "from_version": 1,
+        "to_version": 2,
+        "changed_fields": [
+          "lifecycle_status"
+        ],
+        "creates_new_event_version": true,
+        "is_event_merge": false,
+        "ui_label_distinction_note": "Maps UI 'Keep' to MVP API §5 POST /work-events/{id}/actions/confirm and DB Model domain ReviewAction CONFIRM; unconfirmed external HTTP response token remains separated as UNCONFIRMED.",
+        "unconfirmed_fields": [
+          "external_response_action_token"
+        ]
+      }
+    ],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "async webhook dispatcher",
+        "workspace_id": "ws_syn_022",
+        "expected_event_ids": [
+          "ev_init_022_1"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.review_actions[0].external_response_action_token",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "MVP API §5 route POST /work-events/{id}/actions/confirm and DB Model domain ReviewAction CONFIRM are confirmed; external API response payload token/shape and HTTP status remain excluded from truth comparison."
+      },
+      {
+        "field_path": "expected_proposal.events[0]",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "Confirm whether re-invoking confirm on an already-CONFIRMED Event with matching expected_version is a no-op, idempotent repeat, or rejected."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Fills the confirmed confirm gap not tested in EV-001..EV-018 using MVP API §5 POST /work-events/{id}/actions/confirm (without inventing a separate Keep API): confirming CANDIDATE Event ev_init_022_1 (v1) checks expected_version=1, creates new version 2 with official lifecycle_status='CONFIRMED' while preserving prior version and Source provenance, and records DB Model domain ReviewAction CONFIRM (distinct from unconfirmed external response tokens).",
+    "confirmed_spec_rules": [
+      "MVP_API_SECTION_5_CONFIRM_ROUTE_IS_POST_WORK_EVENTS_ID_ACTIONS_CONFIRM",
+      "USER_CONFIRM_TRANSITIONS_CANDIDATE_TO_CONFIRMED",
+      "CONFIRM_CREATES_NEW_EVENT_VERSION_AND_RECORDS_DOMAIN_REVIEW_ACTION_CONFIRM",
+      "DO_NOT_INVENT_SEPARATE_KEEP_API_FROM_UI_LABEL",
+      "SOURCE_PROVENANCE_PRESERVED_ACROSS_EVENT_VERSIONS"
+    ],
+    "unconfirmed_spec_tokens": [
+      "External API response action token / payload shape for ReviewAction (external_response_action_token='UNCONFIRMED')",
+      "HTTP status code for accepted confirm response (http_status left unconfirmed)"
+    ],
+    "truly_undecided_items": [
+      "Whether confirming an already-CONFIRMED Event with matching expected_version is a no-op, idempotent repeat, or rejected."
+    ]
+  }
+}

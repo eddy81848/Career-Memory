@@ -1,0 +1,233 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "DELTA-EV-002",
+  "candidate_kind": "AMENDMENT_CANDIDATE",
+  "target_case_id": "EV-002",
+  "baseline_case_ref": {
+    "baseline_commit_sha": "140543b983bbdf41584bc5b3a65d1ec67022f951",
+    "baseline_dataset_version": "1.0.0-mvp-approved",
+    "baseline_path": "cases/EV-002-default-branch-direct-commit.json",
+    "baseline_file_sha256": "354be261b848463ac0fa4660203817af7890f06c37be5d0f74669e40cc194a6f",
+    "before_after_summary": {
+      "before": "EV-002 in 1.0.0-mvp-approved verifies DIRECT_COMMIT CANDIDATE generation on a default-branch commit with COMPLETED + NO_MATCH_OBSERVED and start/end branch verification, but omits the semantic expectation that NO_MATCH_OBSERVED is not proof of zero PRs and requires user association confirmation.",
+      "after": "Adds semantic direct_commit_confirmation_expectation (requires_user_association_confirmation=true, no_match_observed_means_definitely_no_pr=false) on ev_exp_002_1 while leaving unapproved API field names and UI badge strings explicitly UNCONFIRMED.",
+      "unchanged_guarantees": [
+        "synthetic_sources (ws_syn_002, repo_syn_002, sync_syn_002, cmt_syn_201) remain bit-for-bit equivalent to EV-002 at 140543b.",
+        "anchor_mode='DIRECT_COMMIT', lifecycle_status='CANDIDATE', version=1, 1-per-commit fallback, search_checks, and aggregation_check remain unchanged.",
+        "Existing approved cases/EV-002-default-branch-direct-commit.json and manifest.json SHA-256 hashes are NOT overwritten."
+      ]
+    }
+  },
+  "slug": "ev-002-direct-commit-confirmation-needed",
+  "title": "EV-002 amendment candidate: NO_MATCH_OBSERVED direct-commit candidate requires user association confirmation without fixing wire badge/field names",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_mvp_edge_gateway",
+    "source_lineage_group": "src_edge_gateway",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "EV-002",
+      "DELTA-EV-002"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-1-EV002-CONFIRM-HINT",
+    "notion_clauses": [
+      "B-001 결정과 Accepted Amendment (https://app.notion.com/p/3e3f86591b5f81a4a38be3df331daf00)",
+      "Direct Commit & Composite 계약 (https://app.notion.com/p/3f0f86591b5f81a3ab49dc7aef5bc028)",
+      "Event Guide §2·3 (https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f)",
+      "T-001B Acceptance (https://app.notion.com/p/3f1f86591b5f813a91cbde08a573a246)"
+    ],
+    "existing_gap": "EV-002 (1.0.0-mvp-approved) checks DIRECT_COMMIT CANDIDATE creation, but does not verify that NO_MATCH_OBSERVED != 'definitely no PR' and that the candidate must surface a user association-confirmation-needed expectation.",
+    "synthetic_input_summary": "Identical to EV-002: SUCCESS INITIAL_BACKFILL on acme-syn-lab/edge-gateway (default_branch='main'), single commit cmt_syn_201 verified on default branch at start and end with COMPLETED lookup and NO_MATCH_OBSERVED.",
+    "expected_behavior_summary": "Emits 1 DIRECT_COMMIT CANDIDATE (ev_exp_002_1) with semantic expectation requires_user_association_confirmation=true and no_match_observed_means_definitely_no_pr=false, keeping unapproved API field names and UI badge strings UNCONFIRMED.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap1_ev002_confirmation_hint",
+      "test_delta_candidates.py::test_ev002_delta_rejects_frozen_wire_badge_or_no_pr_claim"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_DIRECT_COMMIT_CONFIRMATION_EXPECTATION",
+      "base_schema_path": "schemas/case.schema.json#/$defs_or_properties/expected_proposal/properties/events/items",
+      "limitation": "case.schema.json sets additionalProperties=false on expected_proposal.events[*] and its review_flags object only models mixed-purpose PR hints (mixed_purpose_hint_present, exact_flag_token, auto_split_count). It cannot express direct-commit user association confirmation without either overloading mixed_purpose_hint_present or inventing an unapproved wire field.",
+      "candidate_representation": "Added isolated semantic block expected_proposal.events[*].direct_commit_confirmation_expectation with spec_api_field_name='UNCONFIRMED' and spec_badge_text='UNCONFIRMED'.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-COMMIT-01",
+      "REQ-EV-COMMIT-CONFIRM-01"
+    ],
+    "draft_test_ids": [
+      "T-001A-02",
+      "T-001B-DELTA-01"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "direct_commit",
+      "anchor_mode_direct_commit",
+      "default_branch",
+      "no_match_observed",
+      "association_confirmation_required",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_002",
+        "name": "Synthetic Workspace Alpha",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_002",
+        "workspace_id": "ws_syn_002",
+        "full_name": "acme-syn-lab/edge-gateway",
+        "default_branch": "main",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_002",
+        "workspace_id": "ws_syn_002",
+        "repo_id": "repo_syn_002",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T10:10:00Z"
+      }
+    ],
+    "pull_requests": [],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_201",
+        "repo_id": "repo_syn_002",
+        "sha": "2010000000000000000000000000000000000001",
+        "message": "Hotfix: raise circuit breaker timeout from 2s to 5s on edge router",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-21T03:45:00Z",
+        "branch_name": "main",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "config/router_timeouts.yaml"
+        ]
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "event_relations": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_exp_002_1",
+        "workspace_id": "ws_syn_002",
+        "repo_id": "repo_syn_002",
+        "anchor_mode": "DIRECT_COMMIT",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": null,
+        "source_commit_ids": [
+          "cmt_syn_201"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "direct_commit_confirmation_expectation": {
+          "requires_user_association_confirmation": true,
+          "no_match_observed_means_definitely_no_pr": false,
+          "spec_api_field_name": "UNCONFIRMED",
+          "spec_badge_text": "UNCONFIRMED",
+          "semantic_note": "NO_MATCH_OBSERVED only indicates that completed provider lookup observed no linked PR at snapshot time; it does NOT prove no PR exists. Surface a semantic user association-confirmation-needed indicator without assuming an unapproved API field name or UI badge literal."
+        },
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "title_hint": "Hotfix: raise circuit breaker timeout from 2s to 5s on edge router",
+        "unconfirmed_fields": [
+          "direct_commit_confirmation_expectation.spec_api_field_name",
+          "direct_commit_confirmation_expectation.spec_badge_text"
+        ]
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [],
+    "review_actions": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "circuit breaker timeout",
+        "workspace_id": "ws_syn_002",
+        "expected_event_ids": [
+          "ev_exp_002_1"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 1,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0,
+      "total_direct_commit_events": 1
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.events[0].direct_commit_confirmation_expectation.spec_api_field_name",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "Approve adding the semantic user association-confirmation-needed expectation to EV-002 (next dataset version), while keeping exact API field name and UI badge string unconfirmed unless fixed in MVP API spec."
+      },
+      {
+        "field_path": "schemas/case.schema.json",
+        "category": "SCHEMA_EXTENSION_REVIEW",
+        "status": "REVIEW_REQUIRED",
+        "question": "Decide whether to extend case.schema.json with direct_commit_confirmation_expectation (or a generalized review_guidance object) before bumping dataset_version beyond 1.0.0-mvp-approved."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Amends EV-002 to express the B-001 / Direct Commit contract rule that NO_MATCH_OBSERVED means 'no PR link observed during completed lookup', NOT 'no PR definitely exists', and therefore the emitted DIRECT_COMMIT CANDIDATE must carry a semantic expectation that user association confirmation is needed. Deliberately avoids freezing unapproved API field names or badge strings.",
+    "confirmed_spec_rules": [
+      "ANCHOR_MODE_DIRECT_COMMIT_ONE_CANDIDATE_PER_ELIGIBLE_COMMIT",
+      "DEFAULT_BRANCH_DIRECT_COMMIT_REQUIRES_SUCCESS_IMPORT_COMPLETED_LOOKUP_NO_MATCH_OBSERVED_AND_START_END_VERIFICATION",
+      "NO_MATCH_OBSERVED_DOES_NOT_PROVE_NO_PR_EXISTS",
+      "DIRECT_COMMIT_CANDIDATE_REQUIRES_USER_ASSOCIATION_CONFIRMATION_INDICATION",
+      "MULTI_DIRECT_COMMIT_AUTO_CLUSTERING_OUT_OF_MVP"
+    ],
+    "unconfirmed_spec_tokens": [
+      "Exact API field name for direct-commit association confirmation indication (spec_api_field_name='UNCONFIRMED')",
+      "Exact UI badge string / copy for confirmation-needed indication (spec_badge_text='UNCONFIRMED')"
+    ],
+    "truly_undecided_items": [
+      "Exact wire representation in Event API responses for surfacing the association-confirmation-needed state."
+    ]
+  }
+}

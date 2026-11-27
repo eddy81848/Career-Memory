@@ -1,0 +1,267 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "CAND-EV-020",
+  "candidate_kind": "NEW_CASE_CANDIDATE",
+  "target_case_id": "EV-020",
+  "baseline_case_ref": null,
+  "slug": "master-default-branch-unknown-association-hold",
+  "title": "Provider-reported 'master' default branch distinguishes non-default 'main' and preserves UNKNOWN -> PARTIAL hold (0 promoted Events)",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_cand_legacy_master",
+    "source_lineage_group": "src_legacy_master",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "CAND-EV-020"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-2-DEFAULT-BRANCH-PR-DEDUP",
+    "notion_clauses": [
+      "B-001 결정과 Accepted Amendment (https://app.notion.com/p/3e3f86591b5f81a4a38be3df331daf00)",
+      "Direct Commit & Composite 계약 (https://app.notion.com/p/3f0f86591b5f81a3ab49dc7aef5bc028)",
+      "Snapshot Import §4 (https://app.notion.com/p/3f0f86591b5f8170940fe98da87609aa)"
+    ],
+    "existing_gap": "Existing EV-003 verifies UNKNOWN->PARTIAL hold only on default_branch='main'. No case verifies provider-reported default_branch='master' alongside a non-default 'main' branch while proving UNKNOWN retains PARTIAL hold semantics (0 Events promoted, never treated as NO_MATCH_OBSERVED).",
+    "synthetic_input_summary": "PARTIAL INITIAL_BACKFILL (promotes_events=false) on acme-syn-lab/legacy-master-svc with provider-reported default_branch='master'. Contains an UNKNOWN-association commit on 'master' (cmt_syn_2001_master_unknown), a non-default commit on branch literally named 'main' (cmt_syn_2002_non_default_main), and an already-associated merged PR targeting 'master' in the same incomplete run.",
+    "expected_behavior_summary": "Import Run ends in PARTIAL (promotes_events=false), promotes 0 Events (even for the sibling merged PR in the incomplete run), records the UNKNOWN commit as an OBSERVATION_RECORD with interpreted_as_no_pr=false, excludes the non-default 'main' commit from direct-commit eligibility, and returns 0 results in default Event search.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap2_default_branch_and_pr_dedup",
+      "test_delta_candidates.py::test_master_unknown_partial_run_promotes_zero_events"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_PROVIDER_DEFAULT_BRANCH_FLAG",
+      "base_schema_path": "schemas/case.schema.json#/properties/synthetic_sources/properties/repositories/items",
+      "limitation": "repositories[*] has default_branch string, but lacks explicit default_branch_reported_by_provider boolean provenance flag (additionalProperties=false).",
+      "candidate_representation": "Added repositories[*].default_branch_reported_by_provider=true in isolated delta-candidate.schema.json.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-BRANCH-02",
+      "REQ-EV-ASSOC-01"
+    ],
+    "draft_test_ids": [
+      "T-001B-DELTA-03"
+    ],
+    "official_requirement_refs": [
+      "FR-006"
+    ],
+    "official_test_refs": [
+      "EVENT-10"
+    ],
+    "scenario_tags": [
+      "provider_default_branch_master",
+      "non_default_branch_named_main",
+      "unknown_association",
+      "partial_import_run",
+      "zero_events_promoted",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_020",
+        "name": "Synthetic Workspace Master",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_020",
+        "workspace_id": "ws_syn_020",
+        "full_name": "acme-syn-lab/legacy-master-svc",
+        "default_branch": "master",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_020_partial",
+        "workspace_id": "ws_syn_020",
+        "repo_id": "repo_syn_020",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "PARTIAL",
+        "promotes_events": false,
+        "completed_at": "2026-11-01T13:10:00Z",
+        "import_window_start": "2026-10-01T00:00:00Z",
+        "import_window_end": "2026-11-01T00:00:00Z",
+        "note": "Required PR association lookup failed for cmt_syn_2001_master_unknown on provider default_branch='master'; official run status is PARTIAL and promotes 0 Events."
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_2001",
+        "repo_id": "repo_syn_020",
+        "number": 2001,
+        "title": "Tighten legacy adapter connection pool limit",
+        "body": "Merged into master during the same PARTIAL import run.",
+        "author_handle": "syn-dev-b",
+        "head_branch": "fix/adapter-pool",
+        "base_branch": "master",
+        "state": "MERGED",
+        "merged_at": "2026-10-19T12:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2003_pr_branch"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_020_partial"
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_2001_master_unknown",
+        "repo_id": "repo_syn_020",
+        "sha": "2001000000000000000000000000000000000001",
+        "message": "Adjust adapter retry backoff jitter on master",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-21T09:00:00Z",
+        "branch_name": "master",
+        "on_default_branch": true,
+        "default_branch_verified_at_start_and_end": true,
+        "pr_association_lookup_status": "INCOMPLETE_OR_FAILED",
+        "pr_association_status": "UNKNOWN",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "src/adapter/backoff.py"
+        ],
+        "source_sync_run_id": "sync_syn_020_partial"
+      },
+      {
+        "commit_id": "cmt_syn_2002_non_default_main",
+        "repo_id": "repo_syn_020",
+        "sha": "2002000000000000000000000000000000000002",
+        "message": "Draft migration note on non-default branch named main",
+        "author_handle": "syn-dev-c",
+        "committed_at": "2026-10-22T11:00:00Z",
+        "branch_name": "main",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "NO_MATCH_OBSERVED",
+        "associated_pr_id": null,
+        "changed_paths": [
+          "docs/branch_migration.md"
+        ],
+        "source_sync_run_id": "sync_syn_020_partial"
+      },
+      {
+        "commit_id": "cmt_syn_2003_pr_branch",
+        "repo_id": "repo_syn_020",
+        "sha": "2003000000000000000000000000000000000003",
+        "message": "Cap pool connections at 32",
+        "author_handle": "syn-dev-b",
+        "committed_at": "2026-10-19T11:30:00Z",
+        "branch_name": "fix/adapter-pool",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2001",
+        "changed_paths": [
+          "src/adapter/pool.py"
+        ],
+        "source_sync_run_id": "sync_syn_020_partial"
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [],
+    "event_relations": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [],
+    "held_items": [
+      {
+        "held_id": "hold_cand_020_master_unknown",
+        "record_kind": "OBSERVATION_RECORD",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_2001_master_unknown",
+        "logical_disposition": "hold_classification_unknown_assoc",
+        "spec_hold_status": "UNCONFIRMED",
+        "hold_reason": "PR association lookup for commit on provider default_branch='master' was INCOMPLETE_OR_FAILED (UNKNOWN). Import Run status is PARTIAL (promotes_events=false), promoting 0 Events; UNKNOWN is never interpreted as NO_MATCH_OBSERVED.",
+        "interpreted_as_no_pr": false,
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
+      },
+      {
+        "held_id": "hold_cand_020_non_default_main",
+        "record_kind": "NON_ELIGIBLE_SOURCE_RECORD",
+        "source_type": "COMMIT",
+        "source_id": "cmt_syn_2002_non_default_main",
+        "logical_disposition": "not_direct_commit_candidate_non_default_branch",
+        "spec_hold_status": "UNCONFIRMED",
+        "hold_reason": "Provider reports default_branch='master'; branch literally named 'main' is non-default and never eligible for DIRECT_COMMIT.",
+        "interpreted_as_no_pr": false,
+        "unconfirmed_fields": [
+          "spec_hold_status"
+        ]
+      }
+    ],
+    "unpersisted_external_observations": [],
+    "command_results": [],
+    "review_actions": [],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "adapter retry backoff",
+        "workspace_id": "ws_syn_020",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      },
+      {
+        "query": "connection pool limit",
+        "workspace_id": "ws_syn_020",
+        "expected_event_ids": [],
+        "expected_result_count": 0
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 0,
+      "total_user_composite_events": 0,
+      "total_held_items": 2,
+      "total_rejected_events": 0,
+      "promoted_events_from_partial_runs": 0,
+      "total_direct_commit_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.held_items[*].spec_hold_status",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "Diagnostic observation/non-eligible record status tokens remain UNCONFIRMED while 0 promoted Events and 0 default search results are fixed."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Complements CAND-EV-019 by covering provider-reported default_branch='master' (with a non-default branch named 'main') and confirming that UNKNOWN PR association on the default branch retains its official PARTIAL hold meaning: 0 Events promoted (including sibling PRs in the same PARTIAL run), interpreted_as_no_pr=false, and 0 default Event search results.",
+    "confirmed_spec_rules": [
+      "DEFAULT_BRANCH_DETERMINED_BY_PROVIDER_METADATA_NOT_HARDCODED_MAIN",
+      "NON_DEFAULT_BRANCH_ONLY_COMMIT_YIELDS_ZERO_DIRECT_COMMIT_CANDIDATES",
+      "INCOMPLETE_PR_ASSOCIATION_MAKES_IMPORT_RUN_PARTIAL_NOT_PARTIAL_SUCCESS",
+      "PARTIAL_IMPORT_RUN_PROMOTES_ZERO_EVENTS",
+      "UNKNOWN_NEVER_INTERPRETED_AS_NO_MATCH_OBSERVED"
+    ],
+    "unconfirmed_spec_tokens": [
+      "held_items[*].spec_hold_status (left UNCONFIRMED)"
+    ],
+    "truly_undecided_items": [
+      "Diagnostic UI presentation for PARTIAL run observation records."
+    ]
+  }
+}

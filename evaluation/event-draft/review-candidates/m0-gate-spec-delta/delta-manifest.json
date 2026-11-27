@@ -1,0 +1,175 @@
+{
+  "schema_version": "event-draft-delta-manifest.v1",
+  "delta_pack_id": "m0-gate-spec-delta-v1",
+  "baseline_dataset_id": "career-memory-event-synthetic-mvp-v1.0.0",
+  "baseline_dataset_version": "1.0.0-mvp-approved",
+  "baseline_commit_sha": "140543b983bbdf41584bc5b3a65d1ec67022f951",
+  "approval_status": "DRAFT_REVIEW_CANDIDATE",
+  "approved_by": null,
+  "od_007_physical_table_assumption": false,
+  "synthetic_only": true,
+  "preservation_guarantees": {
+    "baseline_mvp_cases_untouched": "EV-001..EV-016 logical expectations and SHA-256 hashes in 1.0.0-mvp-approved remain untouched.",
+    "post_mvp_draft_isolation_preserved": [
+      "EV-017",
+      "EV-018"
+    ],
+    "negative_fixture_isolation_preserved": [
+      "NEG-001",
+      "NEG-002",
+      "NEG-003",
+      "NEG-004",
+      "NEG-005",
+      "NEG-006"
+    ],
+    "existing_linter_scope_note": "evaluation/event-draft/lint/lint_fixtures.py validates ONLY the untouched 1.0.0-mvp-approved dataset and does NOT read review-candidates/. These candidates are validated separately by validate_delta_candidates.py and test_delta_candidates.py."
+  },
+  "integrity_hashes": {
+    "hash_algorithm": "sha256",
+    "baseline_manifest_sha256": "6aa16ce3bb0eb0a3c79d7bd8efd058e446fff7f9fc05d88cd06764de9a7bd806",
+    "baseline_ev002_sha256": "354be261b848463ac0fa4660203817af7890f06c37be5d0f74669e40cc194a6f",
+    "schema_file_sha256": "a600e0b82b8826bbfaee1b8de7d4907ab4a2ba37e5e2439c7ab82751b3d054c3",
+    "candidate_bundle_sha256": "fa8b380e09ad8891ee45d3d5d0d698323f8418a035a284f6efc34fcbeecf1730"
+  },
+  "evaluation_bundles": [
+    {
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+      "source_lineage_groups": [
+        "src_edge_gateway"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/edge-gateway"
+      ],
+      "candidate_ids": [
+        "DELTA-EV-002"
+      ],
+      "rationale": "Shares exact source lineage with baseline EV-002 (acme-syn-lab/edge-gateway) so amendment review stays grouped with EV-002."
+    },
+    {
+      "eval_bundle_id": "bundle_cand_payments_trunk",
+      "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+      "source_lineage_groups": [
+        "src_payments_trunk"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/payments-trunk"
+      ],
+      "candidate_ids": [
+        "CAND-EV-019"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/payments-trunk (provider default_branch='trunk', squash/rebase PR dedup, separated fixture-premise out-of-window PR association dedup, and non-heuristic NO_MATCH_OBSERVED decoy)."
+    },
+    {
+      "eval_bundle_id": "bundle_cand_legacy_master",
+      "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+      "source_lineage_groups": [
+        "src_legacy_master"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/legacy-master-svc"
+      ],
+      "candidate_ids": [
+        "CAND-EV-020"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/legacy-master-svc (provider default_branch='master' + PARTIAL/UNKNOWN hold preservation)."
+    },
+    {
+      "eval_bundle_id": "bundle_cand_policy_engine",
+      "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+      "source_lineage_groups": [
+        "src_policy_engine"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/policy-engine"
+      ],
+      "candidate_ids": [
+        "CAND-EV-021"
+      ],
+      "rationale": "Standalone synthetic source acme-syn-lab/policy-engine (explicit CANNOT_LINK conflict between two active Events)."
+    },
+    {
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+      "source_lineage_groups": [
+        "src_workflow_audit"
+      ],
+      "shared_synthetic_repositories": [
+        "acme-syn-lab/workflow-audit"
+      ],
+      "candidate_ids": [
+        "CAND-EV-022",
+        "CAND-EV-023"
+      ],
+      "rationale": "Groups CAND-EV-022 (confirm CANDIDATE v1->CONFIRMED v2 via POST /work-events/{id}/actions/confirm) and CAND-EV-023 (edit active CANDIDATE v1->new CANDIDATE v2 via PATCH /work-events/{id}) into the same evaluation bundle because both derive from synthetic repository acme-syn-lab/workflow-audit and PR #2201."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "DELTA-EV-002",
+      "candidate_kind": "AMENDMENT_CANDIDATE",
+      "target_case_id": "EV-002",
+      "gap_id": "GAP-1-EV002-CONFIRM-HINT",
+      "path": "candidates/DELTA-EV-002-direct-commit-confirmation-needed.json",
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "source_lineage_group": "src_edge_gateway",
+      "approval_status": "DRAFT",
+      "file_sha256": "3660bc403dcbb8cfda0df53d39fb92345f032c79773e5c2688a29fa2e0371c52"
+    },
+    {
+      "candidate_id": "CAND-EV-019",
+      "candidate_kind": "NEW_CASE_CANDIDATE",
+      "target_case_id": "EV-019",
+      "gap_id": "GAP-2-DEFAULT-BRANCH-PR-DEDUP",
+      "path": "candidates/CAND-EV-019-trunk-default-branch-pr-dedup.json",
+      "eval_bundle_id": "bundle_cand_payments_trunk",
+      "source_lineage_group": "src_payments_trunk",
+      "approval_status": "DRAFT",
+      "file_sha256": "4c4c290ea30259b46cb44c704d688cc72ebc42b58365a2ed898ed9f3ea79468a"
+    },
+    {
+      "candidate_id": "CAND-EV-020",
+      "candidate_kind": "NEW_CASE_CANDIDATE",
+      "target_case_id": "EV-020",
+      "gap_id": "GAP-2-DEFAULT-BRANCH-PR-DEDUP",
+      "path": "candidates/CAND-EV-020-master-default-branch-unknown-hold.json",
+      "eval_bundle_id": "bundle_cand_legacy_master",
+      "source_lineage_group": "src_legacy_master",
+      "approval_status": "DRAFT",
+      "file_sha256": "4b502caf60bf508844862c97f1ecd2b0d7ba192754ac6f4c185102afd80818d8"
+    },
+    {
+      "candidate_id": "CAND-EV-021",
+      "candidate_kind": "NEW_CASE_CANDIDATE",
+      "target_case_id": "EV-021",
+      "gap_id": "GAP-3-ACTIVE-CANNOT-LINK",
+      "path": "candidates/CAND-EV-021-active-events-cannot-link-conflict.json",
+      "eval_bundle_id": "bundle_cand_policy_engine",
+      "source_lineage_group": "src_policy_engine",
+      "approval_status": "DRAFT",
+      "file_sha256": "6cfdd2360a7ec7be9f79be71b399b3f312edf979115db9fd594eb583952ef68d"
+    },
+    {
+      "candidate_id": "CAND-EV-022",
+      "candidate_kind": "NEW_CASE_CANDIDATE",
+      "target_case_id": "EV-022",
+      "gap_id": "GAP-4-KEEP-EDIT-TRACKING",
+      "path": "candidates/CAND-EV-022-confirm-event-version-review-action.json",
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "source_lineage_group": "src_workflow_audit",
+      "approval_status": "DRAFT",
+      "file_sha256": "0e7d5f21b77a73f94d0b71cc571ee6c17c7610c4e020d8ed4d30010aca961258"
+    },
+    {
+      "candidate_id": "CAND-EV-023",
+      "candidate_kind": "NEW_CASE_CANDIDATE",
+      "target_case_id": "EV-023",
+      "gap_id": "GAP-4-KEEP-EDIT-TRACKING",
+      "path": "candidates/CAND-EV-023-edit-event-title-summary-review-action.json",
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "source_lineage_group": "src_workflow_audit",
+      "approval_status": "DRAFT",
+      "file_sha256": "38616516e864988fb8e28d69f92fdc082c438e598e7e02e65708aa572a4da0cb"
+    }
+  ]
+}

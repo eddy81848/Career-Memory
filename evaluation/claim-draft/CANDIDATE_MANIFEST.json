@@ -1,0 +1,182 @@
+{
+  "schema_version": "0.4.0-owner-review-candidate",
+  "dataset_version": "0.4.0-owner-review-candidate",
+  "artifact_role": "OWNER_REVIEW_CANDIDATE_MANIFEST",
+  "candidate_status": "PENDING_OWNER_REVIEW",
+  "candidate_scope": "OWNER_REVIEW_CANDIDATE_SYNTHETIC_ONLY_NOT_APPROVED",
+  "human_approved": false,
+  "human_approval_recorded_by": null,
+  "adr_018_ai_cannot_self_approve": true,
+  "frozen_for_golden": false,
+  "supersedes_baseline_commit_sha": "fa6332d2dda00c59dd922465c1005349017577fe",
+  "supersedes_baseline_version": "0.3.0-synthetic-golden",
+  "scope_statement": {
+    "included_in_candidate": [
+      "Stage 2A FactCandidateExtractor vs Stage 2B FactSupportValidator vs CanonicalFact promotion separation (34 candidates including 3 rejected extractor overclaims -> 31 promoted facts & 35 FactSupports covering all 6 official Fact types)",
+      "Stage 3A ClaimGenerator vs Stage 3B ClaimAtomizer vs Stage 3C ClaimSupportValidator separation with globally distinct per-role run_ids, real fixture version/hash input_version_refs, same-Event Fact scoping, and end-to-end verified_evidence_bindings (16 confirmed events, 29 claims, 50 atoms covering SUPPORTED|USER_CONFIRMED|UNSUPPORTED|STALE)",
+      "Dedicated CLAIM-05 (SCN-15 role pass/fail anchored to person+event+role+active contribution span fs-15-1b per DB Model §3.8 fixture semantics), CLAIM-06 (SCN-16 metric pass/fail), and CLAIM-08 (SCN-12 4-case edit/reverify/USER_CONFIRMED matrix) pairs",
+      "Synthetic cases prepared across official REF-01..REF-08 (27 fixtures: REF-01..03 stubs, REF-04 multi-surface static canary, REF-05 static 403/URL precheck, REF-06 crash/replay, REF-07 Approval/Export with approved Claim ID+version preconditions & unapproved/version-mismatch contrast blocks/Evidence-View refetch, REF-08 limits/dedup/inter-job metadata handoff)",
+      "Family-preserving DEV/TEST evaluation partitioning preserving all v0.3.0 boundaries + programmatic locator/hash round-trip integrity"
+    ],
+    "excluded_not_executed": [
+      "Human owner T-004B semantic approval / golden freeze (ADR-018: pending human review, human_approved=false)",
+      "Real external LLM inference quality, prompt tuning, or token/cost benchmarking",
+      "Product Claim pipeline implementation, live external connectors, live HTTP refetch/retry, live OAuth/SSRF redirect/DNS-rebinding, live DB/log/queue/cache/Export audit, live worker crash/replay, or M4 product E2E",
+      "RUNTIME Spike results are reference-only and do NOT substitute for M4 product tests",
+      "Unconfirmed production normalization/offset rules, exact REF-08 numeric limits, REF-07 Export checked_at header policy, and non-SUPPORTED/non-SOURCE_VERIFIED product enums (marked REVIEW_REQUIRED)"
+    ],
+    "live_llm_evaluation_in_scope": false,
+    "production_connector_integration_in_scope": false,
+    "product_e2e_verified": false,
+    "synthetic_semantics_only_not_connector_evidence": true
+  },
+  "ref_verification_status": {
+    "synthetic_stubs_prepared": [
+      "REF-01",
+      "REF-02",
+      "REF-03"
+    ],
+    "partial_static_fixtures_prepared": [
+      "REF-04",
+      "REF-05"
+    ],
+    "synthetic_cases_prepared_runtime_unverified": [
+      "REF-06",
+      "REF-07",
+      "REF-08"
+    ],
+    "product_runtime_unverified_all": [
+      "REF-01",
+      "REF-02",
+      "REF-03",
+      "REF-04",
+      "REF-05",
+      "REF-06",
+      "REF-07",
+      "REF-08"
+    ]
+  },
+  "evaluation_partitions": {
+    "SYNTHETIC_REGRESSION_DEV": {
+      "family_ids": [
+        "family-src01",
+        "family-src03",
+        "family-src04",
+        "family-src06",
+        "family-src08",
+        "family-src10",
+        "family-src12",
+        "family-src15",
+        "family-src_ref07_canary"
+      ],
+      "scenario_ids": [
+        "SCN-01",
+        "SCN-03",
+        "SCN-04",
+        "SCN-06",
+        "SCN-08",
+        "SCN-10",
+        "SCN-12",
+        "SCN-15"
+      ],
+      "claim_ids": [
+        "claim-01-1",
+        "claim-03-1",
+        "claim-04-1",
+        "claim-04-2",
+        "claim-06-1",
+        "claim-06-2",
+        "claim-08-1",
+        "claim-08-2",
+        "claim-10-1",
+        "claim-12-1",
+        "claim-12-2",
+        "claim-12-3",
+        "claim-12-4",
+        "claim-15-1",
+        "claim-15-2"
+      ],
+      "refetch_fixture_case_ids": [
+        "refcase-04a",
+        "refcase-04b"
+      ]
+    },
+    "SYNTHETIC_REGRESSION_TEST": {
+      "family_ids": [
+        "family-src02",
+        "family-src05",
+        "family-src07",
+        "family-src09",
+        "family-src11",
+        "family-src13",
+        "family-src14",
+        "family-src16"
+      ],
+      "scenario_ids": [
+        "SCN-02",
+        "SCN-05",
+        "SCN-07",
+        "SCN-09",
+        "SCN-11",
+        "SCN-13",
+        "SCN-14",
+        "SCN-16"
+      ],
+      "claim_ids": [
+        "claim-02-1",
+        "claim-05-1",
+        "claim-05-2",
+        "claim-07-1",
+        "claim-07-2",
+        "claim-09-1",
+        "claim-09-2",
+        "claim-11-1",
+        "claim-11-2",
+        "claim-13-1",
+        "claim-13-2",
+        "claim-14-1",
+        "claim-16-1",
+        "claim-16-2"
+      ],
+      "refetch_fixture_case_ids": [
+        "refcase-01a",
+        "refcase-02a",
+        "refcase-02b",
+        "refcase-02c",
+        "refcase-03a",
+        "refcase-03b",
+        "refcase-03c",
+        "refcase-03d",
+        "refcase-03e",
+        "refcase-05a",
+        "refcase-05b",
+        "refcase-06a",
+        "refcase-06b",
+        "refcase-06c",
+        "refcase-07a",
+        "refcase-07b",
+        "refcase-07c",
+        "refcase-07d",
+        "refcase-07e",
+        "refcase-07f",
+        "refcase-07g",
+        "refcase-08a",
+        "refcase-08b",
+        "refcase-08c",
+        "refcase-08d"
+      ]
+    }
+  },
+  "artifact_sha256": {
+    "expected/oracle_draft.json": "sha256:4b1bf29f89b7456e0437cf98a45d4a471d54cbc7e1119b6b7168c284041b9378",
+    "expected/refetch_oracle_draft.json": "sha256:4b41c6f941635919ed07154ffca26debf57b39bb3adb514bdb4069e90aeca8b4",
+    "schemas/claim_pipeline.schema.json": "sha256:1671e4ce0e2b3bad55ede22e7f29a41e6634e0c3c266069eb7dee13128d46416",
+    "sources/refetch_snapshots.json": "sha256:a7e557ba1cbe653d6d751a6464bc9db367c3fc8a6f3e1c82aa2f98519544ff7d",
+    "sources/source_revisions.json": "sha256:91d8ba292d93ba1205c35091bf33ab3e3e63367902fb9237d64f0887868f5a66",
+    "stages/stage1_content_units.json": "sha256:cbdb79ca01bfe65c995ad7f21b7423fe6e4d9dab5434b914c6ef8288d49beaaf",
+    "stages/stage2_fact_extraction.json": "sha256:cd3459141a54a85cc2172dafa52118273a7591a9da77ab98db66580e6d8126c5",
+    "stages/stage3_claim_assembly.json": "sha256:b61b05f8a7d1aa9223ae9ff0e647c2c9f73f92e59199b5dbb0f5b07b27af2333",
+    "stages/stage4_refetch_checks.json": "sha256:e8a72693e8bc248e727829076c5ded0ce01b44ea3eaf309a13e48247916e37a8"
+  },
+  "bundle_sha256": "sha256:27b6d1eeace3e4ac5771f1abb1555a2af3c6cd9446a9f7f10005404572d7b059"
+}

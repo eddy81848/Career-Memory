@@ -1,0 +1,3931 @@
+{
+  "cases": [
+    {
+      "case": "test_processes_happy_path_over_http",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_processes_worker_unreachable_then_recover_endpoint",
+      "phases": {
+        "after_wake_failure": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:ConnectError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "recover_call": {
+          "selected": 1,
+          "reaped": 0,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "9f7e13d9-dfe0-4c70-ba32-7b893ff03b69": "acknowledged"
+          }
+        },
+        "after_recovery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_dockerfile_single_image_api_and_worker_happy_and_stop_recover",
+      "phases": {
+        "container_happy_path": {
+          "jobs": [
+            {
+              "id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            }
+          ],
+          "results_count": 1,
+          "attempts_count": 1
+        },
+        "during_worker_container_stopped": {
+          "jobs": [
+            {
+              "id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            },
+            {
+              "id": "77a353c6-cf34-425a-985d-82964ec126fc",
+              "status": "PENDING",
+              "attempts": 0
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            },
+            {
+              "job_id": "77a353c6-cf34-425a-985d-82964ec126fc",
+              "status": "PENDING",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": "wake_failed:ConnectError"
+            }
+          ],
+          "results_count": 1,
+          "attempts_count": 1
+        },
+        "container_recover_response": {
+          "selected": 1,
+          "reaped": 0,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "77a353c6-cf34-425a-985d-82964ec126fc": "acknowledged"
+          }
+        },
+        "after_worker_container_restarted_and_recovered": {
+          "jobs": [
+            {
+              "id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            },
+            {
+              "id": "77a353c6-cf34-425a-985d-82964ec126fc",
+              "status": "SUCCEEDED",
+              "attempts": 1
+            }
+          ],
+          "outbox": [
+            {
+              "job_id": "81c79026-f613-4d50-ba4b-a7163d690f82",
+              "status": "DONE",
+              "dispatch_attempts": 1,
+              "recovery_attempts": 0,
+              "last_error": null
+            },
+            {
+              "job_id": "77a353c6-cf34-425a-985d-82964ec126fc",
+              "status": "DONE",
+              "dispatch_attempts": 2,
+              "recovery_attempts": 1,
+              "last_error": null
+            }
+          ],
+          "results_count": 2,
+          "attempts_count": 2
+        },
+        "docker_cleanup_verified": {
+          "remaining_run_containers": 0,
+          "remaining_run_networks": 0,
+          "remaining_run_images": 0,
+          "remaining_r05_volumes": 0
+        }
+      }
+    },
+    {
+      "case": "test_dockerfile_linux_amd64_local_build_inspect_and_single_job",
+      "phases": {
+        "amd64_local_build": {
+          "built": true,
+          "host_machine": "arm64",
+          "image_platform": "linux/amd64"
+        },
+        "amd64_local_runtime_probe": {
+          "runnable": true,
+          "container_machine": "x86_64"
+        },
+        "amd64_single_job_execution": {
+          "worker_arch": "x86_64",
+          "api_arch": "x86_64",
+          "job_id": "8e8008bf-3bf0-441a-9e7a-57a2a781a732",
+          "wake": "acknowledged",
+          "db": {
+            "jobs": [
+              {
+                "id": "8e8008bf-3bf0-441a-9e7a-57a2a781a732",
+                "status": "SUCCEEDED",
+                "attempts": 1
+              }
+            ],
+            "outbox": [
+              {
+                "job_id": "8e8008bf-3bf0-441a-9e7a-57a2a781a732",
+                "status": "DONE",
+                "dispatch_attempts": 1
+              }
+            ],
+            "results_count": 1,
+            "attempts_count": 1
+          }
+        },
+        "amd64_docker_cleanup_verified": {
+          "remaining_r06_containers": 0,
+          "remaining_r06_networks": 0,
+          "remaining_r06_images": 0,
+          "remaining_r06_volumes": 0
+        }
+      }
+    },
+    {
+      "case": "test_page_and_checkpoint_rollback_together_on_precommit_fault[import.between_items_and_checkpoint]",
+      "phases": {
+        "after_precommit_fault": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 0,
+          "item_writers": [],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "after_clean_retry": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-rb"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-rb",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-rb",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        }
+      }
+    },
+    {
+      "case": "test_page_and_checkpoint_rollback_together_on_precommit_fault[import.before_page_commit]",
+      "phases": {
+        "after_precommit_fault": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 0,
+          "item_writers": [],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "after_clean_retry": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-rb"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-rb",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-rb",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        }
+      }
+    },
+    {
+      "case": "test_post_commit_ack_loss_and_page_replay_neither_duplicates_nor_double_advances",
+      "phases": {
+        "after_postcommit_ack_loss": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-ack"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "after_stale_page1_replay": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-ack"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "final": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-ack"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 3,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 1,
+              "worker_id": "w-ack",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        }
+      }
+    },
+    {
+      "case": "test_late_worker_write_rejected_both_before_and_after_takeover_deterministic",
+      "phases": {
+        "after_expired_unclaimed_write_attempt": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 0,
+          "item_writers": [],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "after_worker_b_commits": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "worker-B"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 3,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "rejection_reasons": {
+          "expired_unclaimed": "LEASE_EXPIRED_UNCLAIMED",
+          "after_takeover_lease_fence": "LEASE_TAKEN_OVER",
+          "after_takeover_version_fence": "STALE_CHECKPOINT_VERSION"
+        },
+        "after_worker_a_late_attempts": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "worker-B"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 3,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 2,
+              "worker_id": "worker-B",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        }
+      }
+    },
+    {
+      "case": "test_real_subprocess_sigkill_mid_import_then_safe_takeover_converges",
+      "phases": {
+        "killed_subprocess_returncode": -9,
+        "after_sigkill_before_takeover": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "proc-worker-A"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "proc-worker-A",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "proc-worker-A",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "after_takeover_complete": {
+          "run": {
+            "status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "proc-takeover-B"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "COMPLETED",
+              "cursor": "cur-prs-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "proc-takeover-B"
+            }
+          ],
+          "item_count": 6,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "proc-worker-A",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "proc-worker-A",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 2,
+              "worker_id": "proc-takeover-B",
+              "checkpoint_version": 2
+            },
+            {
+              "external_id": "pr-1",
+              "attempt_no": 2,
+              "worker_id": "proc-takeover-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-2",
+              "attempt_no": 2,
+              "worker_id": "proc-takeover-B",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-3",
+              "attempt_no": 2,
+              "worker_id": "proc-takeover-B",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [
+            {
+              "intent_type": "IMPORT_READY",
+              "plan_id": "plan-repo-alpha-v1",
+              "attempt_no": 2,
+              "worker_id": "proc-takeover-B",
+              "total_items": 6
+            }
+          ],
+          "logical": {
+            "run_status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "COMPLETED",
+                "cursor": "cur-prs-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-1",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Initial import spike",
+                  "number": 1,
+                  "external_id": "pr-1"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-2",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Lease recovery",
+                  "number": 2,
+                  "external_id": "pr-2"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-3",
+                "page_cursor": "cur-prs-p2",
+                "body": {
+                  "title": "Stream resume",
+                  "number": 3,
+                  "external_id": "pr-3"
+                }
+              }
+            ],
+            "import_ready_count": 1,
+            "import_ready_total_items": [
+              6
+            ]
+          }
+        }
+      }
+    },
+    {
+      "case": "test_normal_run_and_interrupted_resumed_run_produce_identical_logical_state",
+      "phases": {
+        "normal_run": {
+          "run": {
+            "status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-normal"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "COMPLETED",
+              "cursor": "cur-prs-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-normal"
+            }
+          ],
+          "item_count": 6,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 2
+            },
+            {
+              "external_id": "pr-1",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-2",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-3",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [
+            {
+              "intent_type": "IMPORT_READY",
+              "plan_id": "plan-repo-alpha-v1",
+              "attempt_no": 1,
+              "worker_id": "w-normal",
+              "total_items": 6
+            }
+          ],
+          "logical": {
+            "run_status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "COMPLETED",
+                "cursor": "cur-prs-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-1",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Initial import spike",
+                  "number": 1,
+                  "external_id": "pr-1"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-2",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Lease recovery",
+                  "number": 2,
+                  "external_id": "pr-2"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-3",
+                "page_cursor": "cur-prs-p2",
+                "body": {
+                  "title": "Stream resume",
+                  "number": 3,
+                  "external_id": "pr-3"
+                }
+              }
+            ],
+            "import_ready_count": 1,
+            "import_ready_total_items": [
+              6
+            ]
+          }
+        },
+        "interrupted_mid_run": {
+          "run": {
+            "status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": "TRANSIENT_PROVIDER_STOP"
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-part-1"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-part-1",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-part-1",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "resumed_run": {
+          "run": {
+            "status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "w-part-2"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "COMPLETED",
+              "cursor": "cur-prs-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 2,
+              "updated_by_worker": "w-part-2"
+            }
+          ],
+          "item_count": 6,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-part-1",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-part-1",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 2,
+              "worker_id": "w-part-2",
+              "checkpoint_version": 2
+            },
+            {
+              "external_id": "pr-1",
+              "attempt_no": 2,
+              "worker_id": "w-part-2",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-2",
+              "attempt_no": 2,
+              "worker_id": "w-part-2",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-3",
+              "attempt_no": 2,
+              "worker_id": "w-part-2",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [
+            {
+              "intent_type": "IMPORT_READY",
+              "plan_id": "plan-repo-alpha-v1",
+              "attempt_no": 2,
+              "worker_id": "w-part-2",
+              "total_items": 6
+            }
+          ],
+          "logical": {
+            "run_status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "COMPLETED",
+                "cursor": "cur-prs-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-1",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Initial import spike",
+                  "number": 1,
+                  "external_id": "pr-1"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-2",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Lease recovery",
+                  "number": 2,
+                  "external_id": "pr-2"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-3",
+                "page_cursor": "cur-prs-p2",
+                "body": {
+                  "title": "Stream resume",
+                  "number": 3,
+                  "external_id": "pr-3"
+                }
+              }
+            ],
+            "import_ready_count": 1,
+            "import_ready_total_items": [
+              6
+            ]
+          }
+        }
+      }
+    },
+    {
+      "case": "test_unsafe_checkpoint_and_plan_drift_block_automatic_resume",
+      "phases": {
+        "unsafe_checkpoint_blocked": {
+          "run": {
+            "status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": "UNSAFE_CHECKPOINT"
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-unverified",
+              "safe_checkpoint": false,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-unsafe"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-unsafe",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-unsafe",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-unverified",
+                "safe_checkpoint": false,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "plan_drift_blocked": {
+          "run": {
+            "status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": true,
+            "failure_reason": "PLAN_DRIFT"
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "RUNNING",
+              "cursor": "cur-commits-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-drift"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "PENDING",
+              "cursor": null,
+              "safe_checkpoint": false,
+              "checkpoint_version": 0,
+              "pages_committed": 0,
+              "items_committed": 0,
+              "updated_by_attempt": null,
+              "updated_by_worker": null
+            }
+          ],
+          "item_count": 2,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-drift",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-drift",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "PARTIAL",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": true,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "RUNNING",
+                "cursor": "cur-commits-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "PENDING",
+                "cursor": null,
+                "safe_checkpoint": false,
+                "checkpoint_version": 0,
+                "pages_committed": 0,
+                "items_committed": 0
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        }
+      }
+    },
+    {
+      "case": "test_import_ready_is_zero_before_all_streams_done_and_one_after_completion_race",
+      "phases": {
+        "before_all_streams_completed": {
+          "run": {
+            "status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-race"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "RUNNING",
+              "cursor": "cur-prs-p2",
+              "safe_checkpoint": true,
+              "checkpoint_version": 1,
+              "pages_committed": 1,
+              "items_committed": 2,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-race"
+            }
+          ],
+          "item_count": 5,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 2
+            },
+            {
+              "external_id": "pr-1",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-2",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            }
+          ],
+          "import_ready": [],
+          "logical": {
+            "run_status": "RUNNING",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "RUNNING",
+                "cursor": "cur-prs-p2",
+                "safe_checkpoint": true,
+                "checkpoint_version": 1,
+                "pages_committed": 1,
+                "items_committed": 2
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-1",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Initial import spike",
+                  "number": 1,
+                  "external_id": "pr-1"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-2",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Lease recovery",
+                  "number": 2,
+                  "external_id": "pr-2"
+                }
+              }
+            ],
+            "import_ready_count": 0,
+            "import_ready_total_items": []
+          }
+        },
+        "race_emitted_counts": {
+          "true": 1,
+          "false": 7
+        },
+        "after_completion_race": {
+          "run": {
+            "status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "failure_reason": null
+          },
+          "streams": [
+            {
+              "stream_type": "COMMITS",
+              "status": "COMPLETED",
+              "cursor": "cur-commits-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-race"
+            },
+            {
+              "stream_type": "PULL_REQUESTS",
+              "status": "COMPLETED",
+              "cursor": "cur-prs-end",
+              "safe_checkpoint": true,
+              "checkpoint_version": 2,
+              "pages_committed": 2,
+              "items_committed": 3,
+              "updated_by_attempt": 1,
+              "updated_by_worker": "w-race"
+            }
+          ],
+          "item_count": 6,
+          "item_writers": [
+            {
+              "external_id": "c-101",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-102",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "c-103",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 2
+            },
+            {
+              "external_id": "pr-1",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-2",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 1
+            },
+            {
+              "external_id": "pr-3",
+              "attempt_no": 1,
+              "worker_id": "w-race",
+              "checkpoint_version": 2
+            }
+          ],
+          "import_ready": [
+            {
+              "intent_type": "IMPORT_READY",
+              "plan_id": "plan-repo-alpha-v1",
+              "attempt_no": 1,
+              "worker_id": "w-finalizer-7",
+              "total_items": 6
+            }
+          ],
+          "logical": {
+            "run_status": "SUCCEEDED",
+            "plan_id": "plan-repo-alpha-v1",
+            "source_drift": false,
+            "streams": [
+              {
+                "stream_type": "COMMITS",
+                "status": "COMPLETED",
+                "cursor": "cur-commits-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "status": "COMPLETED",
+                "cursor": "cur-prs-end",
+                "safe_checkpoint": true,
+                "checkpoint_version": 2,
+                "pages_committed": 2,
+                "items_committed": 3
+              }
+            ],
+            "items": [
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-101",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa101",
+                  "title": "init architecture",
+                  "external_id": "c-101"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-102",
+                "page_cursor": "START",
+                "body": {
+                  "sha": "aaa102",
+                  "title": "add worker queue",
+                  "external_id": "c-102"
+                }
+              },
+              {
+                "stream_type": "COMMITS",
+                "external_id": "c-103",
+                "page_cursor": "cur-commits-p2",
+                "body": {
+                  "sha": "aaa103",
+                  "title": "fenced checkpoints",
+                  "external_id": "c-103"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-1",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Initial import spike",
+                  "number": 1,
+                  "external_id": "pr-1"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-2",
+                "page_cursor": "START",
+                "body": {
+                  "title": "Lease recovery",
+                  "number": 2,
+                  "external_id": "pr-2"
+                }
+              },
+              {
+                "stream_type": "PULL_REQUESTS",
+                "external_id": "pr-3",
+                "page_cursor": "cur-prs-p2",
+                "body": {
+                  "title": "Stream resume",
+                  "number": 3,
+                  "external_id": "pr-3"
+                }
+              }
+            ],
+            "import_ready_count": 1,
+            "import_ready_total_items": [
+              6
+            ]
+          }
+        }
+      }
+    },
+    {
+      "case": "test_last_attempt_worker_death_lease_expiry_converges_to_failed",
+      "phases": {
+        "recover_1": {
+          "selected": 0,
+          "reaped": 1,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {
+            "ee750913-5c84-4cbf-9cea-326f0b1c0e0e": "reaped_failed"
+          }
+        },
+        "after_recover_1": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "LEASE_LOST": 1
+            }
+          }
+        },
+        "recover_2": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
+      "case": "test_zombie_worker_late_write_after_final_attempt_reap_is_rejected",
+      "phases": {
+        "late_save_outcome": "LEASE_LOST",
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "LEASE_LOST": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_concurrent_recover_workers_do_not_double_reap_or_double_wake",
+      "phases": {
+        "relay_totals": {
+          "reaped": 2,
+          "selected": 2,
+          "woke": 2
+        },
+        "final": {
+          "jobs": {
+            "count": 4,
+            "by_status": {
+              "FAILED": 2,
+              "SUCCEEDED": 2
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED",
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "outbox": {
+            "count": 4,
+            "by_status": {
+              "DONE": 4
+            },
+            "dispatch_attempts": 6,
+            "recovery_attempts": 4,
+            "last_errors": [
+              "MAX_ATTEMPTS_LEASE_EXPIRED"
+            ]
+          },
+          "results": {
+            "count": 2
+          },
+          "job_attempts": {
+            "count": 4,
+            "by_outcome": {
+              "LEASE_LOST": 2,
+              "SUCCEEDED": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_duplicate_wake_deliveries_process_once",
+      "phases": {
+        "wake_processed_counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "fixture_calls": 1,
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_worker_response_lost_after_result_saved_converges_without_reexecution",
+      "phases": {
+        "after_worker_response_lost": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:http_500"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "recover_after_drop": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:http_500"
+            ]
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_transient_fixture_error_retries_within_budget_and_succeeds",
+      "phases": {
+        "after_attempt_1": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "retryable:TransientExternalError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "FAILED": 1
+            }
+          }
+        },
+        "after_attempt_2": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              2
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": [
+              "retryable:TransientExternalError"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "FAILED": 2
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              3
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 3,
+            "recovery_attempts": 2,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 3,
+            "by_outcome": {
+              "FAILED": 2,
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_transient_errors_exhausting_budget_converge_to_failed",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              3
+            ],
+            "terminal_reasons": [
+              "MAX_ATTEMPTS_EXHAUSTED:TransientExternalError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 3,
+            "recovery_attempts": 2,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 3,
+            "by_outcome": {
+              "FAILED": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_permanent_fixture_error_fails_immediately_without_retry",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "FAILED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "PERMANENT_FAILURE:PermanentExternalError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "FAILED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_ambiguous_external_timeout_quarantines_without_auto_retry[1]",
+      "phases": {
+        "after_timeout": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "REVIEW_REQUIRED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": [
+              "AMBIGUOUS_EXTERNAL_TIMEOUT:AmbiguousExternalTimeoutError"
+            ]
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "AMBIGUOUS_TIMEOUT": 1
+            }
+          }
+        },
+        "recover_after_quarantine": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
+      "case": "test_option_c_happy_path_refetches_outside_tx_on_approval_and_every_export",
+      "phases": {
+        "summary": {
+          "provider_fetches": 5,
+          "open_tx_during_each_fetch": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "approvals_count": 1,
+          "exports_count": 1,
+          "second_export_blocked_reason": "EVIDENCE_MISMATCH:HASH_MISMATCH"
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[hash_changed-EVIDENCE_MISMATCH-HASH_MISMATCH-OK]",
+      "phases": {
+        "result": {
+          "scenario": "hash_changed",
+          "approval_blocked": "EVIDENCE_MISMATCH:HASH_MISMATCH",
+          "export_blocked": "EVIDENCE_MISMATCH:HASH_MISMATCH",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[locator_missing-EVIDENCE_MISMATCH-LOCATOR_NOT_FOUND-OK]",
+      "phases": {
+        "result": {
+          "scenario": "locator_missing",
+          "approval_blocked": "EVIDENCE_MISMATCH:LOCATOR_NOT_FOUND",
+          "export_blocked": "EVIDENCE_MISMATCH:LOCATOR_NOT_FOUND",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_403-POLICY_OR_AUTH_BLOCKED-PROVIDER_403_FORBIDDEN-OK]",
+      "phases": {
+        "result": {
+          "scenario": "http_403",
+          "approval_blocked": "POLICY_OR_AUTH_BLOCKED:PROVIDER_403_FORBIDDEN",
+          "export_blocked": "POLICY_OR_AUTH_BLOCKED:PROVIDER_403_FORBIDDEN",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[policy_blocked-POLICY_OR_AUTH_BLOCKED-SOURCE_POLICY_BLOCKED-OK]",
+      "phases": {
+        "result": {
+          "scenario": "policy_blocked",
+          "approval_blocked": "POLICY_OR_AUTH_BLOCKED:SOURCE_POLICY_BLOCKED",
+          "export_blocked": "POLICY_OR_AUTH_BLOCKED:SOURCE_POLICY_BLOCKED",
+          "reachability_after_fault": "OK",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_404-REFETCH_UNAVAILABLE-PROVIDER_404_UNCONFIRMED-UNVERIFIED_404]",
+      "phases": {
+        "result": {
+          "scenario": "http_404",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_404_UNCONFIRMED",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_404_UNCONFIRMED",
+          "reachability_after_fault": "UNVERIFIED_404",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": true
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[http_429-REFETCH_UNAVAILABLE-PROVIDER_429_RATE_LIMITED-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "http_429",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_429_RATE_LIMITED",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_429_RATE_LIMITED",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[timeout-REFETCH_UNAVAILABLE-PROVIDER_TIMEOUT-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "timeout",
+          "approval_blocked": "REFETCH_UNAVAILABLE:PROVIDER_TIMEOUT",
+          "export_blocked": "REFETCH_UNAVAILABLE:PROVIDER_TIMEOUT",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_failure_taxonomy_blocks_approval_and_export_without_falsifying_or_rewriting[incomplete_payload-REFETCH_UNAVAILABLE-INCOMPLETE_PROVIDER_PAYLOAD-UNAVAILABLE]",
+      "phases": {
+        "result": {
+          "scenario": "incomplete_payload",
+          "approval_blocked": "REFETCH_UNAVAILABLE:INCOMPLETE_PROVIDER_PAYLOAD",
+          "export_blocked": "REFETCH_UNAVAILABLE:INCOMPLETE_PROVIDER_PAYLOAD",
+          "reachability_after_fault": "UNAVAILABLE",
+          "exports_while_faulted": 0,
+          "expected_hash_preserved": true,
+          "recovered_after_single_404": false
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[APPROVAL-revoke_auth-POLICY_OR_AUTH_BLOCKED-SOURCE_AUTH_REVOKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "APPROVAL",
+          "mutation": "revoke_auth",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_AUTH_REVOKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[APPROVAL-edit_claim-STALE_STATE_CONFLICT-CLAIM_MODIFIED_DURING_VERIFY]",
+      "phases": {
+        "race_outcome": {
+          "gate": "APPROVAL",
+          "mutation": "edit_claim",
+          "passed": false,
+          "category": "STALE_STATE_CONFLICT",
+          "reason_code": "CLAIM_MODIFIED_DURING_VERIFY",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-revoke_auth-POLICY_OR_AUTH_BLOCKED-SOURCE_AUTH_REVOKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "revoke_auth",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_AUTH_REVOKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-block_policy-POLICY_OR_AUTH_BLOCKED-SOURCE_POLICY_BLOCKED_BEFORE_SAVE]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "block_policy",
+          "passed": false,
+          "category": "POLICY_OR_AUTH_BLOCKED",
+          "reason_code": "SOURCE_POLICY_BLOCKED_BEFORE_SAVE",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_race_after_successful_refetch_before_save_blocks_stale_commit[EXPORT-edit_claim-STALE_STATE_CONFLICT-CLAIM_MODIFIED_DURING_VERIFY]",
+      "phases": {
+        "race_outcome": {
+          "gate": "EXPORT",
+          "mutation": "edit_claim",
+          "passed": false,
+          "category": "STALE_STATE_CONFLICT",
+          "reason_code": "CLAIM_MODIFIED_DURING_VERIFY",
+          "new_approvals": 0,
+          "exports_count": 0
+        }
+      }
+    },
+    {
+      "case": "test_raw_source_markers_never_persist_in_db_jobs_logs_caches_or_files",
+      "phases": {
+        "non_persistence_scan": {
+          "db_marker_hits": 0,
+          "log_marker_hits": 0,
+          "cache_audit_marker_hits": 0,
+          "file_marker_hits": 0,
+          "exports_published": 1
+        }
+      }
+    },
+    {
+      "case": "test_happy_path",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "wake_observation": [
+          {
+            "job_visible_from_other_session": true,
+            "open_app_transactions": 0
+          }
+        ]
+      }
+    },
+    {
+      "case": "test_failure_before_commit_rolls_back_job_and_outbox[api.between_job_and_outbox]",
+      "phases": {
+        "after_fault": {
+          "jobs": {
+            "count": 0,
+            "by_status": {}
+          },
+          "job_details": {
+            "attempt_counts": [],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 0,
+            "by_status": {},
+            "dispatch_attempts": 0,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_retry": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_failure_before_commit_rolls_back_job_and_outbox[api.before_commit]",
+      "phases": {
+        "after_fault": {
+          "jobs": {
+            "count": 0,
+            "by_status": {}
+          },
+          "job_details": {
+            "attempt_counts": [],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 0,
+            "by_status": {},
+            "dispatch_attempts": 0,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_retry": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_wake_failure_then_bounded_recovery",
+      "phases": {
+        "after_wake_failure": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "recover_1": {
+          "selected": 1,
+          "reaped": 0,
+          "acknowledged": 1,
+          "failed": 0,
+          "jobs": {
+            "3191a4dd-184d-4bb8-9ba3-c62c42786ec6": "acknowledged"
+          }
+        },
+        "after_recovery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 1,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "recover_2": {
+          "selected": 0,
+          "reaped": 0,
+          "acknowledged": 0,
+          "failed": 0,
+          "jobs": {}
+        }
+      }
+    },
+    {
+      "case": "test_recovery_is_bounded_and_respects_grace",
+      "phases": {
+        "after_recover_limit_2": {
+          "jobs": {
+            "count": 5,
+            "by_status": {
+              "PENDING": 3,
+              "SUCCEEDED": 2
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0,
+              0,
+              0,
+              1,
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 5,
+            "by_status": {
+              "PENDING": 3,
+              "DONE": 2
+            },
+            "dispatch_attempts": 7,
+            "recovery_attempts": 2,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 2
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "SUCCEEDED": 2
+            }
+          }
+        },
+        "recover_rounds_until_empty": 3,
+        "after_drained": {
+          "jobs": {
+            "count": 5,
+            "by_status": {
+              "SUCCEEDED": 5
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 5,
+            "by_status": {
+              "DONE": 5
+            },
+            "dispatch_attempts": 10,
+            "recovery_attempts": 5,
+            "last_errors": []
+          },
+          "results": {
+            "count": 5
+          },
+          "job_attempts": {
+            "count": 5,
+            "by_outcome": {
+              "SUCCEEDED": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_response_lost_then_same_input_redelivered",
+      "phases": {
+        "after_lost_response": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "after_redelivery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_response_lost_and_wake_failed_converge_by_retry_or_recovery",
+      "phases": {
+        "after_lost_response_and_wake": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:injected"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        },
+        "after_redelivery": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 2,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_same_key_different_body_is_rejected",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              0
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "PENDING": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": [
+              "wake_failed:no_wake_configured"
+            ]
+          },
+          "results": {
+            "count": 0
+          },
+          "job_attempts": {
+            "count": 0,
+            "by_outcome": {}
+          }
+        }
+      }
+    },
+    {
+      "case": "test_concurrent_duplicate_submissions_create_one_job",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        },
+        "distinct_job_ids_returned": 1
+      }
+    },
+    {
+      "case": "test_concurrent_workers_claim_once",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_lease_expiry_duplicate_processing_stores_one_result",
+      "phases": {
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              2
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 2,
+            "by_outcome": {
+              "SUCCEEDED": 1,
+              "LEASE_LOST": 1
+            }
+          }
+        },
+        "stored_result_attempt": {
+          "attempt_no": 2,
+          "worker_id": "w-fast"
+        }
+      }
+    },
+    {
+      "case": "test_result_primary_key_is_backstop",
+      "phases": {
+        "second_insert": "UniqueViolation",
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_no_db_transaction_open_during_processing",
+      "phases": {
+        "during_processing": {
+          "open_app_transactions": 0,
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "RUNNING": 1
+            }
+          }
+        },
+        "final": {
+          "jobs": {
+            "count": 1,
+            "by_status": {
+              "SUCCEEDED": 1
+            }
+          },
+          "job_details": {
+            "attempt_counts": [
+              1
+            ],
+            "terminal_reasons": []
+          },
+          "outbox": {
+            "count": 1,
+            "by_status": {
+              "DONE": 1
+            },
+            "dispatch_attempts": 1,
+            "recovery_attempts": 0,
+            "last_errors": []
+          },
+          "results": {
+            "count": 1
+          },
+          "job_attempts": {
+            "count": 1,
+            "by_outcome": {
+              "SUCCEEDED": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "case": "test_fault_injection_is_not_reachable_over_http",
+      "phases": {
+        "routes": {
+          "api": [
+            "/_prototype/t007a/jobs",
+            "/_prototype/t007a/jobs/{job_id}",
+            "/healthz"
+          ],
+          "worker": [
+            "/healthz",
+            "/internal/t007a/recover",
+            "/internal/t007a/wake"
+          ]
+        }
+      }
+    }
+  ],
+  "pg_source": "ephemeral initdb cluster (/opt/homebrew/opt/postgresql@18/bin), unix socket only, deleted after run",
+  "server_version": "18.3 (Homebrew)",
+  "generated_at": "2026-11-26T12:46:30+00:00",
+  "python": "3.14.3",
+  "psycopg": "3.3.9"
+}

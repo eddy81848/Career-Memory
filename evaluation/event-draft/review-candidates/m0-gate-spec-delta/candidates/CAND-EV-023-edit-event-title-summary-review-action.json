@@ -1,0 +1,420 @@
+{
+  "schema_version": "event-draft-delta-candidate.v1",
+  "candidate_id": "CAND-EV-023",
+  "candidate_kind": "NEW_CASE_CANDIDATE",
+  "target_case_id": "EV-023",
+  "baseline_case_ref": null,
+  "slug": "user-edit-event-title-summary-distinct-from-merge",
+  "title": "User title/summary edit via PATCH /work-events/{id} on active CANDIDATE creates new CANDIDATE version and domain ReviewAction EDIT without merging or altering sibling Events",
+  "scope": "MVP",
+  "backlog_ref": null,
+  "post_mvp_reason": null,
+  "review_status": "REVIEW_REQUIRED",
+  "eval_grouping": {
+    "eval_bundle_id": "bundle_cand_workflow_audit",
+    "source_lineage_group": "src_workflow_audit",
+    "eval_partition": "MVP_REVIEW_CANDIDATE_DRAFT",
+    "derived_from_same_source_cases": [
+      "CAND-EV-022",
+      "CAND-EV-023"
+    ]
+  },
+  "spec_delta_trace": {
+    "gap_id": "GAP-4-KEEP-EDIT-TRACKING",
+    "notion_clauses": [
+      "Event Guide §6·7 — New Candidate Version on Edit (https://app.notion.com/p/3e3f86591b5f819bb94be30e4aa4b03f)",
+      "MVP API §5 — PATCH /work-events/{id} (https://app.notion.com/p/3e3f86591b5f81c5b25ce48dd61263fa)",
+      "DB Model — Domain ReviewAction EDIT (https://app.notion.com/p/3e3f86591b5f811bb88be70b33e10af5)",
+      "T-001B Acceptance (https://app.notion.com/p/3f1f86591b5f813a91cbde08a573a246)"
+    ],
+    "existing_gap": "Audit of EV-001..EV-018 confirmed 0 cases test title/summary edit (MVP API §5 PATCH /work-events/{id}), new CANDIDATE version creation per Event Guide §6, DB Model domain ReviewAction EDIT, or separation of edit from Event manual_merge.",
+    "synthetic_input_summary": "Derived from the same synthetic source acme-syn-lab/workflow-audit as CAND-EV-022 (grouped in bundle_cand_workflow_audit). Contains active CANDIDATE PR Event ev_init_023_1 (v1) and a separate sibling CANDIDATE PR Event ev_init_023_sibling (v1) in the same repository. User submits edit via PATCH /work-events/{id} updating title and summary on ev_init_023_1 with expected_version=1.",
+    "expected_behavior_summary": "ev_init_023_1 advances from CANDIDATE v1 to a new CANDIDATE version 2 (prior_version_preserved=true, updated curated title/summary, anchor_mode='PR', merge_origin='NONE', member_event_ids=[], original PR/commit provenance & membership unchanged) and records 1 domain ReviewAction EDIT (rev_exp_023_1, from_version=1, to_version=2, changed_fields=['title','summary'], is_event_merge=false, external_response_action_token='UNCONFIRMED'). Sibling Event ev_init_023_sibling stays untouched (v1, CANDIDATE, standalone); total_user_composite_events=0. Behavior when editing an already-CONFIRMED Event is intentionally NOT asserted in this candidate.",
+    "verification_tests": [
+      "validate_delta_candidates.py::check_gap4_keep_edit_tracking",
+      "test_delta_candidates.py::test_edit_title_summary_is_distinct_from_merge_and_emits_review_action",
+      "test_delta_candidates.py::test_edit_rejects_confirmed_or_unapproved_lifecycle_status"
+    ]
+  },
+  "schema_gaps_required": [
+    {
+      "gap_code": "SCHEMA_GAP_CONFIRM_EDIT_COMMANDS_AND_REVIEW_ACTION",
+      "base_schema_path": "schemas/case.schema.json#/properties/user_commands & expected_proposal",
+      "limitation": "case.schema.json lacks 'edit' in command_action and only allows 'UNCONFIRMED' in spec_command_name; initial_events[*]/events[*] lack curated title/summary and previous_version/prior_version_preserved; expected_proposal lacks review_actions separating DB Model domain ReviewAction (EDIT) from unconfirmed external response tokens.",
+      "candidate_representation": "Added command_action 'edit' with confirmed MVP API §5 route spec_command_name='PATCH /work-events/{id}', curated title/summary + version-lineage fields, and expected_proposal.review_actions with domain_review_action='EDIT' and external_response_action_token='UNCONFIRMED'.",
+      "wire_field_frozen": false
+    }
+  ],
+  "coverage": {
+    "draft_requirement_ids": [
+      "REQ-EV-CMD-EDIT-01",
+      "REQ-EV-REVIEW-ACTION-01"
+    ],
+    "draft_test_ids": [
+      "T-001B-DELTA-06"
+    ],
+    "official_requirement_refs": [
+      "FR-007"
+    ],
+    "official_test_refs": [],
+    "scenario_tags": [
+      "user_edit_title_summary",
+      "mvp_api_patch_work_event_endpoint",
+      "candidate_edit_creates_new_candidate_version",
+      "edit_distinct_from_merge",
+      "new_event_version",
+      "domain_review_action_edit",
+      "curation_command",
+      "m0_gate_spec_delta"
+    ]
+  },
+  "synthetic_sources": {
+    "workspaces": [
+      {
+        "workspace_id": "ws_syn_023",
+        "name": "Synthetic Workspace Workflow",
+        "synthetic": true
+      }
+    ],
+    "repositories": [
+      {
+        "repo_id": "repo_syn_023",
+        "workspace_id": "ws_syn_023",
+        "full_name": "acme-syn-lab/workflow-audit",
+        "default_branch": "main",
+        "default_branch_reported_by_provider": true,
+        "synthetic": true
+      }
+    ],
+    "sync_runs": [
+      {
+        "sync_run_id": "sync_syn_023",
+        "workspace_id": "ws_syn_023",
+        "repo_id": "repo_syn_023",
+        "run_type": "INITIAL_BACKFILL",
+        "status": "SUCCESS",
+        "promotes_events": true,
+        "completed_at": "2026-11-01T13:30:00Z"
+      }
+    ],
+    "pull_requests": [
+      {
+        "pr_id": "pr_syn_2301",
+        "repo_id": "repo_syn_023",
+        "number": 2201,
+        "title": "Add async webhook dispatcher",
+        "body": "Moves outbound webhook delivery onto bounded async worker queues.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/async-webhook-dispatcher",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-23T11:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2301a"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_023"
+      },
+      {
+        "pr_id": "pr_syn_2302",
+        "repo_id": "repo_syn_023",
+        "number": 2202,
+        "title": "Add webhook retry metrics exporter",
+        "body": "Exports delivery retry and dead-letter counters.",
+        "author_handle": "syn-dev-a",
+        "head_branch": "feat/webhook-retry-metrics",
+        "base_branch": "main",
+        "state": "MERGED",
+        "merged_at": "2026-10-24T10:00:00Z",
+        "merge_strategy": "MERGE_COMMIT",
+        "within_import_window": true,
+        "commit_ids": [
+          "cmt_syn_2302a"
+        ],
+        "referenced_ticket_ids": [],
+        "source_sync_run_id": "sync_syn_023"
+      }
+    ],
+    "commits": [
+      {
+        "commit_id": "cmt_syn_2301a",
+        "repo_id": "repo_syn_023",
+        "sha": "2301a00000000000000000000000000000000001",
+        "message": "Implement bounded async webhook dispatcher queue",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-23T10:15:00Z",
+        "branch_name": "feat/async-webhook-dispatcher",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2301",
+        "changed_paths": [
+          "src/webhooks/dispatcher.py"
+        ],
+        "source_sync_run_id": "sync_syn_023"
+      },
+      {
+        "commit_id": "cmt_syn_2302a",
+        "repo_id": "repo_syn_023",
+        "sha": "2302a00000000000000000000000000000000002",
+        "message": "Export webhook dead-letter counters",
+        "author_handle": "syn-dev-a",
+        "committed_at": "2026-10-24T09:15:00Z",
+        "branch_name": "feat/webhook-retry-metrics",
+        "on_default_branch": false,
+        "default_branch_verified_at_start_and_end": false,
+        "pr_association_lookup_status": "COMPLETED",
+        "pr_association_status": "ASSOCIATED",
+        "associated_pr_id": "pr_syn_2302",
+        "changed_paths": [
+          "src/webhooks/metrics.py"
+        ],
+        "source_sync_run_id": "sync_syn_023"
+      }
+    ],
+    "issues_tickets": [],
+    "initial_events": [
+      {
+        "event_id": "ev_init_023_1",
+        "workspace_id": "ws_syn_023",
+        "repo_id": "repo_syn_023",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_2301",
+        "source_commit_ids": [
+          "cmt_syn_2301a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add async webhook dispatcher",
+        "summary": "Initial candidate summary for outbound webhook dispatcher PR.",
+        "source_sync_run_id": "sync_syn_023",
+        "precondition_note": "Active CANDIDATE Event v1 derived from the same synthetic PR #2201 as CAND-EV-022; edited per Event Guide §6 to emit a new CANDIDATE version 2.",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      },
+      {
+        "event_id": "ev_init_023_sibling",
+        "workspace_id": "ws_syn_023",
+        "repo_id": "repo_syn_023",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "primary_pr_id": "pr_syn_2302",
+        "source_commit_ids": [
+          "cmt_syn_2302a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "dependent_artifacts": {
+          "fact_ids": [],
+          "claim_ids": [],
+          "export_ids": []
+        },
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add webhook retry metrics exporter",
+        "summary": "Exports delivery retry and dead-letter counters.",
+        "source_sync_run_id": "sync_syn_023",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true
+      }
+    ],
+    "event_relations": [],
+    "post_sync_observations": []
+  },
+  "user_commands": [
+    {
+      "command_id": "cmd_syn_023_edit",
+      "command_action": "edit",
+      "spec_command_name": "PATCH /work-events/{id}",
+      "ui_label_distinction_note": "MVP API §5 already defines PATCH /work-events/{id} for title/summary edit (distinct from Event manual_merge); does NOT invent a Keep or alternate UI API route.",
+      "workspace_id": "ws_syn_023",
+      "actor_id": "usr_syn_owner_1",
+      "expected_version": 1,
+      "idempotency_key": "idem_syn_023_edit_1",
+      "target_event_ids": [
+        "ev_init_023_1"
+      ],
+      "target_versions": {
+        "ev_init_023_1": 1
+      },
+      "payload": {
+        "title": "Build fault-tolerant async webhook dispatcher",
+        "summary": "Decoupled outbound webhook delivery into bounded async worker queues with explicit dead-letter visibility."
+      }
+    }
+  ],
+  "expected_proposal": {
+    "approval_status": "DRAFT",
+    "approved_by": null,
+    "events": [
+      {
+        "event_id": "ev_init_023_1",
+        "workspace_id": "ws_syn_023",
+        "repo_id": "repo_syn_023",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 2,
+        "previous_version": 1,
+        "prior_version_preserved": true,
+        "merge_origin": "NONE",
+        "origin_command_id": "cmd_syn_023_edit",
+        "primary_pr_id": "pr_syn_2301",
+        "source_commit_ids": [
+          "cmt_syn_2301a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Build fault-tolerant async webhook dispatcher",
+        "summary": "Decoupled outbound webhook delivery into bounded async worker queues with explicit dead-letter visibility.",
+        "title_hint": "Build fault-tolerant async webhook dispatcher",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "unconfirmed_fields": []
+      },
+      {
+        "event_id": "ev_init_023_sibling",
+        "workspace_id": "ws_syn_023",
+        "repo_id": "repo_syn_023",
+        "anchor_mode": "PR",
+        "lifecycle_status": "CANDIDATE",
+        "is_active_top_level": true,
+        "version": 1,
+        "merge_origin": "NONE",
+        "origin_command_id": null,
+        "primary_pr_id": "pr_syn_2302",
+        "source_commit_ids": [
+          "cmt_syn_2302a"
+        ],
+        "context_ticket_ids": [],
+        "member_event_ids": [],
+        "parent_event_id": null,
+        "membership_role": "standalone",
+        "composite_membership_status": null,
+        "title": "Add webhook retry metrics exporter",
+        "summary": "Exports delivery retry and dead-letter counters.",
+        "title_hint": "Add webhook retry metrics exporter",
+        "searchable_as_top_level": true,
+        "counted_in_metrics": true,
+        "unconfirmed_fields": []
+      }
+    ],
+    "held_items": [],
+    "unpersisted_external_observations": [],
+    "command_results": [
+      {
+        "command_id": "cmd_syn_023_edit",
+        "outcome": "ACCEPTED",
+        "rejection_category": null,
+        "spec_error_code": null,
+        "state_mutated": true,
+        "resulting_event_ids": [
+          "ev_init_023_1"
+        ],
+        "unconfirmed_fields": [
+          "http_status"
+        ]
+      }
+    ],
+    "review_actions": [
+      {
+        "review_action_id": "rev_exp_023_1",
+        "command_id": "cmd_syn_023_edit",
+        "event_id": "ev_init_023_1",
+        "actor_id": "usr_syn_owner_1",
+        "logical_action": "edit",
+        "domain_review_action": "EDIT",
+        "external_response_action_token": "UNCONFIRMED",
+        "from_version": 1,
+        "to_version": 2,
+        "changed_fields": [
+          "title",
+          "summary"
+        ],
+        "creates_new_event_version": true,
+        "is_event_merge": false,
+        "ui_label_distinction_note": "Title/summary edit via MVP API §5 PATCH /work-events/{id} records DB Model domain ReviewAction EDIT and emits a new CANDIDATE version; strictly distinct from manual_merge and separates unconfirmed external API response token.",
+        "unconfirmed_fields": [
+          "external_response_action_token"
+        ]
+      }
+    ],
+    "downstream_side_effects": [],
+    "search_checks": [
+      {
+        "query": "fault-tolerant async webhook",
+        "workspace_id": "ws_syn_023",
+        "expected_event_ids": [
+          "ev_init_023_1"
+        ],
+        "expected_result_count": 1
+      },
+      {
+        "query": "retry metrics exporter",
+        "workspace_id": "ws_syn_023",
+        "expected_event_ids": [
+          "ev_init_023_sibling"
+        ],
+        "expected_result_count": 1
+      }
+    ],
+    "aggregation_check": {
+      "total_countable_events": 2,
+      "total_user_composite_events": 0,
+      "total_held_items": 0,
+      "total_rejected_events": 0
+    },
+    "post_mvp_transition_note": null,
+    "review_required_items": [
+      {
+        "field_path": "expected_proposal.review_actions[0].external_response_action_token",
+        "category": "UNCONFIRMED_SPEC_TOKEN",
+        "status": "REVIEW_REQUIRED",
+        "question": "MVP API §5 route PATCH /work-events/{id} and DB Model domain ReviewAction EDIT are confirmed; external API response action token/shape and HTTP status remain excluded from truth comparison."
+      },
+      {
+        "field_path": "expected_proposal.events[0].lifecycle_status",
+        "category": "TRULY_UNDECIDED_BEHAVIOR",
+        "status": "REVIEW_REQUIRED",
+        "question": "This candidate follows Event Guide §6 for editing an active CANDIDATE into a new CANDIDATE version (v1->v2). Whether editing an already-CONFIRMED Event keeps CONFIRMED or demotes to CANDIDATE is intentionally excluded from this candidate's expected answer."
+      }
+    ]
+  },
+  "rationale": {
+    "summary": "Fills the confirmed title/summary edit gap not tested in EV-001..EV-018 using MVP API §5 PATCH /work-events/{id} and Event Guide §6's new Candidate version rule: editing title and summary on active CANDIDATE Event ev_init_023_1 (v1) creates new CANDIDATE version 2 while preserving prior version, original PR/Commit provenance, and standalone membership; records DB Model domain ReviewAction EDIT (distinct from unconfirmed external response tokens); leaves sibling Event ev_init_023_sibling untouched at v1; and creates 0 USER_COMPOSITE merges. Editing an already-CONFIRMED Event is intentionally excluded from this candidate.",
+    "confirmed_spec_rules": [
+      "MVP_API_SECTION_5_EDIT_ROUTE_IS_PATCH_WORK_EVENTS_ID",
+      "EDITING_ACTIVE_CANDIDATE_CREATES_NEW_CANDIDATE_VERSION_AND_RECORDS_DOMAIN_REVIEW_ACTION_EDIT",
+      "EDIT_IS_DISTINCT_FROM_EVENT_MERGE_AND_NEVER_CREATES_USER_COMPOSITE",
+      "EDIT_DOES_NOT_MUTATE_OR_SUPERSEDE_SIBLING_EVENTS",
+      "SOURCE_PROVENANCE_AND_MEMBERSHIP_PRESERVED_ON_EDIT"
+    ],
+    "unconfirmed_spec_tokens": [
+      "External API response action token / payload shape for ReviewAction (external_response_action_token='UNCONFIRMED')",
+      "HTTP status code for accepted edit response (http_status left unconfirmed)"
+    ],
+    "truly_undecided_items": [
+      "Whether editing title/summary on an already-CONFIRMED Event retains CONFIRMED status or creates a new CANDIDATE version (intentionally omitted from this candidate's expected answer)."
+    ]
+  }
+}

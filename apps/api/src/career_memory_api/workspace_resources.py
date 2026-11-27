@@ -120,3 +120,21 @@ class WorkspaceResourceReader:
             raise WorkspaceResourceNotFoundError()
 
         return resource
+
+
+def ensure_workspace_resource_ownership(
+    access: WorkspaceAccessContext,
+    resource: WorkspaceResource | None,
+    expected_resource_id: str,
+) -> WorkspaceResource:
+    """Validate ownership within ``access.workspace_id`` or conceal identically."""
+    if not isinstance(expected_resource_id, str) or not expected_resource_id.strip():
+        raise WorkspaceResourceNotFoundError()
+    normalized_id = expected_resource_id.strip()
+    if (
+        resource is None
+        or resource.workspace_id != access.workspace_id
+        or resource.resource_id != normalized_id
+    ):
+        raise WorkspaceResourceNotFoundError()
+    return resource

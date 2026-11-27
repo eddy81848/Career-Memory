@@ -1,6 +1,6 @@
 # CONTRACT-06 최초 가져오기 인수인계
 
-[OpenAPI 0.5.0-draft](openapi.yaml)는 오너가 승인한 최초 가져오기 네 경로를 담는다. 기준은 `54a8906aaf460e6a5c32a76f8079734411b4d0d6`이다. CONTRACT-06의 승인 항목은 JSON `expected_run_version` 전달과 `409 RESOURCE_VERSION_CONFLICT` 응답이다.
+[OpenAPI 0.5.0-draft](openapi.yaml)(Git blob `07594d75425744d6149250a9f7ff95ac24659f80`)는 직전 CONTRACT-04 기준(`54a8906aaf460e6a5c32a76f8079734411b4d0d6`) 위에 CONTRACT-06 체크포인트(`87f1515cbe74bf02b0aece68904bf9a641c74c60`)로 승인 고정한 최초 가져오기 네 경로 계약을 담는다. CONTRACT-06의 승인 항목은 JSON `expected_run_version` 전달과 `409 RESOURCE_VERSION_CONFLICT` 응답이다.
 
 ## 승인 반영
 

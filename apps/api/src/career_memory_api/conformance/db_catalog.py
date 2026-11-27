@@ -29,6 +29,7 @@ from career_memory_api.conformance.ai_schemas import render_canonical_json
 from career_memory_api.schema_contracts.enums import (
     COMPOSITE_FK_SPEC,
     DEFERRED_POST_MVP_TABLES,
+    MIGRATION_0050_COMPOSITE_FK_SPEC,
     READONLY_PROVENANCE_VIEWS,
 )
 
@@ -39,6 +40,7 @@ FULL_M1_MIGRATIONS: tuple[str, ...] = (
     "0020_source_provenance_metadata.sql",
     "0030_events_facts_claims_contributions.sql",
     "0040_sync_runs_jobs_outbox_audit.sql",
+    "0050_m2_backfill_observations.sql",
 )
 
 EXPECTED_ROLES: tuple[str, ...] = (
@@ -47,7 +49,7 @@ EXPECTED_ROLES: tuple[str, ...] = (
     "cm_worker_app",
 )
 
-# Full M1 Composite FK matrix across migrations 0010, 0020, 0030, and 0040.
+# Full M1+M2 Composite FK matrix across migrations 0010, 0020, 0030, 0040, and 0050.
 # Format: (child_table, (child_col_1, child_col_2), parent_table, (parent_col_1, parent_col_2))
 M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str]], ...] = (
     ("oauth_connect_states", ("workspace_id", "actor_user_id"), "workspace_memberships", ("workspace_id", "user_id")),
@@ -63,9 +65,13 @@ M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str
     ("job_side_effect_ledger", ("workspace_id", "job_id"), "jobs", ("workspace_id", "id")),
     ("outbox_consumed_effects", ("workspace_id", "outbox_event_id"), "outbox_events", ("workspace_id", "id")),
     ("deletion_jobs", ("workspace_id", "source_resource_id"), "source_resources", ("workspace_id", "id")),
+    *(
+        (child, ("workspace_id", col), parent, ("workspace_id", "id"))
+        for child, col, parent in MIGRATION_0050_COMPOSITE_FK_SPEC
+    ),
 )
 
-# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020/0030/0040.
+# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020/0030/0040/0050.
 REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("source_resources", "ck_source_resources_raw_storage_mode_none"),
     ("source_resources", "ck_source_resources_raw_retention_null"),
@@ -97,6 +103,8 @@ REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("audit_events", "ck_audit_events_metadata_no_secret"),
     ("deletion_jobs", "ck_deletion_jobs_checkpoint_no_raw"),
     ("deletion_jobs", "ck_deletion_jobs_failure_summary_no_raw"),
+    ("sync_item_outcomes", "ck_sync_item_outcomes_metadata_no_raw"),
+    ("sync_commit_pr_associations", "ck_sync_commit_pr_assoc_metadata_no_raw"),
 )
 
 CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
@@ -857,7 +865,28 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 )
             conn.commit()
 
-        # Stage 5: Re-apply 0010 -> 0020 -> 0030 -> 0040 (full idempotency) & verify data preservation
+        # Stage 5: 0050 + seed sync_run_page_observations
+        obs_id = str(uuid.uuid4())
+        cluster.apply_sql_file(staged_db, migration_paths[4])
+        with psycopg.connect(cluster.dsn(staged_db)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.sync_run_page_observations (
+                        id, workspace_id, sync_run_id, stream_name,
+                        page_number, request_cursor, next_cursor,
+                        page_fingerprint, checkpoint_version, item_count, unique_object_count
+                    ) VALUES (
+                        %s, %s, %s, 'PRS',
+                        1, NULL, NULL,
+                        %s, 1, 1, 1
+                    )
+                    """,
+                    (obs_id, ws_id, run_id, f"sha256:{digest}"),
+                )
+            conn.commit()
+
+        # Stage 6: Re-apply 0010 -> 0020 -> 0030 -> 0040 -> 0050 (full idempotency) & verify data preservation
         for path in migration_paths:
             cluster.apply_sql_file(staged_db, path)
 
@@ -870,6 +899,11 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 cur.execute("SELECT COUNT(*) FROM public.work_events WHERE id = %s", (evt_id,))
                 assert cur.fetchone() == (1,)
                 cur.execute("SELECT COUNT(*) FROM public.sync_runs WHERE id = %s", (run_id,))
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.sync_run_page_observations WHERE id = %s",
+                    (obs_id,),
+                )
                 assert cur.fetchone() == (1,)
             staged_snapshot = introspect_postgres_catalog(conn)
 

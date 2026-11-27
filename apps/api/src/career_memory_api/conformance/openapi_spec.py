@@ -24,6 +24,13 @@ from career_memory_api.contracts_api.models import (
     SearchResponse,
 )
 from career_memory_api.contracts_api.router import create_m1_contract_app
+from career_memory_api.github_connect.models import (
+    GitHubCredentialMode,
+    PolicyDecision,
+    PolicyGuardedOperation,
+    PolicyGuidanceCode,
+    PolicyTransitionKind,
+)
 from career_memory_api.resolver.models import ResolutionStatus
 from career_memory_api.schema_contracts.enums import (
     ClaimStatus,
@@ -303,6 +310,223 @@ def _content_unit_ephemeral_openapi_path() -> dict[str, Any]:
     }
 
 
+def _github_connect_openapi_paths() -> dict[str, Any]:
+    """M2-T201 (T-201 + T-201A) GitHub OAuth Connect, Allowlist & Policy Transition routes."""
+    no_store_headers = {
+        "X-Request-ID": {"$ref": "#/components/headers/RequestID"},
+        "Cache-Control": {"$ref": "#/components/headers/PrivateNoStore"},
+    }
+    return {
+        "/v1/sources/github/oauth/start": {
+            "post": {
+                "operationId": "startGitHubOAuth",
+                "tags": ["github-connect"],
+                "summary": "Start minimum-scope (read:user) GitHub OAuth App connect flow",
+                "parameters": [{"$ref": "#/components/parameters/RequestID"}],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/GitHubOAuthStartRequest"}
+                        }
+                    },
+                },
+                "responses": {
+                    "201": {
+                        "description": "One-time state and PKCE S256 authorize URL issued.",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/GitHubOAuthStartResponse"}
+                            }
+                        },
+                    },
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"$ref": "#/components/responses/ImportWorkspaceAccessRevoked"},
+                    "422": {"description": "Invalid request body."},
+                },
+            }
+        },
+        "/v1/sources/github/oauth/callback": {
+            "post": {
+                "operationId": "completeGitHubOAuthCallback",
+                "tags": ["github-connect"],
+                "summary": "Complete GitHub OAuth callback with scope enforcement and atomic persistence",
+                "parameters": [
+                    {"$ref": "#/components/parameters/IdempotencyKey"},
+                    {"$ref": "#/components/parameters/RequestID"},
+                ],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/GitHubOAuthCallbackRequest"}
+                        }
+                    },
+                },
+                "responses": {
+                    "200": {
+                        "description": "Connected SourceAccount (and optional allowlisted public SourceResource).",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/GitHubOAuthCallbackResponse"}
+                            }
+                        },
+                    },
+                    "400": {"description": "Invalid OAuth state, exchange error, or repository identifier."},
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"description": "EXCESSIVE_OAUTH_SCOPE, PRIVATE_REPOSITORY_NOT_ALLOWED, or workspace denial."},
+                    "409": {"description": "IDEMPOTENCY_CONFLICT or state already consumed."},
+                    "422": {"description": "Missing or invalid Idempotency-Key or request body."},
+                },
+            }
+        },
+        "/v1/source-resources": {
+            "get": {
+                "operationId": "listSourceResources",
+                "tags": ["github-connect"],
+                "summary": "List workspace-scoped non-deleted allowlisted source resources",
+                "parameters": [
+                    {
+                        "name": "source_account_id",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"},
+                    },
+                    {"$ref": "#/components/parameters/RequestID"},
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Workspace-scoped list of source resources with computed guidance codes.",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/SourceResourceListResponse"}
+                            }
+                        },
+                    },
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"$ref": "#/components/responses/ImportWorkspaceAccessRevoked"},
+                },
+            },
+            "post": {
+                "operationId": "registerSourceResource",
+                "tags": ["github-connect"],
+                "summary": "Register a single explicit public GitHub repository on the workspace allowlist",
+                "parameters": [{"$ref": "#/components/parameters/RequestID"}],
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/SourceResourceRegisterRequest"}
+                        }
+                    },
+                },
+                "responses": {
+                    "201": {
+                        "description": "Verified PUBLIC repository registered under Plan C (raw_storage_mode=NONE).",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/SourceResourceRecord"}
+                            }
+                        },
+                    },
+                    "400": {"description": "INVALID_REPOSITORY_NAME."},
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"description": "PRIVATE_REPOSITORY_NOT_ALLOWED or REAUTH_REQUIRED."},
+                    "404": {"$ref": "#/components/responses/ImportResourceConcealed"},
+                    "422": {"description": "Invalid request body."},
+                },
+            },
+        },
+        "/v1/source-accounts": {
+            "get": {
+                "operationId": "listSourceAccounts",
+                "tags": ["github-connect"],
+                "summary": "List workspace-scoped connected source accounts without secret references",
+                "parameters": [{"$ref": "#/components/parameters/RequestID"}],
+                "responses": {
+                    "200": {
+                        "description": "Connected source accounts (token_secret_ref strictly omitted).",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/SourceAccountListResponse"}
+                            }
+                        },
+                    },
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"$ref": "#/components/responses/ImportWorkspaceAccessRevoked"},
+                },
+            }
+        },
+        "/v1/source-resources/{source_resource_id}/verify-policy": {
+            "post": {
+                "operationId": "verifySourceResourcePolicy",
+                "tags": ["github-connect"],
+                "summary": "Re-verify repository visibility and token health and apply POLICY-01 transitions",
+                "parameters": [
+                    {
+                        "name": "source_resource_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string", "minLength": 1},
+                    },
+                    {"$ref": "#/components/parameters/RequestID"},
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Policy verification outcome (0 tombstones on visibility/permission transitions).",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/PolicyVerificationResponse"}
+                            }
+                        },
+                    },
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"$ref": "#/components/responses/ImportWorkspaceAccessRevoked"},
+                    "404": {"$ref": "#/components/responses/ImportResourceConcealed"},
+                    "429": {"description": "GITHUB_RATE_LIMITED (retryable=true)."},
+                    "503": {"description": "GITHUB_PROVIDER_UNAVAILABLE (retryable=true)."},
+                },
+            }
+        },
+        "/v1/source-accounts/{source_account_id}/disconnect": {
+            "post": {
+                "operationId": "disconnectSourceAccount",
+                "tags": ["github-connect"],
+                "summary": "Idempotently revoke GitHub grant, delete secret, and lock linked resources",
+                "parameters": [
+                    {
+                        "name": "source_account_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string", "minLength": 1},
+                    },
+                    {"$ref": "#/components/parameters/RequestID"},
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Disconnected source account and canceled active jobs/runs.",
+                        "headers": no_store_headers,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/SourceAccountDisconnectResponse"}
+                            }
+                        },
+                    },
+                    "401": {"$ref": "#/components/responses/ImportSessionRequired"},
+                    "403": {"$ref": "#/components/responses/ImportWorkspaceAccessRevoked"},
+                    "404": {"$ref": "#/components/responses/ImportResourceConcealed"},
+                },
+            }
+        },
+    }
+
+
 def _shared_components() -> dict[str, Any]:
     """Authoritative OpenAPI components combining M0 import contract, Plan C §7, and M1 schemas."""
     # Extract Pydantic JSON schemas for contract models so FastAPI and OpenAPI stay in lockstep.
@@ -359,6 +583,260 @@ def _shared_components() -> dict[str, Any]:
         "ResolutionStatus": {
             "type": "string",
             "enum": [e.value for e in ResolutionStatus],
+        },
+        "GitHubCredentialMode": {
+            "type": "string",
+            "enum": [e.value for e in GitHubCredentialMode],
+        },
+        "PolicyDecision": {
+            "type": "string",
+            "enum": [e.value for e in PolicyDecision],
+        },
+        "PolicyGuidanceCode": {
+            "type": "string",
+            "enum": [e.value for e in PolicyGuidanceCode],
+        },
+        "PolicyTransitionKind": {
+            "type": "string",
+            "enum": [e.value for e in PolicyTransitionKind],
+        },
+        "PolicyGuardedOperation": {
+            "type": "string",
+            "enum": [e.value for e in PolicyGuardedOperation],
+        },
+        "GitHubOAuthStartRequest": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["return_path", "redirect_uri"],
+            "properties": {
+                "return_path": {"type": "string", "minLength": 1},
+                "redirect_uri": {"type": "string", "minLength": 1},
+                "ttl_seconds": {"type": "integer", "minimum": 60, "default": 600},
+            },
+        },
+        "GitHubOAuthStartResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "provider",
+                "credential_mode",
+                "authorization_url",
+                "requested_scopes",
+                "state",
+                "pkce_code_challenge",
+                "return_path",
+                "expires_at",
+            ],
+            "properties": {
+                "provider": {"const": "GITHUB"},
+                "credential_mode": {"$ref": "#/components/schemas/GitHubCredentialMode"},
+                "authorization_url": {"type": "string", "format": "uri"},
+                "requested_scopes": {"type": "array", "items": {"type": "string"}},
+                "state": {"type": "string", "minLength": 1},
+                "pkce_code_challenge": {"type": "string", "minLength": 1},
+                "return_path": {"type": "string"},
+                "expires_at": {"type": "string", "format": "date-time"},
+            },
+        },
+        "GitHubOAuthCallbackRequest": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["state", "redirect_uri"],
+            "properties": {
+                "state": {"type": "string", "minLength": 1},
+                "code": {"type": ["string", "null"]},
+                "redirect_uri": {"type": "string", "minLength": 1},
+                "repository_full_name": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "policy_version": {"type": ["string", "null"]},
+                "consent_version": {"type": ["string", "null"]},
+            },
+        },
+        "SourceAccountView": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "id",
+                "workspace_id",
+                "provider",
+                "external_account_id",
+                "scopes",
+                "status",
+                "created_at",
+                "revoked_at",
+            ],
+            "properties": {
+                "id": {"type": "string"},
+                "workspace_id": {"type": "string"},
+                "provider": {"const": "GITHUB"},
+                "external_account_id": {"type": "string"},
+                "scopes": {"type": "array", "items": {"type": "string"}},
+                "status": {"type": "string", "enum": ["ACTIVE", "REVOKED"]},
+                "created_at": {"type": "string", "format": "date-time"},
+                "revoked_at": {"type": ["string", "null"], "format": "date-time"},
+            },
+        },
+        "SourceAccountListResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["items"],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/SourceAccountView"},
+                }
+            },
+        },
+        "SourceResourceRecord": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "id",
+                "workspace_id",
+                "source_account_id",
+                "provider_resource_id",
+                "resource_type",
+                "name",
+                "canonical_url",
+                "visibility",
+                "processing_mode",
+                "raw_storage_mode",
+                "raw_retention_seconds",
+                "status",
+                "policy_version",
+                "consent_version",
+                "last_visibility_checked_at",
+                "created_at",
+                "guidance_code",
+            ],
+            "properties": {
+                "id": {"type": "string"},
+                "workspace_id": {"type": "string"},
+                "source_account_id": {"type": "string"},
+                "provider_resource_id": {"type": "string"},
+                "resource_type": {"const": "GITHUB_REPOSITORY"},
+                "name": {"type": "string"},
+                "canonical_url": {"type": "string", "format": "uri"},
+                "visibility": {"type": "string", "enum": ["PUBLIC", "PRIVATE", "INTERNAL"]},
+                "processing_mode": {
+                    "type": "string",
+                    "enum": ["PUBLIC_CLOUD", "PRIVATE_LOCAL", "PRIVATE_CLOUD_OPT_IN"],
+                },
+                "raw_storage_mode": {"const": "NONE"},
+                "raw_retention_seconds": {"type": "null"},
+                "status": {
+                    "type": "string",
+                    "enum": ["ACTIVE", "PAUSED", "POLICY_REVIEW_REQUIRED", "DELETED"],
+                },
+                "policy_version": {"type": "string"},
+                "consent_version": {"type": ["string", "null"]},
+                "last_visibility_checked_at": {"type": ["string", "null"], "format": "date-time"},
+                "created_at": {"type": "string", "format": "date-time"},
+                "guidance_code": {
+                    "anyOf": [
+                        {"$ref": "#/components/schemas/PolicyGuidanceCode"},
+                        {"type": "null"},
+                    ]
+                },
+            },
+        },
+        "SourceResourceListResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["items"],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/SourceResourceRecord"},
+                }
+            },
+        },
+        "SourceResourceRegisterRequest": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["source_account_id", "repository_full_name"],
+            "properties": {
+                "source_account_id": {"type": "string", "minLength": 1},
+                "repository_full_name": {"type": "string", "minLength": 3},
+                "policy_version": {"type": ["string", "null"]},
+                "consent_version": {"type": ["string", "null"]},
+            },
+        },
+        "GitHubOAuthCallbackResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["source_account", "source_resource", "return_path", "idempotent_replay"],
+            "properties": {
+                "source_account": {"$ref": "#/components/schemas/SourceAccountView"},
+                "source_resource": {
+                    "anyOf": [
+                        {"$ref": "#/components/schemas/SourceResourceRecord"},
+                        {"type": "null"},
+                    ]
+                },
+                "return_path": {"type": "string"},
+                "idempotent_replay": {"type": "boolean"},
+            },
+        },
+        "PolicyVerificationResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "resource",
+                "account_status",
+                "policy_decision",
+                "guidance_code",
+                "transition",
+                "tombstone_created",
+                "canceled_job_ids",
+                "canceled_sync_run_ids",
+                "blocked_operations",
+                "checked_at",
+            ],
+            "properties": {
+                "resource": {"$ref": "#/components/schemas/SourceResourceRecord"},
+                "account_status": {"type": "string", "enum": ["ACTIVE", "REVOKED"]},
+                "policy_decision": {"$ref": "#/components/schemas/PolicyDecision"},
+                "guidance_code": {
+                    "anyOf": [
+                        {"$ref": "#/components/schemas/PolicyGuidanceCode"},
+                        {"type": "null"},
+                    ]
+                },
+                "transition": {"$ref": "#/components/schemas/PolicyTransitionKind"},
+                "tombstone_created": {"type": "boolean"},
+                "canceled_job_ids": {"type": "array", "items": {"type": "string"}},
+                "canceled_sync_run_ids": {"type": "array", "items": {"type": "string"}},
+                "blocked_operations": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/PolicyGuardedOperation"},
+                },
+                "checked_at": {"type": "string", "format": "date-time"},
+            },
+        },
+        "SourceAccountDisconnectResponse": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "source_account",
+                "provider_grant_revoked",
+                "secret_deleted",
+                "already_revoked",
+                "affected_resource_ids",
+                "canceled_job_ids",
+                "canceled_sync_run_ids",
+                "tombstone_created",
+            ],
+            "properties": {
+                "source_account": {"$ref": "#/components/schemas/SourceAccountView"},
+                "provider_grant_revoked": {"type": "boolean"},
+                "secret_deleted": {"type": "boolean"},
+                "already_revoked": {"type": "boolean"},
+                "affected_resource_ids": {"type": "array", "items": {"type": "string"}},
+                "canceled_job_ids": {"type": "array", "items": {"type": "string"}},
+                "canceled_sync_run_ids": {"type": "array", "items": {"type": "string"}},
+                "tombstone_created": {"type": "boolean"},
+            },
         },
         "SourceResolutionErrorCode": {
             "type": "string",
@@ -716,9 +1194,10 @@ def generate_integrated_openapi_spec() -> dict[str, Any]:
     # Keep FastAPI-generated /healthz, /v1/claims/*, /v1/search, and /v1/source-resources/*/deletion-*
     for path_key, path_item in raw_spec.get("paths", {}).items():
         paths[path_key] = path_item
-    # Add M0-aligned 4 initial-import routes & Plan C §7 content-unit viewing route
+    # Add M0-aligned 4 initial-import routes, Plan C §7 content-unit viewing route & M2-T201 GitHub connect routes
     paths.update(_sync_runs_openapi_paths())
     paths.update(_content_unit_ephemeral_openapi_path())
+    paths.update(_github_connect_openapi_paths())
 
     components = _shared_components()
     # Merge any FastAPI-generated schemas (e.g. HTTPValidationError) without losing explicit ones

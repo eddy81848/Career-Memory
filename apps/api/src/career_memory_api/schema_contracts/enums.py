@@ -49,7 +49,15 @@ MIGRATION_0030_TABLES: tuple[str, ...] = (
     "claim_atom_support",
 )
 
+MIGRATION_0050_TABLES: tuple[str, ...] = (
+    "sync_item_outcomes",
+    "sync_commit_pr_associations",
+    "sync_run_page_observations",
+    "sync_run_event_promotions",
+)
+
 TENANT_DOMAIN_TABLES: tuple[str, ...] = MIGRATION_0020_TABLES + MIGRATION_0030_TABLES
+ALL_TENANT_DOMAIN_TABLES: tuple[str, ...] = TENANT_DOMAIN_TABLES + MIGRATION_0050_TABLES
 
 READONLY_PROVENANCE_VIEWS: tuple[str, ...] = (
     "v_claim_provenance_chain",
@@ -96,6 +104,19 @@ COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("claim_atom_support", "claim_atom_id", "claim_atoms"),
     ("claim_atom_support", "fact_id", "facts"),
     ("claim_atom_support", "validation_run_id", "generation_runs"),
+)
+
+MIGRATION_0050_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
+    ("sync_item_outcomes", "sync_run_id", "sync_runs"),
+    ("sync_item_outcomes", "source_resource_id", "source_resources"),
+    ("sync_item_outcomes", "source_object_id", "source_objects"),
+    ("sync_commit_pr_associations", "sync_run_id", "sync_runs"),
+    ("sync_commit_pr_associations", "source_resource_id", "source_resources"),
+    ("sync_commit_pr_associations", "commit_source_object_id", "source_objects"),
+    ("sync_run_page_observations", "sync_run_id", "sync_runs"),
+    ("sync_run_event_promotions", "sync_run_id", "sync_runs"),
+    ("sync_run_event_promotions", "source_object_id", "source_objects"),
+    ("sync_run_event_promotions", "work_event_id", "work_events"),
 )
 
 

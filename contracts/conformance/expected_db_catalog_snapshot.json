@@ -3,7 +3,8 @@
     "0010_identity_workspace_source_auth.sql",
     "0020_source_provenance_metadata.sql",
     "0030_events_facts_claims_contributions.sql",
-    "0040_sync_runs_jobs_outbox_audit.sql"
+    "0040_sync_runs_jobs_outbox_audit.sql",
+    "0050_m2_backfill_observations.sql"
   ],
   "roles": {
     "cm_api_app": {
@@ -2349,6 +2350,423 @@
         {
           "cmd": "ALL",
           "name": "sync_checkpoints_worker_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_commit_pr_associations": {
+      "check_constraints": {
+        "ck_sync_commit_pr_assoc_branch_non_empty": "CHECK ((length(btrim(default_branch_name)) > 0))",
+        "ck_sync_commit_pr_assoc_matched_pr_fields": "CHECK (((pr_association_state <> 'MATCHED_PR'::text) OR ((matched_pr_provider_id IS NOT NULL) AND (length(btrim(matched_pr_provider_id)) > 0) AND (unknown_reason_code IS NULL))))",
+        "ck_sync_commit_pr_assoc_mechanism": "CHECK (((match_mechanism IS NULL) OR (match_mechanism = ANY (ARRAY['IN_WINDOW_PR_COMMIT'::text, 'PR_HEAD_SHA'::text, 'PR_MERGE_COMMIT_SHA'::text, 'SQUASH_COMMIT_SHA'::text, 'REBASE_COMMIT_SHA'::text, 'PROVIDER_COMMIT_PR_API'::text, 'OUT_OF_WINDOW_PR_API'::text]))))",
+        "ck_sync_commit_pr_assoc_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(observation_metadata)))",
+        "ck_sync_commit_pr_assoc_metadata_object": "CHECK ((jsonb_typeof(observation_metadata) = 'object'::text))",
+        "ck_sync_commit_pr_assoc_no_match_fields": "CHECK (((pr_association_state <> 'NO_MATCH_OBSERVED'::text) OR ((matched_pr_provider_id IS NULL) AND (unknown_reason_code IS NULL) AND (lookup_completed = true) AND (reachable_at_start = true) AND (reachable_at_end = true))))",
+        "ck_sync_commit_pr_assoc_sha_format": "CHECK ((commit_sha ~ '^[0-9a-f]{7,64}$'::text))",
+        "ck_sync_commit_pr_assoc_state": "CHECK ((pr_association_state = ANY (ARRAY['MATCHED_PR'::text, 'NO_MATCH_OBSERVED'::text, 'UNKNOWN'::text])))",
+        "ck_sync_commit_pr_assoc_unknown_fields": "CHECK (((pr_association_state <> 'UNKNOWN'::text) OR ((unknown_reason_code IS NOT NULL) AND (length(btrim(unknown_reason_code)) > 0))))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "sync_run_id",
+        "source_resource_id",
+        "commit_source_object_id",
+        "commit_sha",
+        "default_branch_name",
+        "pr_association_state",
+        "matched_pr_provider_id",
+        "matched_pr_in_window",
+        "match_mechanism",
+        "unknown_reason_code",
+        "reachable_at_start",
+        "reachable_at_end",
+        "lookup_completed",
+        "observation_metadata",
+        "observed_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "commit_source_object_id"
+          ],
+          "name": "fk_sync_commit_pr_assoc_same_workspace_commit",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_sync_commit_pr_assoc_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "sync_run_id"
+          ],
+          "name": "fk_sync_commit_pr_assoc_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_commit_pr_associations_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_commit_pr_assoc_workspace_run_state",
+        "sync_commit_pr_associations_pkey",
+        "uq_sync_commit_pr_assoc_run_commit",
+        "uq_sync_commit_pr_assoc_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "sync_commit_pr_associations_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "sync_commit_pr_associations_worker_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "sync_commit_pr_associations_worker_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "sync_commit_pr_associations_worker_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_item_outcomes": {
+      "check_constraints": {
+        "ck_sync_item_outcomes_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(outcome_metadata)))",
+        "ck_sync_item_outcomes_metadata_object": "CHECK ((jsonb_typeof(outcome_metadata) = 'object'::text))",
+        "ck_sync_item_outcomes_object_type": "CHECK ((object_type = ANY (ARRAY['PR'::text, 'COMMIT'::text, 'ISSUE'::text, 'REVIEW'::text, 'COMMENT'::text, 'FILE'::text, 'STREAM'::text])))",
+        "ck_sync_item_outcomes_outcome_kind": "CHECK ((outcome_kind = ANY (ARRAY['SKIPPED'::text, 'FAILED'::text, 'EXCLUDED'::text, 'ASSOCIATION_UNKNOWN'::text])))",
+        "ck_sync_item_outcomes_provider_id_non_empty": "CHECK ((length(btrim(provider_object_id)) > 0))",
+        "ck_sync_item_outcomes_reason_code_non_empty": "CHECK ((length(btrim(reason_code)) > 0))",
+        "ck_sync_item_outcomes_stream_name": "CHECK ((stream_name = ANY (ARRAY['PRS'::text, 'PR_REVIEWS'::text, 'DEFAULT_BRANCH_COMMITS'::text, 'COMMIT_PR_ASSOCIATIONS'::text, 'CONTEXT_ISSUES'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "sync_run_id",
+        "source_resource_id",
+        "source_object_id",
+        "stream_name",
+        "object_type",
+        "provider_object_id",
+        "outcome_kind",
+        "reason_code",
+        "affected_range",
+        "retryable",
+        "outcome_metadata",
+        "observed_at",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_object_id"
+          ],
+          "name": "fk_sync_item_outcomes_same_workspace_object",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_sync_item_outcomes_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "sync_run_id"
+          ],
+          "name": "fk_sync_item_outcomes_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_item_outcomes_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_item_outcomes_workspace_run_kind",
+        "idx_sync_item_outcomes_workspace_run_stream",
+        "sync_item_outcomes_pkey",
+        "uq_sync_item_outcomes_run_item_outcome",
+        "uq_sync_item_outcomes_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "sync_item_outcomes_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "sync_item_outcomes_worker_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "sync_item_outcomes_worker_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "sync_item_outcomes_worker_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_run_event_promotions": {
+      "check_constraints": {
+        "ck_sync_run_event_promotions_anchor_mode": "CHECK ((anchor_mode = ANY (ARRAY['PR'::text, 'DIRECT_COMMIT'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "sync_run_id",
+        "source_object_id",
+        "anchor_mode",
+        "work_event_id",
+        "promoted_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "work_event_id"
+          ],
+          "name": "fk_sync_run_event_promotions_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_object_id"
+          ],
+          "name": "fk_sync_run_event_promotions_same_workspace_object",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "sync_run_id"
+          ],
+          "name": "fk_sync_run_event_promotions_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_run_event_promotions_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_run_event_promotions_workspace_run",
+        "sync_run_event_promotions_pkey",
+        "uq_sync_run_event_promotions_run_object_mode",
+        "uq_sync_run_event_promotions_workspace_id_id",
+        "uq_sync_run_event_promotions_workspace_object_mode"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "sync_run_event_promotions_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "sync_run_event_promotions_worker_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "sync_run_event_promotions_worker_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "sync_run_page_observations": {
+      "check_constraints": {
+        "ck_sync_run_page_obs_checkpoint_version_positive": "CHECK ((checkpoint_version >= 1))",
+        "ck_sync_run_page_obs_counts_non_negative": "CHECK (((item_count >= 0) AND (unique_object_count >= 0)))",
+        "ck_sync_run_page_obs_fingerprint_sha256": "CHECK ((page_fingerprint ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_sync_run_page_obs_page_positive": "CHECK ((page_number >= 1))",
+        "ck_sync_run_page_obs_stream_name": "CHECK ((stream_name = ANY (ARRAY['PRS'::text, 'PR_REVIEWS'::text, 'DEFAULT_BRANCH_COMMITS'::text, 'COMMIT_PR_ASSOCIATIONS'::text, 'CONTEXT_ISSUES'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "sync_run_id",
+        "stream_name",
+        "page_number",
+        "request_cursor",
+        "next_cursor",
+        "page_fingerprint",
+        "checkpoint_version",
+        "item_count",
+        "unique_object_count",
+        "committed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "sync_run_id"
+          ],
+          "name": "fk_sync_run_page_obs_same_workspace_run",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "sync_runs"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "sync_run_page_observations_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_sync_run_page_obs_workspace_run_stream",
+        "sync_run_page_observations_pkey",
+        "uq_sync_run_page_obs_run_stream_page",
+        "uq_sync_run_page_obs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "SELECT",
+          "name": "sync_run_page_observations_api_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "sync_run_page_observations_worker_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "sync_run_page_observations_worker_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "sync_run_page_observations_worker_update",
           "roles": [
             "cm_worker_app"
           ]

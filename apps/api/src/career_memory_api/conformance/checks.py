@@ -22,8 +22,20 @@ from typing import Any
 
 from career_memory_api.auth.oauth import OAuthProvider, OrphanSecretCleanupStatus
 from career_memory_api.auth.postgres_guard import WorkspaceRole
+from career_memory_api.backfill_engine.models import (
+    AssociationMatchMechanism,
+    BackfillStreamName,
+    ItemOutcomeKind,
+)
 from career_memory_api.canonicalization.models import (
     ContentUnitType as CanonicalContentUnitType,
+)
+from career_memory_api.github_connect.models import (
+    GitHubCredentialMode,
+    PolicyDecision,
+    PolicyGuardedOperation,
+    PolicyGuidanceCode,
+    PolicyTransitionKind,
 )
 from career_memory_api.conformance.ai_schemas import (
     AI_SCHEMA_BUILDERS,
@@ -212,7 +224,10 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
     EnumParityBinding(
         name="PrAssociationState",
         enum_cls=PrAssociationState,
-        sql_targets=(("0020_source_provenance_metadata.sql", "ck_source_objects_pr_association_state"),),
+        sql_targets=(
+            ("0020_source_provenance_metadata.sql", "ck_source_objects_pr_association_state"),
+            ("0050_m2_backfill_observations.sql", "ck_sync_commit_pr_assoc_state"),
+        ),
     ),
     EnumParityBinding(
         name="ContentUnitType",
@@ -477,6 +492,64 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         openapi_schema_name="SearchEntityType",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
+    # 0050 M2 Backfill Observations
+    EnumParityBinding(
+        name="BackfillStreamName",
+        enum_cls=BackfillStreamName,
+        sql_targets=(
+            ("0050_m2_backfill_observations.sql", "ck_sync_item_outcomes_stream_name"),
+            ("0050_m2_backfill_observations.sql", "ck_sync_run_page_obs_stream_name"),
+        ),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="ItemOutcomeKind",
+        enum_cls=ItemOutcomeKind,
+        sql_targets=(("0050_m2_backfill_observations.sql", "ck_sync_item_outcomes_outcome_kind"),),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="AssociationMatchMechanism",
+        enum_cls=AssociationMatchMechanism,
+        sql_targets=(("0050_m2_backfill_observations.sql", "ck_sync_commit_pr_assoc_mechanism"),),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    # M2-T201 GitHub Connect OpenAPI enums
+    EnumParityBinding(
+        name="GitHubCredentialMode",
+        enum_cls=GitHubCredentialMode,
+        sql_targets=(),
+        openapi_schema_name="GitHubCredentialMode",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="PolicyDecision",
+        enum_cls=PolicyDecision,
+        sql_targets=(),
+        openapi_schema_name="PolicyDecision",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="PolicyGuidanceCode",
+        enum_cls=PolicyGuidanceCode,
+        sql_targets=(),
+        openapi_schema_name="PolicyGuidanceCode",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="PolicyTransitionKind",
+        enum_cls=PolicyTransitionKind,
+        sql_targets=(),
+        openapi_schema_name="PolicyTransitionKind",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="PolicyGuardedOperation",
+        enum_cls=PolicyGuardedOperation,
+        sql_targets=(),
+        openapi_schema_name="PolicyGuardedOperation",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
 )
 
 
@@ -610,6 +683,13 @@ def validate_openapi_invariants(
         ("/v1/search", "get"),
         ("/v1/source-resources/{source_resource_id}/deletion-preview", "post"),
         ("/v1/source-resources/{source_resource_id}/deletion-confirm", "post"),
+        ("/v1/sources/github/oauth/start", "post"),
+        ("/v1/sources/github/oauth/callback", "post"),
+        ("/v1/source-resources", "post"),
+        ("/v1/source-resources", "get"),
+        ("/v1/source-accounts", "get"),
+        ("/v1/source-resources/{source_resource_id}/verify-policy", "post"),
+        ("/v1/source-accounts/{source_account_id}/disconnect", "post"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:

@@ -337,6 +337,16 @@ export function EventDetailPanel({
                 : "Dissolve (병합 해제)"}
             </button>
           )}
+
+          {event.status === "CONFIRMED" && !policyOrDeletionBlocked && (
+            <a
+              href={`/claim-review?event_id=${encodeURIComponent(event.event_id)}`}
+              className="btn btn--primary btn--sm"
+              data-testid="review-grounded-claims-link"
+            >
+              Review Grounded Facts &amp; Claims →
+            </a>
+          )}
         </div>
       </div>
 

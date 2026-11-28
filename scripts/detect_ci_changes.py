@@ -276,9 +276,8 @@ def classify_changed_paths(
             sync_ar_policy = True
             continue
 
-        # 8. CI/CD workflows -> run fast Python CI trust audit unit tests
+        # 8. CI/CD workflows -> audited by static gate (`detect-and-static` runs edge_guard + pilot_gate)
         if p.startswith(".github/workflows/"):
-            run_api_unit = True
             continue
 
         # 9. Fail-safe fallback for any unrecognized future path: run full test suites (never skip silently)

@@ -1,13 +1,13 @@
-# Nightly Full Regression CI Workflow (INF-09 Zero-Secret, Zero-Cloud-Cost Safety Net)
+# Nightly Live Server & Full Regression CI Workflow (INF-09 Keyless OIDC WIF + Commit-Aware Safety Net)
 #
 # - Runs daily at 04:17 KST (19:17 UTC) and on manual `workflow_dispatch`.
-# - Skips heavy jobs automatically in ~10s on quiet days when `main` has 0 new commits
-#   since the last successful Nightly CI run.
-# - When `main` has new commits (or `workflow_dispatch`), executes 100% of all Backend,
-#   PostgreSQL 18, M0 Spike, FE↔BE HTTP Contract, Web Unit/Build, and Playwright UI E2E suites
-#   with 0 cloud deployments and 0 secrets.
+# - Job 1 (`1. 라이브 배포 서버 E2E 검증`) ALWAYS executes every night against the currently deployed
+#   Cloud Run instances (`cm-web`, `cm-api`, `cm-worker`), live Supabase Auth + PostgREST isolation,
+#   and read-only OD-015 Free-Tier Cloud Pre-Flight (`GO`) using keyless OIDC WIF (0 static keys).
+# - Jobs 3A & 3B execute the full local PostgreSQL 18, M0 Spike, FE↔BE HTTP Contract, Web Build,
+#   and 16-scenario Playwright UI regression suites whenever `main` has new commits (or `force_run`).
 
-name: Nightly CI — 전체 회귀 검증
+name: Nightly CI — 라이브 서버 & 전체 회귀 검증
 
 on:
   schedule:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       force_run:
-        description: "신규 커밋이 없어도 전체 회귀 테스트 강제 실행"
+        description: "신규 커밋이 없어도 코드 레벨 전체 회귀 테스트(3A/3B) 강제 실행"
         required: false
         type: boolean
         default: true
@@ -27,11 +27,79 @@ permissions:
 
 concurrency:
   group: nightly-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: us-central1
+  CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
 
 jobs:
+  live-server-e2e:
+    name: 1. 라이브 배포 서버 E2E 검증 (Cloud Run · Supabase)
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Verify M0 immutable OpenAPI snapshot blob hash
+        run: |
+          ACTUAL="$(git rev-parse HEAD:contracts/import-v1/openapi.yaml)"
+          EXPECTED="07594d75425744d6149250a9f7ff95ac24659f80"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: contracts/import-v1/openapi.yaml was mutated ($ACTUAL != $EXPECTED)" >&2
+            exit 1
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Set up Node.js 22 for Playwright Live Hosted Browser E2E
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install apps/web dependencies & Playwright Chromium
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Authenticate to Google Cloud via keyless OIDC Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Run Comprehensive Live Deployed Server E2E (Origin-HMAC · Worker-OIDC · Playwright · PostgREST · OD-015)
+        working-directory: apps/api
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+        run: |
+          uv run python ../../scripts/run_live_server_e2e.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --deploy-service-account "$DEPLOY_SA" \
+            --fetch-gcp-credentials \
+            --supabase-url "$SUPABASE_URL" \
+            --phase-label "Nightly Live Deployed Server E2E" \
+            --output /tmp/nightly-live-e2e-report.json
+
   gate:
-    name: 1. 신규 커밋 확인 & 정적 무결성 점검
+    name: 2. 신규 커밋 확인
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check_new.outputs.should_run }}
@@ -83,22 +151,22 @@ jobs:
                       runs = json.loads(resp.read().decode("utf-8")).get("workflow_runs", [])
                   last_sha = next((r.get("head_sha", "").strip() for r in runs if r.get("head_sha")), "")
                   if last_sha and last_sha == head_sha:
-                      print(f"✓ No new commits on main since last green Nightly CI ({head_sha[:7]}); skipping full suite.")
+                      print(f"✓ No new commits on main since last green Nightly CI ({head_sha[:7]}); skipping code-level rebuild while Live Server E2E runs.")
                       should_run = False
                   else:
-                      print(f"New commits detected since last green Nightly CI ({last_sha[:7] or 'none'} -> {head_sha[:7]}); running full suite.")
+                      print(f"New commits detected since last green Nightly CI ({last_sha[:7] or 'none'} -> {head_sha[:7]}); running full code regression suite.")
               except Exception as exc:
                   print(f"Nightly history lookup fell back to full run ({type(exc).__name__}).")
                   should_run = True
           else:
-              print(f"Manual dispatch (force_run=true) at {head_sha[:7]}; running full suite.")
+              print(f"Manual dispatch (force_run=true) at {head_sha[:7]}; running full code regression suite.")
 
           with open(gh_out, "a", encoding="utf-8") as fh:
               fh.write(f"should_run={'true' if should_run else 'false'}\n")
           PY
 
   full-backend-and-contracts:
-    name: 2A. Backend · PostgreSQL 18 · 계약 전수 검증
+    name: 3A. Backend · PG18 · 계약 전수 검증
     needs: [gate]
     if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -144,7 +212,7 @@ jobs:
           cd ../web && npm ci && npm run test:contract-http
 
   full-web-and-e2e:
-    name: 2B. Web · BFF · Playwright UI E2E 전수 검증
+    name: 3B. Web · UI 전수 검증
     needs: [gate]
     if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest

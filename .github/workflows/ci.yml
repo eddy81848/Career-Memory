@@ -170,3 +170,31 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e
+
+  pr-merge-gate:
+    name: 3. PR 머지 게이트
+    needs: [detect-and-static, test-backend, test-web]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Evaluate required PR check results
+        env:
+          DETECT_RESULT: ${{ needs.detect-and-static.result }}
+          BACKEND_RESULT: ${{ needs.test-backend.result }}
+          WEB_RESULT: ${{ needs.test-web.result }}
+        run: |
+          echo "PR Gate Summary: detect-and-static=${DETECT_RESULT}, test-backend=${BACKEND_RESULT}, test-web=${WEB_RESULT}"
+          if [ "$DETECT_RESULT" != "success" ]; then
+            echo "ERROR: Static contract & CI trust gate failed (${DETECT_RESULT})." >&2
+            exit 1
+          fi
+          if [ "$BACKEND_RESULT" != "success" ] && [ "$BACKEND_RESULT" != "skipped" ]; then
+            echo "ERROR: Backend test job did not pass (${BACKEND_RESULT})." >&2
+            exit 1
+          fi
+          if [ "$WEB_RESULT" != "success" ] && [ "$WEB_RESULT" != "skipped" ]; then
+            echo "ERROR: Web test job did not pass (${WEB_RESULT})." >&2
+            exit 1
+          fi
+          echo "✓ All applicable PR test gates passed."

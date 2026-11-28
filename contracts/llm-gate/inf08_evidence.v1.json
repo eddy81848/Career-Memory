@@ -1,0 +1,186 @@
+{
+  "cases": [
+    {
+      "case_id": "INF08-01",
+      "category": "DEFAULT_HARD_OFF",
+      "expected_outcome": "MANUAL_ONLY_BLOCKED",
+      "external_calls": 0,
+      "notes": "Default HostedLlmApprovalConfig has all 4 flags False -> OFF_MANUAL_ONLY with all 4 free_alternatives.",
+      "observed_outcome": "MANUAL_ONLY_BLOCKED",
+      "passed": true,
+      "reason_code": "HOSTED_DEPLOYMENT_NOT_APPROVED"
+    },
+    {
+      "case_id": "INF08-02",
+      "category": "PARTIAL_APPROVAL_FLAGS_BLOCKED",
+      "expected_outcome": "MANUAL_ONLY_BLOCKED",
+      "external_calls": 0,
+      "notes": "Each of hosted_deployment_approved, zero_overage_guaranteed, od002_data_policy_verified, od014_token_store_verified individually False blocks with 0 calls.",
+      "observed_outcome": "MANUAL_ONLY_BLOCKED",
+      "passed": true,
+      "reason_code": "OD014_TOKEN_STORE_UNVERIFIED"
+    },
+    {
+      "case_id": "INF08-03",
+      "category": "PROHIBITED_PROVIDER_MODES",
+      "expected_outcome": "MANUAL_ONLY_BLOCKED",
+      "external_calls": 0,
+      "notes": "All 7 prohibited modes (BYOK_API_KEY, SHARED_OPERATOR_KEY, BROWSER_COOKIE_IMPORT, CLI_CREDENTIAL_IMPORT, GEMINI_SUBSCRIPTION_UNSUPPORTED, CLAUDE_SUBSCRIPTION_UNSUPPORTED, PAID_API_CREDITS_FALLBACK) blocked with 0 calls and zero paid fallback.",
+      "observed_outcome": "MANUAL_ONLY_BLOCKED",
+      "passed": true,
+      "reason_code": "PROHIBITED_PROVIDER_MODE"
+    },
+    {
+      "case_id": "INF08-04",
+      "category": "OVERAGE_CREDIT_AND_UNKNOWN_QUOTA",
+      "expected_outcome": "MANUAL_ONLY_BLOCKED",
+      "external_calls": 0,
+      "notes": "overage_credit_disabled=False or quota_remaining_known_and_sufficient=False blocks with 0 calls even when max_output_tokens_hint is set.",
+      "observed_outcome": "MANUAL_ONLY_BLOCKED",
+      "passed": true,
+      "reason_code": "OVERAGE_CREDIT_RISK_BLOCKED"
+    },
+    {
+      "case_id": "INF08-05",
+      "category": "OAUTH_PKCE_OIDC_AND_SINGLE_USE_STATE",
+      "expected_outcome": "VERIFIED_AND_REPLAY_REJECTED",
+      "external_calls": 0,
+      "notes": "Single-use hashed state, PKCE S256 verification, exact allowlisted redirect_uri, and strict OIDC iss/aud/nonce/exp/sub verification enforced; no email-similarity binding.",
+      "observed_outcome": "VERIFIED_AND_REPLAY_REJECTED",
+      "passed": true,
+      "reason_code": "OAUTH_STATE_INVALID_OR_REPLAYED"
+    },
+    {
+      "case_id": "INF08-06",
+      "category": "LOGIN_ONLY_AND_INELIGIBLE_PLAN_REJECTED",
+      "expected_outcome": "REJECTED",
+      "external_calls": 0,
+      "notes": "Identity-only/login-only OAuth scopes and ineligible plan tiers are rejected before token vault storage.",
+      "observed_outcome": "REJECTED",
+      "passed": true,
+      "reason_code": "LOGIN_ONLY_SCOPE_REJECTED"
+    },
+    {
+      "case_id": "INF08-07",
+      "category": "CROSS_WORKSPACE_AND_NON_OWNER_BLOCKED",
+      "expected_outcome": "REJECTED",
+      "external_calls": 0,
+      "notes": "Cross-workspace and non-owner member access to another user's subscription connection fails closed.",
+      "observed_outcome": "REJECTED",
+      "passed": true,
+      "reason_code": "WORKSPACE_OR_OWNER_MISMATCH"
+    },
+    {
+      "case_id": "INF08-08",
+      "category": "EXTERNAL_SEND_CONSENT_AND_NON_RAW_JOB_REF",
+      "expected_outcome": "ENFORCED",
+      "external_calls": 0,
+      "notes": "Separate per-repo consent requires public-unmasked and non-recallable acknowledgments; ConnectionJobReference emits only the 8 non-raw/non-secret keys.",
+      "observed_outcome": "ENFORCED",
+      "passed": true,
+      "reason_code": "EXTERNAL_SEND_CONSENT_REVOKED"
+    },
+    {
+      "case_id": "INF08-09",
+      "category": "SERIALIZED_CONCURRENT_REFRESH_BARRIER",
+      "expected_outcome": "SINGLE_REFRESH_COALESCED",
+      "external_calls": 0,
+      "notes": "2 concurrent callers synchronized via threading.Barrier refresh at most once per stale connection_version, coalescing the second caller and wiping old secret ref.",
+      "observed_outcome": "SINGLE_REFRESH_COALESCED",
+      "passed": true,
+      "reason_code": "ALLOWED"
+    },
+    {
+      "case_id": "INF08-10",
+      "category": "UNLINK_THREE_STEP_ORDER_AND_REMOTE_FAILURE",
+      "expected_outcome": "LOCAL_FENCE_REMOTE_REVOKE_SECRET_WIPE",
+      "external_calls": 0,
+      "notes": "Unlink executes LOCAL_FENCE -> REMOTE_REVOKE -> LOCAL_SECRET_WIPE; remote revoke timeout keeps REVOKED fence, wipes local secret, and marks UNCONFIRMED_REMOTE; wipe failure tracks SECRET_WIPE_RETRY_PENDING.",
+      "observed_outcome": "LOCAL_FENCE_REMOTE_REVOKE_SECRET_WIPE",
+      "passed": true,
+      "reason_code": "CONNECTION_REVOKED_OR_INACTIVE"
+    },
+    {
+      "case_id": "INF08-11",
+      "category": "PUBLIC_UNMASKED_PASSTHROUGH_AND_OP_SECRET_STRIPPING",
+      "expected_outcome": "UNMASKED_EPHEMERAL_ZERO_PERSISTENCE",
+      "external_calls": 0,
+      "notes": "Synthetic public PR/diff containing fake marker passes byte-for-byte unmasked to in-memory stage adapter (PM-SEC-01 Post-MVP), while operational credentials (Authorization, Cookie, Set-Cookie, DB DSN) are stripped/blocked and 0 source text persists.",
+      "observed_outcome": "UNMASKED_EPHEMERAL_ZERO_PERSISTENCE",
+      "passed": true,
+      "reason_code": "ALLOWED"
+    },
+    {
+      "case_id": "INF08-12",
+      "category": "PLAN_C_RESOLUTION_MATCH_ENFORCED",
+      "expected_outcome": "MANUAL_ONLY_BLOCKED",
+      "external_calls": 0,
+      "notes": "Non-MATCHED OperationMemoryResolution or revision/span SHA-256 mismatch blocks stage execution with 0 calls.",
+      "observed_outcome": "MANUAL_ONLY_BLOCKED",
+      "passed": true,
+      "reason_code": "RESOLUTION_HASH_MISMATCH"
+    },
+    {
+      "case_id": "INF08-13",
+      "category": "STREAM_INCOMPLETE_AND_UNSUPPORTED_TOOL_SIDE_EFFECT",
+      "expected_outcome": "FAILED_CLOSED_ZERO_PERSISTENCE",
+      "external_calls": 0,
+      "notes": "Truncated/incomplete stream fails closed with STREAM_INCOMPLETE; tool_calls/function_call or unsupported output fails closed with UNSUPPORTED_OUTPUT_OR_TOOL_SIDE_EFFECT and can_promote_to_supported=False.",
+      "observed_outcome": "FAILED_CLOSED_ZERO_PERSISTENCE",
+      "passed": true,
+      "reason_code": "STREAM_INCOMPLETE"
+    },
+    {
+      "case_id": "INF08-14",
+      "category": "BOUNDED_SINGLE_REPAIR_AND_DRAFT_INVALID",
+      "expected_outcome": "MAX_ONE_REPAIR_THEN_DRAFT_INVALID",
+      "external_calls": 0,
+      "notes": "T-106 Draft 2020-12 schema violations allow at most 1 bounded repair call within budget; persistent schema failures fail closed as DRAFT_INVALID with can_promote_to_supported=False.",
+      "observed_outcome": "MAX_ONE_REPAIR_THEN_DRAFT_INVALID",
+      "passed": true,
+      "reason_code": "AI_SCHEMA_INVALID"
+    },
+    {
+      "case_id": "INF08-15",
+      "category": "AMBIGUOUS_POST_SEND_TIMEOUT_NO_AUTO_RETRY",
+      "expected_outcome": "NO_AUTO_RETRY",
+      "external_calls": 0,
+      "notes": "Ambiguous post-send timeout returns retryable=False, auto_retry_performed=False (preventing double quota spend), whereas pre-spend 429 retries safely within budget cap.",
+      "observed_outcome": "NO_AUTO_RETRY",
+      "passed": true,
+      "reason_code": "AMBIGUOUS_POST_SEND_TIMEOUT"
+    },
+    {
+      "case_id": "INF08-16",
+      "category": "PRE_COMMIT_FENCE_UNLINK_CONSENT_DELETION_BARRIER",
+      "expected_outcome": "CANCELED_PRE_COMMIT_FENCE",
+      "external_calls": 0,
+      "notes": "Mid-call unlink (threading.Barrier), consent revocation, membership loss, and source deletion fence all reject stage commit with committed_allowed=False and can_promote_to_supported=False.",
+      "observed_outcome": "CANCELED_PRE_COMMIT_FENCE",
+      "passed": true,
+      "reason_code": "PRE_COMMIT_FENCE_REJECTED"
+    },
+    {
+      "case_id": "INF08-17",
+      "category": "SYNTHETIC_VS_LIVE_PROVENANCE_SEPARATION",
+      "expected_outcome": "LIVE_PILOT_GATE_REJECTED_FOR_SYNTHETIC",
+      "external_calls": 0,
+      "notes": "All 5 AI stages execute cleanly on SyntheticFixtureStageAdapter with execution_origin=SYNTHETIC_FIXTURE and live_pilot_gate_eligible=False; assert_not_synthetic_for_live_gate raises LivePilotGateEligibilityError.",
+      "observed_outcome": "LIVE_PILOT_GATE_REJECTED_FOR_SYNTHETIC",
+      "passed": true,
+      "reason_code": "SYNTHETIC_NOT_ELIGIBLE_FOR_LIVE_GATE"
+    }
+  ],
+  "db_user_llm_token_tables_added": 0,
+  "external_live_calls": 0,
+  "gate_id": "INF-08",
+  "issue_number": 14,
+  "live_ai_gate_status": "OFF_NOT_PASSED_PENDING_OD002_OD014",
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "policy_version": "llm-gate-policy-v1",
+  "public_openapi_subscription_routes_added": 0,
+  "public_unmasked_passthrough_verified_on_synthetic": true,
+  "schema_version": "1.0.0",
+  "task_id": "T-408",
+  "token_or_raw_leaks": 0
+}

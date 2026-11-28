@@ -1,0 +1,85 @@
+{
+  "adr_references": [
+    "ADR-013",
+    "ADR-018",
+    "ADR-019",
+    "ADR-020"
+  ],
+  "bundle_id": "T-006",
+  "decisions_resolved": [
+    "OD-002",
+    "OD-014"
+  ],
+  "final_governance_posture": {
+    "free_alternatives_exposed": [
+      "REDUCE_WORK_SCOPE",
+      "MANUAL_RESUME_AFTER_QUOTA_RESET",
+      "NON_AI_IMPORT_AND_EVENT_CURATION",
+      "LOCAL_SYNTHETIC_FIXTURE_DEV_ONLY"
+    ],
+    "gcp_secret_manager_llm_secrets": 0,
+    "hosted_llm_approval_flags": {
+      "hosted_deployment_approved": false,
+      "od002_data_policy_verified": false,
+      "od014_token_store_verified": false,
+      "zero_overage_guaranteed": false
+    },
+    "hosted_runtime_mode": "OFF_MANUAL_ONLY",
+    "live_external_llm_calls_performed": 0,
+    "live_subscription_ai_pilot_gate": "NO-GO",
+    "live_subscription_ai_status_code": "HELD_PENDING_OD002_OD014",
+    "od002_decision": "ACCEPTED_HOSTED_OFF_UNTIL_PARTNER_APPROVAL",
+    "od014_decision": "ACCEPTED_ZERO_USER_LLM_TOKEN_STORAGE_WHILE_OFF",
+    "postgres_user_llm_token_tables": 0,
+    "reopen_criteria": [
+      "Official OpenAI remote hosted Sign in with ChatGPT rollout approval for Career Memory Cloud Run origin",
+      "Provisioned external KMS/Vault user OAuth token store verified against INF-08 3-step unlink wipe",
+      "Separate closed-pilot live model semantic groundedness and R-002 human review-time evaluation"
+    ]
+  },
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "providers_audited": [
+    {
+      "api_inputs_used_for_model_training": false,
+      "career_memory_cloud_run_partner_approved": false,
+      "hosted_verdict": "HOLD_HARD_OFF_UNTIL_OPENAI_HOSTED_APPROVAL",
+      "official_references": [
+        "https://developers.openai.com/siwc/token-sharing-open-source",
+        "https://developers.openai.com/siwc/website",
+        "https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery",
+        "https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations"
+      ],
+      "oss_local_plan_sharing_supported": true,
+      "provider_id": "OPENAI_SIGN_IN_WITH_CHATGPT",
+      "remote_hosted_cloud_run_self_serve_allowed": false,
+      "required_request_directives": {
+        "silent_paid_api_fallback": false,
+        "store": false,
+        "stream": true
+      }
+    },
+    {
+      "hosted_verdict": "REJECTED_PROHIBITED_BY_TOS",
+      "official_references": [
+        "https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use"
+      ],
+      "provider_id": "ANTHROPIC_CLAUDE_SUBSCRIPTION",
+      "third_party_subscription_oauth_allowed": false
+    },
+    {
+      "hosted_verdict": "REJECTED_TRAINING_POLICY_AND_OVERAGE_CONFLICT",
+      "official_references": [
+        "https://support.google.com/googleone/answer/14534406",
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "provider_id": "GOOGLE_GEMINI_SUBSCRIPTION_AND_UNPAID_FREE_TIER",
+      "third_party_subscription_oauth_allowed": false,
+      "unpaid_api_free_tier_training_and_human_review_opted_out": false
+    }
+  ],
+  "schema_version": "t006-subscription-llm-policy-audit-v1",
+  "task_ids": [
+    "T-006",
+    "T-408"
+  ]
+}

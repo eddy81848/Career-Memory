@@ -1,5 +1,5 @@
 {
-  "deterministic_gate_sha256": "sha256:5e215316990d3a77c81867b6363f9392344f832257bb5e0bb63c6c0bc5400818",
+  "deterministic_gate_sha256": "sha256:e29798ceefa61f561b039788d05eb96addb4d6ec7a0f4cfec6ff9384f69c4ed3",
   "evidence_bundles": [
     {
       "bundle_id": "B-004",
@@ -127,6 +127,21 @@
       },
       "present": true,
       "relative_path": "contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-006",
+      "checks_passed": 4,
+      "checks_total": 4,
+      "file_sha256": "sha256:26fde22fbdbbafdadc60c7078bb2faecac12ce954bf29afa1501880bd3bfa884",
+      "findings": [],
+      "metrics": {
+        "hosted_runtime_mode": "OFF_MANUAL_ONLY",
+        "live_external_llm_calls_performed": 0,
+        "providers_audited": 3
+      },
+      "present": true,
+      "relative_path": "contracts/llm-gate/t006_policy_audit.v1.json",
       "verified": true
     }
   ],
@@ -283,8 +298,8 @@
   "schema_version": "t506-release-gate-v1",
   "spend_krw": 0,
   "summary": {
-    "bundles_total": 8,
-    "bundles_verified": 8,
+    "bundles_total": 9,
+    "bundles_verified": 9,
     "external_network_calls": 0,
     "invariants_passed": 9,
     "invariants_total": 9,

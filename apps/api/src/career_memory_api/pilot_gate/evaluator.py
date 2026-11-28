@@ -687,12 +687,116 @@ def _verify_t007f_t106b(repo_root: Path) -> BundleVerificationResult:
     )
 
 
+def _verify_t006(repo_root: Path) -> BundleVerificationResult:
+    rel = "contracts/llm-gate/t006_policy_audit.v1.json"
+    data, digest, err = _load_json_bundle(repo_root, rel)
+    if err or data is None:
+        return BundleVerificationResult(
+            bundle_id="T-006",
+            relative_path=rel,
+            present=False,
+            verified=False,
+            file_sha256=digest,
+            checks_passed=0,
+            checks_total=1,
+            findings=[err or "Missing bundle"],
+        )
+
+    findings: list[str] = []
+    checks = 0
+    passed = 0
+
+    def _check(cond: bool, msg: str) -> None:
+        nonlocal checks, passed
+        checks += 1
+        if cond:
+            passed += 1
+        else:
+            findings.append(msg)
+
+    raw_clean = True
+    try:
+        assert_no_forbidden_raw_keys(data, field_name=rel)
+    except Exception:  # noqa: BLE001
+        raw_clean = False
+    secret_key_hits = 0
+    stack: list[Any] = [data]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for k, v in cur.items():
+                if str(k).strip().lower() in SENSITIVE_KEY_NAMES:
+                    secret_key_hits += 1
+                stack.append(v)
+        elif isinstance(cur, list):
+            stack.extend(cur)
+
+    providers = data.get("providers_audited", [])
+    prov_by_id = {str(p.get("provider_id")): p for p in providers if isinstance(p, dict)}
+    gov = data.get("final_governance_posture", {})
+    flags = gov.get("hosted_llm_approval_flags", {})
+
+    _check(
+        data.get("openapi_import_v1_blob_sha") == M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1,
+        "T-006 openapi_import_v1_blob_sha mismatch",
+    )
+    _check(
+        raw_clean and secret_key_hits == 0,
+        "T-006 must contain 0 raw-text keys and 0 sensitive secret keys",
+    )
+    _check(
+        set(prov_by_id.keys())
+        == {
+            "OPENAI_SIGN_IN_WITH_CHATGPT",
+            "ANTHROPIC_CLAUDE_SUBSCRIPTION",
+            "GOOGLE_GEMINI_SUBSCRIPTION_AND_UNPAID_FREE_TIER",
+        }
+        and prov_by_id["OPENAI_SIGN_IN_WITH_CHATGPT"].get("remote_hosted_cloud_run_self_serve_allowed") is False
+        and prov_by_id["ANTHROPIC_CLAUDE_SUBSCRIPTION"].get("third_party_subscription_oauth_allowed") is False
+        and prov_by_id["GOOGLE_GEMINI_SUBSCRIPTION_AND_UNPAID_FREE_TIER"].get(
+            "unpaid_api_free_tier_training_and_human_review_opted_out"
+        )
+        is False,
+        "T-006 3-provider official hosting/training/OAuth audit matrix incomplete",
+    )
+    _check(
+        gov.get("hosted_runtime_mode") == "OFF_MANUAL_ONLY"
+        and all(flags.get(k) is False for k in (
+            "hosted_deployment_approved",
+            "zero_overage_guaranteed",
+            "od002_data_policy_verified",
+            "od014_token_store_verified",
+        ))
+        and int(gov.get("postgres_user_llm_token_tables", 1)) == 0
+        and int(gov.get("gcp_secret_manager_llm_secrets", 1)) == 0
+        and int(gov.get("live_external_llm_calls_performed", 1)) == 0
+        and gov.get("live_subscription_ai_pilot_gate") == "NO-GO",
+        "T-006 hard-OFF hosted governance posture or zero-token-storage invariant violated",
+    )
+
+    return BundleVerificationResult(
+        bundle_id="T-006",
+        relative_path=rel,
+        present=True,
+        verified=(len(findings) == 0),
+        file_sha256=digest,
+        checks_passed=passed,
+        checks_total=checks,
+        findings=findings,
+        metrics={
+            "providers_audited": len(prov_by_id),
+            "hosted_runtime_mode": gov.get("hosted_runtime_mode"),
+            "live_external_llm_calls_performed": gov.get("live_external_llm_calls_performed", 0),
+        },
+    )
+
+
 def evaluate_t506_pilot_gate(
     *,
     repo_root: Path | None = None,
     require_live_fe_be_tests_present: bool = True,
 ) -> T506ReleaseGateBundle:
-    """Programmatically verify all M0-M5 & Track 2 evidence bundles and evaluate the 3-tier release gates."""
+    """Programmatically verify all M0-M5, Track 2 & Track 3 evidence bundles and evaluate the 3-tier release gates."""
     root = default_repo_root() if repo_root is None else repo_root.resolve()
     openapi_path = root / "contracts" / "import-v1" / "openapi.yaml"
     actual_openapi_sha = (
@@ -708,9 +812,10 @@ def evaluate_t506_pilot_gate(
     t505 = _verify_t505(root)
     t504a = _verify_t504a(root)
     t007f = _verify_t007f_t106b(root)
+    t006 = _verify_t006(root)
 
     local_bundles = [b004, t306a, t407a, inf08, t507, t505, t504a]
-    bundles = [*local_bundles, t007f]
+    bundles = [*local_bundles, t007f, t006]
     by_id = {b.bundle_id: b for b in bundles}
 
     fe_be_m4_exists = (

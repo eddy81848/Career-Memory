@@ -74,6 +74,9 @@ from career_memory_api.schema_contracts.enums import (
     ContentUnitType,
     ContributionRole,
     ContributionStatus,
+    EventConstraintOrigin,
+    EventConstraintStatus,
+    EventConstraintType,
     EventMembershipOrigin,
     EventMembershipRelationClass,
     ExternalIdentityMappingStatus,
@@ -106,6 +109,7 @@ from career_memory_api.schema_contracts.enums import (
 )
 from career_memory_api.schema_contracts.metadata_guard import FORBIDDEN_RAW_TEXT_KEYS
 from career_memory_api.sync_runs.models import ProcessingStatus, SyncRunMode, SyncRunStatus
+from career_memory_api.work_events.models import WorkEventPolicyState
 
 M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1 = "07594d75425744d6149250a9f7ff95ac24659f80"
 
@@ -270,12 +274,20 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
     EnumParityBinding(
         name="WorkEventAnchorMode",
         enum_cls=WorkEventAnchorMode,
-        sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_work_events_anchor_mode"),),
+        sql_targets=(
+            ("0030_events_facts_claims_contributions.sql", "ck_work_events_anchor_mode"),
+            ("0060_m3_event_versions_and_constraints.sql", "ck_work_event_versions_anchor_mode"),
+        ),
+        openapi_schema_name="WorkEventAnchorMode",
     ),
     EnumParityBinding(
         name="WorkEventStatus",
         enum_cls=WorkEventStatus,
-        sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_work_events_status"),),
+        sql_targets=(
+            ("0030_events_facts_claims_contributions.sql", "ck_work_events_status"),
+            ("0060_m3_event_versions_and_constraints.sql", "ck_work_event_versions_status"),
+        ),
+        openapi_schema_name="WorkEventStatus",
     ),
     EnumParityBinding(
         name="EventMembershipRelationClass",
@@ -360,7 +372,11 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
     EnumParityBinding(
         name="RecordOrigin",
         enum_cls=RecordOrigin,
-        sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_contributions_origin"),),
+        sql_targets=(
+            ("0030_events_facts_claims_contributions.sql", "ck_contributions_origin"),
+            ("0060_m3_event_versions_and_constraints.sql", "ck_work_event_versions_created_by"),
+        ),
+        openapi_schema_name="RecordOrigin",
     ),
     EnumParityBinding(
         name="ContributionStatus",
@@ -550,6 +566,35 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         openapi_schema_name="PolicyGuardedOperation",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
+    # 0060 M3 Pairwise Event Constraints (OD-007) & WorkEvent Read API (T-303)
+    EnumParityBinding(
+        name="EventConstraintType",
+        enum_cls=EventConstraintType,
+        sql_targets=(("0060_m3_event_versions_and_constraints.sql", "ck_event_constraints_type"),),
+        openapi_schema_name="EventConstraintType",
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="EventConstraintOrigin",
+        enum_cls=EventConstraintOrigin,
+        sql_targets=(("0060_m3_event_versions_and_constraints.sql", "ck_event_constraints_origin"),),
+        openapi_schema_name="EventConstraintOrigin",
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="EventConstraintStatus",
+        enum_cls=EventConstraintStatus,
+        sql_targets=(("0060_m3_event_versions_and_constraints.sql", "ck_event_constraints_status"),),
+        openapi_schema_name="EventConstraintStatus",
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="WorkEventPolicyState",
+        enum_cls=WorkEventPolicyState,
+        sql_targets=(),
+        openapi_schema_name="WorkEventPolicyState",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
 )
 
 
@@ -690,6 +735,8 @@ def validate_openapi_invariants(
         ("/v1/source-accounts", "get"),
         ("/v1/source-resources/{source_resource_id}/verify-policy", "post"),
         ("/v1/source-accounts/{source_account_id}/disconnect", "post"),
+        ("/v1/work-events", "get"),
+        ("/v1/work-events/{id}", "get"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:

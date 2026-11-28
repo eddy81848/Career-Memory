@@ -705,20 +705,28 @@ def create_m1_contract_app(
     settings: Settings | None = None,
     access_provider: WorkspaceAccessProvider | None = None,
     contracts_service: ContractBoundaryPort | None = None,
+    work_events_service: Any | None = None,
     resolve_access: AccessResolver | None = None,
 ) -> FastAPI:
-    """Create a FastAPI app exposing the full M1 contract surface (no BYOK / LLM callbacks)."""
+    """Create a FastAPI app exposing the full integrated contract surface (no BYOK / LLM callbacks)."""
     from career_memory_api.app import create_app
+    from career_memory_api.work_events.router import create_work_events_router
 
     contracts_router = create_contracts_router(
         service=contracts_service,
+        resolve_access=resolve_access,
+    )
+    work_events_router = create_work_events_router(
+        service=work_events_service,
         resolve_access=resolve_access,
     )
     app = create_app(
         settings=settings,
         access_provider=access_provider,
         contracts_router=contracts_router,
+        work_events_router=work_events_router,
         install_contract_handlers=True,
+        install_work_events_handlers=True,
     )
     install_auth_error_handlers(app)
     return app

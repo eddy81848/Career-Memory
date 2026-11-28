@@ -2134,6 +2134,15 @@ class PostgresEventCandidateBuilder:
             elif action == "BLOCKED_CANNOT_LINK":
                 cannot_link_blocked_ids.append(obj.source_object_id)
 
+        # T-305: Atomically record immutable v1 EventVersion snapshot when migration 0060 is present.
+        if final_version == 1 and (created or not preserved_user_decision):
+            self._record_v1_snapshot_if_table_present(
+                cur,
+                ws_uuid=ws_uuid,
+                event_id=event_id,
+                ts=ts,
+            )
+
         active_memberships = self._load_active_event_memberships(
             cur, ws_uuid=ws_uuid, event_id=event_id
         )
@@ -2240,6 +2249,30 @@ class PostgresEventCandidateBuilder:
             ),
         )
         return "INSERTED" if cur.fetchone() is not None else "UNCHANGED"
+
+    @staticmethod
+    def _record_v1_snapshot_if_table_present(
+        cur: psycopg.Cursor,
+        *,
+        ws_uuid: str,
+        event_id: str,
+        ts: datetime,
+    ) -> None:
+        """Record initial immutable v1 snapshot if public.work_event_versions (0060) exists."""
+        cur.execute("SELECT to_regclass('public.work_event_versions') IS NOT NULL")
+        reg_row = cur.fetchone()
+        if not reg_row or not bool(reg_row[0]):
+            return
+        from career_memory_api.work_events.history import append_event_version_snapshot
+
+        append_event_version_snapshot(
+            cur,
+            workspace_id=ws_uuid,
+            event_id=event_id,
+            version=1,
+            created_by_review_action_id=None,
+            created_at=ts,
+        )
 
     @staticmethod
     def _load_active_event_memberships(

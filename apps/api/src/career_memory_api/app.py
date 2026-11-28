@@ -32,8 +32,10 @@ def create_app(
     resolver_router: APIRouter | None = None,
     contracts_router: APIRouter | None = None,
     github_connect_router: APIRouter | None = None,
+    work_events_router: APIRouter | None = None,
     install_contract_handlers: bool = False,
     install_github_connect_handlers: bool = False,
+    install_work_events_handlers: bool = False,
 ) -> FastAPI:
     """Create a FastAPI app instance.
 
@@ -41,9 +43,9 @@ def create_app(
     fail-closed ``UnconfiguredWorkspaceAccessProvider``. No environment flag
     or request header can activate a synthetic provider.
 
-    Optional M1/M2 domain routers (``sync_runs_router``, ``resolver_router``,
-    ``contracts_router``, ``github_connect_router``) may be mounted cleanly
-    without changing default scaffold behavior.
+    Optional M1/M2/M3 domain routers (``sync_runs_router``, ``resolver_router``,
+    ``contracts_router``, ``github_connect_router``, ``work_events_router``)
+    may be mounted cleanly without changing default scaffold behavior.
     """
     resolved_settings = Settings.from_env() if settings is None else settings
     resolved_provider: WorkspaceAccessProvider = (
@@ -85,6 +87,13 @@ def create_app(
 
         install_github_connect_error_handlers(app)
 
+    if install_work_events_handlers:
+        from career_memory_api.work_events.router import (
+            install_work_events_error_handlers,
+        )
+
+        install_work_events_error_handlers(app)
+
     if sync_runs_router is not None:
         app.include_router(sync_runs_router)
     if resolver_router is not None:
@@ -93,5 +102,7 @@ def create_app(
         app.include_router(contracts_router)
     if github_connect_router is not None:
         app.include_router(github_connect_router)
+    if work_events_router is not None:
+        app.include_router(work_events_router)
 
     return app

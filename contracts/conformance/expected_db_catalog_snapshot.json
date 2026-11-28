@@ -4,7 +4,8 @@
     "0020_source_provenance_metadata.sql",
     "0030_events_facts_claims_contributions.sql",
     "0040_sync_runs_jobs_outbox_audit.sql",
-    "0050_m2_backfill_observations.sql"
+    "0050_m2_backfill_observations.sql",
+    "0060_m3_event_versions_and_constraints.sql"
   ],
   "roles": {
     "cm_api_app": {
@@ -901,6 +902,119 @@
         {
           "cmd": "UPDATE",
           "name": "event_composite_memberships_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "event_constraints": {
+      "check_constraints": {
+        "ck_event_constraints_canonical_pair": "CHECK ((left_event_id < right_event_id))",
+        "ck_event_constraints_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(constraint_metadata)))",
+        "ck_event_constraints_metadata_object": "CHECK ((jsonb_typeof(constraint_metadata) = 'object'::text))",
+        "ck_event_constraints_origin": "CHECK ((origin = ANY (ARRAY['USER'::text, 'SPLIT'::text, 'POLICY'::text])))",
+        "ck_event_constraints_revoked_at_consistency": "CHECK (((status = 'REVOKED'::text) OR (revoked_at IS NULL)))",
+        "ck_event_constraints_status": "CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'REVOKED'::text])))",
+        "ck_event_constraints_type": "CHECK ((constraint_type = 'CANNOT_LINK'::text))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "left_event_id",
+        "right_event_id",
+        "constraint_type",
+        "origin",
+        "status",
+        "rationale_code",
+        "constraint_metadata",
+        "created_by_review_action_id",
+        "created_at",
+        "revoked_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "event_constraints_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "left_event_id"
+          ],
+          "name": "fk_event_constraints_same_workspace_left",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "created_by_review_action_id"
+          ],
+          "name": "fk_event_constraints_same_workspace_review_action",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "review_actions"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "right_event_id"
+          ],
+          "name": "fk_event_constraints_same_workspace_right",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        }
+      ],
+      "indexes": [
+        "event_constraints_pkey",
+        "idx_event_constraints_workspace_left",
+        "idx_event_constraints_workspace_right",
+        "uq_event_constraints_active_pair",
+        "uq_event_constraints_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "event_constraints_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "event_constraints_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "event_constraints_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "event_constraints_worker_workspace_update",
           "roles": [
             "cm_worker_app"
           ]
@@ -2888,6 +3002,125 @@
           "name": "users_api_self_or_subject_select",
           "roles": [
             "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "work_event_versions": {
+      "check_constraints": {
+        "ck_work_event_versions_anchor_mode": "CHECK ((anchor_mode = ANY (ARRAY['PR'::text, 'PR_SEGMENT'::text, 'DIRECT_COMMIT'::text, 'USER_COMPOSITE'::text])))",
+        "ck_work_event_versions_anchor_scope_no_raw": "CHECK (((anchor_scope IS NULL) OR ((jsonb_typeof(anchor_scope) = 'object'::text) AND (NOT cm_jsonb_contains_forbidden_raw_key(anchor_scope)))))",
+        "ck_work_event_versions_created_by": "CHECK ((created_by = ANY (ARRAY['RULE'::text, 'USER'::text])))",
+        "ck_work_event_versions_direct_commit_anchor": "CHECK (((anchor_mode <> 'DIRECT_COMMIT'::text) OR (primary_anchor_source_object_id IS NOT NULL)))",
+        "ck_work_event_versions_membership_snapshot_no_raw": "CHECK (((jsonb_typeof(membership_snapshot) = 'object'::text) AND (NOT cm_jsonb_contains_forbidden_raw_key(membership_snapshot))))",
+        "ck_work_event_versions_pr_anchor": "CHECK (((anchor_mode <> ALL (ARRAY['PR'::text, 'PR_SEGMENT'::text])) OR (primary_anchor_source_object_id IS NOT NULL)))",
+        "ck_work_event_versions_pr_segment_scope": "CHECK (((anchor_mode <> 'PR_SEGMENT'::text) OR ((anchor_scope IS NOT NULL) AND (jsonb_typeof(anchor_scope) = 'object'::text))))",
+        "ck_work_event_versions_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'CONFIRMED'::text, 'REJECTED'::text, 'STALE'::text, 'SUPERSEDED'::text])))",
+        "ck_work_event_versions_summary_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(summary_metadata)))",
+        "ck_work_event_versions_summary_metadata_object": "CHECK ((jsonb_typeof(summary_metadata) = 'object'::text))",
+        "ck_work_event_versions_time_order": "CHECK (((occurred_start_at IS NULL) OR (occurred_end_at IS NULL) OR (occurred_end_at >= occurred_start_at)))",
+        "ck_work_event_versions_title_non_empty": "CHECK ((length(btrim(title)) > 0))",
+        "ck_work_event_versions_version_positive": "CHECK ((version >= 1))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "event_id",
+        "version",
+        "anchor_mode",
+        "primary_anchor_source_object_id",
+        "anchor_scope",
+        "title",
+        "problem",
+        "action",
+        "outcome",
+        "summary_metadata",
+        "status",
+        "created_by",
+        "created_by_review_action_id",
+        "membership_snapshot",
+        "occurred_start_at",
+        "occurred_end_at",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "event_id"
+          ],
+          "name": "fk_work_event_versions_same_workspace_event",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "work_events"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "primary_anchor_source_object_id"
+          ],
+          "name": "fk_work_event_versions_same_workspace_primary_anchor",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_objects"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "created_by_review_action_id"
+          ],
+          "name": "fk_work_event_versions_same_workspace_review_action",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "review_actions"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "work_event_versions_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_work_event_versions_workspace_event",
+        "idx_work_event_versions_workspace_review_action",
+        "uq_work_event_versions_event_version",
+        "uq_work_event_versions_workspace_id_id",
+        "work_event_versions_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "work_event_versions_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "work_event_versions_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "work_event_versions_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
           ]
         }
       ],

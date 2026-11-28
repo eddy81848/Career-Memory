@@ -182,12 +182,12 @@ def test_real_pg18_fresh_and_staged_upgrade_0010_through_0040_catalog_conformanc
     assert fresh_snapshot == staged_snapshot
 
     tables = fresh_snapshot["tables"]
-    assert len(tables) == 37
+    assert len(tables) == 39
     assert all(t["rowsecurity"] and t["forcerowsecurity"] for t in tables.values())
     assert "verification" not in tables["claims"]["columns"]
-    assert len(M1_REQUIRED_COMPOSITE_FKS) == 47
-    assert len(REQUIRED_PLAN_C_CONSTRAINTS) == 32
-    assert len(CRITICAL_PARTIAL_UNIQUE_INDEXES) == 6
+    assert len(M1_REQUIRED_COMPOSITE_FKS) == 53
+    assert len(REQUIRED_PLAN_C_CONSTRAINTS) == 36
+    assert len(CRITICAL_PARTIAL_UNIQUE_INDEXES) == 7
 
     violations = check_postgres_catalog_conformance(
         REPO_ROOT,

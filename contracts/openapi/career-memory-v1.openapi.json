@@ -160,6 +160,35 @@
       }
     },
     "schemas": {
+      "CannotLinkSummary": {
+        "additionalProperties": false,
+        "description": "Combined source-level and pairwise event-level CANNOT_LINK constraints (never evidence).",
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/PairwiseEventConstraintItem"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "peer_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Peer Event Ids",
+            "type": "array"
+          },
+          "source_object_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Object Ids",
+            "type": "array"
+          }
+        },
+        "title": "CannotLinkSummary",
+        "type": "object"
+      },
       "ClaimApproveRequest": {
         "additionalProperties": false,
         "description": "POST /v1/claims/{claim_id}/approve request contract (verification absent).",
@@ -324,6 +353,234 @@
         "readOnly": true,
         "type": "string"
       },
+      "CompositeDetail": {
+        "additionalProperties": false,
+        "description": "Full USER_COMPOSITE breakdown (or superseding composite link for a SUPERSEDED member).",
+        "properties": {
+          "member_count": {
+            "minimum": 0,
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CompositeMemberSnapshotItem"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "merge_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Merge Reason"
+          },
+          "regeneration_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Regeneration Status"
+          },
+          "superseded_by_composite_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Superseded By Composite Id"
+          }
+        },
+        "required": [
+          "member_count"
+        ],
+        "title": "CompositeDetail",
+        "type": "object"
+      },
+      "CompositeMemberSnapshotItem": {
+        "additionalProperties": false,
+        "description": "Member event reference paired with its immutable work_event_versions snapshot.",
+        "properties": {
+          "anchor_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkEventAnchorMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "current_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkEventStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "evidence_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "member_event_id": {
+            "minLength": 1,
+            "title": "Member Event Id",
+            "type": "string"
+          },
+          "member_event_version": {
+            "minimum": 1,
+            "title": "Member Event Version",
+            "type": "integer"
+          },
+          "membership_status": {
+            "$ref": "#/components/schemas/CompositeMembershipStatus"
+          },
+          "occurred_end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred End At"
+          },
+          "occurred_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred Start At"
+          },
+          "ordinal": {
+            "minimum": 0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "snapshot_available": {
+            "default": false,
+            "title": "Snapshot Available",
+            "type": "boolean"
+          },
+          "status_at_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkEventStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          }
+        },
+        "required": [
+          "member_event_id",
+          "member_event_version",
+          "ordinal",
+          "membership_status"
+        ],
+        "title": "CompositeMemberSnapshotItem",
+        "type": "object"
+      },
+      "CompositeMembershipStatus": {
+        "enum": [
+          "ACTIVE",
+          "REMOVED"
+        ],
+        "title": "CompositeMembershipStatus",
+        "type": "string"
+      },
+      "CompositeSummary": {
+        "additionalProperties": false,
+        "description": "High-level summary for a USER_COMPOSITE WorkEvent.",
+        "properties": {
+          "member_count": {
+            "minimum": 0,
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "member_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Member Event Ids",
+            "type": "array"
+          },
+          "merge_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Merge Reason"
+          },
+          "regeneration_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Regeneration Status"
+          }
+        },
+        "required": [
+          "member_count"
+        ],
+        "title": "CompositeSummary",
+        "type": "object"
+      },
       "ContentUnitType": {
         "enum": [
           "PR_TITLE",
@@ -335,6 +592,19 @@
           "DIFF_HUNK",
           "SYMBOL_CHANGE"
         ],
+        "type": "string"
+      },
+      "ContributionRole": {
+        "enum": [
+          "IMPLEMENTED",
+          "REVIEWED",
+          "PROPOSED",
+          "DESIGNED",
+          "OPERATED",
+          "MENTORED",
+          "MEASURED"
+        ],
+        "title": "ContributionRole",
         "type": "string"
       },
       "DeletionConfirmAcceptedResponse": {
@@ -523,6 +793,102 @@
         "title": "DeletionPreviewResponse",
         "type": "object"
       },
+      "DirectCommitSummary": {
+        "additionalProperties": false,
+        "description": "DIRECT_COMMIT confirmation badge metadata (T-301A / DELTA-EV-002).",
+        "properties": {
+          "abbreviated_sha": {
+            "maxLength": 64,
+            "minLength": 7,
+            "title": "Abbreviated Sha",
+            "type": "string"
+          },
+          "committed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Committed At"
+          },
+          "default_branch": {
+            "minLength": 1,
+            "title": "Default Branch",
+            "type": "string"
+          },
+          "default_branch_reachable": {
+            "title": "Default Branch Reachable",
+            "type": "boolean"
+          },
+          "pr_association_state": {
+            "$ref": "#/components/schemas/PrAssociationState"
+          },
+          "requires_user_confirmation": {
+            "title": "Requires User Confirmation",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "default_branch",
+          "abbreviated_sha",
+          "default_branch_reachable",
+          "pr_association_state",
+          "requires_user_confirmation"
+        ],
+        "title": "DirectCommitSummary",
+        "type": "object"
+      },
+      "DownstreamImpactSummary": {
+        "additionalProperties": false,
+        "description": "Downstream Fact/Claim/Export counts and live processing/policy status.",
+        "properties": {
+          "claim_count": {
+            "minimum": 0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "export_count": {
+            "minimum": 0,
+            "title": "Export Count",
+            "type": "integer"
+          },
+          "fact_count": {
+            "minimum": 0,
+            "title": "Fact Count",
+            "type": "integer"
+          },
+          "processing_status": {
+            "minLength": 1,
+            "title": "Processing Status",
+            "type": "string"
+          },
+          "stale_claim_count": {
+            "minimum": 0,
+            "title": "Stale Claim Count",
+            "type": "integer"
+          },
+          "stale_fact_count": {
+            "minimum": 0,
+            "title": "Stale Fact Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fact_count",
+          "claim_count",
+          "export_count",
+          "stale_fact_count",
+          "stale_claim_count",
+          "processing_status"
+        ],
+        "title": "DownstreamImpactSummary",
+        "type": "object"
+      },
       "EphemeralContentUnitResponse": {
         "additionalProperties": false,
         "properties": {
@@ -612,6 +978,257 @@
           "error"
         ],
         "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "EventConstraintOrigin": {
+        "enum": [
+          "USER",
+          "SPLIT",
+          "POLICY"
+        ],
+        "type": "string"
+      },
+      "EventConstraintStatus": {
+        "enum": [
+          "ACTIVE",
+          "REVOKED"
+        ],
+        "type": "string"
+      },
+      "EventConstraintType": {
+        "enum": [
+          "CANNOT_LINK"
+        ],
+        "type": "string"
+      },
+      "EventMembershipOrigin": {
+        "enum": [
+          "SOURCE",
+          "RULE",
+          "USER"
+        ],
+        "title": "EventMembershipOrigin",
+        "type": "string"
+      },
+      "EventSourceRelationItem": {
+        "additionalProperties": false,
+        "description": "Single active WorkEvent <-> SourceObject relation (separated by class).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "object_type": {
+            "$ref": "#/components/schemas/SourceObjectType"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/EventMembershipOrigin"
+          },
+          "provider_object_id": {
+            "minLength": 1,
+            "title": "Provider Object Id",
+            "type": "string"
+          },
+          "rationale_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rationale Code"
+          },
+          "relation_id": {
+            "minLength": 1,
+            "title": "Relation Id",
+            "type": "string"
+          },
+          "relation_type": {
+            "minLength": 1,
+            "title": "Relation Type",
+            "type": "string"
+          },
+          "source_object_id": {
+            "minLength": 1,
+            "title": "Source Object Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation_id",
+          "source_object_id",
+          "object_type",
+          "provider_object_id",
+          "relation_type",
+          "origin",
+          "created_at"
+        ],
+        "title": "EventSourceRelationItem",
+        "type": "object"
+      },
+      "EventVersionSnapshotItem": {
+        "additionalProperties": false,
+        "description": "Immutable EventVersion snapshot row from public.work_event_versions (T-305).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "anchor_mode": {
+            "$ref": "#/components/schemas/WorkEventAnchorMode"
+          },
+          "anchor_scope": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Anchor Scope"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/RecordOrigin"
+          },
+          "created_by_review_action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created By Review Action Id"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "membership_snapshot": {
+            "additionalProperties": true,
+            "title": "Membership Snapshot",
+            "type": "object"
+          },
+          "occurred_end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred End At"
+          },
+          "occurred_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred Start At"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "primary_anchor_source_object_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Primary Anchor Source Object Id"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkEventStatus"
+          },
+          "summary_metadata": {
+            "additionalProperties": true,
+            "title": "Summary Metadata",
+            "type": "object"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "version_id": {
+            "minLength": 1,
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id",
+          "event_id",
+          "version",
+          "anchor_mode",
+          "title",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "title": "EventVersionSnapshotItem",
         "type": "object"
       },
       "GitHubCredentialMode": {
@@ -971,6 +1588,70 @@
         "title": "NonRecoverableScopes",
         "type": "object"
       },
+      "PairwiseEventConstraintItem": {
+        "additionalProperties": false,
+        "description": "Pairwise WorkEvent <-> WorkEvent constraint projected relative to one event.",
+        "properties": {
+          "constraint_id": {
+            "minLength": 1,
+            "title": "Constraint Id",
+            "type": "string"
+          },
+          "constraint_type": {
+            "$ref": "#/components/schemas/EventConstraintType"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_review_action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created By Review Action Id"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/EventConstraintOrigin"
+          },
+          "peer_event_id": {
+            "minLength": 1,
+            "title": "Peer Event Id",
+            "type": "string"
+          },
+          "rationale_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rationale Code"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventConstraintStatus"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "peer_event_id",
+          "constraint_type",
+          "origin",
+          "status",
+          "created_at"
+        ],
+        "title": "PairwiseEventConstraintItem",
+        "type": "object"
+      },
       "PolicyDecision": {
         "enum": [
           "ALLOWED",
@@ -1076,6 +1757,15 @@
         ],
         "type": "object"
       },
+      "PrAssociationState": {
+        "enum": [
+          "MATCHED_PR",
+          "NO_MATCH_OBSERVED",
+          "UNKNOWN"
+        ],
+        "title": "PrAssociationState",
+        "type": "string"
+      },
       "ProcessingStatus": {
         "enum": [
           "NOT_STARTED",
@@ -1084,6 +1774,13 @@
           "BLOCKED_SOURCE",
           "FAILED",
           "COMPLETE"
+        ],
+        "type": "string"
+      },
+      "RecordOrigin": {
+        "enum": [
+          "RULE",
+          "USER"
         ],
         "type": "string"
       },
@@ -1178,6 +1875,110 @@
           "error"
         ],
         "type": "object"
+      },
+      "ReviewActionHistoryItem": {
+        "additionalProperties": false,
+        "description": "Append-only WorkEvent review action record from public.review_actions (T-305).",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReviewActionType"
+          },
+          "action_metadata": {
+            "additionalProperties": true,
+            "title": "Action Metadata",
+            "type": "object"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Actor User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "from_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "From Version"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "origin": {
+            "minLength": 1,
+            "title": "Origin",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "review_action_id": {
+            "minLength": 1,
+            "title": "Review Action Id",
+            "type": "string"
+          },
+          "to_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "To Version"
+          }
+        },
+        "required": [
+          "review_action_id",
+          "action",
+          "origin",
+          "idempotency_key",
+          "created_at"
+        ],
+        "title": "ReviewActionHistoryItem",
+        "type": "object"
+      },
+      "ReviewActionType": {
+        "enum": [
+          "CONFIRM",
+          "EDIT",
+          "SPLIT",
+          "MERGE",
+          "DISSOLVE",
+          "REJECT",
+          "REOPEN"
+        ],
+        "title": "ReviewActionType",
+        "type": "string"
       },
       "SearchEntityType": {
         "enum": [
@@ -1426,6 +2227,17 @@
           "revoked_at"
         ],
         "type": "object"
+      },
+      "SourceObjectType": {
+        "enum": [
+          "PR",
+          "COMMIT",
+          "ISSUE",
+          "REVIEW",
+          "COMMENT"
+        ],
+        "title": "SourceObjectType",
+        "type": "string"
       },
       "SourceResolutionErrorCode": {
         "enum": [
@@ -1740,6 +2552,610 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkEventAnchorMode": {
+        "enum": [
+          "PR",
+          "PR_SEGMENT",
+          "DIRECT_COMMIT",
+          "USER_COMPOSITE"
+        ],
+        "type": "string"
+      },
+      "WorkEventCounts": {
+        "additionalProperties": false,
+        "description": "Active top-level WorkEvent aggregate counters (zero double-counting).",
+        "properties": {
+          "active_top_level_total": {
+            "minimum": 0,
+            "title": "Active Top Level Total",
+            "type": "integer"
+          },
+          "by_status": {
+            "$ref": "#/components/schemas/WorkEventStatusCounts"
+          }
+        },
+        "required": [
+          "active_top_level_total",
+          "by_status"
+        ],
+        "title": "WorkEventCounts",
+        "type": "object"
+      },
+      "WorkEventDetailResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/work-events/{id} full response payload (active, SUPERSEDED, or REJECTED).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Actions",
+            "type": "array"
+          },
+          "anchor_mode": {
+            "$ref": "#/components/schemas/WorkEventAnchorMode"
+          },
+          "anchor_scope": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Anchor Scope"
+          },
+          "cannot_link_constraints": {
+            "$ref": "#/components/schemas/CannotLinkSummary"
+          },
+          "composite_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompositeDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "composite_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompositeSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "context_count": {
+            "minimum": 0,
+            "title": "Context Count",
+            "type": "integer"
+          },
+          "context_relations": {
+            "items": {
+              "$ref": "#/components/schemas/EventSourceRelationItem"
+            },
+            "title": "Context Relations",
+            "type": "array"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/RecordOrigin"
+          },
+          "direct_commit_badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DirectCommitSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "downstream_impact": {
+            "$ref": "#/components/schemas/DownstreamImpactSummary"
+          },
+          "etag": {
+            "minLength": 1,
+            "title": "Etag",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "evidence_count": {
+            "minimum": 0,
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "evidence_memberships": {
+            "items": {
+              "$ref": "#/components/schemas/EventSourceRelationItem"
+            },
+            "title": "Evidence Memberships",
+            "type": "array"
+          },
+          "is_active_top_level": {
+            "title": "Is Active Top Level",
+            "type": "boolean"
+          },
+          "occurred_end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred End At"
+          },
+          "occurred_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred Start At"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "policy_state": {
+            "$ref": "#/components/schemas/WorkEventPolicyState"
+          },
+          "primary_anchor_source_object_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Primary Anchor Source Object Id"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "review_actions": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewActionHistoryItem"
+            },
+            "title": "Review Actions",
+            "type": "array"
+          },
+          "review_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Review Flags",
+            "type": "array"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reviewed At"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkEventStatus"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "version_history": {
+            "items": {
+              "$ref": "#/components/schemas/EventVersionSnapshotItem"
+            },
+            "title": "Version History",
+            "type": "array"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "workspace_id",
+          "anchor_mode",
+          "status",
+          "version",
+          "etag",
+          "is_active_top_level",
+          "title",
+          "created_by",
+          "updated_at",
+          "evidence_count",
+          "context_count",
+          "policy_state",
+          "cannot_link_constraints",
+          "downstream_impact"
+        ],
+        "title": "WorkEventDetailResponse",
+        "type": "object"
+      },
+      "WorkEventListResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/work-events response payload.",
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/WorkEventCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkEventSummaryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/WorkEventPageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "counts"
+        ],
+        "title": "WorkEventListResponse",
+        "type": "object"
+      },
+      "WorkEventPageInfo": {
+        "additionalProperties": false,
+        "description": "Opaque cursor pagination metadata.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "has_more"
+        ],
+        "title": "WorkEventPageInfo",
+        "type": "object"
+      },
+      "WorkEventPolicyState": {
+        "enum": [
+          "ALLOWED",
+          "POLICY_BLOCKED",
+          "DELETION_PENDING"
+        ],
+        "type": "string"
+      },
+      "WorkEventStatus": {
+        "enum": [
+          "CANDIDATE",
+          "CONFIRMED",
+          "REJECTED",
+          "STALE",
+          "SUPERSEDED"
+        ],
+        "type": "string"
+      },
+      "WorkEventStatusCounts": {
+        "additionalProperties": false,
+        "description": "Active top-level WorkEvent counts partitioned by active status.",
+        "properties": {
+          "CANDIDATE": {
+            "minimum": 0,
+            "title": "Candidate",
+            "type": "integer"
+          },
+          "CONFIRMED": {
+            "minimum": 0,
+            "title": "Confirmed",
+            "type": "integer"
+          },
+          "STALE": {
+            "minimum": 0,
+            "title": "Stale",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "CANDIDATE",
+          "CONFIRMED",
+          "STALE"
+        ],
+        "title": "WorkEventStatusCounts",
+        "type": "object"
+      },
+      "WorkEventSummaryItem": {
+        "additionalProperties": false,
+        "description": "Summary projection of a single WorkEvent returned by GET /v1/work-events.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Actions",
+            "type": "array"
+          },
+          "anchor_mode": {
+            "$ref": "#/components/schemas/WorkEventAnchorMode"
+          },
+          "composite_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompositeSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "context_count": {
+            "minimum": 0,
+            "title": "Context Count",
+            "type": "integer"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/RecordOrigin"
+          },
+          "direct_commit_badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DirectCommitSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "etag": {
+            "minLength": 1,
+            "title": "Etag",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "evidence_count": {
+            "minimum": 0,
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "is_active_top_level": {
+            "title": "Is Active Top Level",
+            "type": "boolean"
+          },
+          "occurred_end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred End At"
+          },
+          "occurred_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Occurred Start At"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "policy_state": {
+            "$ref": "#/components/schemas/WorkEventPolicyState"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "review_flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Review Flags",
+            "type": "array"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reviewed At"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkEventStatus"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "workspace_id",
+          "anchor_mode",
+          "status",
+          "version",
+          "etag",
+          "is_active_top_level",
+          "title",
+          "created_by",
+          "updated_at",
+          "evidence_count",
+          "context_count",
+          "policy_state"
+        ],
+        "title": "WorkEventSummaryItem",
         "type": "object"
       }
     },
@@ -3095,6 +4511,293 @@
         "summary": "Resume the same run from its safe checkpoint",
         "tags": [
           "sync-runs"
+        ]
+      }
+    },
+    "/v1/work-events": {
+      "get": {
+        "operationId": "listWorkEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "HMAC-signed opaque cursor bound to workspace and filter parameters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "HMAC-signed opaque cursor bound to workspace and filter parameters.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Optional WorkEvent status filter; defaults to active top-level events.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkEventStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional WorkEvent status filter; defaults to active top-level events.",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Optional source_resource UUID within the authenticated workspace.",
+            "in": "query",
+            "name": "source_resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional source_resource UUID within the authenticated workspace.",
+              "title": "Source Resource Id"
+            }
+          },
+          {
+            "description": "Inclusive start date (YYYY-MM-DD, UTC).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive start date (YYYY-MM-DD, UTC).",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Inclusive end date (YYYY-MM-DD, UTC).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive end date (YYYY-MM-DD, UTC).",
+              "title": "To"
+            }
+          },
+          {
+            "description": "Optional contribution role filter.",
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ContributionRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional contribution role filter.",
+              "title": "Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_WORK_EVENTS_CURSOR."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace source_resource_id)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "List workspace-scoped WorkEvents with opaque cursor pagination (T-303)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
+    "/v1/work-events/{id}": {
+      "get": {
+        "operationId": "getWorkEventDetail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkEventDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace WorkEvent)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Read full WorkEvent detail including separated relations, composite snapshots, and immutable history (T-303)",
+        "tags": [
+          "work-events"
         ]
       }
     }

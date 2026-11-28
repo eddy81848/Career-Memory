@@ -36,8 +36,19 @@ from career_memory_api.schema_contracts.enums import (
     ClaimStatus,
     ClaimVerification,
     ContentUnitType,
+    EventConstraintOrigin,
+    EventConstraintStatus,
+    EventConstraintType,
+    RecordOrigin,
+    WorkEventAnchorMode,
+    WorkEventStatus,
 )
 from career_memory_api.sync_runs.models import ProcessingStatus, SyncRunMode, SyncRunStatus
+from career_memory_api.work_events.models import (
+    WorkEventDetailResponse,
+    WorkEventListResponse,
+    WorkEventPolicyState,
+)
 
 INTEGRATED_OPENAPI_VERSION = "1.0.0-m1"
 INTEGRATED_OPENAPI_TITLE = "Career Memory M1 Integrated API"
@@ -539,6 +550,8 @@ def _shared_components() -> dict[str, Any]:
         DeletionConfirmRequest,
         DeletionConfirmAcceptedResponse,
         SearchResponse,
+        WorkEventListResponse,
+        WorkEventDetailResponse,
         ErrorEnvelope,
     ]
     extracted_schemas: dict[str, Any] = {}
@@ -603,6 +616,34 @@ def _shared_components() -> dict[str, Any]:
         "PolicyGuardedOperation": {
             "type": "string",
             "enum": [e.value for e in PolicyGuardedOperation],
+        },
+        "WorkEventAnchorMode": {
+            "type": "string",
+            "enum": [e.value for e in WorkEventAnchorMode],
+        },
+        "WorkEventStatus": {
+            "type": "string",
+            "enum": [e.value for e in WorkEventStatus],
+        },
+        "RecordOrigin": {
+            "type": "string",
+            "enum": [e.value for e in RecordOrigin],
+        },
+        "EventConstraintType": {
+            "type": "string",
+            "enum": [e.value for e in EventConstraintType],
+        },
+        "EventConstraintOrigin": {
+            "type": "string",
+            "enum": [e.value for e in EventConstraintOrigin],
+        },
+        "EventConstraintStatus": {
+            "type": "string",
+            "enum": [e.value for e in EventConstraintStatus],
+        },
+        "WorkEventPolicyState": {
+            "type": "string",
+            "enum": [e.value for e in WorkEventPolicyState],
         },
         "GitHubOAuthStartRequest": {
             "type": "object",

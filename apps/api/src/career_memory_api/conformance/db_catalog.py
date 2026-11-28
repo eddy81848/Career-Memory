@@ -30,6 +30,7 @@ from career_memory_api.schema_contracts.enums import (
     COMPOSITE_FK_SPEC,
     DEFERRED_POST_MVP_TABLES,
     MIGRATION_0050_COMPOSITE_FK_SPEC,
+    MIGRATION_0060_COMPOSITE_FK_SPEC,
     READONLY_PROVENANCE_VIEWS,
 )
 
@@ -41,6 +42,7 @@ FULL_M1_MIGRATIONS: tuple[str, ...] = (
     "0030_events_facts_claims_contributions.sql",
     "0040_sync_runs_jobs_outbox_audit.sql",
     "0050_m2_backfill_observations.sql",
+    "0060_m3_event_versions_and_constraints.sql",
 )
 
 EXPECTED_ROLES: tuple[str, ...] = (
@@ -49,7 +51,7 @@ EXPECTED_ROLES: tuple[str, ...] = (
     "cm_worker_app",
 )
 
-# Full M1+M2 Composite FK matrix across migrations 0010, 0020, 0030, 0040, and 0050.
+# Full M1+M2+M3 Composite FK matrix across migrations 0010, 0020, 0030, 0040, 0050, and 0060.
 # Format: (child_table, (child_col_1, child_col_2), parent_table, (parent_col_1, parent_col_2))
 M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str]], ...] = (
     ("oauth_connect_states", ("workspace_id", "actor_user_id"), "workspace_memberships", ("workspace_id", "user_id")),
@@ -69,9 +71,13 @@ M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str
         (child, ("workspace_id", col), parent, ("workspace_id", "id"))
         for child, col, parent in MIGRATION_0050_COMPOSITE_FK_SPEC
     ),
+    *(
+        (child, ("workspace_id", col), parent, ("workspace_id", "id"))
+        for child, col, parent in MIGRATION_0060_COMPOSITE_FK_SPEC
+    ),
 )
 
-# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020/0030/0040/0050.
+# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020..0060.
 REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("source_resources", "ck_source_resources_raw_storage_mode_none"),
     ("source_resources", "ck_source_resources_raw_retention_null"),
@@ -105,6 +111,10 @@ REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("deletion_jobs", "ck_deletion_jobs_failure_summary_no_raw"),
     ("sync_item_outcomes", "ck_sync_item_outcomes_metadata_no_raw"),
     ("sync_commit_pr_associations", "ck_sync_commit_pr_assoc_metadata_no_raw"),
+    ("event_constraints", "ck_event_constraints_metadata_no_raw"),
+    ("work_event_versions", "ck_work_event_versions_anchor_scope_no_raw"),
+    ("work_event_versions", "ck_work_event_versions_summary_metadata_no_raw"),
+    ("work_event_versions", "ck_work_event_versions_membership_snapshot_no_raw"),
 )
 
 CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
@@ -114,6 +124,7 @@ CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
     "uq_sync_runs_one_active_per_resource",
     "uq_jobs_active_or_succeeded_logical_effect",
     "uq_outbox_events_single_import_ready_per_run",
+    "uq_event_constraints_active_pair",
 )
 
 
@@ -886,7 +897,49 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 )
             conn.commit()
 
-        # Stage 6: Re-apply 0010 -> 0020 -> 0030 -> 0040 -> 0050 (full idempotency) & verify data preservation
+        # Stage 6: 0060 + seed work_event_versions & event_constraints
+        evt2_id = str(uuid.uuid4())
+        ver_id = str(uuid.uuid4())
+        constraint_id = str(uuid.uuid4())
+        left_evt_id, right_evt_id = (evt_id, evt2_id) if evt_id < evt2_id else (evt2_id, evt_id)
+        cluster.apply_sql_file(staged_db, migration_paths[5])
+        with psycopg.connect(cluster.dsn(staged_db)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.work_events (
+                        id, workspace_id, primary_anchor_source_object_id, anchor_mode, title
+                    ) VALUES (%s, %s, %s, 'PR', 'Staged Upgrade Peer Event')
+                    """,
+                    (evt2_id, ws_id, obj_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.work_event_versions (
+                        id, workspace_id, event_id, version, anchor_mode,
+                        primary_anchor_source_object_id, title, status, created_by
+                    ) VALUES (
+                        %s, %s, %s, 1, 'PR',
+                        %s, 'Staged Upgrade Event', 'CANDIDATE', 'RULE'
+                    )
+                    """,
+                    (ver_id, ws_id, evt_id, obj_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.event_constraints (
+                        id, workspace_id, left_event_id, right_event_id,
+                        constraint_type, origin, status
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        'CANNOT_LINK', 'USER', 'ACTIVE'
+                    )
+                    """,
+                    (constraint_id, ws_id, left_evt_id, right_evt_id),
+                )
+            conn.commit()
+
+        # Stage 7: Re-apply 0010 -> 0020 -> 0030 -> 0040 -> 0050 -> 0060 (full idempotency) & verify data preservation
         for path in migration_paths:
             cluster.apply_sql_file(staged_db, path)
 
@@ -903,6 +956,16 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 cur.execute(
                     "SELECT COUNT(*) FROM public.sync_run_page_observations WHERE id = %s",
                     (obs_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.work_event_versions WHERE id = %s",
+                    (ver_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.event_constraints WHERE id = %s",
+                    (constraint_id,),
                 )
                 assert cur.fetchone() == (1,)
             staged_snapshot = introspect_postgres_catalog(conn)

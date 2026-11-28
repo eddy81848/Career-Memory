@@ -56,8 +56,15 @@ MIGRATION_0050_TABLES: tuple[str, ...] = (
     "sync_run_event_promotions",
 )
 
+MIGRATION_0060_TABLES: tuple[str, ...] = (
+    "event_constraints",
+    "work_event_versions",
+)
+
 TENANT_DOMAIN_TABLES: tuple[str, ...] = MIGRATION_0020_TABLES + MIGRATION_0030_TABLES
-ALL_TENANT_DOMAIN_TABLES: tuple[str, ...] = TENANT_DOMAIN_TABLES + MIGRATION_0050_TABLES
+ALL_TENANT_DOMAIN_TABLES: tuple[str, ...] = (
+    TENANT_DOMAIN_TABLES + MIGRATION_0050_TABLES + MIGRATION_0060_TABLES
+)
 
 READONLY_PROVENANCE_VIEWS: tuple[str, ...] = (
     "v_claim_provenance_chain",
@@ -117,6 +124,15 @@ MIGRATION_0050_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("sync_run_event_promotions", "sync_run_id", "sync_runs"),
     ("sync_run_event_promotions", "source_object_id", "source_objects"),
     ("sync_run_event_promotions", "work_event_id", "work_events"),
+)
+
+MIGRATION_0060_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
+    ("event_constraints", "left_event_id", "work_events"),
+    ("event_constraints", "right_event_id", "work_events"),
+    ("event_constraints", "created_by_review_action_id", "review_actions"),
+    ("work_event_versions", "event_id", "work_events"),
+    ("work_event_versions", "primary_anchor_source_object_id", "source_objects"),
+    ("work_event_versions", "created_by_review_action_id", "review_actions"),
 )
 
 
@@ -404,3 +420,21 @@ class ClaimAtomStatus(StrEnum):
     USER_CONFIRMED = "USER_CONFIRMED"
     UNSUPPORTED = "UNSUPPORTED"
     STALE = "STALE"
+
+
+# =============================================================================
+# Migration 0060 — Pairwise Event Constraints (OD-007) & Version Snapshots (T-305)
+# =============================================================================
+class EventConstraintType(StrEnum):
+    CANNOT_LINK = "CANNOT_LINK"
+
+
+class EventConstraintOrigin(StrEnum):
+    USER = "USER"
+    SPLIT = "SPLIT"
+    POLICY = "POLICY"
+
+
+class EventConstraintStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"

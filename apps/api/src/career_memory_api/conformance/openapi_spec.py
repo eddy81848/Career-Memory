@@ -24,6 +24,20 @@ from career_memory_api.contracts_api.models import (
     SearchResponse,
 )
 from career_memory_api.contracts_api.router import create_m1_contract_app
+from career_memory_api.facts.models import (
+    ApproveFactRequest,
+    ApproveFactResponse,
+    EditFactRequest,
+    EditFactResponse,
+    FactAttributionScope,
+    FactCausalBasis,
+    FactCompletionState,
+    FactEnvironmentScope,
+    FactListResponse,
+    FactSupportsResponse,
+    RejectFactRequest,
+    RejectFactResponse,
+)
 from career_memory_api.github_connect.models import (
     GitHubCredentialMode,
     PolicyDecision,
@@ -48,11 +62,16 @@ from career_memory_api.schema_contracts.enums import (
     EventConstraintStatus,
     EventConstraintType,
     ExternalIdentityMappingStatus,
+    FactStatus,
+    FactType,
     IdentityStatus,
     IdentityType,
     IdentityVerificationMethod,
+    LinkStatus,
     RecordOrigin,
     SourceProvider,
+    SupportType,
+    SupportValidator,
     WorkEventAnchorMode,
     WorkEventStatus,
 )
@@ -588,6 +607,14 @@ def _shared_components() -> dict[str, Any]:
         ConfirmIdentityMappingResponse,
         RevokeIdentityMappingRequest,
         RevokeIdentityMappingResponse,
+        FactListResponse,
+        FactSupportsResponse,
+        ApproveFactRequest,
+        ApproveFactResponse,
+        RejectFactRequest,
+        RejectFactResponse,
+        EditFactRequest,
+        EditFactResponse,
         ErrorEnvelope,
     ]
     extracted_schemas: dict[str, Any] = {}
@@ -704,6 +731,42 @@ def _shared_components() -> dict[str, Any]:
         "IdentityAttributionBlockReason": {
             "type": "string",
             "enum": [e.value for e in IdentityAttributionBlockReason],
+        },
+        "FactType": {
+            "type": "string",
+            "enum": [e.value for e in FactType],
+        },
+        "FactStatus": {
+            "type": "string",
+            "enum": [e.value for e in FactStatus],
+        },
+        "SupportType": {
+            "type": "string",
+            "enum": [e.value for e in SupportType],
+        },
+        "SupportValidator": {
+            "type": "string",
+            "enum": [e.value for e in SupportValidator],
+        },
+        "LinkStatus": {
+            "type": "string",
+            "enum": [e.value for e in LinkStatus],
+        },
+        "FactCompletionState": {
+            "type": "string",
+            "enum": [e.value for e in FactCompletionState],
+        },
+        "FactAttributionScope": {
+            "type": "string",
+            "enum": [e.value for e in FactAttributionScope],
+        },
+        "FactEnvironmentScope": {
+            "type": "string",
+            "enum": [e.value for e in FactEnvironmentScope],
+        },
+        "FactCausalBasis": {
+            "type": "string",
+            "enum": [e.value for e in FactCausalBasis],
         },
         "GitHubOAuthStartRequest": {
             "type": "object",

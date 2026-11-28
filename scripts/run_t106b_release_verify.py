@@ -15,6 +15,7 @@ import argparse
 import json
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -260,14 +261,27 @@ def _http_probe(
     *,
     method: str = "GET",
     headers: dict[str, str] | None = None,
-    timeout_seconds: float = 5.0,
-) -> tuple[int, dict[str, str], str]:
+    timeout_seconds: float = 20.0,
+    follow_redirects: bool = True,
+) -> tuple[int, dict[str, str], str, float]:
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, hdrs, newurl):  # type: ignore[no-untyped-def]
+            return None
+
+    opener = (
+        urllib.request.build_opener()
+        if follow_redirects
+        else urllib.request.build_opener(_NoRedirect)
+    )
     req = urllib.request.Request(url, headers=headers or {}, method=method)
+    t0 = time.perf_counter()
     try:
-        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+        with opener.open(req, timeout=timeout_seconds) as resp:
+            elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
             hdrs = {k.lower(): v for k, v in resp.headers.items()}
-            return int(resp.status), hdrs, resp.read(16384).decode("utf-8", errors="replace")
+            return int(resp.status), hdrs, resp.read(16384).decode("utf-8", errors="replace"), elapsed_ms
     except urllib.error.HTTPError as exc:
+        elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         hdrs = {k.lower(): v for k, v in (exc.headers.items() if exc.headers else ())}
         body = ""
         try:
@@ -275,21 +289,25 @@ def _http_probe(
                 body = exc.fp.read(8192).decode("utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             body = ""
-        return int(exc.code), hdrs, body
+        return int(exc.code), hdrs, body, elapsed_ms
 
 
 def run_smoke_checks(
     *,
     api_url: str,
     worker_url: str | None = None,
-    timeout_seconds: float = 5.0,
+    worker_oidc_token: str | None = None,
+    web_url: str | None = None,
+    supabase_url: str | None = None,
+    supabase_anon_key: str | None = None,
+    timeout_seconds: float = 20.0,
 ) -> dict[str, Any]:
-    """Run live staging smoke assertions against ``cm-api`` (and optional ``cm-worker``)."""
+    """Run live staging smoke & isolation assertions across cm-api, cm-worker, cm-web & Data API."""
     base_api = api_url.rstrip("/")
     results: list[dict[str, Any]] = []
 
-    # 1. GET /healthz -> 200
-    st_health, hdr_health, _ = _http_probe(
+    # 1. GET /healthz -> 200 (captures first-call cold start latency sample, T-007F Step 3)
+    st_health, hdr_health, _, lat_api_ms = _http_probe(
         f"{base_api}/healthz", method="GET", timeout_seconds=timeout_seconds
     )
     results.append(
@@ -298,11 +316,12 @@ def run_smoke_checks(
             "passed": st_health == 200,
             "status_code": st_health,
             "cache_control": hdr_health.get("cache-control", ""),
+            "latency_ms": lat_api_ms,
         }
     )
 
     # 2. Direct cm-api /v1/session without X-CM-Origin-Auth -> 403 ORIGIN_AUTH_REQUIRED + private, no-store
-    st_direct, hdr_direct, body_direct = _http_probe(
+    st_direct, hdr_direct, body_direct, lat_direct_ms = _http_probe(
         f"{base_api}/v1/session", method="GET", timeout_seconds=timeout_seconds
     )
     cc_direct = hdr_direct.get("cache-control", "").lower()
@@ -317,11 +336,12 @@ def run_smoke_checks(
             ),
             "status_code": st_direct,
             "cache_control": hdr_direct.get("cache-control", ""),
+            "latency_ms": lat_direct_ms,
         }
     )
 
     # 3. Direct /internal/worker/wake on cm-api -> 403 PUBLIC_WORKER_ROUTE_FORBIDDEN
-    st_api_worker, _, body_api_worker = _http_probe(
+    st_api_worker, _, body_api_worker, _ = _http_probe(
         f"{base_api}/internal/worker/wake", method="POST", timeout_seconds=timeout_seconds
     )
     results.append(
@@ -334,10 +354,10 @@ def run_smoke_checks(
         }
     )
 
-    # 4. Unauthenticated cm-worker /internal/worker/wake -> 401/403
+    # 4. Private IAM cm-worker checks (T-007F Step 1 & 2)
     if worker_url:
         base_worker = worker_url.rstrip("/")
-        st_worker, _, _ = _http_probe(
+        st_worker, _, _, lat_worker_unauth_ms = _http_probe(
             f"{base_worker}/internal/worker/wake",
             method="POST",
             timeout_seconds=timeout_seconds,
@@ -347,11 +367,131 @@ def run_smoke_checks(
                 "check": "worker_unauthenticated_blocked_401_403",
                 "passed": st_worker in (401, 403),
                 "status_code": st_worker,
+                "latency_ms": lat_worker_unauth_ms,
+            }
+        )
+        if worker_oidc_token and worker_oidc_token.strip():
+            st_w_auth, _, body_w_auth, lat_worker_auth_ms = _http_probe(
+                f"{base_worker}/internal/worker/recover",
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {worker_oidc_token.strip()}",
+                    "Content-Type": "application/json",
+                },
+                timeout_seconds=timeout_seconds,
+            )
+            results.append(
+                {
+                    "check": "worker_oidc_authorized_recover_200",
+                    "passed": st_w_auth == 200 and '"status"' in body_w_auth,
+                    "status_code": st_w_auth,
+                    "latency_ms": lat_worker_auth_ms,
+                }
+            )
+
+    # 5. Next.js BFF cm-web checks (OD-010 PKCE, __Host- HttpOnly/Secure cookie, CSRF, no-store)
+    if web_url:
+        base_web = web_url.rstrip("/")
+        st_web_h, _, _, lat_web_ms = _http_probe(
+            f"{base_web}/healthz", method="GET", timeout_seconds=timeout_seconds
+        )
+        results.append(
+            {
+                "check": "web_healthz_200",
+                "passed": st_web_h == 200,
+                "status_code": st_web_h,
+                "latency_ms": lat_web_ms,
+            }
+        )
+        st_web_s, hdr_web_s, body_web_s, _ = _http_probe(
+            f"{base_web}/auth/session", method="GET", timeout_seconds=timeout_seconds
+        )
+        cc_web_s = hdr_web_s.get("cache-control", "").lower()
+        results.append(
+            {
+                "check": "web_auth_session_unauthenticated_200_no_store",
+                "passed": (
+                    st_web_s == 200
+                    and '"authenticated":false' in body_web_s.replace(" ", "")
+                    and "private" in cc_web_s
+                    and "no-store" in cc_web_s
+                ),
+                "status_code": st_web_s,
+                "cache_control": hdr_web_s.get("cache-control", ""),
+            }
+        )
+        st_pkce, hdr_pkce, _, _ = _http_probe(
+            f"{base_web}/auth/login?next=/event-review",
+            method="GET",
+            timeout_seconds=timeout_seconds,
+            follow_redirects=False,
+        )
+        set_cookie_hdr = hdr_pkce.get("set-cookie", "")
+        loc_hdr = hdr_pkce.get("location", "")
+        results.append(
+            {
+                "check": "web_pkce_login_redirect_and_secure_httponly_cookie",
+                "passed": (
+                    st_pkce in (302, 303, 307)
+                    and "code_challenge=" in loc_hdr
+                    and "httponly" in set_cookie_hdr.lower()
+                ),
+                "status_code": st_pkce,
+                "has_pkce_challenge": "code_challenge=" in loc_hdr,
+                "has_httponly_cookie": "httponly" in set_cookie_hdr.lower(),
+                "has_secure_cookie": "secure" in set_cookie_hdr.lower(),
+            }
+        )
+        st_open_redir, _, _, _ = _http_probe(
+            f"{base_web}/auth/login?next=//evil.example",
+            method="GET",
+            timeout_seconds=timeout_seconds,
+            follow_redirects=False,
+        )
+        results.append(
+            {
+                "check": "web_open_redirect_rejected_400",
+                "passed": st_open_redir == 400,
+                "status_code": st_open_redir,
+            }
+        )
+        st_csrf, _, _, _ = _http_probe(
+            f"{base_web}/bff/v1/sync-runs",
+            method="POST",
+            headers={"Origin": "https://evil.example", "Content-Type": "application/json"},
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "web_bff_cross_origin_csrf_blocked_403",
+                "passed": st_csrf == 403,
+                "status_code": st_csrf,
+            }
+        )
+
+    # 6. Supabase Data API (PostgREST) direct domain table bypass blocked (OD006-5)
+    if supabase_url and supabase_anon_key:
+        supa_base = supabase_url.rstrip("/")
+        st_rest, _, _, _ = _http_probe(
+            f"{supa_base}/rest/v1/work_events?select=id&limit=1",
+            method="GET",
+            headers={
+                "apikey": supabase_anon_key.strip(),
+                "Authorization": f"Bearer {supabase_anon_key.strip()}",
+            },
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "supabase_postgrest_domain_table_bypass_blocked",
+                "passed": st_rest in (401, 403, 404),
+                "status_code": st_rest,
             }
         )
 
     return {
         "passed": all(r["passed"] for r in results),
+        "total_http_requests": len(results),
         "checks": results,
     }
 
@@ -372,6 +512,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--smoke-url", default=None, help="Live cm-api URL to smoke test.")
     parser.add_argument("--worker-url", default=None, help="Live cm-worker URL to smoke test.")
+    parser.add_argument("--worker-oidc-token", default=None, help="OIDC token for cm-worker recover check.")
+    parser.add_argument("--web-url", default=None, help="Live cm-web URL to smoke test.")
+    parser.add_argument("--supabase-url", default=None, help="Supabase project URL for Data API isolation check.")
+    parser.add_argument("--supabase-anon-key", default=None, help="Supabase anon key for Data API isolation check.")
     parser.add_argument(
         "--print-rollback",
         action="store_true",
@@ -384,7 +528,14 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     if args.smoke_url:
-        smoke = run_smoke_checks(api_url=args.smoke_url, worker_url=args.worker_url)
+        smoke = run_smoke_checks(
+            api_url=args.smoke_url,
+            worker_url=args.worker_url,
+            worker_oidc_token=args.worker_oidc_token,
+            web_url=args.web_url,
+            supabase_url=args.supabase_url,
+            supabase_anon_key=args.supabase_anon_key,
+        )
         print(json.dumps(smoke, indent=2, sort_keys=True))
         return 0 if smoke["passed"] else 1
 

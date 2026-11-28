@@ -506,7 +506,12 @@ def create_hosted_worker_app(
         )
 
     @app.post("/internal/worker/recover")
-    def internal_worker_recover(payload: WorkerRecoverRequest | None = None) -> dict[str, Any]:
+    def internal_worker_recover(
+        request: Request, payload: WorkerRecoverRequest | None = None
+    ) -> dict[str, Any]:
+        raw_gh_token = (request.headers.get("X-CM-GitHub-Public-Token") or "").strip()
+        if raw_gh_token and len(raw_gh_token) <= 512 and not any(ch.isspace() for ch in raw_gh_token):
+            runtime.set_ephemeral_public_github_token(raw_gh_token)
         req = payload or WorkerRecoverRequest()
         targets: list[str] = []
         if req.workspace_id:

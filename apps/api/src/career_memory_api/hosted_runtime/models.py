@@ -344,8 +344,8 @@ class HostedWorkerServiceConfig:
     worker_id: str = "cm-hosted-worker"
     default_workspace_ids: tuple[str, ...] = ()
     max_slices_per_wake: int = 5
-    worker_request_slice_timeout_seconds: float = 45.0
-    lease_duration_seconds: int = 60
+    worker_request_slice_timeout_seconds: float = 180.0
+    lease_duration_seconds: int = 210
     github_public_read_token: str | None = field(default=None, repr=False)
     allow_http_loopback_for_tests: bool = False
     edge_caps: EdgeRuntimeCaps = field(default_factory=EdgeRuntimeCaps)
@@ -394,7 +394,7 @@ class HostedWorkerServiceConfig:
         issuers = _parse_csv_env("CAREER_MEMORY_WORKER_ISSUERS")
         service_accounts = _parse_csv_env("CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS")
         workspace_ids = _parse_csv_env("CAREER_MEMORY_WORKER_WORKSPACE_IDS")
-        slice_timeout = float(os.environ.get("CAREER_MEMORY_WORKER_SLICE_TIMEOUT_SECONDS", "45.0"))
+        slice_timeout = float(os.environ.get("CAREER_MEMORY_WORKER_SLICE_TIMEOUT_SECONDS", "180.0"))
 
         return cls(
             db_pool=db_pool,
@@ -419,7 +419,7 @@ class HostedWorkerServiceConfig:
             default_workspace_ids=workspace_ids,
             max_slices_per_wake=int(os.environ.get("CAREER_MEMORY_WORKER_MAX_SLICES", "5")),
             worker_request_slice_timeout_seconds=slice_timeout,
-            lease_duration_seconds=int(os.environ.get("CAREER_MEMORY_WORKER_LEASE_SECONDS", "60")),
+            lease_duration_seconds=int(os.environ.get("CAREER_MEMORY_WORKER_LEASE_SECONDS", "210")),
             github_public_read_token=(os.environ.get("GITHUB_PUBLIC_READ_TOKEN") or "").strip()
             or None,
             allow_http_loopback_for_tests=allow_insecure,

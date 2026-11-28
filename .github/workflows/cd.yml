@@ -654,7 +654,7 @@ jobs:
               --cpu 1 \
               --memory 512Mi \
               --concurrency 4 \
-              --timeout 60
+              --timeout 240
 
           WORKER_URL="$(CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \

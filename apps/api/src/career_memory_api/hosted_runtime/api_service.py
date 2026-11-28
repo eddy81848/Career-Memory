@@ -157,6 +157,14 @@ def _guard_access_resolver(request: Request) -> WorkspaceAccessContext:
         raw_gh_token = (request.headers.get(EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER) or "").strip()
         if raw_gh_token and len(raw_gh_token) <= 512 and not any(ch.isspace() for ch in raw_gh_token):
             runtime.set_ephemeral_public_github_token(raw_gh_token)
+        if (
+            request.method == "GET"
+            and request.url.path.startswith("/v1/sync-runs")
+            and isinstance(runtime.wake_notifier, HttpCloudRunWakeNotifier)
+        ):
+            runtime.wake_notifier.maybe_nudge_recover_async(
+                workspace_id=access.workspace_id
+            )
     return access
 
 

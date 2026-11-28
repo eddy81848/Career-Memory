@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -110,6 +111,7 @@ class HttpCloudRunWakeNotifier:
             allow_http_loopback_for_tests=allow_http_loopback_for_tests,
         )
         self._wake_endpoint = f"{self._worker_url}/internal/worker/wake"
+        self._recover_endpoint = f"{self._worker_url}/internal/worker/recover"
         self._audience = (audience or self._worker_url).strip()
         self._timeout_seconds = max(0.1, float(timeout_seconds))
         self._token_minter = token_minter
@@ -118,6 +120,9 @@ class HttpCloudRunWakeNotifier:
         self._hmac_issuer = hmac_issuer
         self._http_post: HttpPostFn = http_post or _default_no_redirect_http_post
         self._github_public_token_getter = github_public_token_getter
+        self._recover_lock = threading.Lock()
+        self._last_recover_nudge_by_ws: dict[str, float] = {}
+        self.recover_nudges: int = 0
         self._metadata_minter = GoogleMetadataOidcTokenMinter(
             timeout_seconds=min(1.5, self._timeout_seconds)
         )
@@ -206,6 +211,49 @@ class HttpCloudRunWakeNotifier:
                 "deletion_job_id": deletion_job_id,
             }
         )
+
+    def maybe_nudge_recover_async(
+        self,
+        *,
+        workspace_id: str,
+        min_interval_seconds: float = 20.0,
+    ) -> bool:
+        """Fire a throttled non-blocking `/internal/worker/recover` nudge to reclaim expired leases."""
+        clean_ws = workspace_id.strip()
+        if not clean_ws:
+            return False
+        now_mono = time.monotonic()
+        with self._recover_lock:
+            prev = self._last_recover_nudge_by_ws.get(clean_ws)
+            if prev is not None and (now_mono - prev) < min_interval_seconds:
+                return False
+            self._last_recover_nudge_by_ws[clean_ws] = now_mono
+            self.recover_nudges += 1
+
+        def _run() -> None:
+            try:
+                token = self._mint_auth_token()
+                body = json.dumps(
+                    {"workspace_id": clean_ws, "max_slices": 5},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "X-CM-Worker-Auth": token,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                }
+                if self._github_public_token_getter is not None:
+                    gh_tok = (self._github_public_token_getter() or "").strip()
+                    if gh_tok and not any(ch.isspace() for ch in gh_tok):
+                        headers["X-CM-GitHub-Public-Token"] = gh_tok
+                self._http_post(self._recover_endpoint, headers, body, self._timeout_seconds)
+            except Exception:  # noqa: BLE001
+                pass
+
+        threading.Thread(target=_run, daemon=True).start()
+        return True
 
 
 def _peek_unverified_jwt_iss_aud(raw_token: str) -> tuple[str | None, tuple[str, ...]]:

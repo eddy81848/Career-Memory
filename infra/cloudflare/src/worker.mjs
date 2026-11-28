@@ -1,17 +1,19 @@
 /**
- * Cloudflare Edge Reverse-Proxy & Security Guard for Career Memory (`https://career-memory.site`).
+ * Cloudflare Edge Reverse-Proxy & Origin-Lock Guard (`https://career-memory.site`).
  *
- * Enforces OD-013 / T-507 / INF-07 edge invariants at ₹0 Free-Tier cost:
- * 1. Canonicalizes `www.career-memory.site` -> `https://career-memory.site` (308) so `__Host-`
- *    cookies and `Origin` checks never split across hostnames.
- * 2. Blocks any external `/internal/*` path at the Cloudflare edge (403).
- * 3. Proxies requests to Cloud Run `cm-web` (`UPSTREAM_WEB_ORIGIN`) without following redirects
- *    (`redirect: "manual"`), preserving PKCE/Session `__Host-*` `Set-Cookie` headers and `Origin`.
- * 4. Forces `cacheEverything: false` and `CDN-Cache-Control: no-store` on dynamic/auth routes so
- *    authenticated or session responses are NEVER cached at Cloudflare POPs.
+ * Enforces OD-013 / T-507 / INF-07 invariants at ₹0 Free-Tier cost:
+ * 1. Canonicalizes HTTP -> HTTPS and `www.career-memory.site` -> `https://career-memory.site` (308).
+ * 2. Hard-blocks `/internal/*` routes at the Cloudflare edge (403).
+ * 3. Reads `UPSTREAM_WEB_ORIGIN` and `CF_EDGE_AUTH_SECRET` strictly from Cloudflare Encrypted
+ *    Secrets (zero Cloud Run `.run.app` URLs or secrets in Git), strips any spoofed incoming
+ *    `X-CM-Edge-Auth` header, and attaches a timestamped HMAC-SHA256 `X-CM-Edge-Auth` signature
+ *    so direct internet requests to `cm-web` (`*.run.app`) fail closed with `403`.
+ * 4. Preserves multi-value `Set-Cookie` headers and enforces `Cache-Control: private, no-store`
+ *    (`cf-cache-status: DYNAMIC`) on all auth/BFF routes.
  */
 
 const BLOCKED_EDGE_PREFIX = "/internal/";
+const EDGE_AUTH_HEADER = "X-CM-Edge-Auth";
 
 const FORWARDED_HOP_BY_HOP = new Set([
   "connection",
@@ -23,7 +25,42 @@ const FORWARDED_HOP_BY_HOP = new Set([
   "transfer-encoding",
   "upgrade",
   "host",
+  "x-cm-edge-auth",
 ]);
+
+const encoder = new TextEncoder();
+let cachedSecretStr = null;
+let cachedCryptoKeyPromise = null;
+
+function getHmacKey(secret) {
+  if (secret !== cachedSecretStr || !cachedCryptoKeyPromise) {
+    cachedSecretStr = secret;
+    cachedCryptoKeyPromise = crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+  }
+  return cachedCryptoKeyPromise;
+}
+
+function bytesToHex(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    out += bytes[i].toString(16).padStart(2, "0");
+  }
+  return out;
+}
+
+async function signEdgeAuthHeader(secret, method, pathname, nowSeconds) {
+  const key = await getHmacKey(secret);
+  const message = `${nowSeconds}.${method.toUpperCase()}.${pathname}`;
+  const sigBuf = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
+  return `t=${nowSeconds},sig=${bytesToHex(sigBuf)}`;
+}
 
 export default {
   async fetch(request, env) {
@@ -66,15 +103,34 @@ export default {
       );
     }
 
-    // 3. Build upstream Cloud Run `cm-web` URL & sanitized headers
-    const upstreamOrigin = (
-      env.UPSTREAM_WEB_ORIGIN || "https://cm-web-oaxjehpcqq-uc.a.run.app"
-    ).replace(/\/+$/, "");
+    const rawUpstreamOrigin = (env.CF_UPSTREAM_WEB_ORIGIN || "").trim().replace(/\/+$/, "");
+    const edgeAuthSecret = (env.CF_EDGE_AUTH_SECRET || "").trim();
+    if (!rawUpstreamOrigin || !edgeAuthSecret) {
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: "EDGE_NOT_CONFIGURED",
+            message: "Edge origin bindings are not configured.",
+            retryable: false,
+          },
+        }),
+        {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "private, no-store",
+          },
+        }
+      );
+    }
+
+    // 3. Build upstream request with stripped spoof headers + fresh X-CM-Edge-Auth signature
     const upstreamUrl = new URL(
       incomingUrl.pathname + incomingUrl.search,
-      upstreamOrigin
+      rawUpstreamOrigin
     );
 
+    const method = request.method.toUpperCase();
     const upstreamHeaders = new Headers();
     for (const [key, value] of request.headers.entries()) {
       if (!FORWARDED_HOP_BY_HOP.has(key.toLowerCase())) {
@@ -87,10 +143,13 @@ export default {
     if (clientIp) {
       upstreamHeaders.set("X-Forwarded-For", clientIp);
     }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    upstreamHeaders.set(
+      EDGE_AUTH_HEADER,
+      await signEdgeAuthHeader(edgeAuthSecret, method, incomingUrl.pathname, nowSeconds)
+    );
 
-    const method = request.method.toUpperCase();
     const hasBody = method !== "GET" && method !== "HEAD";
-
     const upstreamResponse = await fetch(upstreamUrl.toString(), {
       method,
       headers: upstreamHeaders,
@@ -98,7 +157,7 @@ export default {
       redirect: "manual",
     });
 
-    // 4. Preserve multi-value Set-Cookie & strictly enforce no-store Cache-Control on auth/API routes
+    // 4. Preserve multi-value Set-Cookie & strictly enforce no-store Cache-Control on auth/BFF routes
     const responseHeaders = new Headers(upstreamResponse.headers);
     const path = incomingUrl.pathname;
     if (path.startsWith("/auth/") || path.startsWith("/bff/")) {

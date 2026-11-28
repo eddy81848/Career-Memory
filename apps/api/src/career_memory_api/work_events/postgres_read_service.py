@@ -284,10 +284,9 @@ class PostgresWorkEventsReadService:
                 has_more = len(fetched_rows) > limit
                 page_rows = fetched_rows[:limit]
 
-                items = [
-                    self._hydrate_summary_item(cur, workspace_id=access.workspace_id, row=row)
-                    for row in page_rows
-                ]
+                items = self._hydrate_summary_items_batch(
+                    cur, workspace_id=access.workspace_id, rows=page_rows
+                )
 
                 next_cursor: str | None = None
                 if has_more and page_rows:
@@ -514,6 +513,272 @@ class PostgresWorkEventsReadService:
             params.append(role.value)
 
         return where, params
+
+    @classmethod
+    def _hydrate_summary_items_batch(
+        cls,
+        cur: psycopg.Cursor,
+        *,
+        workspace_id: str,
+        rows: list[tuple[Any, ...]],
+    ) -> list[WorkEventSummaryItem]:
+        """Batch-hydrate a page of WorkEventSummaryItems in O(1) SQL round-trips (eliminating N+1)."""
+        if not rows:
+            return []
+
+        event_ids = [str(r[0]) for r in rows]
+        primary_anchor_ids = list({str(r[2]) for r in rows if r[2] is not None})
+
+        # 1. Batch evidence & context counts across all page events
+        counts_by_event: dict[str, tuple[int, int]] = {}
+        cur.execute(
+            """
+            SELECT
+                event_id::text,
+                COUNT(*) FILTER (WHERE relation_class = 'MUST_LINK')::integer AS evidence_count,
+                COUNT(*) FILTER (WHERE relation_class = 'CONTEXT_ONLY')::integer AS context_count
+            FROM public.event_memberships
+            WHERE workspace_id = %s::uuid
+              AND event_id = ANY(%s::uuid[])
+              AND status = 'ACTIVE'
+            GROUP BY event_id
+            """,
+            (workspace_id, event_ids),
+        )
+        for ev_id, ev_cnt, ctx_cnt in cur.fetchall():
+            counts_by_event[str(ev_id)] = (int(ev_cnt), int(ctx_cnt))
+
+        # 2. Batch primary_anchor -> source_resource_id
+        anchor_resource_by_obj: dict[str, str] = {}
+        if primary_anchor_ids:
+            cur.execute(
+                """
+                SELECT id::text, source_resource_id::text
+                FROM public.source_objects
+                WHERE workspace_id = %s::uuid
+                  AND id = ANY(%s::uuid[])
+                """,
+                (workspace_id, primary_anchor_ids),
+            )
+            for obj_id, res_id in cur.fetchall():
+                if res_id is not None:
+                    anchor_resource_by_obj[str(obj_id)] = str(res_id)
+
+        # 3. Batch MUST_LINK membership source_resource_ids per event
+        must_link_res_by_event: dict[str, list[str]] = {}
+        cur.execute(
+            """
+            SELECT
+                em.event_id::text,
+                so.source_resource_id::text
+            FROM public.event_memberships em
+            INNER JOIN public.source_objects so
+                ON so.workspace_id = em.workspace_id
+               AND so.id = em.source_object_id
+            WHERE em.workspace_id = %s::uuid
+              AND em.event_id = ANY(%s::uuid[])
+              AND em.status = 'ACTIVE'
+              AND em.relation_class = 'MUST_LINK'
+            GROUP BY em.event_id, so.source_resource_id
+            ORDER BY so.source_resource_id::text ASC
+            """,
+            (workspace_id, event_ids),
+        )
+        for ev_id, res_id in cur.fetchall():
+            if res_id is not None:
+                must_link_res_by_event.setdefault(str(ev_id), []).append(str(res_id))
+
+        # 4. Batch composite memberships (both active member_event_ids & member source_resource_ids)
+        comp_active_members_by_event: dict[str, list[str]] = {}
+        comp_res_by_event: dict[str, list[str]] = {}
+        cur.execute(
+            """
+            SELECT
+                ecm.composite_event_id::text,
+                ecm.member_event_id::text,
+                ecm.status,
+                so.source_resource_id::text
+            FROM public.event_composite_memberships ecm
+            INNER JOIN public.work_events m_we
+                ON m_we.workspace_id = ecm.workspace_id
+               AND m_we.id = ecm.member_event_id
+            LEFT JOIN public.source_objects so
+                ON so.workspace_id = m_we.workspace_id
+               AND so.id = m_we.primary_anchor_source_object_id
+            WHERE ecm.workspace_id = %s::uuid
+              AND ecm.composite_event_id = ANY(%s::uuid[])
+            ORDER BY ecm.ordinal ASC, ecm.member_event_id ASC
+            """,
+            (workspace_id, event_ids),
+        )
+        for comp_id, mem_id, mem_status, res_id in cur.fetchall():
+            cid = str(comp_id)
+            if str(mem_status) == "ACTIVE":
+                comp_active_members_by_event.setdefault(cid, []).append(str(mem_id))
+            if res_id is not None:
+                rid = str(res_id)
+                bucket = comp_res_by_event.setdefault(cid, [])
+                if rid not in bucket:
+                    bucket.append(rid)
+
+        # 5. Collect all referenced source_resource_ids across the page & batch live policy lookup
+        linked_res_by_event: dict[str, list[str]] = {}
+        all_resource_ids: set[str] = set()
+        for row in rows:
+            ev_id = str(row[0])
+            pa_id = str(row[2]) if row[2] is not None else None
+            res_list: list[str] = []
+            if pa_id is not None and pa_id in anchor_resource_by_obj:
+                res_list.append(anchor_resource_by_obj[pa_id])
+            for rid in must_link_res_by_event.get(ev_id, ()):
+                if rid not in res_list:
+                    res_list.append(rid)
+            for rid in sorted(comp_res_by_event.get(ev_id, ())):
+                if rid not in res_list:
+                    res_list.append(rid)
+            linked_res_by_event[ev_id] = res_list
+            all_resource_ids.update(res_list)
+
+        res_policy_info: dict[str, tuple[str, str, str, bool]] = {}
+        if all_resource_ids:
+            cur.execute(
+                """
+                SELECT
+                    sr.id::text,
+                    sr.visibility,
+                    sr.status,
+                    sa.status AS account_status,
+                    EXISTS (
+                        SELECT 1
+                        FROM public.deletion_jobs dj
+                        WHERE dj.workspace_id = sr.workspace_id
+                          AND dj.source_resource_id = sr.id
+                          AND dj.status IN ('PENDING', 'RUNNING', 'PARTIAL', 'SUCCEEDED')
+                    ) AS has_deletion_fence
+                FROM public.source_resources sr
+                INNER JOIN public.source_accounts sa
+                    ON sa.workspace_id = sr.workspace_id
+                   AND sa.id = sr.source_account_id
+                WHERE sr.workspace_id = %s::uuid
+                  AND sr.id = ANY(%s::uuid[])
+                """,
+                (workspace_id, list(all_resource_ids)),
+            )
+            for rid, vis, r_stat, a_stat, has_fence in cur.fetchall():
+                res_policy_info[str(rid)] = (
+                    str(vis),
+                    str(r_stat),
+                    str(a_stat),
+                    bool(has_fence),
+                )
+
+        def _eval_cached_policy(rids: list[str]) -> WorkEventPolicyState:
+            if not rids:
+                return WorkEventPolicyState.ALLOWED
+            policy_blocked = False
+            for rid in rids:
+                info = res_policy_info.get(rid)
+                if info is None:
+                    return WorkEventPolicyState.DELETION_PENDING
+                vis, r_stat, a_stat, has_fence = info
+                if r_stat == "DELETED" or has_fence:
+                    return WorkEventPolicyState.DELETION_PENDING
+                if (
+                    vis != ResourceVisibility.PUBLIC.value
+                    or r_stat in ("PAUSED", "POLICY_REVIEW_REQUIRED")
+                    or a_stat != "ACTIVE"
+                ):
+                    policy_blocked = True
+            return (
+                WorkEventPolicyState.POLICY_BLOCKED
+                if policy_blocked
+                else WorkEventPolicyState.ALLOWED
+            )
+
+        results: list[WorkEventSummaryItem] = []
+        for row in rows:
+            event_id = str(row[0])
+            primary_anchor_id = str(row[2]) if row[2] is not None else None
+            anchor_mode = WorkEventAnchorMode(str(row[3]))
+            status = WorkEventStatus(str(row[4]))
+            version = int(row[5])
+            title = str(row[6])
+            problem = str(row[7]) if row[7] is not None else None
+            action_text = str(row[8]) if row[8] is not None else None
+            outcome = str(row[9]) if row[9] is not None else None
+            summary_metadata = dict(row[10] or {})
+            created_by = RecordOrigin(str(row[11]))
+            occurred_start_at = row[12]
+            occurred_end_at = row[13]
+            reviewed_at = row[14]
+            updated_at = row[15]
+            is_active_top_level = bool(row[16])
+            anchor_scope = dict(row[17]) if len(row) > 17 and isinstance(row[17], dict) else None
+
+            evidence_count, context_count = counts_by_event.get(event_id, (0, 0))
+            linked_rids = linked_res_by_event.get(event_id, [])
+            primary_resource_id = linked_rids[0] if linked_rids else None
+            policy_state = _eval_cached_policy(linked_rids)
+
+            direct_commit_badge: DirectCommitSummary | None = None
+            if anchor_mode is WorkEventAnchorMode.DIRECT_COMMIT:
+                direct_commit_badge = cls._build_direct_commit_badge(
+                    cur,
+                    workspace_id=workspace_id,
+                    primary_anchor_source_object_id=primary_anchor_id,
+                    summary_metadata=summary_metadata,
+                    occurred_start_at=occurred_start_at,
+                )
+
+            composite_summary: CompositeSummary | None = None
+            if anchor_mode is WorkEventAnchorMode.USER_COMPOSITE:
+                member_ids = comp_active_members_by_event.get(event_id, [])
+                raw_merge_reason = summary_metadata.get("merge_reason")
+                raw_regen_status = summary_metadata.get("regeneration_status")
+                composite_summary = CompositeSummary(
+                    member_count=len(member_ids),
+                    merge_reason=str(raw_merge_reason) if raw_merge_reason is not None else None,
+                    regeneration_status=str(raw_regen_status) if raw_regen_status is not None else None,
+                    member_event_ids=member_ids,
+                )
+
+            allowed_actions = compute_allowed_actions(
+                anchor_mode=anchor_mode,
+                status=status,
+                policy_state=policy_state,
+                is_active_top_level=is_active_top_level,
+                anchor_scope=anchor_scope,
+            )
+
+            results.append(
+                WorkEventSummaryItem(
+                    event_id=event_id,
+                    workspace_id=workspace_id,
+                    source_resource_id=primary_resource_id,
+                    anchor_mode=anchor_mode,
+                    status=status,
+                    version=version,
+                    etag=format_work_event_etag(version),
+                    is_active_top_level=is_active_top_level,
+                    title=title,
+                    problem=problem,
+                    action=action_text,
+                    outcome=outcome,
+                    created_by=created_by,
+                    occurred_start_at=occurred_start_at,
+                    occurred_end_at=occurred_end_at,
+                    reviewed_at=reviewed_at,
+                    updated_at=updated_at,
+                    review_flags=_extract_review_flags(summary_metadata),
+                    allowed_actions=allowed_actions,
+                    evidence_count=evidence_count,
+                    context_count=context_count,
+                    direct_commit_badge=direct_commit_badge,
+                    composite_summary=composite_summary,
+                    policy_state=policy_state,
+                )
+            )
+        return results
 
     @classmethod
     def _hydrate_summary_item(

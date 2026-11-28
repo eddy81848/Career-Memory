@@ -28,7 +28,6 @@ def _default_access_resolver(request: Request) -> WorkspaceAccessContext:
     guard = get_workspace_access_guard(request)
     credentials = get_auth_credentials(
         authorization=request.headers.get("Authorization"),
-        x_session_id=request.headers.get("X-Session-ID"),
     )
     target_ws = (request.headers.get("X-Workspace-ID") or "").strip()
     return guard.require_workspace_access(

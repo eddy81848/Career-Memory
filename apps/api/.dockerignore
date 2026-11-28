@@ -1,0 +1,17 @@
+# Exclude local caches, virtualenvs, tests, and git metadata from Docker context
+.git
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+**/.pytest_cache
+tests
+**/tests
+*.pyc
+**/*.pyc
+*.pyo
+**/*.pyo
+.DS_Store
+.env
+.env.*

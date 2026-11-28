@@ -229,6 +229,19 @@ jobs:
     assert "INF09_ACTION_COMMIT_SHA_PIN_REQUIRED" in rule_ids
 
 
+def test_repo_staging_deploy_workflow_passes_release_manifest_validation() -> None:
+    staging_path = WORKFLOWS_DIR / "staging-deploy.yml"
+    assert staging_path.is_file(), f"Missing staging deploy workflow: {staging_path}"
+    res = validate_release_workflow_manifest(
+        staging_path.read_text(encoding="utf-8"),
+        workflow_name=staging_path.name,
+    )
+    assert res.passed is True, f"Unexpected INF-09 release findings: {res.findings}"
+    assert res.has_concurrency_group is True
+    assert res.cancel_in_progress is False
+    assert len(res.image_references) >= 1
+
+
 def test_t507_route_trust_matrix_evidence_contract_is_redacted_and_consistent() -> None:
     assert EVIDENCE_PATH.is_file(), f"Missing evidence file: {EVIDENCE_PATH}"
     evidence = json.loads(EVIDENCE_PATH.read_text(encoding="utf-8"))

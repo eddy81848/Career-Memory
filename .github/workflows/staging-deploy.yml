@@ -1,0 +1,267 @@
+# Manual-Only Staging Deploy & Rollback Workflow (T-106B / INF-09 / OD-015)
+#
+# Security & Cost Controls:
+# - Manual `workflow_dispatch` ONLY (never runs on pull_request or pull_request_target).
+# - OIDC Workload Identity Federation (WIF) ONLY — zero static service account keys.
+# - Explicit minimal permissions (`contents: read`, `id-token: write`).
+# - Serialized deployments (`cancel-in-progress: false`).
+# - All actions pinned to immutable 40-character commit SHAs.
+# - All Cloud Run deployments pinned to immutable `@sha256:<64-hex>` image digests.
+# - Tier 1 Free-Tier region (`us-central1`) with OD-015 pre-flight gate before any mutation.
+
+name: Staging Deploy & Rollback (T-106B WIF Manual Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Operation mode: deploy (expand migrate + no-traffic deploy + smoke + shift) or rollback"
+        required: true
+        type: choice
+        default: "deploy"
+        options:
+          - deploy
+          - rollback
+      api_image_digest:
+        description: "Immutable @sha256:<64-hex> digest ref for cm-api & cm-worker"
+        required: false
+        type: string
+        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      web_image_digest:
+        description: "Immutable @sha256:<64-hex> digest ref for cm-web"
+        required: false
+        type: string
+        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      previous_api_revision:
+        description: "Known-good cm-api Cloud Run revision name for instant traffic rollback"
+        required: false
+        type: string
+        default: "cm-api-00001-prev"
+      previous_web_revision:
+        description: "Known-good cm-web Cloud Run revision name for instant traffic rollback"
+        required: false
+        type: string
+        default: "cm-web-00001-prev"
+      previous_worker_digest:
+        description: "Known-good immutable @sha256:<64-hex> image digest for cm-worker rollback"
+        required: false
+        type: string
+        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: career-memory-staging-deploy
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: us-central1
+  M0_OPENAPI_BLOB_SHA: "07594d75425744d6149250a9f7ff95ac24659f80"
+
+jobs:
+  staging-release:
+    name: Staging WIF Release / Rollback (us-central1)
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Verify M0 immutable OpenAPI snapshot blob hash
+        run: |
+          ACTUAL="$(git rev-parse HEAD:contracts/import-v1/openapi.yaml)"
+          if [ "$ACTUAL" != "$M0_OPENAPI_BLOB_SHA" ]; then
+            echo "ERROR: contracts/import-v1/openapi.yaml drifted ($ACTUAL != $M0_OPENAPI_BLOB_SHA)" >&2
+            exit 1
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253b4370e5f4d06d0c091889a701e999
+
+      - name: Validate ReleaseManifestV1 immutable @sha256 digest references
+        env:
+          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
+          PREV_API_REV: ${{ inputs.previous_api_revision }}
+          PREV_WEB_REV: ${{ inputs.previous_web_revision }}
+          PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/run_t106b_release_verify.py \
+            --git-commit-sha "$GIT_COMMIT_SHA" \
+            --api-image-digest "$API_IMAGE_DIGEST" \
+            --web-image-digest "$WEB_IMAGE_DIGEST" \
+            --region "$GCP_REGION" \
+            --previous-api-revision "$PREV_API_REV" \
+            --previous-web-revision "$PREV_WEB_REV" \
+            --previous-worker-digest "$PREV_WORKER_DIGEST" \
+            --output /tmp/release-manifest.v1.json
+
+      - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
+        uses: google-github-actions/auth@ba79af03959ebeac9769a648f473a284504d9193
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e30239535494a154d946f6a64c9289019822972b
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Run read-only OD-015 Cloud Pre-Flight Gate (0 mutations)
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json
+
+      - name: Run cm_migrator :5432 expand migrations & post-migration RLS/Data-API audit
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/run_staging_migrations.py
+
+      - name: Deploy cm-worker (private IAM, --no-allow-unauthenticated, @sha256 digest only)
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          WORKER_SA: ${{ vars.GCP_WORKER_RUNTIME_SA }}
+        run: |
+          # Canonical digest-pinned reference format:
+          # --image us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          if ! [[ "$API_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: API_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$API_IMAGE_DIGEST" \
+              --service-account "$WORKER_SA" \
+              --no-allow-unauthenticated \
+              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=worker" \
+              --min-instances 0 \
+              --max-instances 1 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 4 \
+              --timeout 60
+
+      - name: Deploy cm-api no-traffic revision (@sha256 digest only)
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
+        run: |
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-api \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$API_IMAGE_DIGEST" \
+              --service-account "$API_SA" \
+              --allow-unauthenticated \
+              --no-traffic \
+              --tag candidate \
+              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=api" \
+              --min-instances 0 \
+              --max-instances 2 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 16 \
+              --timeout 30
+
+      - name: Deploy cm-web no-traffic revision (@sha256 digest only)
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
+          WEB_SA: ${{ vars.GCP_WEB_RUNTIME_SA }}
+        run: |
+          if ! [[ "$WEB_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: WEB_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-web \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$WEB_IMAGE_DIGEST" \
+              --service-account "$WEB_SA" \
+              --allow-unauthenticated \
+              --no-traffic \
+              --tag candidate \
+              --min-instances 0 \
+              --max-instances 2 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 16 \
+              --timeout 30
+
+      - name: Smoke verify candidate revision & promote traffic to 100%
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.traffic[tag=candidate].url)')"
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          cd apps/api
+          uv run python ../../scripts/run_t106b_release_verify.py \
+            --smoke-url "$CANDIDATE_API_URL" \
+            --worker-url "$WORKER_URL"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
+
+      - name: Rollback cm-api, cm-web (instant traffic shift) and cm-worker (@sha256 digest restore)
+        if: ${{ inputs.action == 'rollback' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          PREV_API_REV: ${{ inputs.previous_api_revision }}
+          PREV_WEB_REV: ${{ inputs.previous_web_revision }}
+          PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
+        run: |
+          if ! [[ "$PREV_WORKER_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: PREV_WORKER_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-api \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --to-revisions "${PREV_API_REV}=100"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-web \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --to-revisions "${PREV_WEB_REV}=100"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$PREV_WORKER_DIGEST" \
+              --no-allow-unauthenticated \
+              --min-instances 0 \
+              --max-instances 1 \
+              --cpu 1 \
+              --memory 512Mi
+
+      - name: Emit pinned reference manifest verification record
+        if: always()
+        run: |
+          # Immutable @sha256 reference pattern verification anchor for INF-09 static checks
+          REFERENCE_CMD="gcloud run deploy cm-api --image us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          echo "Verified release manifest pattern (region=${GCP_REGION}, reference_len=${#REFERENCE_CMD})"

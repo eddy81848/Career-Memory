@@ -49,6 +49,27 @@ FORBIDDEN_RAW_TEXT_KEYS: frozenset[str] = frozenset(
     }
 )
 
+# Exact 1:1 mirror of public.cm_jsonb_contains_forbidden_secret_key(jsonb) in 0040.
+FORBIDDEN_SECRET_KEYS: frozenset[str] = frozenset(
+    {
+        "access_token",
+        "refresh_token",
+        "bearer_token",
+        "authorization",
+        "client_secret",
+        "password",
+        "api_key",
+        "private_key",
+        "pkce_code_verifier",
+        "oauth_token",
+        "github_token",
+        "secret_value",
+        "session_token",
+        "cookie",
+        "set_cookie",
+    }
+)
+
 # Recommended metadata key whitelists for strict producer validation.
 ALLOWED_ANCHOR_KEYS: frozenset[str] = frozenset(
     {
@@ -210,6 +231,39 @@ def assert_no_forbidden_raw_keys(
         formatted = ", ".join(f"{path} ({key})" for path, key in violations)
         raise RawTextPersistenceViolationError(
             f"{field_name} contains forbidden Plan C raw-text key(s): {formatted}",
+            violations=violations,
+        )
+
+
+def find_forbidden_secret_keys(payload: Any, path: str = "$") -> list[tuple[str, str]]:
+    """Recursively locate any forbidden secret/credential JSON keys inside dicts/lists."""
+    found: list[tuple[str, str]] = []
+    if isinstance(payload, Mapping):
+        for raw_key, value in payload.items():
+            key_str = str(raw_key)
+            key_path = f"{path}.{key_str}"
+            if key_str.lower() in FORBIDDEN_SECRET_KEYS:
+                found.append((key_path, key_str))
+            found.extend(find_forbidden_secret_keys(value, key_path))
+    elif isinstance(payload, (list, tuple)):
+        for index, item in enumerate(payload):
+            found.extend(find_forbidden_secret_keys(item, f"{path}[{index}]"))
+    return found
+
+
+def assert_no_forbidden_secret_keys(
+    payload: Mapping[str, Any], *, field_name: str = "metadata"
+) -> None:
+    """Validate that ``payload`` is a JSON object with zero forbidden secret keys."""
+    if not isinstance(payload, Mapping):
+        raise RawTextPersistenceViolationError(
+            f"{field_name} must be a JSON object (mapping)."
+        )
+    violations = find_forbidden_secret_keys(payload)
+    if violations:
+        formatted = ", ".join(f"{path} ({key})" for path, key in violations)
+        raise RawTextPersistenceViolationError(
+            f"{field_name} contains forbidden secret key(s): {formatted}",
             violations=violations,
         )
 

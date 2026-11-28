@@ -36,7 +36,8 @@ from career_memory_api.canonicalization import (
     canonicalize_source_bytes,
     parse_content_units,
 )
-from career_memory_api.jobs.models import AuditActorType
+from career_memory_api.deletion.fence import assert_resources_not_deletion_fenced
+from career_memory_api.jobs.models import AuditActorType, DeletionFenceActiveError
 from career_memory_api.jobs.postgres_runtime import (
     bind_worker_workspace_context,
     is_deletion_fence_active,
@@ -126,6 +127,7 @@ class DerivedUnitIngestionProcessor:
         resolver_service: RefetchResolverService | None = None,
         security_policy: EndpointSecurityPolicy | None = None,
         budget: OperationBudgetConfig | None = None,
+        before_commit_hook: Callable[..., None] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._worker_connection_factory = worker_connection_factory
@@ -137,6 +139,7 @@ class DerivedUnitIngestionProcessor:
             max_total_bytes=64 * 1024 * 1024,
             max_unit_bytes=5 * 1024 * 1024,
         )
+        self._before_commit_hook = before_commit_hook
         self._clock = clock or (lambda: datetime.now(UTC))
 
     def process_import_ready_run(
@@ -526,12 +529,27 @@ class DerivedUnitIngestionProcessor:
 
             parsed = parse_content_units(canon.document, source_kind)
             # Ephemeral raw text is dropped right after parsing; persist ONLY metadata (Plan C!)
-            inserted_for_rev = self._persist_content_units_metadata(
-                ws_uuid=ws_uuid,
-                revision_id=rev_id,
-                persisted_metadata=parsed.persisted_metadata,
-                ts=self._clock(),
-            )
+            try:
+                inserted_for_rev = self._persist_content_units_metadata(
+                    ws_uuid=ws_uuid,
+                    resource_id=resource_id,
+                    revision_id=rev_id,
+                    persisted_metadata=parsed.persisted_metadata,
+                    ts=self._clock(),
+                )
+            except DeletionFenceActiveError:
+                return self._block_run_processing(
+                    ws_uuid=ws_uuid,
+                    run_uuid=run_uuid,
+                    resource_id=resource_id,
+                    processing_status=ProcessingStatus.BLOCKED_POLICY,
+                    reason_code="DELETION_FENCE_ACTIVE",
+                    blocked_revision_id=rev_id,
+                    revisions_processed=revisions_processed,
+                    units_inserted=units_inserted,
+                    observed_visibility=None,
+                    ts=self._clock(),
+                )
             units_inserted += inserted_for_rev
             revisions_processed += 1
 
@@ -625,6 +643,7 @@ class DerivedUnitIngestionProcessor:
         self,
         *,
         ws_uuid: str,
+        resource_id: str,
         revision_id: str,
         persisted_metadata: tuple[Any, ...],
         ts: datetime,
@@ -636,6 +655,9 @@ class DerivedUnitIngestionProcessor:
             with conn.transaction():
                 with conn.cursor() as cur:
                     bind_worker_workspace_context(cur, ws_uuid)
+                    assert_resources_not_deletion_fenced(
+                        cur, ws_uuid, [resource_id], context="derived_units_pre_write"
+                    )
                     for idx, meta in enumerate(persisted_metadata):
                         anchor = meta.to_persisted_anchor_dict()
                         # Strip Plan C forbidden keys (text_content/content_ref are columns, not anchor keys)
@@ -674,6 +696,12 @@ class DerivedUnitIngestionProcessor:
                         )
                         if cur.fetchone() is not None:
                             inserted += 1
+                    if self._before_commit_hook is not None:
+                        self._before_commit_hook("derived_units_persist", cur)
+                    # DELETE-07 pre-commit fence recheck (0 resurrected content_units!)
+                    assert_resources_not_deletion_fenced(
+                        cur, ws_uuid, [resource_id], context="derived_units_pre_commit"
+                    )
         return inserted
 
     def _block_run_processing(

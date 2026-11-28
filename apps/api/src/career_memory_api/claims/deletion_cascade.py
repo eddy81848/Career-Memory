@@ -358,7 +358,23 @@ def execute_source_deletion_m4_cascade(
                 )
                 purged_objs = int(cur.rowcount or 0)
 
-            # 9. Mark source_resources DELETED & deletion_jobs SUCCEEDED
+            # 9. Purge search_entries if 0080 table exists, mark source_resources DELETED & deletion_jobs SUCCEEDED
+            cur.execute("SELECT to_regclass('public.search_entries') IS NOT NULL")
+            if bool((cur.fetchone() or (False,))[0]):
+                cur.execute(
+                    """
+                    DELETE FROM public.search_entries
+                    WHERE workspace_id = %s::uuid
+                      AND (
+                          source_resource_id = %s::uuid
+                          OR (
+                              projection_metadata ? 'linked_resource_ids'
+                              AND projection_metadata -> 'linked_resource_ids' ? %s
+                          )
+                      )
+                    """,
+                    (ws_id, source_resource_id, source_resource_id),
+                )
             cur.execute(
                 """
                 UPDATE public.source_resources

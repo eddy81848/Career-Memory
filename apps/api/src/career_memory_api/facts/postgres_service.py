@@ -202,6 +202,7 @@ class PostgresFactService:
         validator: FactSupportValidator | None = None,
         normalizer: CanonicalFactNormalizer | None = None,
         before_commit_hook: BeforeCommitHook | None = None,
+        search_indexer: Any | None = None,
         now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._api_connection_factory = api_connection_factory
@@ -213,7 +214,23 @@ class PostgresFactService:
         self._validator = validator or FactSupportValidator(stage_runner=default_runner)
         self._normalizer = normalizer or CanonicalFactNormalizer()
         self._before_commit_hook = before_commit_hook
+        self._search_indexer = search_indexer
         self._now_fn = now_fn or utc_now
+
+    def _sync_search_facts_if_configured(
+        self,
+        cur: psycopg.Cursor,
+        *,
+        workspace_id: str,
+        fact_ids: Sequence[str],
+        now: datetime,
+    ) -> None:
+        if self._search_indexer is None:
+            return
+        for fid in fact_ids:
+            self._search_indexer.sync_fact_in_tx(
+                cur, workspace_id=workspace_id, fact_id=fid, now=now
+            )
 
     # =========================================================================
     # 1. HTTP Read API: GET /v1/facts & GET /v1/facts/{fact_id}/supports
@@ -531,6 +548,9 @@ class PostgresFactService:
                     created_at=ts,
                 )
 
+                self._sync_search_facts_if_configured(
+                    cur, workspace_id=access.workspace_id, fact_ids=[fact_uuid], now=ts
+                )
                 _invoke_before_commit_hook(
                     self._before_commit_hook, action="approve_fact", cur=cur
                 )
@@ -692,6 +712,9 @@ class PostgresFactService:
                     created_at=ts,
                 )
 
+                self._sync_search_facts_if_configured(
+                    cur, workspace_id=access.workspace_id, fact_ids=[fact_uuid], now=ts
+                )
                 _invoke_before_commit_hook(
                     self._before_commit_hook, action="reject_fact", cur=cur
                 )
@@ -957,6 +980,9 @@ class PostgresFactService:
                     created_at=ts,
                 )
 
+                self._sync_search_facts_if_configured(
+                    cur, workspace_id=access.workspace_id, fact_ids=[fact_uuid, new_fact_id], now=ts
+                )
                 _invoke_before_commit_hook(
                     self._before_commit_hook, action="edit_fact", cur=cur
                 )
@@ -1182,6 +1208,9 @@ class PostgresFactService:
                     self._before_commit_hook, action="extract_candidates_for_unit", cur=cur
                 )
                 self._assert_live_workspace_membership(cur, access)
+                self._assert_no_active_deletion_fence_for_event(
+                    cur, workspace_id=access.workspace_id, event_id=evt_uuid
+                )
 
         return FactExtractionUnitResult(
             extractor_run_id=result.extractor_run_id,
@@ -1518,12 +1547,21 @@ class PostgresFactService:
                     )
                     hydrated_facts.append(updated_fact)
 
+                self._sync_search_facts_if_configured(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    fact_ids=[f.fact_id for f in hydrated_facts],
+                    now=ts,
+                )
                 _invoke_before_commit_hook(
                     self._before_commit_hook,
                     action="validate_and_normalize_candidates",
                     cur=cur,
                 )
                 self._assert_live_workspace_membership(cur, access)
+                self._assert_no_active_deletion_fence_for_event(
+                    cur, workspace_id=access.workspace_id, event_id=evt_uuid
+                )
 
         return EventFactPipelineResult(
             event_id=evt_uuid,

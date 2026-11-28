@@ -1669,6 +1669,91 @@
         "title": "DeleteExportResponse",
         "type": "object"
       },
+      "DeletionComponent": {
+        "enum": [
+          "AUTHORITATIVE_DOMAIN",
+          "FTS_INDEX",
+          "EPHEMERAL_CACHE",
+          "EXPORTS",
+          "JOBS_AND_OUTBOX"
+        ],
+        "type": "string"
+      },
+      "DeletionComponentReceiptItem": {
+        "additionalProperties": false,
+        "description": "Per-component receipt row for a source deletion job (DELETE-05 / DELETE-06).",
+        "properties": {
+          "attempt": {
+            "minimum": 0,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "component": {
+            "$ref": "#/components/schemas/DeletionComponent"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Error Code"
+          },
+          "purged_count": {
+            "minimum": 0,
+            "title": "Purged Count",
+            "type": "integer"
+          },
+          "receipt_metadata": {
+            "additionalProperties": true,
+            "title": "Receipt Metadata",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeletionComponentStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component",
+          "status",
+          "attempt",
+          "purged_count",
+          "updated_at"
+        ],
+        "title": "DeletionComponentReceiptItem",
+        "type": "object"
+      },
+      "DeletionComponentStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED"
+        ],
+        "type": "string"
+      },
       "DeletionConfirmAcceptedResponse": {
         "additionalProperties": false,
         "description": "202 Accepted response for confirmed source deletion (OD-003).",
@@ -1805,6 +1890,112 @@
           "server_exports"
         ],
         "title": "DeletionImpactCounts",
+        "type": "object"
+      },
+      "DeletionJobStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "PARTIAL",
+          "SUCCEEDED",
+          "FAILED"
+        ],
+        "type": "string"
+      },
+      "DeletionJobStatusResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/deletion-jobs/{deletion_job_id} response contract (T-502 / DELETE-05..06).",
+        "properties": {
+          "checkpoint": {
+            "additionalProperties": true,
+            "title": "Checkpoint",
+            "type": "object"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/DeletionComponentReceiptItem"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "deletion_job_id": {
+            "minLength": 1,
+            "title": "Deletion Job Id",
+            "type": "string"
+          },
+          "failure_summary": {
+            "additionalProperties": true,
+            "title": "Failure Summary",
+            "type": "object"
+          },
+          "fence_active": {
+            "title": "Fence Active",
+            "type": "boolean"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Requested By"
+          },
+          "source_resource_id": {
+            "minLength": 1,
+            "title": "Source Resource Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeletionJobStatus"
+          },
+          "user_visible_state": {
+            "enum": [
+              "DELETION_PENDING",
+              "DELETED",
+              "DELETION_FAILED"
+            ],
+            "title": "User Visible State",
+            "type": "string"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deletion_job_id",
+          "workspace_id",
+          "source_resource_id",
+          "status",
+          "user_visible_state",
+          "fence_active",
+          "components",
+          "requested_at"
+        ],
+        "title": "DeletionJobStatusResponse",
         "type": "object"
       },
       "DeletionPreviewResponse": {
@@ -7507,6 +7698,78 @@
         "summary": "Ephemerally refetch and verify a persisted Content Unit (Plan C §7)",
         "tags": [
           "content-units"
+        ]
+      }
+    },
+    "/v1/deletion-jobs/{deletion_job_id}": {
+      "get": {
+        "operationId": "getDeletionJobStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deletion_job_id",
+            "required": true,
+            "schema": {
+              "title": "Deletion Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionJobStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Deletion job not found or concealed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read workspace-scoped source deletion job status and per-component cleanup receipts",
+        "tags": [
+          "source-resources"
         ]
       }
     },

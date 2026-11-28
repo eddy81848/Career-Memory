@@ -41,6 +41,7 @@ from career_memory_api.contracts_api.models import (
 from career_memory_api.contracts_api.router import (
     ContractBoundaryPort,
     InMemoryContractBoundaryService,
+    PostgresContractBoundaryService,
     create_contracts_router,
     create_m1_contract_app,
     install_contract_error_handlers,
@@ -66,6 +67,7 @@ __all__ = [
     "FORBIDDEN_VERIFICATION_WRITE_FIELDS",
     "InMemoryContractBoundaryService",
     "NonRecoverableScopes",
+    "PostgresContractBoundaryService",
     "SearchCursorPayload",
     "SearchEntityType",
     "SearchHit",

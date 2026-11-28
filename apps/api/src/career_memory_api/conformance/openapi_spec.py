@@ -35,6 +35,10 @@ from career_memory_api.contracts_api.models import (
     SearchResponse,
 )
 from career_memory_api.contracts_api.router import create_m1_contract_app
+from career_memory_api.deletion.models import (
+    DeletionComponentReceiptItem,
+    DeletionJobStatusResponse,
+)
 from career_memory_api.exports.models import (
     CreateExportRequest,
     DeleteExportResponse,
@@ -70,6 +74,7 @@ from career_memory_api.identities.models import (
     RevokeIdentityMappingRequest,
     RevokeIdentityMappingResponse,
 )
+from career_memory_api.jobs.models import DeletionJobStatus
 from career_memory_api.resolver.models import ResolutionStatus
 from career_memory_api.schema_contracts.enums import (
     ClaimAtomStatus,
@@ -77,6 +82,8 @@ from career_memory_api.schema_contracts.enums import (
     ClaimStatus,
     ClaimVerification,
     ContentUnitType,
+    DeletionComponent,
+    DeletionComponentStatus,
     EventConstraintOrigin,
     EventConstraintStatus,
     EventConstraintType,
@@ -613,6 +620,8 @@ def _shared_components() -> dict[str, Any]:
         DeletionPreviewResponse,
         DeletionConfirmRequest,
         DeletionConfirmAcceptedResponse,
+        DeletionComponentReceiptItem,
+        DeletionJobStatusResponse,
         SearchResponse,
         WorkEventListResponse,
         WorkEventDetailResponse,
@@ -706,6 +715,18 @@ def _shared_components() -> dict[str, Any]:
         "SearchEntityType": {
             "type": "string",
             "enum": [e.value for e in SearchEntityType],
+        },
+        "DeletionJobStatus": {
+            "type": "string",
+            "enum": [e.value for e in DeletionJobStatus],
+        },
+        "DeletionComponent": {
+            "type": "string",
+            "enum": [e.value for e in DeletionComponent],
+        },
+        "DeletionComponentStatus": {
+            "type": "string",
+            "enum": [e.value for e in DeletionComponentStatus],
         },
         "SyncRunMode": {
             "type": "string",

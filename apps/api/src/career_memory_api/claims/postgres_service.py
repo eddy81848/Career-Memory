@@ -259,6 +259,7 @@ class PostgresClaimService:
         allow_synthetic_fixture_mode: bool = False,
         before_lock_hook: BeforeLockHook | None = None,
         before_commit_hook: BeforeCommitHook | None = None,
+        search_indexer: Any | None = None,
         now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._api_connection_factory = api_connection_factory
@@ -276,7 +277,23 @@ class PostgresClaimService:
         self._allow_synthetic_fixture_mode = allow_synthetic_fixture_mode
         self._before_lock_hook = before_lock_hook
         self._before_commit_hook = before_commit_hook
+        self._search_indexer = search_indexer
         self._now_fn = now_fn or utc_now
+
+    def _sync_search_claims_if_configured(
+        self,
+        cur: psycopg.Cursor,
+        *,
+        workspace_id: str,
+        claim_ids: Sequence[str],
+        now: datetime,
+    ) -> None:
+        if self._search_indexer is None:
+            return
+        for cid in claim_ids:
+            self._search_indexer.sync_claim_in_tx(
+                cur, workspace_id=workspace_id, claim_id=cid, now=now
+            )
 
     # =========================================================================
     # 1. Read Endpoints: GET /v1/claims, GET /v1/claims/{id}, GET /v1/claims/{id}/supports
@@ -700,6 +717,11 @@ class PostgresClaimService:
                         },
                         created_at=ts,
                     )
+                _invoke_hook(self._before_commit_hook, action="generate_claim_draft", arg2=cur)
+                self._assert_live_workspace_membership(cur, access)
+                self._assert_no_active_deletion_fence_for_event(
+                    cur, workspace_id=access.workspace_id, event_id=bundle.event_id
+                )
         return res, created_claim_id
 
     def atomize_claim(
@@ -1238,6 +1260,11 @@ class PostgresClaimService:
                         ts,
                     ),
                 )
+                _invoke_hook(self._before_commit_hook, action="create_claim_draft", arg2=cur)
+                self._assert_live_workspace_membership(cur, access)
+                self._assert_no_active_deletion_fence_for_event(
+                    cur, workspace_id=access.workspace_id, event_id=evt_uuid
+                )
                 return ClaimBoundaryResponse(
                     claim_id=new_claim_id,
                     workspace_id=access.workspace_id,
@@ -1378,6 +1405,12 @@ class PostgresClaimService:
                         "prior_approved_preserved": current_status is ClaimStatus.APPROVED,
                     },
                     created_at=ts,
+                )
+                self._sync_search_claims_if_configured(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    claim_ids=[claim_uuid, new_claim_id],
+                    now=ts,
                 )
                 _invoke_hook(self._before_commit_hook, action="edit_claim", arg2=cur)
                 self._assert_live_workspace_membership(cur, access)
@@ -1796,6 +1829,9 @@ class PostgresClaimService:
                     created_at=approve_ts,
                 )
 
+                self._sync_search_claims_if_configured(
+                    cur, workspace_id=access.workspace_id, claim_ids=[claim_uuid], now=approve_ts
+                )
                 _invoke_hook(self._before_commit_hook, action="approve_claim", arg2=cur)
                 self._assert_live_workspace_membership(cur, access)
                 self._assert_no_active_deletion_fence_for_event(
@@ -1950,6 +1986,9 @@ class PostgresClaimService:
                     created_at=ts,
                 )
 
+                self._sync_search_claims_if_configured(
+                    cur, workspace_id=access.workspace_id, claim_ids=[claim_uuid], now=ts
+                )
                 _invoke_hook(self._before_commit_hook, action="reject_claim", arg2=cur)
                 self._assert_live_workspace_membership(cur, access)
                 self._assert_no_active_deletion_fence_for_event(

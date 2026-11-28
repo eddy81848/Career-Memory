@@ -700,27 +700,107 @@ def create_contracts_router(
     return router
 
 
-class _ClaimDelegatingContractBoundaryService(InMemoryContractBoundaryService):
-    """Delegates Claim boundary mutations to PostgresClaimService while preserving M1 search/deletion."""
+class PostgresContractBoundaryService(InMemoryContractBoundaryService):
+    """Composes PostgreSQL-backed Claim, Search (T-501), and Deletion (T-502) services onto M1 contract routes.
 
-    def __init__(self, *, claims_service: Any) -> None:
+    Any sub-service left ``None`` cleanly falls back to ``InMemoryContractBoundaryService`` so
+    incremental milestone wiring and M1 contract tests remain 100% compatible.
+    """
+
+    def __init__(
+        self,
+        *,
+        claims_service: Any | None = None,
+        search_service: Any | None = None,
+        deletion_service: Any | None = None,
+    ) -> None:
         super().__init__()
         self._claims_service = claims_service
+        self._search_service = search_service
+        self._deletion_service = deletion_service
 
     def create_claim_draft(
         self, access: WorkspaceAccessContext, request: ClaimDraftCreateRequest
     ) -> ClaimBoundaryResponse:
-        return self._claims_service.create_claim_draft(access, request)
+        if self._claims_service is not None and hasattr(self._claims_service, "create_claim_draft"):
+            return self._claims_service.create_claim_draft(access, request)
+        return super().create_claim_draft(access, request)
 
     def edit_claim(
         self, access: WorkspaceAccessContext, claim_id: str, request: ClaimEditRequest
     ) -> ClaimBoundaryResponse:
-        return self._claims_service.edit_claim(access, claim_id, request)
+        if self._claims_service is not None and hasattr(self._claims_service, "edit_claim"):
+            return self._claims_service.edit_claim(access, claim_id, request)
+        return super().edit_claim(access, claim_id, request)
 
     def approve_claim(
         self, access: WorkspaceAccessContext, claim_id: str, request: ClaimApproveRequest
     ) -> ClaimBoundaryResponse:
-        return self._claims_service.approve_claim(access, claim_id, request)
+        if self._claims_service is not None and hasattr(self._claims_service, "approve_claim"):
+            return self._claims_service.approve_claim(access, claim_id, request)
+        return super().approve_claim(access, claim_id, request)
+
+    def search(
+        self,
+        access: WorkspaceAccessContext,
+        *,
+        q: str,
+        source_resource_id: str | None,
+        entity_types: list[SearchEntityType] | None,
+        limit: int,
+        cursor: str | None,
+    ) -> SearchResponse:
+        if self._search_service is not None:
+            return self._search_service.search(
+                access,
+                q=q,
+                source_resource_id=source_resource_id,
+                entity_types=entity_types,
+                limit=limit,
+                cursor=cursor,
+            )
+        return super().search(
+            access,
+            q=q,
+            source_resource_id=source_resource_id,
+            entity_types=entity_types,
+            limit=limit,
+            cursor=cursor,
+        )
+
+    def preview_source_deletion(
+        self, access: WorkspaceAccessContext, *, source_resource_id: str
+    ) -> DeletionPreviewResponse:
+        if self._deletion_service is not None:
+            return self._deletion_service.preview_source_deletion(
+                access, source_resource_id=source_resource_id
+            )
+        return super().preview_source_deletion(access, source_resource_id=source_resource_id)
+
+    def confirm_source_deletion(
+        self,
+        access: WorkspaceAccessContext,
+        *,
+        source_resource_id: str,
+        idempotency_key: str,
+        request: DeletionConfirmRequest,
+    ) -> DeletionConfirmAcceptedResponse:
+        if self._deletion_service is not None:
+            return self._deletion_service.confirm_source_deletion(
+                access,
+                source_resource_id=source_resource_id,
+                idempotency_key=idempotency_key,
+                request=request,
+            )
+        return super().confirm_source_deletion(
+            access,
+            source_resource_id=source_resource_id,
+            idempotency_key=idempotency_key,
+            request=request,
+        )
+
+
+_ClaimDelegatingContractBoundaryService = PostgresContractBoundaryService
 
 
 def create_m1_contract_app(
@@ -734,25 +814,34 @@ def create_m1_contract_app(
     facts_service: Any | None = None,
     claims_service: Any | None = None,
     exports_service: Any | None = None,
+    search_service: Any | None = None,
+    deletion_service: Any | None = None,
     resolve_access: AccessResolver | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the full integrated contract surface (no BYOK / LLM callbacks)."""
     from career_memory_api.app import create_app
     from career_memory_api.claims.router import create_claims_router
+    from career_memory_api.deletion.router import create_deletion_router
     from career_memory_api.exports.router import create_exports_router
     from career_memory_api.facts.router import create_facts_router
     from career_memory_api.identities.router import create_identities_router
     from career_memory_api.work_events.router import create_work_events_router
 
     effective_contracts_service: ContractBoundaryPort | None = contracts_service
-    if effective_contracts_service is None and claims_service is not None:
-        if all(
+    if effective_contracts_service is None and (
+        claims_service is not None
+        or search_service is not None
+        or deletion_service is not None
+    ):
+        has_claim_boundary = claims_service is not None and all(
             hasattr(claims_service, m)
             for m in ("create_claim_draft", "edit_claim", "approve_claim")
-        ):
-            effective_contracts_service = _ClaimDelegatingContractBoundaryService(
-                claims_service=claims_service
-            )
+        )
+        effective_contracts_service = PostgresContractBoundaryService(
+            claims_service=claims_service if has_claim_boundary else None,
+            search_service=search_service,
+            deletion_service=deletion_service,
+        )
 
     contracts_router = create_contracts_router(
         service=effective_contracts_service,
@@ -779,6 +868,10 @@ def create_m1_contract_app(
         service=exports_service,
         resolve_access=resolve_access,
     )
+    deletion_router = create_deletion_router(
+        service=deletion_service,
+        resolve_access=resolve_access,
+    )
     app = create_app(
         settings=settings,
         access_provider=access_provider,
@@ -788,12 +881,14 @@ def create_m1_contract_app(
         facts_router=facts_router,
         claims_router=claims_router,
         exports_router=exports_router,
+        deletion_router=deletion_router,
         install_contract_handlers=True,
         install_work_events_handlers=True,
         install_identities_handlers=True,
         install_facts_handlers=True,
         install_claims_handlers=True,
         install_exports_handlers=True,
+        install_deletion_handlers=True,
     )
     install_auth_error_handlers(app)
     return app

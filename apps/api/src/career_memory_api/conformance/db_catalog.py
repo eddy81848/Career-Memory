@@ -32,6 +32,7 @@ from career_memory_api.schema_contracts.enums import (
     MIGRATION_0050_COMPOSITE_FK_SPEC,
     MIGRATION_0060_COMPOSITE_FK_SPEC,
     MIGRATION_0070_COMPOSITE_FK_SPEC,
+    MIGRATION_0080_COMPOSITE_FK_SPEC,
     READONLY_PROVENANCE_VIEWS,
 )
 
@@ -45,6 +46,7 @@ FULL_M1_MIGRATIONS: tuple[str, ...] = (
     "0050_m2_backfill_observations.sql",
     "0060_m3_event_versions_and_constraints.sql",
     "0070_m4_fact_versions_and_exports.sql",
+    "0080_m5_search_deletion_and_budgets.sql",
 )
 
 EXPECTED_ROLES: tuple[str, ...] = (
@@ -80,6 +82,10 @@ M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str
     *(
         (child, ("workspace_id", col), parent, ("workspace_id", "id"))
         for child, col, parent in MIGRATION_0070_COMPOSITE_FK_SPEC
+    ),
+    *(
+        (child, ("workspace_id", col), parent, ("workspace_id", "id"))
+        for child, col, parent in MIGRATION_0080_COMPOSITE_FK_SPEC
     ),
 )
 
@@ -126,6 +132,16 @@ REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("exports", "ck_exports_artifact_payload_no_raw"),
     ("exports", "ck_exports_artifact_payload_no_secret"),
     ("export_claims", "ck_export_claims_snapshot_no_raw"),
+    ("search_entries", "ck_search_entries_metadata_no_raw"),
+    ("search_entries", "ck_search_entries_metadata_no_secret"),
+    ("search_runs", "ck_search_runs_metadata_no_raw"),
+    ("search_runs", "ck_search_runs_metadata_no_secret"),
+    ("deletion_component_receipts", "ck_deletion_component_receipts_metadata_no_raw"),
+    ("deletion_component_receipts", "ck_deletion_component_receipts_metadata_no_secret"),
+    ("workspace_quota_ledgers", "ck_workspace_quota_ledgers_metadata_no_raw"),
+    ("workspace_quota_ledgers", "ck_workspace_quota_ledgers_metadata_no_secret"),
+    ("runtime_pause_controls", "ck_runtime_pause_controls_metadata_no_raw"),
+    ("runtime_pause_controls", "ck_runtime_pause_controls_metadata_no_secret"),
 )
 
 CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
@@ -136,6 +152,9 @@ CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
     "uq_jobs_active_or_succeeded_logical_effect",
     "uq_outbox_events_single_import_ready_per_run",
     "uq_event_constraints_active_pair",
+    "uq_deletion_jobs_single_active_per_resource",
+    "uq_runtime_pause_controls_workspace_scope",
+    "uq_runtime_pause_controls_resource_scope",
 )
 
 
@@ -1025,7 +1044,81 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 )
             conn.commit()
 
-        # Stage 8: Re-apply 0010 -> ... -> 0070 (full idempotency) & verify data preservation
+        # Stage 8: 0080 + seed search_entries, search_runs, deletion_component_receipts, quotas & pause controls
+        search_entry_id = str(uuid.uuid4())
+        search_run_id = str(uuid.uuid4())
+        del_job_id = str(uuid.uuid4())
+        receipt_id = str(uuid.uuid4())
+        quota_id = str(uuid.uuid4())
+        pause_id = str(uuid.uuid4())
+        cluster.apply_sql_file(staged_db, migration_paths[7])
+        with psycopg.connect(cluster.dsn(staged_db)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.search_entries (
+                        id, workspace_id, source_resource_id, entity_type, entity_id,
+                        entity_version, status_projection, title_or_summary,
+                        search_tokens_text, index_version
+                    ) VALUES (
+                        %s, %s, %s, 'WORK_EVENT', %s,
+                        1, 'CONFIRMED', 'Staged Upgrade Event',
+                        'staged upgrade event latency', 'fts-index-v1'
+                    )
+                    """,
+                    (search_entry_id, ws_id, res_id, evt_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.search_runs (
+                        id, workspace_id, source_resource_id, query_hash,
+                        entity_types, index_version, ranking_version,
+                        candidate_limit, page_limit, cursor_offset,
+                        raw_candidate_count, lag_filtered_count, returned_count, degraded_mode
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        ARRAY['WORK_EVENT']::text[], 'fts-index-v1', 'rank-bm25-v1',
+                        200, 20, 0, 1, 0, 1, false
+                    )
+                    """,
+                    (search_run_id, ws_id, res_id, f"sha256:{digest}"),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.deletion_jobs (
+                        id, workspace_id, source_resource_id, status
+                    ) VALUES (%s, %s, %s, 'PENDING')
+                    """,
+                    (del_job_id, ws_id, res_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.deletion_component_receipts (
+                        id, workspace_id, deletion_job_id, component, status
+                    ) VALUES (%s, %s, %s, 'FTS_INDEX', 'PENDING')
+                    """,
+                    (receipt_id, ws_id, del_job_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.workspace_quota_ledgers (
+                        id, workspace_id, period_key, metric_kind,
+                        used_value, soft_warning_limit, hard_cutoff_limit
+                    ) VALUES (%s, %s, '2026-11', 'SEARCH_QUERIES', 1, 100, 500)
+                    """,
+                    (quota_id, ws_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.runtime_pause_controls (
+                        id, workspace_id, scope_kind, source_resource_id, pause_state
+                    ) VALUES (%s, %s, 'WORKSPACE', NULL, 'ACTIVE')
+                    """,
+                    (pause_id, ws_id),
+                )
+            conn.commit()
+
+        # Stage 9: Re-apply 0010 -> ... -> 0080 (full idempotency) & verify data preservation
         for path in migration_paths:
             cluster.apply_sql_file(staged_db, path)
 
@@ -1067,6 +1160,31 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 cur.execute(
                     "SELECT COUNT(*) FROM public.export_claims WHERE id = %s",
                     (export_claim_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.search_entries WHERE id = %s",
+                    (search_entry_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.search_runs WHERE id = %s",
+                    (search_run_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.deletion_component_receipts WHERE id = %s",
+                    (receipt_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.workspace_quota_ledgers WHERE id = %s",
+                    (quota_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.runtime_pause_controls WHERE id = %s",
+                    (pause_id,),
                 )
                 assert cur.fetchone() == (1,)
             staged_snapshot = introspect_postgres_catalog(conn)

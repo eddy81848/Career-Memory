@@ -6,7 +6,8 @@
     "0040_sync_runs_jobs_outbox_audit.sql",
     "0050_m2_backfill_observations.sql",
     "0060_m3_event_versions_and_constraints.sql",
-    "0070_m4_fact_versions_and_exports.sql"
+    "0070_m4_fact_versions_and_exports.sql",
+    "0080_m5_search_deletion_and_budgets.sql"
   ],
   "roles": {
     "cm_api_app": {
@@ -32,10 +33,11 @@
         "ck_api_idempotency_24h_exact": "CHECK ((expires_at = (created_at + '24:00:00'::interval)))",
         "ck_api_idempotency_fingerprint_sha256": "CHECK ((request_fingerprint ~ '^[0-9a-f]{64}$'::text))",
         "ck_api_idempotency_key_uuid": "CHECK ((idempotency_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text))",
-        "ck_api_idempotency_operation_scope": "CHECK ((operation_scope = ANY (ARRAY['SYNC_RUN_CREATE'::text, 'SYNC_RUN_RETRY'::text])))",
+        "ck_api_idempotency_operation_scope": "CHECK ((operation_scope = ANY (ARRAY['SYNC_RUN_CREATE'::text, 'SYNC_RUN_RETRY'::text, 'CONFIRM_SOURCE_DELETION'::text])))",
         "ck_api_idempotency_response_body_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(response_body)))",
         "ck_api_idempotency_response_body_object": "CHECK ((jsonb_typeof(response_body) = 'object'::text))",
-        "ck_api_idempotency_response_status_202": "CHECK ((response_status = 202))"
+        "ck_api_idempotency_response_status_202": "CHECK ((response_status = 202))",
+        "ck_api_idempotency_target_consistency": "CHECK ((((operation_scope = ANY (ARRAY['SYNC_RUN_CREATE'::text, 'SYNC_RUN_RETRY'::text])) AND (target_sync_run_id IS NOT NULL) AND (target_deletion_job_id IS NULL)) OR ((operation_scope = 'CONFIRM_SOURCE_DELETION'::text) AND (target_deletion_job_id IS NOT NULL) AND (target_sync_run_id IS NULL))))"
       },
       "columns": [
         "workspace_id",
@@ -46,7 +48,8 @@
         "response_status",
         "response_body",
         "created_at",
-        "expires_at"
+        "expires_at",
+        "target_deletion_job_id"
       ],
       "forcerowsecurity": true,
       "foreign_keys": [
@@ -59,6 +62,18 @@
             "id"
           ],
           "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "target_deletion_job_id"
+          ],
+          "name": "fk_api_idempotency_same_workspace_deletion_job",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "deletion_jobs"
         },
         {
           "child_columns": [
@@ -730,6 +745,80 @@
       ],
       "rowsecurity": true
     },
+    "deletion_component_receipts": {
+      "check_constraints": {
+        "ck_deletion_component_receipts_attempt_non_negative": "CHECK ((attempt >= 0))",
+        "ck_deletion_component_receipts_completed_at_consistency": "CHECK ((((status = 'SUCCEEDED'::text) AND (completed_at IS NOT NULL)) OR ((status <> 'SUCCEEDED'::text) AND (completed_at IS NULL))))",
+        "ck_deletion_component_receipts_component": "CHECK ((component = ANY (ARRAY['AUTHORITATIVE_DOMAIN'::text, 'FTS_INDEX'::text, 'EPHEMERAL_CACHE'::text, 'EXPORTS'::text, 'JOBS_AND_OUTBOX'::text])))",
+        "ck_deletion_component_receipts_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(receipt_metadata)))",
+        "ck_deletion_component_receipts_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(receipt_metadata)))",
+        "ck_deletion_component_receipts_metadata_object": "CHECK ((jsonb_typeof(receipt_metadata) = 'object'::text))",
+        "ck_deletion_component_receipts_purged_count_non_negative": "CHECK ((purged_count >= 0))",
+        "ck_deletion_component_receipts_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'RUNNING'::text, 'SUCCEEDED'::text, 'FAILED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "deletion_job_id",
+        "component",
+        "status",
+        "attempt",
+        "purged_count",
+        "last_error_code",
+        "receipt_metadata",
+        "updated_at",
+        "completed_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "deletion_component_receipts_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "deletion_job_id"
+          ],
+          "name": "fk_deletion_component_receipts_same_workspace_job",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "deletion_jobs"
+        }
+      ],
+      "indexes": [
+        "deletion_component_receipts_pkey",
+        "idx_deletion_component_receipts_workspace_job",
+        "uq_deletion_component_receipts_job_component",
+        "uq_deletion_component_receipts_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "deletion_component_receipts_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "deletion_component_receipts_worker_workspace_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
     "deletion_jobs": {
       "check_constraints": {
         "ck_deletion_jobs_checkpoint_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(checkpoint)))",
@@ -778,6 +867,7 @@
       "indexes": [
         "deletion_jobs_pkey",
         "idx_deletion_jobs_active_fence",
+        "uq_deletion_jobs_single_active_per_resource",
         "uq_deletion_jobs_workspace_id_id"
       ],
       "owner": "cm_migrator",
@@ -2305,6 +2395,236 @@
       ],
       "rowsecurity": true
     },
+    "runtime_pause_controls": {
+      "check_constraints": {
+        "ck_runtime_pause_controls_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(control_metadata)))",
+        "ck_runtime_pause_controls_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(control_metadata)))",
+        "ck_runtime_pause_controls_metadata_object": "CHECK ((jsonb_typeof(control_metadata) = 'object'::text))",
+        "ck_runtime_pause_controls_pause_state": "CHECK ((pause_state = ANY (ARRAY['ACTIVE'::text, 'PAUSED_QUOTA'::text, 'PAUSED_CIRCUIT_BREAKER'::text, 'PAUSED_OPERATOR'::text])))",
+        "ck_runtime_pause_controls_scope_kind": "CHECK ((scope_kind = ANY (ARRAY['WORKSPACE'::text, 'SOURCE_RESOURCE'::text])))",
+        "ck_runtime_pause_controls_scope_resource_consistency": "CHECK ((((scope_kind = 'WORKSPACE'::text) AND (source_resource_id IS NULL)) OR ((scope_kind = 'SOURCE_RESOURCE'::text) AND (source_resource_id IS NOT NULL))))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "scope_kind",
+        "source_resource_id",
+        "pause_state",
+        "reason_code",
+        "paused_by_actor_id",
+        "control_metadata",
+        "paused_at",
+        "resumed_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_runtime_pause_controls_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "runtime_pause_controls_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "runtime_pause_controls_pkey",
+        "uq_runtime_pause_controls_resource_scope",
+        "uq_runtime_pause_controls_workspace_id_id",
+        "uq_runtime_pause_controls_workspace_scope"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "runtime_pause_controls_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "runtime_pause_controls_worker_workspace_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "search_entries": {
+      "check_constraints": {
+        "ck_search_entries_entity_type": "CHECK ((entity_type = ANY (ARRAY['WORK_EVENT'::text, 'FACT'::text, 'CLAIM'::text])))",
+        "ck_search_entries_entity_version_positive": "CHECK ((entity_version >= 1))",
+        "ck_search_entries_index_version_non_empty": "CHECK ((length(btrim(index_version)) > 0))",
+        "ck_search_entries_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(projection_metadata)))",
+        "ck_search_entries_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(projection_metadata)))",
+        "ck_search_entries_metadata_object": "CHECK ((jsonb_typeof(projection_metadata) = 'object'::text))",
+        "ck_search_entries_status_non_empty": "CHECK ((length(btrim(status_projection)) > 0))",
+        "ck_search_entries_title_bounds": "CHECK (((length(btrim(title_or_summary)) > 0) AND (length(title_or_summary) <= 2000)))",
+        "ck_search_entries_tokens_bounds": "CHECK ((length(search_tokens_text) <= 8000))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "entity_type",
+        "entity_id",
+        "entity_version",
+        "status_projection",
+        "title_or_summary",
+        "search_tokens_text",
+        "search_tsv",
+        "index_version",
+        "projection_metadata",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_search_entries_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "search_entries_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_search_entries_tsv",
+        "idx_search_entries_workspace_resource_type",
+        "search_entries_pkey",
+        "uq_search_entries_workspace_entity",
+        "uq_search_entries_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "search_entries_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "search_entries_worker_workspace_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "search_runs": {
+      "check_constraints": {
+        "ck_search_runs_candidate_limit_positive": "CHECK ((candidate_limit >= 1))",
+        "ck_search_runs_counts_non_negative": "CHECK (((raw_candidate_count >= 0) AND (lag_filtered_count >= 0) AND (returned_count >= 0)))",
+        "ck_search_runs_cursor_offset_non_negative": "CHECK ((cursor_offset >= 0))",
+        "ck_search_runs_index_version_non_empty": "CHECK ((length(btrim(index_version)) > 0))",
+        "ck_search_runs_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(run_metadata)))",
+        "ck_search_runs_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(run_metadata)))",
+        "ck_search_runs_metadata_object": "CHECK ((jsonb_typeof(run_metadata) = 'object'::text))",
+        "ck_search_runs_page_limit_bounds": "CHECK (((page_limit >= 1) AND (page_limit <= 100)))",
+        "ck_search_runs_query_hash_sha256": "CHECK ((query_hash ~ '^sha256:[0-9a-f]{64}$'::text))",
+        "ck_search_runs_ranking_version_non_empty": "CHECK ((length(btrim(ranking_version)) > 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "query_hash",
+        "entity_types",
+        "index_version",
+        "ranking_version",
+        "candidate_limit",
+        "page_limit",
+        "cursor_offset",
+        "raw_candidate_count",
+        "lag_filtered_count",
+        "returned_count",
+        "degraded_mode",
+        "run_metadata",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_search_runs_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        },
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "search_runs_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_search_runs_workspace_created",
+        "search_runs_pkey",
+        "uq_search_runs_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "search_runs_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "search_runs_worker_workspace_isolation",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
     "source_accounts": {
       "check_constraints": {
         "chk_source_accounts_status_revoked": "CHECK ((((status = 'REVOKED'::text) AND (revoked_at IS NOT NULL)) OR ((status = 'ACTIVE'::text) AND (revoked_at IS NULL))))",
@@ -3483,6 +3803,65 @@
           "name": "workspace_memberships_api_self_active_select",
           "roles": [
             "cm_api_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "workspace_quota_ledgers": {
+      "check_constraints": {
+        "ck_workspace_quota_ledgers_limits_order": "CHECK (((soft_warning_limit >= 0) AND (hard_cutoff_limit >= soft_warning_limit)))",
+        "ck_workspace_quota_ledgers_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(ledger_metadata)))",
+        "ck_workspace_quota_ledgers_metadata_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(ledger_metadata)))",
+        "ck_workspace_quota_ledgers_metadata_object": "CHECK ((jsonb_typeof(ledger_metadata) = 'object'::text))",
+        "ck_workspace_quota_ledgers_metric_kind": "CHECK ((metric_kind = ANY (ARRAY['IMPORT_OBJECTS'::text, 'PROVIDER_REQUESTS'::text, 'REFETCH_BYTES'::text, 'EXPORT_BUILDS'::text, 'SEARCH_QUERIES'::text, 'ESTIMATED_COST_KRW'::text, 'LLM_TOKENS'::text])))",
+        "ck_workspace_quota_ledgers_period_key_non_empty": "CHECK ((length(btrim(period_key)) > 0))",
+        "ck_workspace_quota_ledgers_used_non_negative": "CHECK ((used_value >= 0))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "period_key",
+        "metric_kind",
+        "used_value",
+        "soft_warning_limit",
+        "hard_cutoff_limit",
+        "ledger_metadata",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "workspace_quota_ledgers_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        }
+      ],
+      "indexes": [
+        "idx_workspace_quota_ledgers_workspace_period",
+        "uq_workspace_quota_ledgers_workspace_id_id",
+        "uq_workspace_quota_ledgers_workspace_period_metric",
+        "workspace_quota_ledgers_pkey"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "workspace_quota_ledgers_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "ALL",
+          "name": "workspace_quota_ledgers_worker_workspace_isolation",
+          "roles": [
+            "cm_worker_app"
           ]
         }
       ],

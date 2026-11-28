@@ -66,12 +66,21 @@ MIGRATION_0070_TABLES: tuple[str, ...] = (
     "export_claims",
 )
 
+MIGRATION_0080_TABLES: tuple[str, ...] = (
+    "search_entries",
+    "search_runs",
+    "deletion_component_receipts",
+    "workspace_quota_ledgers",
+    "runtime_pause_controls",
+)
+
 TENANT_DOMAIN_TABLES: tuple[str, ...] = MIGRATION_0020_TABLES + MIGRATION_0030_TABLES
 ALL_TENANT_DOMAIN_TABLES: tuple[str, ...] = (
     TENANT_DOMAIN_TABLES
     + MIGRATION_0050_TABLES
     + MIGRATION_0060_TABLES
     + MIGRATION_0070_TABLES
+    + MIGRATION_0080_TABLES
 )
 
 READONLY_PROVENANCE_VIEWS: tuple[str, ...] = (
@@ -148,6 +157,14 @@ MIGRATION_0070_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("exports", "source_resource_id", "source_resources"),
     ("export_claims", "export_id", "exports"),
     ("export_claims", "claim_id", "claims"),
+)
+
+MIGRATION_0080_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
+    ("search_entries", "source_resource_id", "source_resources"),
+    ("search_runs", "source_resource_id", "source_resources"),
+    ("deletion_component_receipts", "deletion_job_id", "deletion_jobs"),
+    ("api_idempotency_records", "target_deletion_job_id", "deletion_jobs"),
+    ("runtime_pause_controls", "source_resource_id", "source_resources"),
 )
 
 
@@ -481,3 +498,43 @@ class ExportVerificationClass(StrEnum):
     SOURCE_VERIFIED = "SOURCE_VERIFIED"
     USER_CONFIRMED = "USER_CONFIRMED"
     MIXED = "MIXED"
+
+
+# =============================================================================
+# Migration 0080 — M5 Search, Deletion Receipts & Runtime Quotas/Pause Controls
+# =============================================================================
+class DeletionComponent(StrEnum):
+    AUTHORITATIVE_DOMAIN = "AUTHORITATIVE_DOMAIN"
+    FTS_INDEX = "FTS_INDEX"
+    EPHEMERAL_CACHE = "EPHEMERAL_CACHE"
+    EXPORTS = "EXPORTS"
+    JOBS_AND_OUTBOX = "JOBS_AND_OUTBOX"
+
+
+class DeletionComponentStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class QuotaMetricKind(StrEnum):
+    IMPORT_OBJECTS = "IMPORT_OBJECTS"
+    PROVIDER_REQUESTS = "PROVIDER_REQUESTS"
+    REFETCH_BYTES = "REFETCH_BYTES"
+    EXPORT_BUILDS = "EXPORT_BUILDS"
+    SEARCH_QUERIES = "SEARCH_QUERIES"
+    ESTIMATED_COST_KRW = "ESTIMATED_COST_KRW"
+    LLM_TOKENS = "LLM_TOKENS"
+
+
+class RuntimePauseScopeKind(StrEnum):
+    WORKSPACE = "WORKSPACE"
+    SOURCE_RESOURCE = "SOURCE_RESOURCE"
+
+
+class RuntimePauseState(StrEnum):
+    ACTIVE = "ACTIVE"
+    PAUSED_QUOTA = "PAUSED_QUOTA"
+    PAUSED_CIRCUIT_BREAKER = "PAUSED_CIRCUIT_BREAKER"
+    PAUSED_OPERATOR = "PAUSED_OPERATOR"

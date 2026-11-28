@@ -47,6 +47,7 @@ from career_memory_api.exports.renderer import (
     render_export_artifact,
 )
 from career_memory_api.jobs.models import AuditActorType
+from career_memory_api.jobs.postgres_runtime import is_deletion_fence_active
 from career_memory_api.llm_gate import assert_no_raw_text_or_secret_keys
 from career_memory_api.resolver.models import (
     ExportGatePrecondition,
@@ -680,6 +681,44 @@ class PostgresExportService:
                     )
                     _invoke_hook(self._before_commit_hook, action="publish_export", arg2=cur)
                     self._assert_live_workspace_membership(cur, access)
+                    # DELETE-07 / EXPORT-02 pre-commit deletion fence recheck right before commit
+                    if parsed_res_id is not None and is_deletion_fence_active(
+                        cur, access.workspace_id, parsed_res_id
+                    ):
+                        raise ExportError(
+                            status_code=409,
+                            code="DELETION_PENDING",
+                            message=(
+                                "Export commit aborted because a source resource deletion fence "
+                                "became active before publish."
+                            ),
+                            details={"export_id": export_id},
+                        )
+                    for cid in claim_uuids:
+                        try:
+                            post_hook_ev = self._verification.evaluate_claim(
+                                cur,
+                                workspace_id=access.workspace_id,
+                                claim_id=cid,
+                                current_op_matched_unit_ids=matched_unit_ids,
+                            )
+                        except LookupError as exc:
+                            raise ExportError(
+                                status_code=409,
+                                code="DELETION_PENDING",
+                                message="Export commit aborted because an exported claim was purged.",
+                                details={"export_id": export_id},
+                            ) from exc
+                        if post_hook_ev.deletion_fenced or post_hook_ev.policy_blocked:
+                            raise ExportError(
+                                status_code=409,
+                                code="DELETION_PENDING",
+                                message=(
+                                    "Export commit aborted because a source deletion or policy "
+                                    "fence became active before publish."
+                                ),
+                                details={"export_id": export_id},
+                            )
 
         if invalidated_reason is not None:
             raise ExportError(
@@ -782,6 +821,16 @@ class PostgresExportService:
                 source_resource_id = str(row[2]) if row[2] is not None else None
                 created_at = row[10]
                 completed_at = row[11]
+
+                if source_resource_id is not None and is_deletion_fence_active(
+                    cur, access.workspace_id, source_resource_id
+                ):
+                    raise ExportError(
+                        status_code=409,
+                        code="DELETION_PENDING",
+                        message="Export download is blocked while source resource deletion is active.",
+                        details={"export_id": exp_uuid},
+                    )
 
                 if status is ExportStatus.PENDING:
                     return ExportDetailResponse(

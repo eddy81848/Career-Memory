@@ -82,6 +82,8 @@ from career_memory_api.schema_contracts.enums import (
     ContentUnitType,
     ContributionRole,
     ContributionStatus,
+    DeletionComponent,
+    DeletionComponentStatus,
     EventConstraintOrigin,
     EventConstraintStatus,
     EventConstraintType,
@@ -101,12 +103,15 @@ from career_memory_api.schema_contracts.enums import (
     IdentityVerificationMethod,
     PrAssociationState,
     ProcessingMode,
+    QuotaMetricKind,
     RawStorageMode,
     RecordOrigin,
     ResourceVisibility,
     RetentionClass,
     ReviewActionType,
     ReviewTargetType,
+    RuntimePauseScopeKind,
+    RuntimePauseState,
     SourceAccountStatus,
     SourceObjectLifecycleState,
     SourceObjectType,
@@ -515,6 +520,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="DeletionJobStatus",
         enum_cls=DeletionJobStatus,
         sql_targets=(("0040_sync_runs_jobs_outbox_audit.sql", "ck_deletion_jobs_status"),),
+        openapi_schema_name="DeletionJobStatus",
     ),
     # Resolver & Search API enums
     EnumParityBinding(
@@ -527,7 +533,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
     EnumParityBinding(
         name="SearchEntityType",
         enum_cls=SearchEntityType,
-        sql_targets=(),
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_search_entries_entity_type"),),
         openapi_schema_name="SearchEntityType",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
@@ -690,6 +696,39 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         openapi_schema_name="FactCausalBasis",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
+    # 0080 M5 Search, Deletion Receipts & Runtime Quotas/Pause Controls
+    EnumParityBinding(
+        name="DeletionComponent",
+        enum_cls=DeletionComponent,
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_deletion_component_receipts_component"),),
+        openapi_schema_name="DeletionComponent",
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="DeletionComponentStatus",
+        enum_cls=DeletionComponentStatus,
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_deletion_component_receipts_status"),),
+        openapi_schema_name="DeletionComponentStatus",
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="QuotaMetricKind",
+        enum_cls=QuotaMetricKind,
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_workspace_quota_ledgers_metric_kind"),),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="RuntimePauseScopeKind",
+        enum_cls=RuntimePauseScopeKind,
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_runtime_pause_controls_scope_kind"),),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="RuntimePauseState",
+        enum_cls=RuntimePauseState,
+        sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_runtime_pause_controls_pause_state"),),
+        authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
 )
 
 
@@ -835,6 +874,7 @@ def validate_openapi_invariants(
         ("/v1/search", "get"),
         ("/v1/source-resources/{source_resource_id}/deletion-preview", "post"),
         ("/v1/source-resources/{source_resource_id}/deletion-confirm", "post"),
+        ("/v1/deletion-jobs/{deletion_job_id}", "get"),
         ("/v1/sources/github/oauth/start", "post"),
         ("/v1/sources/github/oauth/callback", "post"),
         ("/v1/source-resources", "post"),

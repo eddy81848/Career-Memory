@@ -181,11 +181,28 @@ class PostgresWorkEventMutationService:
         *,
         api_connection_factory: ConnectionFactory,
         before_commit_hook: BeforeCommitHook | None = None,
+        search_indexer: Any | None = None,
         now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._api_connection_factory = api_connection_factory
         self._before_commit_hook = before_commit_hook
+        self._search_indexer = search_indexer
         self._now_fn = now_fn or (lambda: datetime.now(UTC))
+
+    def _sync_search_events_if_configured(
+        self,
+        cur: psycopg.Cursor,
+        *,
+        workspace_id: str,
+        event_ids: Sequence[str],
+        now: datetime,
+    ) -> None:
+        if self._search_indexer is None:
+            return
+        for eid in event_ids:
+            self._search_indexer.sync_work_event_in_tx(
+                cur, workspace_id=workspace_id, event_id=eid, now=now
+            )
 
     # =========================================================================
     # 1. CONFIRM (POST /v1/work-events/{id}/actions/confirm, UI Keep)
@@ -333,10 +350,16 @@ class PostgresWorkEventMutationService:
                     created_at=now,
                 )
 
+                self._sync_search_events_if_configured(
+                    cur, workspace_id=access.workspace_id, event_ids=[ev_uuid], now=now
+                )
                 detail = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=ev_uuid
                 )
                 _invoke_before_commit_hook(self._before_commit_hook, action="CONFIRM", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur, workspace_id=access.workspace_id, events=[ev]
+                )
                 return detail
 
     # =========================================================================
@@ -531,10 +554,16 @@ class PostgresWorkEventMutationService:
                     created_at=now,
                 )
 
+                self._sync_search_events_if_configured(
+                    cur, workspace_id=access.workspace_id, event_ids=[ev_uuid], now=now
+                )
                 detail = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=ev_uuid
                 )
                 _invoke_before_commit_hook(self._before_commit_hook, action="EDIT", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur, workspace_id=access.workspace_id, events=[ev]
+                )
                 return detail
 
     # =========================================================================
@@ -711,10 +740,16 @@ class PostgresWorkEventMutationService:
                     created_at=now,
                 )
 
+                self._sync_search_events_if_configured(
+                    cur, workspace_id=access.workspace_id, event_ids=[ev_uuid], now=now
+                )
                 detail = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=ev_uuid
                 )
                 _invoke_before_commit_hook(self._before_commit_hook, action="REJECT", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur, workspace_id=access.workspace_id, events=[ev]
+                )
                 return detail
 
     # =========================================================================
@@ -1169,6 +1204,12 @@ class PostgresWorkEventMutationService:
                     created_at=now,
                 )
 
+                self._sync_search_events_if_configured(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    event_ids=[ev_uuid, *segment_ids],
+                    now=now,
+                )
                 superseded_parent = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=ev_uuid
                 )
@@ -1179,6 +1220,9 @@ class PostgresWorkEventMutationService:
                     for seg_id in segment_ids
                 ]
                 _invoke_before_commit_hook(self._before_commit_hook, action="SPLIT", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur, workspace_id=access.workspace_id, events=[parent]
+                )
                 return SplitWorkEventResponse(
                     superseded_parent=superseded_parent,
                     created_segments=created_segments,
@@ -1643,10 +1687,19 @@ class PostgresWorkEventMutationService:
                     created_at=now,
                 )
 
+                self._sync_search_events_if_configured(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    event_ids=[composite_id, *ordered_member_ids],
+                    now=now,
+                )
                 composite_detail = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=composite_id
                 )
                 _invoke_before_commit_hook(self._before_commit_hook, action="MERGE", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur, workspace_id=access.workspace_id, events=ordered_events
+                )
                 return MergeWorkEventsResponse(
                     composite_event=composite_detail,
                     superseded_member_ids=ordered_member_ids,
@@ -1933,6 +1986,12 @@ class PostgresWorkEventMutationService:
                 comp_detail = PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                     cur, workspace_id=access.workspace_id, event_id=comp_uuid
                 )
+                self._sync_search_events_if_configured(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    event_ids=[comp_uuid, *restored_member_ids],
+                    now=now,
+                )
                 restored_details = [
                     PostgresWorkEventsReadService.hydrate_work_event_detail_in_tx(
                         cur, workspace_id=access.workspace_id, event_id=m_id
@@ -1940,6 +1999,11 @@ class PostgresWorkEventMutationService:
                     for m_id in restored_member_ids
                 ]
                 _invoke_before_commit_hook(self._before_commit_hook, action="DISSOLVE", cur=cur)
+                self._enforce_live_policy_and_deletion_fence(
+                    cur,
+                    workspace_id=access.workspace_id,
+                    events=[comp, *member_events_to_check],
+                )
                 return DissolveWorkEventResponse(
                     dissolved_composite=comp_detail,
                     superseded_composite=comp_detail,

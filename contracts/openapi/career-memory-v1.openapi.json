@@ -188,6 +188,40 @@
         "title": "AffectedDownstreamImpact",
         "type": "object"
       },
+      "ApproveClaimActionRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/{claim_id}/actions/approve request payload (verification strictly absent).",
+        "properties": {
+          "acknowledge_user_confirmed_atoms": {
+            "default": false,
+            "title": "Acknowledge User Confirmed Atoms",
+            "type": "boolean"
+          },
+          "expected_support_graph_epoch": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Support Graph Epoch"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ApproveClaimActionRequest",
+        "type": "object"
+      },
       "ApproveFactRequest": {
         "additionalProperties": false,
         "description": "POST /v1/facts/{fact_id}/actions/approve request payload.",
@@ -291,6 +325,197 @@
         "title": "ClaimApproveRequest",
         "type": "object"
       },
+      "ClaimAtomDetailItem": {
+        "additionalProperties": false,
+        "description": "Detailed ClaimAtom item returned inside ClaimDetailResponse.",
+        "properties": {
+          "atom_id": {
+            "minLength": 1,
+            "title": "Atom Id",
+            "type": "string"
+          },
+          "atom_text": {
+            "minLength": 1,
+            "title": "Atom Text",
+            "type": "string"
+          },
+          "atom_type": {
+            "$ref": "#/components/schemas/ClaimAtomType"
+          },
+          "fact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fact Ids",
+            "type": "array"
+          },
+          "metric_grounding": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Metric Grounding"
+          },
+          "ordinal": {
+            "minimum": 0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "role_contribution_grounding": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Contribution Grounding"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimAtomStatus"
+          },
+          "unsupported_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unsupported Reason"
+          }
+        },
+        "required": [
+          "atom_id",
+          "ordinal",
+          "atom_type",
+          "atom_text",
+          "status"
+        ],
+        "title": "ClaimAtomDetailItem",
+        "type": "object"
+      },
+      "ClaimAtomProvenanceItem": {
+        "additionalProperties": false,
+        "description": "ClaimAtom with its full non-raw provenance chain.",
+        "properties": {
+          "atom_id": {
+            "minLength": 1,
+            "title": "Atom Id",
+            "type": "string"
+          },
+          "atom_text": {
+            "minLength": 1,
+            "title": "Atom Text",
+            "type": "string"
+          },
+          "atom_type": {
+            "$ref": "#/components/schemas/ClaimAtomType"
+          },
+          "ordinal": {
+            "minimum": 0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimAtomStatus"
+          },
+          "supports": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimAtomSupportProvenanceItem"
+            },
+            "title": "Supports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "atom_id",
+          "ordinal",
+          "atom_type",
+          "atom_text",
+          "status"
+        ],
+        "title": "ClaimAtomProvenanceItem",
+        "type": "object"
+      },
+      "ClaimAtomStatus": {
+        "enum": [
+          "SUPPORTED",
+          "USER_CONFIRMED",
+          "UNSUPPORTED",
+          "STALE"
+        ],
+        "type": "string"
+      },
+      "ClaimAtomSupportProvenanceItem": {
+        "additionalProperties": false,
+        "description": "Single ClaimAtomSupport link and its Fact -> FactSupport provenance chain.",
+        "properties": {
+          "claim_atom_support_id": {
+            "minLength": 1,
+            "title": "Claim Atom Support Id",
+            "type": "string"
+          },
+          "fact": {
+            "$ref": "#/components/schemas/ClaimSupportFactRef"
+          },
+          "fact_supports": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimSupportFactSupportRef"
+            },
+            "title": "Fact Supports",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "support_type": {
+            "$ref": "#/components/schemas/SupportType"
+          },
+          "validation_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Validation Run Id"
+          }
+        },
+        "required": [
+          "claim_atom_support_id",
+          "support_type",
+          "status",
+          "fact"
+        ],
+        "title": "ClaimAtomSupportProvenanceItem",
+        "type": "object"
+      },
+      "ClaimAtomType": {
+        "enum": [
+          "PROBLEM",
+          "ACTION",
+          "TECHNOLOGY",
+          "RESULT",
+          "ROLE",
+          "METRIC"
+        ],
+        "type": "string"
+      },
       "ClaimBoundaryResponse": {
         "additionalProperties": false,
         "description": "Claim API response exposing strictly read-only computed verification.",
@@ -339,6 +564,185 @@
           "computed_verification"
         ],
         "title": "ClaimBoundaryResponse",
+        "type": "object"
+      },
+      "ClaimDetailResponse": {
+        "additionalProperties": false,
+        "description": "Full Claim detail returned by GET /v1/claims/{claim_id} and action endpoints.",
+        "properties": {
+          "approvable": {
+            "title": "Approvable",
+            "type": "boolean"
+          },
+          "approval_block_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Approval Block Reasons",
+            "type": "array"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approved At"
+          },
+          "atom_count": {
+            "minimum": 0,
+            "title": "Atom Count",
+            "type": "integer"
+          },
+          "atoms": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimAtomDetailItem"
+            },
+            "title": "Atoms",
+            "type": "array"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_text": {
+            "minLength": 1,
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "computed_verification": {
+            "$ref": "#/components/schemas/ClaimVerification",
+            "description": "Read-only computed verification derived from active verified provenance.",
+            "readOnly": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "generator_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Generator Run Id"
+          },
+          "last_verification_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Verification Run Id"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Verified At"
+          },
+          "stale_atom_count": {
+            "minimum": 0,
+            "title": "Stale Atom Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "supersedes_claim_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes Claim Id"
+          },
+          "support_graph_epoch": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Support Graph Epoch",
+            "type": "string"
+          },
+          "supported_atom_count": {
+            "minimum": 0,
+            "title": "Supported Atom Count",
+            "type": "integer"
+          },
+          "unsupported_atom_count": {
+            "minimum": 0,
+            "title": "Unsupported Atom Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_confirmed_atom_count": {
+            "minimum": 0,
+            "title": "User Confirmed Atom Count",
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "workspace_id",
+          "event_id",
+          "version",
+          "claim_text",
+          "status",
+          "computed_verification",
+          "atom_count",
+          "supported_atom_count",
+          "user_confirmed_atom_count",
+          "unsupported_atom_count",
+          "stale_atom_count",
+          "approvable",
+          "support_graph_epoch",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ClaimDetailResponse",
         "type": "object"
       },
       "ClaimDraftCreateRequest": {
@@ -412,6 +816,63 @@
         "title": "ClaimEditRequest",
         "type": "object"
       },
+      "ClaimGenerationStatus": {
+        "enum": [
+          "SUCCEEDED",
+          "MANUAL_ONLY_BLOCKED",
+          "DRAFT_INVALID"
+        ],
+        "type": "string"
+      },
+      "ClaimListResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/claims response envelope.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimSummaryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ClaimPageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "ClaimListResponse",
+        "type": "object"
+      },
+      "ClaimPageInfo": {
+        "additionalProperties": false,
+        "description": "Pagination metadata for GET /v1/claims.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "has_more"
+        ],
+        "title": "ClaimPageInfo",
+        "type": "object"
+      },
       "ClaimStatus": {
         "enum": [
           "DRAFT",
@@ -423,6 +884,355 @@
           "SUPERSEDED"
         ],
         "type": "string"
+      },
+      "ClaimSummaryItem": {
+        "additionalProperties": false,
+        "description": "Summary projection of a single Claim version with read-only computed verification.",
+        "properties": {
+          "approvable": {
+            "title": "Approvable",
+            "type": "boolean"
+          },
+          "approval_block_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Approval Block Reasons",
+            "type": "array"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approved At"
+          },
+          "atom_count": {
+            "minimum": 0,
+            "title": "Atom Count",
+            "type": "integer"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "claim_text": {
+            "minLength": 1,
+            "title": "Claim Text",
+            "type": "string"
+          },
+          "computed_verification": {
+            "$ref": "#/components/schemas/ClaimVerification",
+            "description": "Read-only computed verification derived from active verified provenance.",
+            "readOnly": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Verified At"
+          },
+          "stale_atom_count": {
+            "minimum": 0,
+            "title": "Stale Atom Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "supersedes_claim_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes Claim Id"
+          },
+          "support_graph_epoch": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Support Graph Epoch",
+            "type": "string"
+          },
+          "supported_atom_count": {
+            "minimum": 0,
+            "title": "Supported Atom Count",
+            "type": "integer"
+          },
+          "unsupported_atom_count": {
+            "minimum": 0,
+            "title": "Unsupported Atom Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_confirmed_atom_count": {
+            "minimum": 0,
+            "title": "User Confirmed Atom Count",
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "workspace_id",
+          "event_id",
+          "version",
+          "claim_text",
+          "status",
+          "computed_verification",
+          "atom_count",
+          "supported_atom_count",
+          "user_confirmed_atom_count",
+          "unsupported_atom_count",
+          "stale_atom_count",
+          "approvable",
+          "support_graph_epoch",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ClaimSummaryItem",
+        "type": "object"
+      },
+      "ClaimSupportFactRef": {
+        "additionalProperties": false,
+        "description": "Non-raw Fact summary embedded inside GET /v1/claims/{claim_id}/supports.",
+        "properties": {
+          "fact_id": {
+            "minLength": 1,
+            "title": "Fact Id",
+            "type": "string"
+          },
+          "fact_type": {
+            "$ref": "#/components/schemas/FactType"
+          },
+          "normalized_value": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Normalized Value"
+          },
+          "object_text": {
+            "minLength": 1,
+            "title": "Object Text",
+            "type": "string"
+          },
+          "predicate": {
+            "minLength": 1,
+            "title": "Predicate",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FactStatus"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fact_id",
+          "version",
+          "fact_type",
+          "predicate",
+          "object_text",
+          "status"
+        ],
+        "title": "ClaimSupportFactRef",
+        "type": "object"
+      },
+      "ClaimSupportFactSupportRef": {
+        "additionalProperties": false,
+        "description": "Non-raw FactSupport + ContentUnit + SourceObjectRevision anchor (Plan C: zero quotes).",
+        "properties": {
+          "content_unit_id": {
+            "minLength": 1,
+            "title": "Content Unit Id",
+            "type": "string"
+          },
+          "fact_support_id": {
+            "minLength": 1,
+            "title": "Fact Support Id",
+            "type": "string"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Checked At"
+          },
+          "last_resolution_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Resolution Status"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "title": "Locator",
+            "type": "object"
+          },
+          "revision_content_hash": {
+            "minLength": 1,
+            "title": "Revision Content Hash",
+            "type": "string"
+          },
+          "revision_is_tombstone": {
+            "title": "Revision Is Tombstone",
+            "type": "boolean"
+          },
+          "revision_observed_at": {
+            "format": "date-time",
+            "title": "Revision Observed At",
+            "type": "string"
+          },
+          "source_object_revision_id": {
+            "minLength": 1,
+            "title": "Source Object Revision Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "support_type": {
+            "$ref": "#/components/schemas/SupportType"
+          },
+          "unit_type": {
+            "$ref": "#/components/schemas/ContentUnitType"
+          },
+          "validator": {
+            "$ref": "#/components/schemas/SupportValidator"
+          },
+          "validator_version": {
+            "minLength": 1,
+            "title": "Validator Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_support_id",
+          "support_type",
+          "status",
+          "validator",
+          "validator_version",
+          "content_unit_id",
+          "unit_type",
+          "source_object_revision_id",
+          "revision_content_hash",
+          "revision_observed_at",
+          "revision_is_tombstone"
+        ],
+        "title": "ClaimSupportFactSupportRef",
+        "type": "object"
+      },
+      "ClaimSupportsResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/claims/{claim_id}/supports response payload.",
+        "properties": {
+          "atoms": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimAtomProvenanceItem"
+            },
+            "title": "Atoms",
+            "type": "array"
+          },
+          "claim_id": {
+            "minLength": 1,
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "computed_verification": {
+            "$ref": "#/components/schemas/ClaimVerification",
+            "readOnly": true
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "support_graph_epoch": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Support Graph Epoch",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "claim_id",
+          "version",
+          "event_id",
+          "status",
+          "computed_verification",
+          "support_graph_epoch"
+        ],
+        "title": "ClaimSupportsResponse",
+        "type": "object"
       },
       "ClaimVerification": {
         "enum": [
@@ -776,6 +1586,88 @@
         ],
         "title": "ContributionRole",
         "type": "string"
+      },
+      "CreateExportRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/exports request payload.",
+        "properties": {
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Claim Ids",
+            "type": "array"
+          },
+          "expected_claim_versions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Claim Versions"
+          },
+          "export_policy": {
+            "$ref": "#/components/schemas/ExportPolicy",
+            "default": "SOURCE_VERIFIED_ONLY"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          }
+        },
+        "required": [
+          "format",
+          "claim_ids"
+        ],
+        "title": "CreateExportRequest",
+        "type": "object"
+      },
+      "DeleteExportResponse": {
+        "additionalProperties": false,
+        "description": "DELETE /v1/exports/{export_id} response payload.",
+        "properties": {
+          "deleted_at": {
+            "format": "date-time",
+            "title": "Deleted At",
+            "type": "string"
+          },
+          "export_id": {
+            "minLength": 1,
+            "title": "Export Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "DELETED",
+            "default": "DELETED",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_id",
+          "deleted_at"
+        ],
+        "title": "DeleteExportResponse",
+        "type": "object"
       },
       "DeletionConfirmAcceptedResponse": {
         "additionalProperties": false,
@@ -1675,6 +2567,322 @@
         "title": "EventVersionSnapshotItem",
         "type": "object"
       },
+      "ExportDetailResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/exports and GET /v1/exports/{export_id} response payload (Plan C: zero quotes).",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Deleted At"
+          },
+          "export_id": {
+            "minLength": 1,
+            "title": "Export Id",
+            "type": "string"
+          },
+          "export_policy": {
+            "$ref": "#/components/schemas/ExportPolicy"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat"
+          },
+          "input_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "invalidated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Invalidated At"
+          },
+          "invalidation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Invalidation Reason"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "policy_version": {
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "rendered_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rendered Json"
+          },
+          "rendered_markdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rendered Markdown"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_id",
+          "workspace_id",
+          "format",
+          "export_policy",
+          "status",
+          "policy_version",
+          "input_hash",
+          "created_at"
+        ],
+        "title": "ExportDetailResponse",
+        "type": "object"
+      },
+      "ExportFormat": {
+        "enum": [
+          "MARKDOWN",
+          "JSON"
+        ],
+        "type": "string"
+      },
+      "ExportListResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/exports response payload.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportSummaryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ExportListResponse",
+        "type": "object"
+      },
+      "ExportPolicy": {
+        "enum": [
+          "SOURCE_VERIFIED_ONLY",
+          "ALLOW_USER_CONFIRMED"
+        ],
+        "type": "string"
+      },
+      "ExportStatus": {
+        "enum": [
+          "PENDING",
+          "READY",
+          "INVALIDATED",
+          "FAILED",
+          "DELETED"
+        ],
+        "type": "string"
+      },
+      "ExportSummaryItem": {
+        "additionalProperties": false,
+        "description": "Summary projection returned by GET /v1/exports.",
+        "properties": {
+          "claim_count": {
+            "minimum": 0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Deleted At"
+          },
+          "export_id": {
+            "minLength": 1,
+            "title": "Export Id",
+            "type": "string"
+          },
+          "export_policy": {
+            "$ref": "#/components/schemas/ExportPolicy"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ExportFormat"
+          },
+          "input_hash": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Input Hash",
+            "type": "string"
+          },
+          "invalidated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Invalidated At"
+          },
+          "invalidation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Invalidation Reason"
+          },
+          "policy_version": {
+            "minLength": 1,
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "source_resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Resource Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "export_id",
+          "workspace_id",
+          "format",
+          "export_policy",
+          "status",
+          "policy_version",
+          "input_hash",
+          "claim_count",
+          "created_at"
+        ],
+        "title": "ExportSummaryItem",
+        "type": "object"
+      },
+      "ExportVerificationClass": {
+        "enum": [
+          "SOURCE_VERIFIED",
+          "USER_CONFIRMED",
+          "MIXED"
+        ],
+        "type": "string"
+      },
       "ExternalIdentityMappingRecord": {
         "additionalProperties": false,
         "description": "Wire projection of ``public.external_identity_mappings`` (email_hash only, never raw email).",
@@ -2172,6 +3380,83 @@
           "METRIC"
         ],
         "type": "string"
+      },
+      "GenerateEventClaimsRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/generations request payload (verification strictly absent).",
+        "properties": {
+          "confirmed_event_id": {
+            "minLength": 1,
+            "title": "Confirmed Event Id",
+            "type": "string"
+          },
+          "input_fact_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Fact Ids"
+          }
+        },
+        "required": [
+          "confirmed_event_id"
+        ],
+        "title": "GenerateEventClaimsRequest",
+        "type": "object"
+      },
+      "GenerateEventClaimsResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/generations response payload.",
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimDetailResponse"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "free_alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Free Alternatives",
+            "type": "array"
+          },
+          "generation_status": {
+            "$ref": "#/components/schemas/ClaimGenerationStatus"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "event_id",
+          "generation_status"
+        ],
+        "title": "GenerateEventClaimsResponse",
+        "type": "object"
       },
       "GitHubCredentialMode": {
         "enum": [
@@ -3183,6 +4468,29 @@
         ],
         "type": "object"
       },
+      "RejectClaimActionRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/{claim_id}/actions/reject request payload.",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "reason"
+        ],
+        "title": "RejectClaimActionRequest",
+        "type": "object"
+      },
       "RejectFactRequest": {
         "additionalProperties": false,
         "description": "POST /v1/facts/{fact_id}/actions/reject request payload.",
@@ -3331,6 +4639,22 @@
         "required": [
           "error"
         ],
+        "type": "object"
+      },
+      "RevalidateClaimRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/claims/{claim_id}/actions/revalidate request payload.",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RevalidateClaimRequest",
         "type": "object"
       },
       "ReviewActionHistoryItem": {
@@ -4974,6 +6298,35 @@
         ],
         "title": "WorkEventSummaryItem",
         "type": "object"
+      },
+      "career_memory_api__canonicalization__models__ContentUnitType": {
+        "description": "Official 8 Content Unit types (Data Model §3.4 / T-103).",
+        "enum": [
+          "PR_TITLE",
+          "PR_BODY_SECTION",
+          "ISSUE_SECTION",
+          "COMMENT",
+          "REVIEW_COMMENT",
+          "COMMIT_MESSAGE",
+          "DIFF_HUNK",
+          "SYMBOL_CHANGE"
+        ],
+        "title": "ContentUnitType",
+        "type": "string"
+      },
+      "career_memory_api__schema_contracts__enums__ContentUnitType": {
+        "enum": [
+          "PR_TITLE",
+          "PR_BODY_SECTION",
+          "ISSUE_SECTION",
+          "COMMENT",
+          "REVIEW_COMMENT",
+          "COMMIT_MESSAGE",
+          "DIFF_HUNK",
+          "SYMBOL_CHANGE"
+        ],
+        "title": "ContentUnitType",
+        "type": "string"
       }
     },
     "securitySchemes": {
@@ -5016,6 +6369,157 @@
           }
         },
         "summary": "Healthz"
+      }
+    },
+    "/v1/claims": {
+      "get": {
+        "operationId": "listWorkspaceClaims",
+        "parameters": [
+          {
+            "description": "Optional WorkEvent UUID filter.",
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional WorkEvent UUID filter.",
+              "title": "Event Id"
+            }
+          },
+          {
+            "description": "Optional ClaimStatus filter.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ClaimStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional ClaimStatus filter.",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Include SUPERSEDED claim versions (defaults to false).",
+            "in": "query",
+            "name": "include_superseded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include SUPERSEDED claim versions (defaults to false).",
+              "title": "Include Superseded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque workspace- and filter-bound cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque workspace- and filter-bound cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_CLAIMS_CURSOR."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "List workspace claims with read-only computed verification and opaque pagination",
+        "tags": [
+          "claims"
+        ]
       }
     },
     "/v1/claims/drafts": {
@@ -5079,7 +6583,188 @@
         ]
       }
     },
+    "/v1/claims/generations": {
+      "post": {
+        "operationId": "generateEventClaims",
+        "parameters": [
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateEventClaimsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateEventClaimsResponse"
+                }
+              }
+            },
+            "description": "Blocked or DRAFT_INVALID outcome."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateEventClaimsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_NOT_CONFIRMED, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_READONLY_VERIFICATION_WRITE, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          }
+        },
+        "summary": "Run Stage 3A/3B/3C grounded claim pipeline for a CONFIRMED WorkEvent",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
     "/v1/claims/{claim_id}": {
+      "get": {
+        "operationId": "getClaimDetail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE."
+          }
+        },
+        "summary": "Get a Claim version with atoms, read-only verification, and support_graph_epoch",
+        "tags": [
+          "claims"
+        ]
+      },
       "patch": {
         "operationId": "editClaimVersion",
         "parameters": [
@@ -5166,6 +6851,346 @@
           }
         },
         "summary": "Edit a claim into a new version without writable verification fields",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}/actions/approve": {
+      "post": {
+        "operationId": "approveClaimAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveClaimActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "WORKSPACE_SCOPE_VIOLATION or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "CLAIM_VERSION_CONFLICT, SUPPORT_INCOMPLETE, DELETION_PENDING, SOURCE_REVISION_MISMATCH, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_READONLY_VERIFICATION_WRITE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_UNAVAILABLE or AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Approve a SUPPORT_VALIDATED claim with live Plan C refetch and race-fenced epoch verification",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}/actions/reject": {
+      "post": {
+        "operationId": "rejectClaimAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectClaimActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "CLAIM_VERSION_CONFLICT, CLAIM_NOT_REJECTABLE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or forbidden write fields."
+          }
+        },
+        "summary": "Reject a Claim version and atomically invalidate dependent exports",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}/actions/revalidate": {
+      "post": {
+        "operationId": "revalidateClaimVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevalidateClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "CLAIM_VERSION_CONFLICT, CLAIM_NOT_REVALIDATABLE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or forbidden write fields."
+          }
+        },
+        "summary": "Run fresh Stage 3B atomization and Stage 3C support validation on a Claim version",
         "tags": [
           "claims"
         ]
@@ -5258,6 +7283,78 @@
           }
         },
         "summary": "Approve a claim version without direct SOURCE_VERIFIED writes",
+        "tags": [
+          "claims"
+        ]
+      }
+    },
+    "/v1/claims/{claim_id}/supports": {
+      "get": {
+        "operationId": "getClaimSupports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimSupportsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE."
+          }
+        },
+        "summary": "Return full non-raw Claim -> Atom -> Fact -> FactSupport provenance chain",
         "tags": [
           "claims"
         ]
@@ -5410,6 +7507,378 @@
         "summary": "Ephemerally refetch and verify a persisted Content Unit (Plan C §7)",
         "tags": [
           "content-units"
+        ]
+      }
+    },
+    "/v1/exports": {
+      "get": {
+        "operationId": "listWorkspaceExports",
+        "parameters": [
+          {
+            "description": "Optional SourceResource UUID filter.",
+            "in": "query",
+            "name": "source_resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional SourceResource UUID filter.",
+              "title": "Source Resource Id"
+            }
+          },
+          {
+            "description": "Include DELETED exports (defaults to false).",
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include DELETED exports (defaults to false).",
+              "title": "Include Deleted",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_PROJECT_ID_SCOPE."
+          }
+        },
+        "summary": "List workspace exports with optional source_resource_id filter",
+        "tags": [
+          "exports"
+        ]
+      },
+      "post": {
+        "operationId": "createWorkspaceExport",
+        "parameters": [
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "WORKSPACE_SCOPE_VIOLATION or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EXPORT_CLAIM_NOT_APPROVED, EXPORT_CLAIM_VERSION_MISMATCH, EXPORT_POLICY_DISALLOWS_VERIFICATION_LEVEL, SUPPORT_INCOMPLETE, EXPORT_INVALIDATED, SOURCE_REVISION_MISMATCH, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or forbidden write fields."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_UNAVAILABLE or AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Create a Plan C zero-quote Markdown or JSON export with live refetch and race fence",
+        "tags": [
+          "exports"
+        ]
+      }
+    },
+    "/v1/exports/{export_id}": {
+      "delete": {
+        "operationId": "deleteWorkspaceExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_id",
+            "required": true,
+            "schema": {
+              "title": "Export Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY or PROHIBITED_PROJECT_ID_SCOPE."
+          }
+        },
+        "summary": "Delete an export and clear stored artifact payload",
+        "tags": [
+          "exports"
+        ]
+      },
+      "get": {
+        "operationId": "getWorkspaceExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_id",
+            "required": true,
+            "schema": {
+              "title": "Export Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "WORKSPACE_SCOPE_VIOLATION or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EXPORT_INVALIDATED or SOURCE_REVISION_MISMATCH."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE or SOURCE_FETCH_LIMIT."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "SOURCE_UNAVAILABLE."
+          }
+        },
+        "summary": "Fetch a READY export after live Plan C EXPORT_DOWNLOAD refetch re-verification",
+        "tags": [
+          "exports"
         ]
       }
     },

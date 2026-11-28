@@ -10,6 +10,17 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from career_memory_api.claims.models import (
+    ApproveClaimActionRequest,
+    ClaimDetailResponse,
+    ClaimGenerationStatus,
+    ClaimListResponse,
+    ClaimSupportsResponse,
+    GenerateEventClaimsRequest,
+    GenerateEventClaimsResponse,
+    RejectClaimActionRequest,
+    RevalidateClaimRequest,
+)
 from career_memory_api.conformance.ai_schemas import render_canonical_json
 from career_memory_api.contracts_api.models import (
     ClaimApproveRequest,
@@ -24,6 +35,12 @@ from career_memory_api.contracts_api.models import (
     SearchResponse,
 )
 from career_memory_api.contracts_api.router import create_m1_contract_app
+from career_memory_api.exports.models import (
+    CreateExportRequest,
+    DeleteExportResponse,
+    ExportDetailResponse,
+    ExportListResponse,
+)
 from career_memory_api.facts.models import (
     ApproveFactRequest,
     ApproveFactResponse,
@@ -55,12 +72,18 @@ from career_memory_api.identities.models import (
 )
 from career_memory_api.resolver.models import ResolutionStatus
 from career_memory_api.schema_contracts.enums import (
+    ClaimAtomStatus,
+    ClaimAtomType,
     ClaimStatus,
     ClaimVerification,
     ContentUnitType,
     EventConstraintOrigin,
     EventConstraintStatus,
     EventConstraintType,
+    ExportFormat,
+    ExportPolicy,
+    ExportStatus,
+    ExportVerificationClass,
     ExternalIdentityMappingStatus,
     FactStatus,
     FactType,
@@ -615,6 +638,18 @@ def _shared_components() -> dict[str, Any]:
         RejectFactResponse,
         EditFactRequest,
         EditFactResponse,
+        ClaimListResponse,
+        ClaimDetailResponse,
+        ClaimSupportsResponse,
+        GenerateEventClaimsRequest,
+        GenerateEventClaimsResponse,
+        RevalidateClaimRequest,
+        ApproveClaimActionRequest,
+        RejectClaimActionRequest,
+        ExportListResponse,
+        CreateExportRequest,
+        ExportDetailResponse,
+        DeleteExportResponse,
         ErrorEnvelope,
     ]
     extracted_schemas: dict[str, Any] = {}
@@ -630,6 +665,34 @@ def _shared_components() -> dict[str, Any]:
         "ClaimStatus": {
             "type": "string",
             "enum": [e.value for e in ClaimStatus],
+        },
+        "ClaimAtomType": {
+            "type": "string",
+            "enum": [e.value for e in ClaimAtomType],
+        },
+        "ClaimAtomStatus": {
+            "type": "string",
+            "enum": [e.value for e in ClaimAtomStatus],
+        },
+        "ClaimGenerationStatus": {
+            "type": "string",
+            "enum": [e.value for e in ClaimGenerationStatus],
+        },
+        "ExportFormat": {
+            "type": "string",
+            "enum": [e.value for e in ExportFormat],
+        },
+        "ExportPolicy": {
+            "type": "string",
+            "enum": [e.value for e in ExportPolicy],
+        },
+        "ExportStatus": {
+            "type": "string",
+            "enum": [e.value for e in ExportStatus],
+        },
+        "ExportVerificationClass": {
+            "type": "string",
+            "enum": [e.value for e in ExportVerificationClass],
         },
         "ClaimVerification": {
             "type": "string",

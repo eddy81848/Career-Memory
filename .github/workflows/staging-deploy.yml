@@ -76,7 +76,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Verify M0 immutable OpenAPI snapshot blob hash
         run: |
@@ -87,16 +87,16 @@ jobs:
           fi
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@e92bafb6253b4370e5f4d06d0c091889a701e999
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
 
       - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
-        uses: google-github-actions/auth@ba79af03959ebeac9769a648f473a284504d9193
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e30239535494a154d946f6a64c9289019822972b
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 

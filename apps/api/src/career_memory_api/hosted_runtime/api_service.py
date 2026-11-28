@@ -17,7 +17,10 @@ from career_memory_api.auth.jwt_verifier import (
     JwtVerificationConfig,
 )
 from career_memory_api.auth.oauth import InMemorySecretStore
-from career_memory_api.auth.postgres_guard import workspace_scoped_transaction
+from career_memory_api.auth.postgres_guard import (
+    bind_postgres_workspace_context,
+    workspace_scoped_transaction,
+)
 from career_memory_api.authz import (
     AccessVerificationUnavailableError,
     AuthenticatedUser,
@@ -26,6 +29,7 @@ from career_memory_api.authz import (
     UnauthenticatedError,
     WorkspaceAccessContext,
     WorkspaceMembership,
+    WorkspaceMembershipDeniedError,
 )
 from career_memory_api.budgets import (
     DefaultQuotaPolicyConfig,
@@ -91,7 +95,12 @@ from career_memory_api.hosted_runtime.models import (
 from career_memory_api.hosted_runtime.pooler import HostedTransactionPool
 from career_memory_api.hosted_runtime.worker_wake import HttpCloudRunWakeNotifier
 from career_memory_api.identities import PostgresIdentityService, create_identities_router
-from career_memory_api.jobs.models import NoopWakeNotifier, PostCommitWakeNotifierPort
+from career_memory_api.jobs.models import (
+    AuditActorType,
+    NoopWakeNotifier,
+    PostCommitWakeNotifierPort,
+)
+from career_memory_api.jobs.postgres_runtime import is_deletion_fence_active
 from career_memory_api.llm_gate import LlmProviderMode
 from career_memory_api.resolver import (
     EndpointSecurityPolicy,
@@ -105,6 +114,11 @@ from career_memory_api.sync_runs import (
     PostgresSyncRunService,
     create_sync_runs_router,
     install_sync_runs_error_handlers,
+)
+from career_memory_api.sync_runs.models import (
+    ACTIVE_SYNC_RUN_STATUSES,
+    SyncRunApiError,
+    SyncRunStatus,
 )
 from career_memory_api.work_events import (
     PostgresWorkEventMutationService,
@@ -290,7 +304,7 @@ class HostedApiRuntime:
             metadata_store=provenance_store,
             fetcher=self.content_fetcher,
             default_budget=OperationBudgetConfig(
-                max_requests=200,
+                max_requests=1000,
                 max_total_bytes=64 * 1024 * 1024,
                 max_unit_bytes=5 * 1024 * 1024,
             ),
@@ -507,6 +521,181 @@ class HostedApiRuntime:
             default_confirmed_event_id=default_confirmed_event_id,
             sample_repositories=(),
         )
+
+    def abandon_unretryable_sync_run(
+        self,
+        access: WorkspaceAccessContext,
+        *,
+        run_id: str,
+        request_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Mark a terminal unretryable SyncRun (e.g. ``PLAN_DRIFT``) ``is_abandoned=true``."""
+        import json
+
+        try:
+            run_uuid = str(uuid.UUID((run_id or "").strip()))
+        except ValueError:
+            raise SyncRunApiError(status_code=404, code="RESOURCE_NOT_FOUND") from None
+
+        with self.pool.connection() as conn:
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    bind_postgres_workspace_context(cur, access)
+                    cur.execute(
+                        """
+                        SELECT 1
+                        FROM public.workspace_memberships
+                        WHERE workspace_id = %s::uuid
+                          AND user_id = %s::uuid
+                          AND revoked_at IS NULL
+                        """,
+                        (access.workspace_id, access.user_id),
+                    )
+                    if cur.fetchone() is None:
+                        raise WorkspaceMembershipDeniedError(
+                            "Access to the selected workspace has been revoked."
+                        )
+
+                    cur.execute(
+                        """
+                        SELECT
+                            id::text,
+                            source_resource_id::text,
+                            run_version,
+                            status,
+                            retry_allowed,
+                            failure_reason_code,
+                            is_abandoned
+                        FROM public.sync_runs
+                        WHERE workspace_id = %s::uuid
+                          AND id = %s::uuid
+                        FOR UPDATE
+                        """,
+                        (access.workspace_id, run_uuid),
+                    )
+                    row = cur.fetchone()
+                    if row is None:
+                        raise SyncRunApiError(status_code=404, code="RESOURCE_NOT_FOUND")
+
+                    resource_id = str(row[1])
+                    cur.execute(
+                        """
+                        SELECT status
+                        FROM public.source_resources
+                        WHERE workspace_id = %s::uuid
+                          AND id = %s::uuid
+                        FOR SHARE
+                        """,
+                        (access.workspace_id, resource_id),
+                    )
+                    res_row = cur.fetchone()
+                    if (
+                        res_row is None
+                        or res_row[0] == "DELETED"
+                        or is_deletion_fence_active(cur, access.workspace_id, resource_id)
+                    ):
+                        raise SyncRunApiError(status_code=404, code="RESOURCE_NOT_FOUND")
+
+                    current_version = int(row[2])
+                    current_status = SyncRunStatus(str(row[3]))
+                    retry_allowed = bool(row[4])
+                    failure_reason_code = str(row[5]) if row[5] is not None else None
+                    is_abandoned = bool(row[6])
+
+                    if is_abandoned:
+                        return {
+                            "id": run_uuid,
+                            "status": current_status.value,
+                            "is_abandoned": True,
+                            "run_version": current_version,
+                        }
+
+                    if current_status in ACTIVE_SYNC_RUN_STATUSES:
+                        raise SyncRunApiError(
+                            status_code=409,
+                            code="SYNC_ALREADY_RUNNING",
+                            existing_run_id=run_uuid,
+                        )
+
+                    if (
+                        current_status
+                        not in (
+                            SyncRunStatus.PARTIAL,
+                            SyncRunStatus.PARTIAL_WITH_LIMIT,
+                            SyncRunStatus.FAILED,
+                        )
+                        or retry_allowed
+                    ):
+                        raise SyncRunApiError(status_code=409)
+
+                    next_version = current_version + 1
+                    cur.execute(
+                        """
+                        UPDATE public.sync_runs
+                        SET is_abandoned = true,
+                            run_version = %s,
+                            updated_at = now()
+                        WHERE workspace_id = %s::uuid
+                          AND id = %s::uuid
+                          AND run_version = %s
+                        """,
+                        (next_version, access.workspace_id, run_uuid, current_version),
+                    )
+                    if cur.rowcount != 1:
+                        raise SyncRunApiError(
+                            status_code=409, code="RESOURCE_VERSION_CONFLICT"
+                        )
+
+                    # Also cancel any non-running pending/retry_wait jobs targeting this abandoned run
+                    cur.execute(
+                        """
+                        UPDATE public.jobs
+                        SET status = 'CANCELED',
+                            completed_at = now(),
+                            updated_at = now()
+                        WHERE workspace_id = %s::uuid
+                          AND target_sync_run_id = %s::uuid
+                          AND status IN ('PENDING', 'RETRY_WAIT')
+                        """,
+                        (access.workspace_id, run_uuid),
+                    )
+
+                    audit_meta: dict[str, Any] = {
+                        "previous_run_version": current_version,
+                        "new_run_version": next_version,
+                        "source_resource_id": resource_id,
+                    }
+                    if failure_reason_code:
+                        audit_meta["failure_reason_code"] = failure_reason_code
+                    if request_id:
+                        audit_meta["request_id"] = request_id
+                    cur.execute(
+                        """
+                        INSERT INTO public.audit_events (
+                            id, workspace_id, actor_type, actor_id,
+                            action, target_type, target_id, redacted_metadata, created_at
+                        )
+                        VALUES (
+                            %s::uuid, %s::uuid, %s, %s::uuid,
+                            'SYNC_RUN_ABANDONED', 'SYNC_RUN', %s::uuid, %s::jsonb, now()
+                        )
+                        """,
+                        (
+                            str(uuid.uuid4()),
+                            access.workspace_id,
+                            AuditActorType.USER.value,
+                            access.user_id,
+                            run_uuid,
+                            json.dumps(audit_meta, sort_keys=True),
+                        ),
+                    )
+
+                    return {
+                        "id": run_uuid,
+                        "status": current_status.value,
+                        "is_abandoned": True,
+                        "run_version": next_version,
+                    }
 
     def set_ephemeral_public_github_token(self, token: str) -> None:
         cleaned = token.strip()
@@ -727,6 +916,20 @@ def create_hosted_api_app(
         response.headers["Cache-Control"] = PRIVATE_NO_STORE_HEADER
         response.headers["CDN-Cache-Control"] = "no-store"
         return payload.to_dict()
+
+    @app.post("/v1/sync-runs/{run_id}/abandon", include_in_schema=False)
+    def abandon_sync_run_route(
+        run_id: str, request: Request, response: Response
+    ) -> dict[str, Any]:
+        access = _guard_access_resolver(request)
+        result = runtime.abandon_unretryable_sync_run(
+            access,
+            run_id=run_id,
+            request_id=(request.headers.get("X-Request-ID") or "").strip() or None,
+        )
+        response.headers["Cache-Control"] = PRIVATE_NO_STORE_HEADER
+        response.headers["CDN-Cache-Control"] = "no-store"
+        return result
 
     @app.get("/api/health", include_in_schema=False)
     def api_health() -> dict[str, str]:

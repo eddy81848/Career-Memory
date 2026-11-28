@@ -143,14 +143,15 @@ class HostedWorkerRuntime:
             require_credentials=False,
         )
         provenance_store = PooledPostgresProvenanceMetadataStore(worker_factory)
+        worker_op_budget = OperationBudgetConfig(
+            max_requests=1000,
+            max_total_bytes=64 * 1024 * 1024,
+            max_unit_bytes=5 * 1024 * 1024,
+        )
         self.resolver = RefetchResolverService(
             metadata_store=provenance_store,
             fetcher=self.content_fetcher,
-            default_budget=OperationBudgetConfig(
-                max_requests=200,
-                max_total_bytes=64 * 1024 * 1024,
-                max_unit_bytes=5 * 1024 * 1024,
-            ),
+            default_budget=worker_op_budget,
             security_policy=security_policy,
         )
 
@@ -167,6 +168,7 @@ class HostedWorkerRuntime:
             content_fetcher=self.content_fetcher,
             resolver_service=self.resolver,
             security_policy=security_policy,
+            budget=worker_op_budget,
         )
         self.event_candidate_builder = PostgresEventCandidateBuilder(
             worker_connection_factory=worker_factory
@@ -200,6 +202,41 @@ class HostedWorkerRuntime:
                         WHERE workspace_id = %s::uuid
                           AND status IN ('PENDING', 'PARTIAL')
                         ORDER BY requested_at ASC
+                        LIMIT %s
+                        """,
+                        (workspace_id, max(1, int(limit))),
+                    )
+                    return [str(r[0]) for r in cur.fetchall()]
+
+    def _list_unfinished_derived_runs(self, workspace_id: str, *, limit: int) -> list[str]:
+        with self.pool.connection() as conn:
+            with conn.transaction():
+                with conn.cursor() as cur:
+                    bind_worker_workspace_context(cur, workspace_id)
+                    cur.execute(
+                        """
+                        SELECT count(*)
+                        FROM public.jobs
+                        WHERE workspace_id = %s::uuid
+                          AND status = 'RUNNING'
+                        """,
+                        (workspace_id,),
+                    )
+                    if int(cur.fetchone()[0]) > 0:
+                        return []
+                    cur.execute(
+                        """
+                        SELECT sr.id::text
+                        FROM public.sync_runs sr
+                        JOIN public.source_resources res
+                          ON res.workspace_id = sr.workspace_id
+                         AND res.id = sr.source_resource_id
+                        WHERE sr.workspace_id = %s::uuid
+                          AND sr.status = 'SUCCESS'
+                          AND sr.import_ready = true
+                          AND sr.processing_status IN ('NOT_STARTED', 'RUNNING')
+                          AND res.status = 'ACTIVE'
+                        ORDER BY sr.updated_at ASC
                         LIMIT %s
                         """,
                         (workspace_id, max(1, int(limit))),
@@ -360,6 +397,24 @@ class HostedWorkerRuntime:
             )
             total_outbox += len(dispatched)
 
+            # Self-heal any IMPORT_READY run whose post-commit derived unit / candidate pass
+            # was interrupted by a previous slice timeout (only when no job is RUNNING).
+            derived_resumed = 0
+            if int(slice_report["sync_jobs_processed"]) == 0 and not self.shutdown_event.is_set():
+                pending_derived_run_ids = self._list_unfinished_derived_runs(ws_uuid, limit=2)
+                for run_id_to_finish in pending_derived_run_ids:
+                    if self.shutdown_event.is_set():
+                        break
+                    self.derived_unit_processor.process_import_ready_run(
+                        workspace_id=ws_uuid,
+                        sync_run_id=run_id_to_finish,
+                    )
+                    self.event_candidate_builder.build_candidates_for_sync_run(
+                        workspace_id=ws_uuid,
+                        sync_run_id=run_id_to_finish,
+                    )
+                    derived_resumed += 1
+
             workspace_reports.append(
                 {
                     "workspace_id": ws_uuid,
@@ -368,6 +423,7 @@ class HostedWorkerRuntime:
                     "sync_jobs_processed": slice_report["sync_jobs_processed"],
                     "deletion_jobs_processed": slice_report["deletion_jobs_processed"],
                     "outbox_dispatched": len(dispatched),
+                    "derived_runs_resumed": derived_resumed,
                 }
             )
 

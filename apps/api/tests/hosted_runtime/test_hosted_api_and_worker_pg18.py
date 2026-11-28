@@ -658,6 +658,136 @@ def test_hosted_api_session_zero_db_hold_edge_guard_and_worker_recovery_pg18() -
                 assert r_sync_done.json()["status"] == "SUCCESS"
                 assert r_sync_done.json()["import_ready"] is True
 
+                # Abandoning a SUCCESS run must be rejected with 409
+                abandon_succ_path = f"/v1/sync-runs/{sync_run_id}/abandon"
+                r_abandon_succ = api_client.post(
+                    abandon_succ_path,
+                    headers=_origin_headers(
+                        "POST",
+                        abandon_succ_path,
+                        {
+                            "Authorization": f"Bearer {enrolled_jwt}",
+                            "X-Workspace-ID": enrolled.workspace_id,
+                        },
+                    ),
+                )
+                assert r_abandon_succ.status_code == 409
+
+                # 7. Verify PLAN_DRIFT unretryable run blocks duplicate POST /v1/sync-runs (409)
+                #    until explicitly abandoned via POST /v1/sync-runs/{id}/abandon -> 200 -> 202!
+                enrolled_2 = enroll_pilot_user(
+                    admin_dsn,
+                    auth_issuer=issuer,
+                    auth_subject="sub-enrolled-pilot-2",
+                    workspace_name="Second Pilot Workspace",
+                    email="pilot2@example.test",
+                    display_name="Second Pilot Owner",
+                    github_login="seoyeon-dev",
+                    github_external_id="904210",
+                    public_repositories=[("700101", "seoyeon-dev/ledger-engine")],
+                    allow_insecure_local_test=True,
+                )
+                auth_server.user_subject_id = "sub-enrolled-pilot-2"
+                enrolled_2_jwt = _sign_supabase_jwt(
+                    keypair, issuer=issuer, subject="sub-enrolled-pilot-2"
+                )
+                res3_id = enrolled_2.source_resource_ids[0]
+
+                r_sync_drift = api_client.post(
+                    "/v1/sync-runs",
+                    headers=_origin_headers(
+                        "POST",
+                        "/v1/sync-runs",
+                        {
+                            "Authorization": f"Bearer {enrolled_2_jwt}",
+                            "X-Workspace-ID": enrolled_2.workspace_id,
+                            "Idempotency-Key": str(uuid.uuid4()),
+                        },
+                    ),
+                    json={"source_resource_id": res3_id, "mode": "INITIAL_BACKFILL"},
+                )
+                assert r_sync_drift.status_code == 202, r_sync_drift.text
+                drifted_run_id = r_sync_drift.json()["target_id"]
+
+                from career_memory_api.sync_runs.models import SyncRunObservation, SyncRunStatus
+                from career_memory_api.sync_runs.postgres_service import PostgresSyncRunService
+
+                worker_obs_service = PostgresSyncRunService(
+                    connection_factory=lambda: psycopg.connect(worker_dsn, autocommit=False),
+                    worker_connection_factory=lambda: psycopg.connect(worker_dsn, autocommit=False),
+                )
+                worker_obs_service.record_worker_observation(
+                    enrolled_2.workspace_id,
+                    drifted_run_id,
+                    SyncRunObservation(
+                        status=SyncRunStatus.PARTIAL,
+                        failure_reason="PLAN_DRIFT",
+                        source_drift=True,
+                    ),
+                )
+
+                r_dup_blocked = api_client.post(
+                    "/v1/sync-runs",
+                    headers=_origin_headers(
+                        "POST",
+                        "/v1/sync-runs",
+                        {
+                            "Authorization": f"Bearer {enrolled_2_jwt}",
+                            "X-Workspace-ID": enrolled_2.workspace_id,
+                            "Idempotency-Key": str(uuid.uuid4()),
+                        },
+                    ),
+                    json={"source_resource_id": res3_id, "mode": "INITIAL_BACKFILL"},
+                )
+                assert r_dup_blocked.status_code == 409
+
+                abandon_drift_path = f"/v1/sync-runs/{drifted_run_id}/abandon"
+                r_abandon_drift = api_client.post(
+                    abandon_drift_path,
+                    headers=_origin_headers(
+                        "POST",
+                        abandon_drift_path,
+                        {
+                            "Authorization": f"Bearer {enrolled_2_jwt}",
+                            "X-Workspace-ID": enrolled_2.workspace_id,
+                        },
+                    ),
+                )
+                assert r_abandon_drift.status_code == 200, r_abandon_drift.text
+                assert r_abandon_drift.json()["is_abandoned"] is True
+
+                # Idempotent second call returns 200
+                r_abandon_idem = api_client.post(
+                    abandon_drift_path,
+                    headers=_origin_headers(
+                        "POST",
+                        abandon_drift_path,
+                        {
+                            "Authorization": f"Bearer {enrolled_2_jwt}",
+                            "X-Workspace-ID": enrolled_2.workspace_id,
+                        },
+                    ),
+                )
+                assert r_abandon_idem.status_code == 200
+                assert r_abandon_idem.json()["is_abandoned"] is True
+
+                # Fresh initial import on res3 now succeeds with 202 Accepted!
+                r_sync_fresh = api_client.post(
+                    "/v1/sync-runs",
+                    headers=_origin_headers(
+                        "POST",
+                        "/v1/sync-runs",
+                        {
+                            "Authorization": f"Bearer {enrolled_2_jwt}",
+                            "X-Workspace-ID": enrolled_2.workspace_id,
+                            "Idempotency-Key": str(uuid.uuid4()),
+                        },
+                    ),
+                    json={"source_resource_id": res3_id, "mode": "INITIAL_BACKFILL"},
+                )
+                assert r_sync_fresh.status_code == 202, r_sync_fresh.text
+                auth_server.user_subject_id = "sub-enrolled-pilot"
+
                 del_status_path = f"/v1/deletion-jobs/{deletion_job_id}"
                 r_del_done = api_client.get(
                     del_status_path,

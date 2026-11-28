@@ -103,6 +103,7 @@ class HttpCloudRunWakeNotifier:
         hmac_issuer: str = "https://accounts.google.com",
         allow_http_loopback_for_tests: bool = False,
         http_post: HttpPostFn | None = None,
+        github_public_token_getter: Callable[[], str | None] | None = None,
     ) -> None:
         self._worker_url = validate_pinned_auth_url(
             worker_url.rstrip("/"),
@@ -116,6 +117,7 @@ class HttpCloudRunWakeNotifier:
         self._hmac_subject = hmac_subject
         self._hmac_issuer = hmac_issuer
         self._http_post: HttpPostFn = http_post or _default_no_redirect_http_post
+        self._github_public_token_getter = github_public_token_getter
         self._metadata_minter = GoogleMetadataOidcTokenMinter(
             timeout_seconds=min(1.5, self._timeout_seconds)
         )
@@ -149,6 +151,10 @@ class HttpCloudRunWakeNotifier:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
+            if self._github_public_token_getter is not None:
+                gh_tok = (self._github_public_token_getter() or "").strip()
+                if gh_tok and not any(ch.isspace() for ch in gh_tok):
+                    headers["X-CM-GitHub-Public-Token"] = gh_tok
             status, _ = self._http_post(
                 self._wake_endpoint,
                 headers,

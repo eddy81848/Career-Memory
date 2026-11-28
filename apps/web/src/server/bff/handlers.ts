@@ -3,6 +3,7 @@ import {
   AUTHENTICATED_API_VARY,
   BffConfigurationError,
   CDN_NO_STORE_HEADER_VALUE,
+  EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER,
   loadBffConfig,
   ORIGIN_AUTH_HEADER,
   PRIVATE_NO_STORE_CACHE_CONTROL,
@@ -528,6 +529,12 @@ export async function handleAuthCallback(
   const sessionId =
     (typeof jwtClaims?.session_id === "string" && jwtClaims.session_id.trim()) ||
     crypto.randomUUID();
+  const providerToken =
+    typeof payload.provider_token === "string" &&
+    payload.provider_token.trim().length > 0 &&
+    !/\s/.test(payload.provider_token.trim())
+      ? payload.provider_token.trim()
+      : undefined;
 
   const sessionEnvelope: SessionEnvelope = {
     access_token: accessToken,
@@ -536,6 +543,7 @@ export async function handleAuthCallback(
     user_sub: userSub,
     session_id: sessionId,
     issued_at: now,
+    ...(providerToken ? { provider_token: providerToken } : {}),
   };
 
   const sessionCookie = buildSetSessionCookieHeader(sessionEnvelope, config);
@@ -912,6 +920,16 @@ export async function handleBffProxy(
     }
   }
   upstreamHeaders.set("Authorization", `Bearer ${activeSession.access_token}`);
+  if (
+    activeSession.provider_token &&
+    activeSession.provider_token.trim().length > 0 &&
+    !/\s/.test(activeSession.provider_token.trim())
+  ) {
+    upstreamHeaders.set(
+      EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER,
+      activeSession.provider_token.trim()
+    );
+  }
   if (config.originHmacSecret) {
     upstreamHeaders.set(
       ORIGIN_AUTH_HEADER,

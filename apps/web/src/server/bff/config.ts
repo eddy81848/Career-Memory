@@ -7,6 +7,7 @@
  */
 
 export const ORIGIN_AUTH_HEADER = "X-CM-Origin-Auth";
+export const EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER = "X-CM-GitHub-Public-Token";
 export const PRIVATE_NO_STORE_CACHE_CONTROL = "private, no-store";
 export const PUBLIC_HEALTH_CACHE_CONTROL = "no-store";
 export const CDN_NO_STORE_HEADER_VALUE = "no-store";

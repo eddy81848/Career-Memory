@@ -30,6 +30,9 @@ from career_memory_api.work_events.models import (
     decode_and_verify_work_event_cursor,
     encode_work_event_cursor,
     format_work_event_etag,
+    has_non_empty_anchor_scope,
+    parse_if_match_version,
+    resolve_idempotency_key,
 )
 from career_memory_api.work_events.relations import (
     canonicalize_event_pair,
@@ -115,12 +118,38 @@ def test_format_work_event_etag_and_allowed_actions_matrix() -> None:
         is_active_top_level=True,
     ) == ["EDIT", "SPLIT", "MERGE", "REJECT"]
 
-    # DIRECT_COMMIT CANDIDATE -> no SPLIT/DISSOLVE
+    # Unsplit DIRECT_COMMIT CANDIDATE (anchor_scope=None or empty) -> allows SPLIT & MERGE
     assert compute_allowed_actions(
         anchor_mode=WorkEventAnchorMode.DIRECT_COMMIT,
         status=WorkEventStatus.CANDIDATE,
         policy_state=WorkEventPolicyState.ALLOWED,
         is_active_top_level=True,
+    ) == ["CONFIRM", "EDIT", "SPLIT", "MERGE", "REJECT"]
+
+    assert compute_allowed_actions(
+        anchor_mode=WorkEventAnchorMode.DIRECT_COMMIT,
+        status=WorkEventStatus.CANDIDATE,
+        policy_state=WorkEventPolicyState.ALLOWED,
+        is_active_top_level=True,
+        anchor_scope={},
+    ) == ["CONFIRM", "EDIT", "SPLIT", "MERGE", "REJECT"]
+
+    # Already scope-split DIRECT_COMMIT (non-empty anchor_scope) -> MERGE only, no re-split
+    assert compute_allowed_actions(
+        anchor_mode=WorkEventAnchorMode.DIRECT_COMMIT,
+        status=WorkEventStatus.CANDIDATE,
+        policy_state=WorkEventPolicyState.ALLOWED,
+        is_active_top_level=True,
+        anchor_scope={"kind": "DIRECT_COMMIT", "file_paths": ["src/ledger/a.py"]},
+    ) == ["CONFIRM", "EDIT", "MERGE", "REJECT"]
+
+    # PR_SEGMENT CANDIDATE -> MERGE only, no re-split
+    assert compute_allowed_actions(
+        anchor_mode=WorkEventAnchorMode.PR_SEGMENT,
+        status=WorkEventStatus.CANDIDATE,
+        policy_state=WorkEventPolicyState.ALLOWED,
+        is_active_top_level=True,
+        anchor_scope={"kind": "PR_SEGMENT", "file_paths": ["src/a.py"]},
     ) == ["CONFIRM", "EDIT", "MERGE", "REJECT"]
 
     # USER_COMPOSITE CONFIRMED -> EDIT, DISSOLVE, REJECT
@@ -297,3 +326,56 @@ def test_work_events_router_http_boundary_headers_auth_and_od008_guard() -> None
         err_body = missing.json()["error"]
         assert err_body["code"] == "RESOURCE_NOT_FOUND"
         assert "details" not in err_body
+
+        # Mutation routes enforce Plan C raw-text guard, OD-008 project_id guard, and idempotency validation
+        raw_leak = client.patch(
+            f"/v1/work-events/{uuid.uuid4()}",
+            headers={"Idempotency-Key": "idem-raw-1", "If-Match": '"v1"'},
+            json={"expected_version": 1, "title": "Edited", "raw_text": "forbidden"},
+        )
+        assert raw_leak.status_code == 422
+        assert raw_leak.json()["error"]["code"] == "PROHIBITED_RAW_TEXT_PERSISTENCE"
+
+        proj_leak = client.post(
+            f"/v1/work-events/{uuid.uuid4()}/actions/confirm",
+            headers={"Idempotency-Key": "idem-proj-1"},
+            json={"expected_version": 1, "project_id": "proj-1"},
+        )
+        assert proj_leak.status_code == 422
+        assert proj_leak.json()["error"]["code"] == "PROHIBITED_PROJECT_ID_SCOPE"
+
+        mismatch_if_match = client.post(
+            f"/v1/work-events/{uuid.uuid4()}/actions/confirm",
+            headers={"Idempotency-Key": "idem-ver-1", "If-Match": '"v2"'},
+            json={"expected_version": 1, "idempotency_key": "idem-ver-1"},
+        )
+        assert mismatch_if_match.status_code == 422
+        assert mismatch_if_match.json()["error"]["code"] == "VERSION_EXPECTATION_MISMATCH"
+
+
+def test_mutation_header_and_anchor_scope_helpers() -> None:
+    assert parse_if_match_version(None) is None
+    assert parse_if_match_version("  ") is None
+    assert parse_if_match_version('"v1"') == 1
+    assert parse_if_match_version("v12") == 12
+    for bad_if_match in ('"v0"', "v-1", "etag-123"):
+        with pytest.raises(WorkEventError) as exc:
+            parse_if_match_version(bad_if_match)
+        assert exc.value.status_code == 422
+        assert exc.value.code == "INVALID_IF_MATCH_HEADER"
+
+    assert resolve_idempotency_key(header_key="k1", body_key=None) == "k1"
+    assert resolve_idempotency_key(header_key=None, body_key="k2") == "k2"
+    assert resolve_idempotency_key(header_key="k3", body_key="k3") == "k3"
+    with pytest.raises(WorkEventError) as exc_miss:
+        resolve_idempotency_key(header_key="  ", body_key="")
+    assert exc_miss.value.code == "MISSING_IDEMPOTENCY_KEY"
+    with pytest.raises(WorkEventError) as exc_mis:
+        resolve_idempotency_key(header_key="k1", body_key="k2")
+    assert exc_mis.value.code == "IDEMPOTENCY_KEY_MISMATCH"
+
+    assert has_non_empty_anchor_scope(None) is False
+    assert has_non_empty_anchor_scope({}) is False
+    assert has_non_empty_anchor_scope({"kind": "DIRECT_COMMIT", "file_paths": []}) is False
+    assert has_non_empty_anchor_scope({"file_paths": ["a.py"]}) is True
+    assert has_non_empty_anchor_scope({"hunk_ranges": ["a.py:1-10"]}) is True

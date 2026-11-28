@@ -737,6 +737,12 @@ def validate_openapi_invariants(
         ("/v1/source-accounts/{source_account_id}/disconnect", "post"),
         ("/v1/work-events", "get"),
         ("/v1/work-events/{id}", "get"),
+        ("/v1/work-events/{id}", "patch"),
+        ("/v1/work-events/{id}/actions/confirm", "post"),
+        ("/v1/work-events/{id}/actions/reject", "post"),
+        ("/v1/work-events/{id}/actions/split", "post"),
+        ("/v1/work-events/actions/merge", "post"),
+        ("/v1/work-events/{id}/actions/dissolve", "post"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:

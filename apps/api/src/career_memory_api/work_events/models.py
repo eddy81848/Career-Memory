@@ -6,6 +6,8 @@ import base64
 import hashlib
 import hmac
 import json
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
@@ -88,11 +90,79 @@ class EventHistoryError(ValueError):
         self.code = code
 
 
+_IF_MATCH_VERSION_PATTERN = re.compile(r'^"?v([1-9][0-9]*)"?$')
+_ANCHOR_SCOPE_LIST_KEYS: tuple[str, ...] = (
+    "file_paths",
+    "diff_hunks",
+    "hunk_ranges",
+    "review_thread_ids",
+    "content_unit_ids",
+)
+
+
 def format_work_event_etag(version: int) -> str:
     """Format the canonical quoted ETag header and body token for a WorkEvent version."""
     if version < 1:
         raise ValueError(f"WorkEvent version must be >= 1, got {version!r}.")
     return f'"v{version}"'
+
+
+def parse_if_match_version(if_match: str | None) -> int | None:
+    """Parse an optional ``If-Match`` header (``"v{version}"`` or ``v{version}``)."""
+    if if_match is None:
+        return None
+    cleaned = if_match.strip()
+    if not cleaned:
+        return None
+    match = _IF_MATCH_VERSION_PATTERN.match(cleaned)
+    if match is None:
+        raise WorkEventError(
+            status_code=422,
+            code="INVALID_IF_MATCH_HEADER",
+            message='If-Match header must match format "v{version}" or v{version}.',
+        )
+    return int(match.group(1))
+
+
+def resolve_idempotency_key(
+    *,
+    header_key: str | None = None,
+    body_key: str | None = None,
+) -> str:
+    """Resolve and validate ``Idempotency-Key`` header and/or body ``idempotency_key``."""
+    h_clean = header_key.strip() if isinstance(header_key, str) and header_key.strip() else None
+    b_clean = body_key.strip() if isinstance(body_key, str) and body_key.strip() else None
+    if h_clean is not None and b_clean is not None and h_clean != b_clean:
+        raise WorkEventError(
+            status_code=422,
+            code="IDEMPOTENCY_KEY_MISMATCH",
+            message="Idempotency-Key header and request body idempotency_key must match.",
+        )
+    resolved = h_clean or b_clean
+    if resolved is None:
+        raise WorkEventError(
+            status_code=422,
+            code="MISSING_IDEMPOTENCY_KEY",
+            message="Idempotency-Key header or request body idempotency_key is required.",
+        )
+    if len(resolved) > 256:
+        raise WorkEventError(
+            status_code=422,
+            code="INVALID_IDEMPOTENCY_KEY",
+            message="idempotency_key must be at most 256 characters.",
+        )
+    return resolved
+
+
+def has_non_empty_anchor_scope(anchor_scope: Mapping[str, Any] | None) -> bool:
+    """Return True when ``anchor_scope`` defines at least one non-empty scope boundary."""
+    if not isinstance(anchor_scope, Mapping) or not anchor_scope:
+        return False
+    for key in _ANCHOR_SCOPE_LIST_KEYS:
+        val = anchor_scope.get(key)
+        if isinstance(val, list) and any(isinstance(x, str) and x.strip() for x in val):
+            return True
+    return False
 
 
 def compute_allowed_actions(
@@ -101,8 +171,9 @@ def compute_allowed_actions(
     status: WorkEventStatus,
     policy_state: WorkEventPolicyState,
     is_active_top_level: bool,
+    anchor_scope: Mapping[str, Any] | None = None,
 ) -> list[str]:
-    """Compute deterministic allowed user actions from event mode, status, and policy state."""
+    """Compute deterministic allowed user actions from event mode, scope, status, and policy state."""
     if policy_state is not WorkEventPolicyState.ALLOWED:
         return []
     if not is_active_top_level or status in (
@@ -122,8 +193,12 @@ def compute_allowed_actions(
     elif anchor_mode is WorkEventAnchorMode.PR:
         actions.append(WorkEventAllowedAction.SPLIT)
         actions.append(WorkEventAllowedAction.MERGE)
+    elif anchor_mode is WorkEventAnchorMode.DIRECT_COMMIT:
+        if not has_non_empty_anchor_scope(anchor_scope):
+            actions.append(WorkEventAllowedAction.SPLIT)
+        actions.append(WorkEventAllowedAction.MERGE)
     else:
-        # PR_SEGMENT and DIRECT_COMMIT can be merged into a composite but not re-split
+        # PR_SEGMENT can be merged into a composite but not re-split
         actions.append(WorkEventAllowedAction.MERGE)
 
     actions.append(WorkEventAllowedAction.REJECT)
@@ -404,6 +479,184 @@ class WorkEventDetailResponse(WorkEventSummaryItem):
 
 
 # =============================================================================
+# Atomic Event Review & Curation Mutation Models (T-304 / T-304A / T-304B)
+# =============================================================================
+class ConfirmWorkEventRequest(BaseModel):
+    """POST /v1/work-events/{id}/actions/confirm request payload (UI Keep)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class EditWorkEventRequest(BaseModel):
+    """PATCH /v1/work-events/{id} request payload (creates new CANDIDATE version)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    title: str = Field(..., min_length=1)
+    problem: str | None = None
+    action: str | None = None
+    outcome: str | None = None
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class RejectWorkEventRequest(BaseModel):
+    """POST /v1/work-events/{id}/actions/reject request payload (UI Exclude)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class SplitAnchorScopeInput(BaseModel):
+    """Non-raw scope boundaries for a single SPLIT partition (accepts diff_hunks & hunk_ranges)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_paths: list[str] = Field(default_factory=list)
+    diff_hunks: list[str] = Field(default_factory=list)
+    hunk_ranges: list[str] = Field(default_factory=list)
+    review_thread_ids: list[str] = Field(default_factory=list)
+    content_unit_ids: list[str] = Field(default_factory=list)
+
+
+class SplitPartitionInput(BaseModel):
+    """Single non-overlapping child partition specification for POST .../actions/split."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=1)
+    problem: str | None = None
+    action: str | None = None
+    outcome: str | None = None
+    source_object_ids: list[str] = Field(default_factory=list)
+    anchor_scope: SplitAnchorScopeInput | None = None
+
+
+class SplitWorkEventRequest(BaseModel):
+    """POST /v1/work-events/{id}/actions/split request payload (T-304A)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    partitions: list[SplitPartitionInput] = Field(..., min_length=2)
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class SplitPairwiseConstraintItem(BaseModel):
+    """Canonical pairwise CANNOT_LINK constraint created between split sibling segments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    constraint_id: str = Field(..., min_length=1)
+    left_event_id: str = Field(..., min_length=1)
+    right_event_id: str = Field(..., min_length=1)
+    constraint_type: EventConstraintType
+    origin: EventConstraintOrigin
+    status: EventConstraintStatus
+    rationale_code: str | None = None
+    created_by_review_action_id: str | None = None
+    created_at: datetime
+
+
+class SplitWorkEventResponse(BaseModel):
+    """POST /v1/work-events/{id}/actions/split response payload (T-304A)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    superseded_parent: WorkEventDetailResponse
+    created_segments: list[WorkEventDetailResponse]
+    pairwise_constraints_created: list[SplitPairwiseConstraintItem] = Field(default_factory=list)
+
+
+class MergeMemberInput(BaseModel):
+    """Member event reference and optimistic concurrency expected_version for MERGE."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(..., min_length=1)
+    expected_version: int = Field(..., ge=1)
+
+
+class MergeWorkEventsRequest(BaseModel):
+    """POST /v1/work-events/actions/merge request payload (T-304B)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    members: list[MergeMemberInput] = Field(..., min_length=2)
+    title: str | None = None
+    composite_title: str | None = None
+    problem: str | None = None
+    action: str | None = None
+    outcome: str | None = None
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class AffectedDownstreamImpact(BaseModel):
+    """Downstream member Fact/Claim/Export counts invalidated by MERGE."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fact_count: int = Field(..., ge=0)
+    claim_count: int = Field(..., ge=0)
+    export_count: int = Field(default=0, ge=0)
+
+
+class MergeWorkEventsResponse(BaseModel):
+    """POST /v1/work-events/actions/merge response payload (T-304B)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    composite_event: WorkEventDetailResponse
+    superseded_member_ids: list[str]
+    invalidated_downstream_count: int = Field(..., ge=0)
+    affected_downstream_impact: AffectedDownstreamImpact
+    regeneration_job_status: str = Field(..., min_length=1)
+
+
+class DissolveWorkEventRequest(BaseModel):
+    """POST /v1/work-events/{id}/actions/dissolve request payload (T-304B)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(..., ge=1)
+    reason: str | None = None
+    idempotency_key: str | None = None
+
+
+class StaleDownstreamImpact(BaseModel):
+    """Downstream composite Fact/Claim/Export counts marked STALE by DISSOLVE."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stale_fact_count: int = Field(..., ge=0)
+    stale_claim_count: int = Field(..., ge=0)
+    stale_export_count: int = Field(default=0, ge=0)
+
+
+class DissolveWorkEventResponse(BaseModel):
+    """POST /v1/work-events/{id}/actions/dissolve response payload (T-304B)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dissolved_composite: WorkEventDetailResponse
+    superseded_composite: WorkEventDetailResponse
+    restored_members: list[WorkEventDetailResponse]
+    invalidated_downstream_count: int = Field(..., ge=0)
+    stale_downstream_impact: StaleDownstreamImpact
+    cleanup_job_status: str = Field(..., min_length=1)
+
+
+# =============================================================================
 # HMAC-Bound Opaque Pagination Cursor Helpers (GET /v1/work-events)
 # =============================================================================
 class WorkEventCursorPayload(BaseModel):
@@ -519,20 +772,35 @@ def decode_and_verify_work_event_cursor(
 __all__ = [
     "WORK_EVENTS_CURSOR_VERSION",
     "WORK_EVENTS_NO_STORE_HEADER",
+    "AffectedDownstreamImpact",
     "CannotLinkConflictDetail",
     "CannotLinkSummary",
     "CompositeDetail",
     "CompositeMemberSnapshotItem",
     "CompositeSummary",
+    "ConfirmWorkEventRequest",
     "DirectCommitSummary",
+    "DissolveWorkEventRequest",
+    "DissolveWorkEventResponse",
     "DownstreamImpactSummary",
+    "EditWorkEventRequest",
     "EventHistoryError",
     "EventSourceRelationItem",
     "EventVersionSnapshotItem",
+    "MergeMemberInput",
+    "MergeWorkEventsRequest",
+    "MergeWorkEventsResponse",
     "PairwiseEventConstraintItem",
     "PairwiseEventConstraintRecord",
+    "RejectWorkEventRequest",
     "RelationSemanticsError",
     "ReviewActionHistoryItem",
+    "SplitAnchorScopeInput",
+    "SplitPairwiseConstraintItem",
+    "SplitPartitionInput",
+    "SplitWorkEventRequest",
+    "SplitWorkEventResponse",
+    "StaleDownstreamImpact",
     "WorkEventAllowedAction",
     "WorkEventCounts",
     "WorkEventCursorPayload",
@@ -548,4 +816,7 @@ __all__ = [
     "decode_and_verify_work_event_cursor",
     "encode_work_event_cursor",
     "format_work_event_etag",
+    "has_non_empty_anchor_scope",
+    "parse_if_match_version",
+    "resolve_idempotency_key",
 ]

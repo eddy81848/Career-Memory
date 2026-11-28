@@ -160,6 +160,34 @@
       }
     },
     "schemas": {
+      "AffectedDownstreamImpact": {
+        "additionalProperties": false,
+        "description": "Downstream member Fact/Claim/Export counts invalidated by MERGE.",
+        "properties": {
+          "claim_count": {
+            "minimum": 0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "export_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Export Count",
+            "type": "integer"
+          },
+          "fact_count": {
+            "minimum": 0,
+            "title": "Fact Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fact_count",
+          "claim_count"
+        ],
+        "title": "AffectedDownstreamImpact",
+        "type": "object"
+      },
       "CannotLinkSummary": {
         "additionalProperties": false,
         "description": "Combined source-level and pairwise event-level CANNOT_LINK constraints (never evidence).",
@@ -581,6 +609,46 @@
         "title": "CompositeSummary",
         "type": "object"
       },
+      "ConfirmWorkEventRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/confirm request payload (UI Keep).",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ConfirmWorkEventRequest",
+        "type": "object"
+      },
       "ContentUnitType": {
         "enum": [
           "PR_TITLE",
@@ -843,6 +911,88 @@
         "title": "DirectCommitSummary",
         "type": "object"
       },
+      "DissolveWorkEventRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/dissolve request payload (T-304B).",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "DissolveWorkEventRequest",
+        "type": "object"
+      },
+      "DissolveWorkEventResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/dissolve response payload (T-304B).",
+        "properties": {
+          "cleanup_job_status": {
+            "minLength": 1,
+            "title": "Cleanup Job Status",
+            "type": "string"
+          },
+          "dissolved_composite": {
+            "$ref": "#/components/schemas/WorkEventDetailResponse"
+          },
+          "invalidated_downstream_count": {
+            "minimum": 0,
+            "title": "Invalidated Downstream Count",
+            "type": "integer"
+          },
+          "restored_members": {
+            "items": {
+              "$ref": "#/components/schemas/WorkEventDetailResponse"
+            },
+            "title": "Restored Members",
+            "type": "array"
+          },
+          "stale_downstream_impact": {
+            "$ref": "#/components/schemas/StaleDownstreamImpact"
+          },
+          "superseded_composite": {
+            "$ref": "#/components/schemas/WorkEventDetailResponse"
+          }
+        },
+        "required": [
+          "dissolved_composite",
+          "superseded_composite",
+          "restored_members",
+          "invalidated_downstream_count",
+          "stale_downstream_impact",
+          "cleanup_job_status"
+        ],
+        "title": "DissolveWorkEventResponse",
+        "type": "object"
+      },
       "DownstreamImpactSummary": {
         "additionalProperties": false,
         "description": "Downstream Fact/Claim/Export counts and live processing/policy status.",
@@ -887,6 +1037,88 @@
           "processing_status"
         ],
         "title": "DownstreamImpactSummary",
+        "type": "object"
+      },
+      "EditWorkEventRequest": {
+        "additionalProperties": false,
+        "description": "PATCH /v1/work-events/{id} request payload (creates new CANDIDATE version).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "title"
+        ],
+        "title": "EditWorkEventRequest",
         "type": "object"
       },
       "EphemeralContentUnitResponse": {
@@ -1562,6 +1794,169 @@
         ],
         "type": "object"
       },
+      "MergeMemberInput": {
+        "additionalProperties": false,
+        "description": "Member event reference and optimistic concurrency expected_version for MERGE.",
+        "properties": {
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_id",
+          "expected_version"
+        ],
+        "title": "MergeMemberInput",
+        "type": "object"
+      },
+      "MergeWorkEventsRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/actions/merge request payload (T-304B).",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "composite_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Composite Title"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MergeMemberInput"
+            },
+            "minItems": 2,
+            "title": "Members",
+            "type": "array"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "title": "MergeWorkEventsRequest",
+        "type": "object"
+      },
+      "MergeWorkEventsResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/actions/merge response payload (T-304B).",
+        "properties": {
+          "affected_downstream_impact": {
+            "$ref": "#/components/schemas/AffectedDownstreamImpact"
+          },
+          "composite_event": {
+            "$ref": "#/components/schemas/WorkEventDetailResponse"
+          },
+          "invalidated_downstream_count": {
+            "minimum": 0,
+            "title": "Invalidated Downstream Count",
+            "type": "integer"
+          },
+          "regeneration_job_status": {
+            "minLength": 1,
+            "title": "Regeneration Job Status",
+            "type": "string"
+          },
+          "superseded_member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Superseded Member Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "composite_event",
+          "superseded_member_ids",
+          "invalidated_downstream_count",
+          "affected_downstream_impact",
+          "regeneration_job_status"
+        ],
+        "title": "MergeWorkEventsResponse",
+        "type": "object"
+      },
       "NonRecoverableScopes": {
         "additionalProperties": false,
         "description": "Explicit disclosure of copies outside server purge reach (OD-003).",
@@ -1817,6 +2212,46 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "RejectWorkEventRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/reject request payload (UI Exclude).",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RejectWorkEventRequest",
         "type": "object"
       },
       "ResolutionStatus": {
@@ -2455,6 +2890,295 @@
           "source_account_id",
           "repository_full_name"
         ],
+        "type": "object"
+      },
+      "SplitAnchorScopeInput": {
+        "additionalProperties": false,
+        "description": "Non-raw scope boundaries for a single SPLIT partition (accepts diff_hunks & hunk_ranges).",
+        "properties": {
+          "content_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Content Unit Ids",
+            "type": "array"
+          },
+          "diff_hunks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Diff Hunks",
+            "type": "array"
+          },
+          "file_paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "File Paths",
+            "type": "array"
+          },
+          "hunk_ranges": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hunk Ranges",
+            "type": "array"
+          },
+          "review_thread_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Review Thread Ids",
+            "type": "array"
+          }
+        },
+        "title": "SplitAnchorScopeInput",
+        "type": "object"
+      },
+      "SplitPairwiseConstraintItem": {
+        "additionalProperties": false,
+        "description": "Canonical pairwise CANNOT_LINK constraint created between split sibling segments.",
+        "properties": {
+          "constraint_id": {
+            "minLength": 1,
+            "title": "Constraint Id",
+            "type": "string"
+          },
+          "constraint_type": {
+            "$ref": "#/components/schemas/EventConstraintType"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_review_action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created By Review Action Id"
+          },
+          "left_event_id": {
+            "minLength": 1,
+            "title": "Left Event Id",
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/EventConstraintOrigin"
+          },
+          "rationale_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rationale Code"
+          },
+          "right_event_id": {
+            "minLength": 1,
+            "title": "Right Event Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventConstraintStatus"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "left_event_id",
+          "right_event_id",
+          "constraint_type",
+          "origin",
+          "status",
+          "created_at"
+        ],
+        "title": "SplitPairwiseConstraintItem",
+        "type": "object"
+      },
+      "SplitPartitionInput": {
+        "additionalProperties": false,
+        "description": "Single non-overlapping child partition specification for POST .../actions/split.",
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Action"
+          },
+          "anchor_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SplitAnchorScopeInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Problem"
+          },
+          "source_object_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Object Ids",
+            "type": "array"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "SplitPartitionInput",
+        "type": "object"
+      },
+      "SplitWorkEventRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/split request payload (T-304A).",
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "partitions": {
+            "items": {
+              "$ref": "#/components/schemas/SplitPartitionInput"
+            },
+            "minItems": 2,
+            "title": "Partitions",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "expected_version",
+          "partitions"
+        ],
+        "title": "SplitWorkEventRequest",
+        "type": "object"
+      },
+      "SplitWorkEventResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/work-events/{id}/actions/split response payload (T-304A).",
+        "properties": {
+          "created_segments": {
+            "items": {
+              "$ref": "#/components/schemas/WorkEventDetailResponse"
+            },
+            "title": "Created Segments",
+            "type": "array"
+          },
+          "pairwise_constraints_created": {
+            "items": {
+              "$ref": "#/components/schemas/SplitPairwiseConstraintItem"
+            },
+            "title": "Pairwise Constraints Created",
+            "type": "array"
+          },
+          "superseded_parent": {
+            "$ref": "#/components/schemas/WorkEventDetailResponse"
+          }
+        },
+        "required": [
+          "superseded_parent",
+          "created_segments"
+        ],
+        "title": "SplitWorkEventResponse",
+        "type": "object"
+      },
+      "StaleDownstreamImpact": {
+        "additionalProperties": false,
+        "description": "Downstream composite Fact/Claim/Export counts marked STALE by DISSOLVE.",
+        "properties": {
+          "stale_claim_count": {
+            "minimum": 0,
+            "title": "Stale Claim Count",
+            "type": "integer"
+          },
+          "stale_export_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Stale Export Count",
+            "type": "integer"
+          },
+          "stale_fact_count": {
+            "minimum": 0,
+            "title": "Stale Fact Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stale_fact_count",
+          "stale_claim_count"
+        ],
+        "title": "StaleDownstreamImpact",
         "type": "object"
       },
       "StreamProgress": {
@@ -4719,6 +5443,117 @@
         ]
       }
     },
+    "/v1/work-events/actions/merge": {
+      "post": {
+        "operationId": "mergeWorkEvents",
+        "parameters": [
+          {
+            "description": "Idempotency key header (must match body idempotency_key if both supplied).",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Idempotency key header (must match body idempotency_key if both supplied).",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeWorkEventsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeWorkEventsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace member)."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "DUPLICATE_COMPOSITE_MEMBER, CROSS_REPOSITORY_MEMBER, NESTED_COMPOSITE_NOT_ALLOWED, MEMBER_ALREADY_COMPOSED, MEMBER_NOT_ACTIVE, EVENT_VERSION_CONFLICT, CANNOT_LINK_CONFLICT, PR_ASSOCIATION_INCOMPLETE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, NON_EVENT_MEMBER_NOT_ALLOWED, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Manually merge >=2 active same-repository WorkEvents into a USER_COMPOSITE (T-304B)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
     "/v1/work-events/{id}": {
       "get": {
         "operationId": "getWorkEventDetail",
@@ -4796,6 +5631,674 @@
           }
         },
         "summary": "Read full WorkEvent detail including separated relations, composite snapshots, and immutable history (T-303)",
+        "tags": [
+          "work-events"
+        ]
+      },
+      "patch": {
+        "operationId": "editWorkEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditWorkEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkEventDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_VERSION_CONFLICT, EVENT_NOT_ACTIVE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Edit a WorkEvent into a new CANDIDATE version without overwriting historical snapshots (T-304)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
+    "/v1/work-events/{id}/actions/confirm": {
+      "post": {
+        "operationId": "confirmWorkEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmWorkEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkEventDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_VERSION_CONFLICT, EVENT_ALREADY_CONFIRMED, EVENT_NOT_ACTIVE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Confirm (Keep) an active CANDIDATE/STALE WorkEvent (T-304)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
+    "/v1/work-events/{id}/actions/dissolve": {
+      "post": {
+        "operationId": "dissolveWorkEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DissolveWorkEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DissolveWorkEventResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_VERSION_CONFLICT, NOT_ACTIVE_USER_COMPOSITE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Dissolve an active USER_COMPOSITE, mark composite downstream STALE, and re-evaluate restored member statuses (T-304B)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
+    "/v1/work-events/{id}/actions/reject": {
+      "post": {
+        "operationId": "rejectWorkEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectWorkEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkEventDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_VERSION_CONFLICT, USER_COMPOSITE_REJECT_REQUIRES_DISSOLVE, EVENT_NOT_ACTIVE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Reject (Exclude) an active WorkEvent while preserving all underlying source provenance (T-304)",
+        "tags": [
+          "work-events"
+        ]
+      }
+    },
+    "/v1/work-events/{id}/actions/split": {
+      "post": {
+        "operationId": "splitWorkEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitWorkEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SplitWorkEventResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation or SOURCE_POLICY_BLOCKED."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "EVENT_VERSION_CONFLICT, SPLIT_NOT_ALLOWED, EVENT_NOT_ACTIVE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_SPLIT_SCOPE, SPLIT_SCOPE_OVERLAP, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Atomically split a PR or unsplit DIRECT_COMMIT into disjoint scoped segments with pairwise CANNOT_LINK (T-304A)",
         "tags": [
           "work-events"
         ]

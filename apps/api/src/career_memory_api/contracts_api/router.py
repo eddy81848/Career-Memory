@@ -706,6 +706,7 @@ def create_m1_contract_app(
     access_provider: WorkspaceAccessProvider | None = None,
     contracts_service: ContractBoundaryPort | None = None,
     work_events_service: Any | None = None,
+    work_events_mutation_service: Any | None = None,
     resolve_access: AccessResolver | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the full integrated contract surface (no BYOK / LLM callbacks)."""
@@ -718,6 +719,7 @@ def create_m1_contract_app(
     )
     work_events_router = create_work_events_router(
         service=work_events_service,
+        mutation_service=work_events_mutation_service,
         resolve_access=resolve_access,
     )
     app = create_app(

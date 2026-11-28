@@ -56,6 +56,7 @@ from career_memory_api.contracts_api.models import (
     FORBIDDEN_VERIFICATION_WRITE_FIELDS,
     SearchEntityType,
 )
+from career_memory_api.identities.models import IdentityAttributionBlockReason
 from career_memory_api.jobs.models import (
     AuditActorType,
     DeletionJobStatus,
@@ -79,6 +80,10 @@ from career_memory_api.schema_contracts.enums import (
     EventConstraintType,
     EventMembershipOrigin,
     EventMembershipRelationClass,
+    ExportFormat,
+    ExportPolicy,
+    ExportStatus,
+    ExportVerificationClass,
     ExternalIdentityMappingStatus,
     FactStatus,
     FactType,
@@ -255,21 +260,25 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="IdentityType",
         enum_cls=IdentityType,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_identities_type"),),
+        openapi_schema_name="IdentityType",
     ),
     EnumParityBinding(
         name="IdentityStatus",
         enum_cls=IdentityStatus,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_identities_status"),),
+        openapi_schema_name="IdentityStatus",
     ),
     EnumParityBinding(
         name="IdentityVerificationMethod",
         enum_cls=IdentityVerificationMethod,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_external_identity_mappings_verification_method"),),
+        openapi_schema_name="IdentityVerificationMethod",
     ),
     EnumParityBinding(
         name="ExternalIdentityMappingStatus",
         enum_cls=ExternalIdentityMappingStatus,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_external_identity_mappings_status"),),
+        openapi_schema_name="ExternalIdentityMappingStatus",
     ),
     EnumParityBinding(
         name="WorkEventAnchorMode",
@@ -333,7 +342,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
     EnumParityBinding(
         name="FactStatus",
         enum_cls=FactStatus,
-        sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_facts_status"),),
+        sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_facts_status"),),
     ),
     EnumParityBinding(
         name="SupportType",
@@ -595,6 +604,38 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         openapi_schema_name="WorkEventPolicyState",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
+    # 0070 M4 Fact Versioning, Exports & Identities API (T-401, T-401A, T-407)
+    EnumParityBinding(
+        name="ExportFormat",
+        enum_cls=ExportFormat,
+        sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_format"),),
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="ExportPolicy",
+        enum_cls=ExportPolicy,
+        sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_policy"),),
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="ExportStatus",
+        enum_cls=ExportStatus,
+        sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_status"),),
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="ExportVerificationClass",
+        enum_cls=ExportVerificationClass,
+        sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_export_claims_verification"),),
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="IdentityAttributionBlockReason",
+        enum_cls=IdentityAttributionBlockReason,
+        sql_targets=(),
+        openapi_schema_name="IdentityAttributionBlockReason",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
 )
 
 
@@ -646,14 +687,26 @@ def _extract_sql_constraint_literals(sql_text: str, marker: str) -> set[str]:
             raise ValueError(f"Could not locate inline CHECK for {table_name}.{col_name}")
         expr = col_match.group(1)
     else:
-        constraint_match = re.search(
-            rf"CONSTRAINT\s+{re.escape(marker)}\s+CHECK\s*\((.*?)\)(?:\s*,|\s*\n\s*\);)",
+        header_match = re.search(
+            rf"CONSTRAINT\s+{re.escape(marker)}\s+CHECK\s*\(",
             sql_text,
             flags=re.DOTALL | re.IGNORECASE,
         )
-        if not constraint_match:
+        if not header_match:
             raise ValueError(f"Could not locate CONSTRAINT {marker} in SQL")
-        expr = constraint_match.group(1)
+        start_idx = header_match.end()
+        depth = 1
+        idx = start_idx
+        while idx < len(sql_text) and depth > 0:
+            ch = sql_text[idx]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            idx += 1
+        if depth != 0:
+            raise ValueError(f"Unbalanced parentheses in CONSTRAINT {marker}")
+        expr = sql_text[start_idx : idx - 1]
 
     in_match = re.search(r"\bIN\s*\((.*?)\)", expr, flags=re.DOTALL | re.IGNORECASE)
     if in_match:
@@ -743,6 +796,9 @@ def validate_openapi_invariants(
         ("/v1/work-events/{id}/actions/split", "post"),
         ("/v1/work-events/actions/merge", "post"),
         ("/v1/work-events/{id}/actions/dissolve", "post"),
+        ("/v1/identities", "get"),
+        ("/v1/identities/mappings/{mapping_id}/actions/confirm", "post"),
+        ("/v1/identities/mappings/{mapping_id}/actions/revoke", "post"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:

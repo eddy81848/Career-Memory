@@ -5,7 +5,8 @@
     "0030_events_facts_claims_contributions.sql",
     "0040_sync_runs_jobs_outbox_audit.sql",
     "0050_m2_backfill_observations.sql",
-    "0060_m3_event_versions_and_constraints.sql"
+    "0060_m3_event_versions_and_constraints.sql",
+    "0070_m4_fact_versions_and_exports.sql"
   ],
   "roles": {
     "cm_api_app": {
@@ -1118,6 +1119,202 @@
       ],
       "rowsecurity": true
     },
+    "export_claims": {
+      "check_constraints": {
+        "ck_export_claims_ordinal_non_negative": "CHECK ((ordinal >= 0))",
+        "ck_export_claims_snapshot_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(support_manifest_snapshot)))",
+        "ck_export_claims_snapshot_object": "CHECK ((jsonb_typeof(support_manifest_snapshot) = 'object'::text))",
+        "ck_export_claims_verification": "CHECK ((computed_verification_at_export = ANY (ARRAY['SOURCE_VERIFIED'::text, 'USER_CONFIRMED'::text, 'MIXED'::text])))",
+        "ck_export_claims_version_positive": "CHECK ((claim_version >= 1))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "export_id",
+        "claim_id",
+        "claim_version",
+        "computed_verification_at_export",
+        "support_manifest_snapshot",
+        "ordinal",
+        "created_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "export_claims_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "claim_id"
+          ],
+          "name": "fk_export_claims_same_workspace_claim",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "claims"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "export_id"
+          ],
+          "name": "fk_export_claims_same_workspace_export",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "exports"
+        }
+      ],
+      "indexes": [
+        "export_claims_pkey",
+        "idx_export_claims_workspace_claim",
+        "idx_export_claims_workspace_export",
+        "uq_export_claims_export_claim",
+        "uq_export_claims_workspace_id_id"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "export_claims_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "export_claims_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "export_claims_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "export_claims_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
+    "exports": {
+      "check_constraints": {
+        "ck_exports_artifact_payload_no_raw": "CHECK (((artifact_payload IS NULL) OR (NOT cm_jsonb_contains_forbidden_raw_key(artifact_payload))))",
+        "ck_exports_artifact_payload_no_secret": "CHECK (((artifact_payload IS NULL) OR (NOT cm_jsonb_contains_forbidden_secret_key(artifact_payload))))",
+        "ck_exports_artifact_payload_object": "CHECK (((artifact_payload IS NULL) OR (jsonb_typeof(artifact_payload) = 'object'::text)))",
+        "ck_exports_format": "CHECK ((format = ANY (ARRAY['MARKDOWN'::text, 'JSON'::text])))",
+        "ck_exports_idempotency_key_non_empty": "CHECK ((length(btrim(idempotency_key)) > 0))",
+        "ck_exports_input_hash_sha256": "CHECK ((input_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text))",
+        "ck_exports_manifest_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(manifest)))",
+        "ck_exports_manifest_no_secret": "CHECK ((NOT cm_jsonb_contains_forbidden_secret_key(manifest)))",
+        "ck_exports_manifest_object": "CHECK ((jsonb_typeof(manifest) = 'object'::text))",
+        "ck_exports_policy": "CHECK ((export_policy = ANY (ARRAY['SOURCE_VERIFIED_ONLY'::text, 'ALLOW_USER_CONFIRMED'::text])))",
+        "ck_exports_policy_version_non_empty": "CHECK ((length(btrim(policy_version)) > 0))",
+        "ck_exports_status": "CHECK ((status = ANY (ARRAY['PENDING'::text, 'READY'::text, 'INVALIDATED'::text, 'FAILED'::text, 'DELETED'::text])))"
+      },
+      "columns": [
+        "id",
+        "workspace_id",
+        "source_resource_id",
+        "requested_by_user_id",
+        "format",
+        "export_policy",
+        "status",
+        "idempotency_key",
+        "input_hash",
+        "policy_version",
+        "manifest",
+        "artifact_payload",
+        "invalidation_reason",
+        "created_at",
+        "completed_at",
+        "invalidated_at",
+        "deleted_at",
+        "updated_at"
+      ],
+      "forcerowsecurity": true,
+      "foreign_keys": [
+        {
+          "child_columns": [
+            "workspace_id"
+          ],
+          "name": "exports_workspace_id_fkey",
+          "parent_columns": [
+            "id"
+          ],
+          "parent_table": "workspaces"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "source_resource_id"
+          ],
+          "name": "fk_exports_same_workspace_resource",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "source_resources"
+        }
+      ],
+      "indexes": [
+        "exports_pkey",
+        "idx_exports_workspace_source_resource",
+        "idx_exports_workspace_status_created",
+        "uq_exports_workspace_id_id",
+        "uq_exports_workspace_idempotency"
+      ],
+      "owner": "cm_migrator",
+      "policies": [
+        {
+          "cmd": "ALL",
+          "name": "exports_api_workspace_isolation",
+          "roles": [
+            "cm_api_app"
+          ]
+        },
+        {
+          "cmd": "INSERT",
+          "name": "exports_worker_workspace_insert",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "SELECT",
+          "name": "exports_worker_workspace_select",
+          "roles": [
+            "cm_worker_app"
+          ]
+        },
+        {
+          "cmd": "UPDATE",
+          "name": "exports_worker_workspace_update",
+          "roles": [
+            "cm_worker_app"
+          ]
+        }
+      ],
+      "rowsecurity": true
+    },
     "external_identity_mappings": {
       "check_constraints": {
         "ck_external_identity_mappings_email_hash_format": "CHECK (((email_hash IS NULL) OR (email_hash ~ '^(sha256:)?[0-9a-f]{64}$'::text)))",
@@ -1317,10 +1514,12 @@
         "ck_facts_fact_type": "CHECK ((fact_type = ANY (ARRAY['PROBLEM'::text, 'ACTION'::text, 'TECHNOLOGY'::text, 'RESULT'::text, 'ROLE'::text, 'METRIC'::text])))",
         "ck_facts_metadata_no_raw": "CHECK ((NOT cm_jsonb_contains_forbidden_raw_key(fact_metadata)))",
         "ck_facts_metadata_object": "CHECK ((jsonb_typeof(fact_metadata) = 'object'::text))",
+        "ck_facts_no_self_supersede": "CHECK (((supersedes_fact_id IS NULL) OR (supersedes_fact_id <> id)))",
         "ck_facts_normalized_value_no_raw": "CHECK (((normalized_value IS NULL) OR (NOT cm_jsonb_contains_forbidden_raw_key(normalized_value))))",
         "ck_facts_object_text_non_empty": "CHECK ((length(btrim(object_text)) > 0))",
         "ck_facts_predicate_non_empty": "CHECK ((length(btrim(predicate)) > 0))",
-        "ck_facts_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'SUPPORTED'::text, 'USER_CONFIRMED'::text, 'CONFLICTED'::text, 'STALE'::text, 'REJECTED'::text])))"
+        "ck_facts_status": "CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'SUPPORTED'::text, 'USER_CONFIRMED'::text, 'CONFLICTED'::text, 'STALE'::text, 'REJECTED'::text, 'SUPERSEDED'::text])))",
+        "ck_facts_version_positive": "CHECK ((version >= 1))"
       },
       "columns": [
         "id",
@@ -1335,7 +1534,9 @@
         "status",
         "extractor_version",
         "created_at",
-        "updated_at"
+        "updated_at",
+        "version",
+        "supersedes_fact_id"
       ],
       "forcerowsecurity": true,
       "foreign_keys": [
@@ -1372,12 +1573,25 @@
             "id"
           ],
           "parent_table": "identities"
+        },
+        {
+          "child_columns": [
+            "workspace_id",
+            "supersedes_fact_id"
+          ],
+          "name": "fk_facts_same_workspace_supersedes",
+          "parent_columns": [
+            "workspace_id",
+            "id"
+          ],
+          "parent_table": "facts"
         }
       ],
       "indexes": [
         "facts_pkey",
         "idx_facts_workspace_event",
         "idx_facts_workspace_subject_identity",
+        "idx_facts_workspace_supersedes",
         "uq_facts_workspace_id_id"
       ],
       "owner": "cm_migrator",

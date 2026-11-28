@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prune superseded Artifact Registry Docker digests beyond active + 1 rollback per service."""
+"""Prune superseded Artifact Registry Docker digests while protecting active & rollback revisions."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-id", required=True)
     parser.add_argument("--region", default="us-central1")
+    parser.add_argument("--protect-revision", action="append", default=[])
     args = parser.parse_args()
 
     env = dict(os.environ)
@@ -22,8 +23,32 @@ def main() -> int:
     )
     env["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
 
+    protected_rev_names = {r.strip() for r in args.protect_revision if r and r.strip()}
     keep: set[str] = set()
+
     for svc in ("cm-api", "cm-worker", "cm-web"):
+        svc_doc = json.loads(
+            subprocess.check_output(
+                [
+                    "gcloud",
+                    "run",
+                    "services",
+                    "describe",
+                    svc,
+                    "--project",
+                    args.project_id,
+                    "--region",
+                    args.region,
+                    "--format=json",
+                ],
+                env=env,
+                text=True,
+            )
+        )
+        for tr in (svc_doc.get("status") or {}).get("traffic") or []:
+            if tr.get("revisionName"):
+                protected_rev_names.add(str(tr["revisionName"]))
+
         revs = json.loads(
             subprocess.check_output(
                 [
@@ -37,17 +62,23 @@ def main() -> int:
                     args.project_id,
                     "--region",
                     args.region,
-                    "--limit=2",
+                    "--limit=5",
                     "--format=json",
                 ],
                 env=env,
                 text=True,
             )
         )
+        kept_recent = 0
         for rev in revs:
+            rev_name = str((rev.get("metadata") or {}).get("name") or "")
             containers = (rev.get("spec") or {}).get("containers") or []
-            if containers and "@sha256:" in containers[0].get("image", ""):
-                keep.add("sha256:" + containers[0]["image"].split("@sha256:", 1)[1])
+            if not containers or "@sha256:" not in containers[0].get("image", ""):
+                continue
+            digest = "sha256:" + containers[0]["image"].split("@sha256:", 1)[1]
+            if rev_name in protected_rev_names or kept_recent < 2:
+                keep.add(digest)
+                kept_recent += 1
 
     for pkg in ("cm-api", "cm-web"):
         repo_pkg = f"{args.region}-docker.pkg.dev/{args.project_id}/career-memory/{pkg}"

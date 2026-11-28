@@ -24,8 +24,8 @@ from career_memory_api.pilot_gate import (
 )
 
 
-def test_t506_release_gate_verifies_all_7_bundles_and_zero_drift() -> None:
-    """Verify all 7 M0-M5 evidence bundles, 3-tier gate separation, and 0 drift against committed JSON."""
+def test_t506_release_gate_verifies_all_8_bundles_and_zero_drift() -> None:
+    """Verify all 8 M0-M5 & Track 2 evidence bundles, 3-tier gate separation, and 0 drift against committed JSON."""
     repo_root = default_repo_root()
     bundle = evaluate_t506_pilot_gate(repo_root=repo_root)
 
@@ -34,8 +34,8 @@ def test_t506_release_gate_verifies_all_7_bundles_and_zero_drift() -> None:
     assert bundle.external_network_calls == 0
     assert bundle.spend_krw == 0
 
-    assert bundle.summary["bundles_total"] == 7
-    assert bundle.summary["bundles_verified"] == 7
+    assert bundle.summary["bundles_total"] == 8
+    assert bundle.summary["bundles_verified"] == 8
     assert bundle.summary["invariants_passed"] == bundle.summary["invariants_total"]
     assert all(b.verified for b in bundle.evidence_bundles)
     assert all(i.passed for i in bundle.invariants)
@@ -44,10 +44,10 @@ def test_t506_release_gate_verifies_all_7_bundles_and_zero_drift() -> None:
     assert gates[ReleaseGateTier.LOCAL_DETERMINISTIC_MVP_GATE].decision is ReleaseGateDecision.GO
     assert gates[ReleaseGateTier.LOCAL_DETERMINISTIC_MVP_GATE].status_code is ReleaseGateStatusCode.PASSED
 
-    assert gates[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].decision is ReleaseGateDecision.NO_GO
+    assert gates[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].decision is ReleaseGateDecision.GO
     assert (
         gates[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].status_code
-        is ReleaseGateStatusCode.HELD_PENDING_OD013_OD015
+        is ReleaseGateStatusCode.PASSED
     )
 
     assert gates[ReleaseGateTier.LIVE_SUBSCRIPTION_AI_PILOT_GATE].decision is ReleaseGateDecision.NO_GO
@@ -69,11 +69,11 @@ def test_t506_release_gate_verifies_all_7_bundles_and_zero_drift() -> None:
 
 
 def test_t506_fail_closed_on_missing_or_drifted_evidence_bundle(tmp_path: Path) -> None:
-    """Missing evidence bundle or OpenAPI SHA drift MUST fail closed (LOCAL gate -> NO-GO/FAILED)."""
+    """Missing local or hosted evidence bundle MUST fail closed on the corresponding gate tier."""
     repo_root = default_repo_root()
     fake_root = tmp_path / "repo"
     shutil.copytree(repo_root / "contracts", fake_root / "contracts")
-    # Remove one required evidence bundle (T-504A)
+    # Remove one required local evidence bundle (T-504A) -> both LOCAL and HOSTED gates fail closed
     (fake_root / "contracts" / "fault-matrix" / "t504a_evidence_bundle.v1.json").unlink()
 
     bundle = evaluate_t506_pilot_gate(
@@ -82,13 +82,37 @@ def test_t506_fail_closed_on_missing_or_drifted_evidence_bundle(tmp_path: Path) 
     gates = {g.tier: g for g in bundle.release_gates}
     assert gates[ReleaseGateTier.LOCAL_DETERMINISTIC_MVP_GATE].decision is ReleaseGateDecision.NO_GO
     assert gates[ReleaseGateTier.LOCAL_DETERMINISTIC_MVP_GATE].status_code is ReleaseGateStatusCode.FAILED
+    assert gates[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].decision is ReleaseGateDecision.NO_GO
+
+    # Restore local bundle, remove hosted staging bundle -> LOCAL stays GO, HOSTED fails closed
+    fake_root_hosted = tmp_path / "repo_no_hosted"
+    shutil.copytree(repo_root / "contracts", fake_root_hosted / "contracts")
+    (
+        fake_root_hosted / "contracts" / "hosted-staging" / "t007f_t106b_staging_evidence.v1.json"
+    ).unlink()
+    bundle_no_hosted = evaluate_t506_pilot_gate(
+        repo_root=fake_root_hosted, require_live_fe_be_tests_present=False
+    )
+    gates_nh = {g.tier: g for g in bundle_no_hosted.release_gates}
+    assert gates_nh[ReleaseGateTier.LOCAL_DETERMINISTIC_MVP_GATE].decision is ReleaseGateDecision.GO
+    assert gates_nh[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].decision is ReleaseGateDecision.NO_GO
+    assert (
+        gates_nh[ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE].status_code
+        is ReleaseGateStatusCode.HELD_PENDING_OD013_OD015
+    )
 
 
-def test_t506_rejects_false_promotion_of_held_hosted_or_ai_gates() -> None:
-    """assert_strict_three_tier_honesty MUST reject false GO promotion on hosted or live AI gates."""
-    bundle = evaluate_t506_pilot_gate(repo_root=default_repo_root())
+def test_t506_rejects_false_promotion_of_held_hosted_or_ai_gates(tmp_path: Path) -> None:
+    """assert_strict_three_tier_honesty MUST reject unverified hosted GO or any synthetic live AI GO."""
+    repo_root = default_repo_root()
+    fake_root = tmp_path / "repo_unverified_hosted"
+    shutil.copytree(repo_root / "contracts", fake_root / "contracts")
+    (fake_root / "contracts" / "hosted-staging" / "t007f_t106b_staging_evidence.v1.json").unlink()
+    unverified_hosted_bundle = evaluate_t506_pilot_gate(
+        repo_root=fake_root, require_live_fe_be_tests_present=False
+    )
 
-    tampered_hosted = bundle.model_copy(
+    tampered_hosted = unverified_hosted_bundle.model_copy(
         update={
             "release_gates": [
                 (
@@ -96,13 +120,14 @@ def test_t506_rejects_false_promotion_of_held_hosted_or_ai_gates() -> None:
                     if g.tier is ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE
                     else g
                 )
-                for g in bundle.release_gates
+                for g in unverified_hosted_bundle.release_gates
             ]
         }
     )
     with pytest.raises(PilotGatePolicyViolationError):
         assert_strict_three_tier_honesty(tampered_hosted)
 
+    bundle = evaluate_t506_pilot_gate(repo_root=repo_root)
     tampered_ai = bundle.model_copy(
         update={
             "release_gates": [

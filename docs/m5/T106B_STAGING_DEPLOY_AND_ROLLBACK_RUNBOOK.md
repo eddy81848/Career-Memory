@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 > **Gate & Secret Hygiene Boundary (`T-506` / `OD-013` / `OD-015` / `INF-09`)**
-> - `PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE` remains `NO_GO` (`HELD_PENDING_OD013_OD015`) until live GCP + Supabase Free resources are provisioned and `OD-015` pre-flight returns `GO`.
+> - `PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE` (`GO` / `PASSED` in `contracts/pilot-gate/t506_release_gate.v1.json`) is backed by `contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json` (`OD-015` `GO`, WIF Deploy Run `46143882856` `11/11`, WIF Rollback Run `46144193821` `11/11`); if any hosted check fails or drifts, the gate fails closed to `NO-GO`.
 > - Subscription LLM (`OD-002` / `OD-014`) remains strictly **HARD-OFF** (`LlmRuntimeMode.OFF_MANUAL_ONLY`, `default_adapter=None`) on hosted Cloud Run.
 > - **Zero Secrets in Git**: NEVER commit real credentials, tokens, DSNs with passwords, HMAC/cookie secrets, project-specific secret values, private keys, or `.env*` files into Git, Dockerfiles, JSON manifests, or docs.
 > - **Keyless WIF + Encrypted Secrets Only**: `.github/workflows/staging-deploy.yml` is bound to GitHub Environment `staging`, authenticates to GCP exclusively via OIDC Workload Identity Federation (zero static service account keys), reads deployment secrets from GitHub Environment `staging` Encrypted Secrets, and mounts runtime credentials into Cloud Run strictly via `--set-secrets` referencing GCP Secret Manager names. `.github/workflows/pr-conformance-local.yml` stays 100% secret-free per `INF-09`.

@@ -1,5 +1,5 @@
 {
-  "deterministic_gate_sha256": "sha256:761b41b733b713119f62db060bdb31569c5ff40d1bb7e0a0df57bf27a09c8641",
+  "deterministic_gate_sha256": "sha256:5e215316990d3a77c81867b6363f9392344f832257bb5e0bb63c6c0bc5400818",
   "evidence_bundles": [
     {
       "bundle_id": "B-004",
@@ -112,6 +112,22 @@
       "present": true,
       "relative_path": "contracts/fault-matrix/t504a_evidence_bundle.v1.json",
       "verified": true
+    },
+    {
+      "bundle_id": "T-007F/T-106B",
+      "checks_passed": 7,
+      "checks_total": 7,
+      "file_sha256": "sha256:25d19386f6e32ec25afc01edde4d89dfff3262454048db96e0af83f0d170617e",
+      "findings": [],
+      "metrics": {
+        "deploy_smoke_checks_passed": 11,
+        "force_rls_tables": 46,
+        "od015_verdict": "GO",
+        "rollback_smoke_checks_passed": 11
+      },
+      "present": true,
+      "relative_path": "contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json",
+      "verified": true
     }
   ],
   "external_network_calls": 0,
@@ -126,7 +142,8 @@
         "T-408/INF-08",
         "T-507/INF-07",
         "T-505/INF-10",
-        "T-504A"
+        "T-504A",
+        "T-007F/T-106B"
       ],
       "invariant_id": "M0-OPENAPI-PIN",
       "passed": true,
@@ -140,11 +157,12 @@
         "T-407A",
         "T-408/INF-08",
         "T-505/INF-10",
-        "T-504A"
+        "T-504A",
+        "T-007F/T-106B"
       ],
       "invariant_id": "ADR-013-PLAN-C-ZERO-LEAKS",
       "passed": true,
-      "summary": "0 raw source bodies persisted, 0 forbidden JSONB keys, and 0 canary/secret leaks across all 46 PG18 tables, logs, and exports."
+      "summary": "0 raw source bodies persisted, 0 forbidden JSONB keys, and 0 canary/secret leaks across all 46 PG18/PG17 tables, logs, and exports."
     },
     {
       "category": "MEMORY_SEARCH",
@@ -218,11 +236,12 @@
         "T-408/INF-08",
         "T-507/INF-07",
         "T-505/INF-10",
-        "T-504A"
+        "T-504A",
+        "T-007F/T-106B"
       ],
       "invariant_id": "INF-01..10",
       "passed": true,
-      "summary": "All app-layer & local PG18 guards (FORCE RLS, edge origin/worker/cache/pause, CI trust audit, LLM hard-OFF policy gate, encrypted backup/restore drill) verified at ₩0."
+      "summary": "All app-layer, local PG18, and hosted Cloud Run + Supabase PG17 guards (FORCE RLS, edge origin/worker/cache/pause, WIF release/rollback, LLM hard-OFF policy gate, encrypted backup/restore drill) verified."
     }
   ],
   "issue_number": 33,
@@ -238,18 +257,11 @@
       "tier": "LOCAL_DETERMINISTIC_MVP_GATE"
     },
     {
-      "blocking_open_decisions": [
-        "OD-013",
-        "OD-015"
-      ],
-      "decision": "NO-GO",
-      "rationale": "App-layer guards (T-503 quotas/circuit breaker, T-505 encrypted PG18 backup/restore drill, T-507 edge origin/worker/cache/pause middleware & CI trust audit) are verified locally, but live external Cloud Run / Cloudflare / Supabase Free internet exposure is intentionally held OFF until operator billing hard-caps, platform-level origin mTLS/IAM ingress locks, and Supabase Free project/auth/backup checks are executed and approved under OD-013 and OD-015.",
-      "required_operator_actions": [
-        "Verify GCP Cloud Billing hard cutoff / budget automation or explicit spend approval (OD-015, ADR-020).",
-        "Provision and live-probe Cloudflare Origin mTLS / Transform Rule + Cloud Run ingress/IAM blocking direct *.run.app access and isolating /internal/worker/** (INF-07, OD-013).",
-        "Provision Supabase Free project, verify Auth redirect allowlist, RLS roles, connection pooler caps, and scheduled encrypted logical pg_dump off-host storage (INF-10, OD-013)."
-      ],
-      "status_code": "HELD_PENDING_OD013_OD015",
+      "blocking_open_decisions": [],
+      "decision": "GO",
+      "rationale": "Live Cloud Run (us-central1 scale-to-zero cm-web + cm-api + private IAM/OIDC cm-worker) + Supabase PostgreSQL 17.12 (:5432 cm_migrator 0010..0080, 46/46 FORCE RLS, :6543 Supavisor prepare_threshold=None, PostgREST 401 blocked) + keyless OIDC WIF deploy (Run 46143882856, 11/11) & instant rollback drill (Run 46144193821, 11/11) + OD-015 Free-Tier pre-flight GO (₩0, 4/4 secrets, 214.99 MB AR) verified under owner-confirmed OD-005/006/010/012/013/015.",
+      "required_operator_actions": [],
+      "status_code": "PASSED",
       "tier": "PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE"
     },
     {
@@ -271,15 +283,15 @@
   "schema_version": "t506-release-gate-v1",
   "spend_krw": 0,
   "summary": {
-    "bundles_total": 7,
-    "bundles_verified": 7,
+    "bundles_total": 8,
+    "bundles_verified": 8,
     "external_network_calls": 0,
     "invariants_passed": 9,
     "invariants_total": 9,
     "live_fe_be_pg18_suites_present": true,
     "live_subscription_ai_pilot_decision": "NO-GO",
     "local_deterministic_mvp_decision": "GO",
-    "public_cloud_hosted_closed_pilot_decision": "NO-GO",
+    "public_cloud_hosted_closed_pilot_decision": "GO",
     "spend_krw": 0
   },
   "task_id": "T-506"

@@ -90,8 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     if local_gate.decision is not ReleaseGateDecision.GO or local_gate.status_code is not ReleaseGateStatusCode.PASSED:
         print("[t506] FAILED: LOCAL_DETERMINISTIC_MVP_GATE did not reach GO/PASSED.", file=sys.stderr)
         return 1
-    if hosted_gate.decision is not ReleaseGateDecision.NO_GO or hosted_gate.status_code is not ReleaseGateStatusCode.HELD_PENDING_OD013_OD015:
-        print("[t506] FAILED: PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE must be NO-GO/HELD_PENDING_OD013_OD015.", file=sys.stderr)
+    if hosted_gate.decision is not ReleaseGateDecision.GO or hosted_gate.status_code is not ReleaseGateStatusCode.PASSED:
+        print("[t506] FAILED: PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE did not reach GO/PASSED.", file=sys.stderr)
         return 1
     if ai_gate.decision is not ReleaseGateDecision.NO_GO or ai_gate.status_code is not ReleaseGateStatusCode.HELD_PENDING_OD002_OD014:
         print("[t506] FAILED: LIVE_SUBSCRIPTION_AI_PILOT_GATE must be NO-GO/HELD_PENDING_OD002_OD014.", file=sys.stderr)

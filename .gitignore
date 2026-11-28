@@ -13,3 +13,6 @@ gcp-key*.json
 secrets/
 .mcp.json
 .DS_Store
+__pycache__/
+*.py[cod]
+supabase/.temp/

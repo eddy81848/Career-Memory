@@ -336,14 +336,8 @@ jobs:
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
-          CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.traffic[tag=candidate].url)')"
-          CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.traffic[tag=candidate].url)')"
-          if [ -z "$CANDIDATE_API_URL" ]; then
-            CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
-          fi
-          if [ -z "$CANDIDATE_WEB_URL" ]; then
-            CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
-          fi
+          CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("url","") for t in d.get("status",{}).get("traffic",[]) if t.get("tag")=="candidate" and t.get("url")), "") or d.get("status",{}).get("url",""))')"
+          CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("url","") for t in d.get("status",{}).get("traffic",[]) if t.get("tag")=="candidate" and t.get("url")), "") or d.get("status",{}).get("url",""))')"
           WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           WORKER_OIDC_TOKEN="$(gcloud auth print-identity-token --impersonate-service-account="$DEPLOY_SA" --audiences="$WORKER_URL" --include-email)"
 
@@ -361,12 +355,16 @@ jobs:
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
 
-          # Prune older untagged digests beyond the 2 newest images per repo to preserve <= 250 MB Free Tier headroom
+          # Prune older unreferenced digests beyond the 2 newest images per repo to preserve <= 250 MB Free Tier headroom
+          ACTIVE_IMAGES="$(gcloud run revisions list --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(spec.containers[0].image)' || true)"
           for IMG_NAME in cm-api cm-web; do
             IMG_PATH="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/${IMG_NAME}"
             OLD_DIGESTS="$(gcloud artifacts docker images list "$IMG_PATH" --include-tags --sort-by=~UPDATE_TIME --format='value(version)' | tail -n +3 || true)"
             for D in $OLD_DIGESTS; do
-              gcloud artifacts docker images delete "${IMG_PATH}@${D}" --delete-tags --quiet || true
+              FULL_REF="${IMG_PATH}@${D}"
+              if ! printf '%s\n' "$ACTIVE_IMAGES" | grep -Fqx "$FULL_REF"; then
+                gcloud artifacts docker images delete "$FULL_REF" --delete-tags --quiet || true
+              fi
             done
           done
 
@@ -374,6 +372,9 @@ jobs:
         if: ${{ inputs.action == 'rollback' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
           PREV_API_REV: ${{ inputs.previous_api_revision }}
           PREV_WEB_REV: ${{ inputs.previous_web_revision }}
           PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
@@ -388,7 +389,7 @@ jobs:
               --region "$GCP_REGION" \
               --to-revisions "${PREV_API_REV}=100"
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
-            gcloud run services update-traffic cm-web \
+              gcloud run services update-traffic cm-web \
               --project "$GCP_PROJECT_ID" \
               --region "$GCP_REGION" \
               --to-revisions "${PREV_WEB_REV}=100"
@@ -403,6 +404,25 @@ jobs:
               --max-instances 1 \
               --cpu 1 \
               --memory 512Mi
+
+          API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          WORKER_OIDC_TOKEN="$(gcloud auth print-identity-token --impersonate-service-account="$DEPLOY_SA" --audiences="$WORKER_URL" --include-email)"
+
+          cd apps/api
+          uv run python ../../scripts/run_t106b_release_verify.py \
+            --smoke-url "$API_URL" \
+            --worker-url "$WORKER_URL" \
+            --worker-oidc-token "$WORKER_OIDC_TOKEN" \
+            --web-url "$WEB_URL" \
+            --supabase-url "$SUPABASE_URL" \
+            --supabase-anon-key "$STAGING_SUPABASE_ANON_KEY"
+
+          uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json
 
       - name: Emit pinned reference manifest verification record
         if: always()

@@ -488,7 +488,7 @@ export function EventInboxApp({
         <EventReviewScenarioBar
           scenarioId={scenarioId}
           selectedEventId={selectedEventId}
-          disabled={inFlightAction !== null}
+          disabled={inFlightAction !== null || isLoadingList || isLoadingDetail}
           onScenarioChange={handleScenarioChange}
           onSimulateConcurrentUpdate={handleSimulateConcurrentUpdate}
           onReset={handleReset}

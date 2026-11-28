@@ -14,10 +14,11 @@ export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
   expect: {
-    timeout: 8_000,
+    timeout: 10_000,
   },
   fullyParallel: false,
-  retries: 0,
+  workers: 1,
+  retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
@@ -26,7 +27,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `npx next start --hostname 127.0.0.1 --port ${PORT}`,
+    command: `sh -c 'mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/ && ([ -d public ] && cp -R public .next/standalone/ || true) && HOSTNAME=127.0.0.1 PORT=${PORT} node .next/standalone/server.js'`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

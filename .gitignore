@@ -1,0 +1,15 @@
+# Secret, environment, and local tool state exclusions (INF-09 zero-secrets policy)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*credentials*.json
+*service-account*.json
+gcp-key*.json
+secrets/
+.mcp.json
+.DS_Store

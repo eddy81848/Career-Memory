@@ -1,0 +1,37 @@
+# Exclude local caches, virtualenvs, tests, git metadata, and secret/env files from Docker context
+.git
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+**/.pytest_cache
+tests
+**/tests
+*.pyc
+**/*.pyc
+*.pyo
+**/*.pyo
+.DS_Store
+
+# Never bundle environment files or private key / credential artifacts in container images
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+**/*.pem
+*.key
+**/*.key
+*.p12
+**/*.p12
+*.pfx
+**/*.pfx
+*.jks
+**/*.jks
+*service-account*.json
+**/*service-account*.json
+gcp-key*.json
+**/gcp-key*.json
+secrets/
+**/secrets/

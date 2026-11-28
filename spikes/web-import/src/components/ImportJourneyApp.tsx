@@ -929,15 +929,26 @@ export function ImportJourneyApp({
               : ""
           }`}
         >
-          <div className="brand-row">
-            <span className="brand-mark" aria-hidden="true">
-              CM
-            </span>
-            <div>
-              <p className="brand-kicker">Career Memory · Spike Prototype</p>
-              <h1 className="page-title">
-                GitHub 연결 및 일회성 최초 가져오기
-              </h1>
+          <div className="page-header__nav-row">
+            <div className="brand-row">
+              <span className="brand-mark" aria-hidden="true">
+                CM
+              </span>
+              <div>
+                <p className="brand-kicker">Career Memory · Spike Prototype</p>
+                <h1 className="page-title">
+                  GitHub 연결 및 일회성 최초 가져오기
+                </h1>
+              </div>
+            </div>
+            <div className="action-row">
+              <a
+                href="/search"
+                className="btn btn--secondary btn--sm"
+                data-testid="open-memory-ops-link"
+              >
+                메모리 검색 · 삭제 · 한도 관리 (/search)
+              </a>
             </div>
           </div>
           <p className="page-lead">

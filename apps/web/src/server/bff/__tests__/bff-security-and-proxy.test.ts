@@ -188,6 +188,7 @@ describe("OD-010 / OD-013 Next.js BFF Security & Proxy Handlers", () => {
             return jsonResponse({
               access_token: rawAccessToken,
               refresh_token: rawRefreshToken,
+              provider_token: "gho_public_read_only_user_email_token",
               expires_at: 1_750_003_600,
               user: { id: "22222222-2222-4222-8222-222222222222" },
             });
@@ -288,6 +289,9 @@ describe("OD-010 / OD-013 Next.js BFF Security & Proxy Handlers", () => {
       );
       expect(decrypted?.access_token).toBe(rawAccessToken);
       expect(decrypted?.refresh_token).toBe(rawRefreshToken);
+      expect(decrypted?.provider_token).toBe(
+        "gho_public_read_only_user_email_token"
+      );
       expect(decrypted?.session_id).toBe("sess-pkce-001");
 
       // Step 3: Replay exact same callback + captured PKCE cookie -> MUST fail 400!

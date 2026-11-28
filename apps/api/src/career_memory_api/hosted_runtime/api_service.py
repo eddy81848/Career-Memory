@@ -140,14 +140,24 @@ def _session_error_response(
     )
 
 
+HOSTED_GITHUB_PUBLIC_SECRET_REF = "hosted:github-public-read:v1"
+EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER = "X-CM-GitHub-Public-Token"
+
+
 def _guard_access_resolver(request: Request) -> WorkspaceAccessContext:
     guard = get_workspace_access_guard(request)
     credentials = get_auth_credentials(authorization=request.headers.get("Authorization"))
     target_ws = (request.headers.get("X-Workspace-ID") or "").strip()
-    return guard.require_workspace_access(
+    access = guard.require_workspace_access(
         credentials=credentials,
         target_workspace_id=target_ws,
     )
+    runtime = getattr(request.app.state, "hosted_api_runtime", None)
+    if runtime is not None:
+        raw_gh_token = (request.headers.get(EPHEMERAL_GITHUB_PUBLIC_TOKEN_HEADER) or "").strip()
+        if raw_gh_token and len(raw_gh_token) <= 512 and not any(ch.isspace() for ch in raw_gh_token):
+            runtime.set_ephemeral_public_github_token(raw_gh_token)
+    return access
 
 
 class HostedApiRuntime:
@@ -202,6 +212,15 @@ class HostedApiRuntime:
             live_session_verifier=resolved_live_verifier,
         )
 
+        self.secret_store = InMemorySecretStore()
+        self._ephemeral_public_github_token: str | None = (
+            config.github_public_read_token.strip()
+            if config.github_public_read_token and config.github_public_read_token.strip()
+            else None
+        )
+        self.cache_registry = EphemeralCacheRegistry()
+        self.pause_controller = pause_controller or ManualEdgePauseController()
+
         # Post-commit worker wake notifier
         if wake_notifier is not None:
             self.wake_notifier: PostCommitWakeNotifierPort = wake_notifier
@@ -217,13 +236,10 @@ class HostedApiRuntime:
                 timeout_seconds=config.worker_wake_timeout_seconds,
                 hmac_verifier=hmac_verifier,
                 allow_http_loopback_for_tests=config.allow_http_loopback_for_tests,
+                github_public_token_getter=lambda: self._ephemeral_public_github_token,
             )
         else:
             self.wake_notifier = NoopWakeNotifier()
-
-        self.secret_store = InMemorySecretStore()
-        self.cache_registry = EphemeralCacheRegistry()
-        self.pause_controller = pause_controller or ManualEdgePauseController()
 
         security_policy = EndpointSecurityPolicy(
             allowed_hosts=GITHUB_API_ALLOWED_HOSTS | frozenset({"raw.githubusercontent.com"}),
@@ -234,6 +250,7 @@ class HostedApiRuntime:
         self.github_transport = SafeGitHubHttpTransport(
             wire_transport=wire_transport,
             secret_store=self.secret_store,
+            token_resolver=self._resolve_github_token,
             security_policy=security_policy,
         )
         if github_credential_provider is not None:
@@ -482,6 +499,16 @@ class HostedApiRuntime:
             default_confirmed_event_id=default_confirmed_event_id,
             sample_repositories=(),
         )
+
+    def set_ephemeral_public_github_token(self, token: str) -> None:
+        cleaned = token.strip()
+        if cleaned and not any(ch.isspace() for ch in cleaned):
+            self._ephemeral_public_github_token = cleaned
+
+    def _resolve_github_token(self, secret_ref: str) -> str | None:
+        if secret_ref == HOSTED_GITHUB_PUBLIC_SECRET_REF:
+            return self._ephemeral_public_github_token
+        return self.secret_store.get_secret(secret_ref)
 
     def close(self) -> None:
         self.pool.close()

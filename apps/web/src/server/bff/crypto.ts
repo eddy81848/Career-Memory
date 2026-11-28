@@ -25,6 +25,7 @@ export interface SessionEnvelope {
   user_sub: string;
   session_id: string;
   issued_at: number;
+  provider_token?: string;
 }
 
 export interface PkceEnvelope {
@@ -119,7 +120,8 @@ export function isValidSessionEnvelope(value: unknown): value is SessionEnvelope
     typeof obj.session_id === "string" &&
     obj.session_id.length > 0 &&
     typeof obj.issued_at === "number" &&
-    Number.isFinite(obj.issued_at)
+    Number.isFinite(obj.issued_at) &&
+    (obj.provider_token === undefined || typeof obj.provider_token === "string")
   );
 }
 

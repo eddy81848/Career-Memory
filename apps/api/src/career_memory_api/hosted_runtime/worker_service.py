@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 
 from career_memory_api.auth.oauth import InMemorySecretStore
@@ -118,6 +118,11 @@ class HostedWorkerRuntime:
         self.shutdown_event = threading.Event()
         self.pause_controller = pause_controller or ManualEdgePauseController()
         self.secret_store = InMemorySecretStore()
+        self._ephemeral_public_github_token: str | None = (
+            config.github_public_read_token.strip()
+            if config.github_public_read_token and config.github_public_read_token.strip()
+            else None
+        )
         self.cache_registry = EphemeralCacheRegistry()
 
         security_policy = EndpointSecurityPolicy(
@@ -129,6 +134,7 @@ class HostedWorkerRuntime:
         self.github_transport = SafeGitHubHttpTransport(
             wire_transport=wire_transport,
             secret_store=self.secret_store,
+            token_resolver=self._resolve_github_token,
             security_policy=security_policy,
         )
         self.github_import_client = HttpGitHubImportClient(transport=self.github_transport)
@@ -377,6 +383,16 @@ class HostedWorkerRuntime:
             "shutdown_requested": self.shutdown_event.is_set(),
         }
 
+    def set_ephemeral_public_github_token(self, token: str) -> None:
+        cleaned = token.strip()
+        if cleaned and not any(ch.isspace() for ch in cleaned):
+            self._ephemeral_public_github_token = cleaned
+
+    def _resolve_github_token(self, secret_ref: str) -> str | None:
+        if secret_ref == "hosted:github-public-read:v1":
+            return self._ephemeral_public_github_token
+        return self.secret_store.get_secret(secret_ref)
+
     def close(self) -> None:
         self.request_shutdown()
         self.pool.close()
@@ -464,7 +480,12 @@ def create_hosted_worker_app(
         return {"status": "ok", "role": "worker"}
 
     @app.post("/internal/worker/wake")
-    def internal_worker_wake(payload: WorkerWakeRequest | None = None) -> dict[str, Any]:
+    def internal_worker_wake(
+        request: Request, payload: WorkerWakeRequest | None = None
+    ) -> dict[str, Any]:
+        raw_gh_token = (request.headers.get("X-CM-GitHub-Public-Token") or "").strip()
+        if raw_gh_token and len(raw_gh_token) <= 512 and not any(ch.isspace() for ch in raw_gh_token):
+            runtime.set_ephemeral_public_github_token(raw_gh_token)
         req = payload or WorkerWakeRequest()
         target_ws = req.workspace_id or (
             config.default_workspace_ids[0] if config.default_workspace_ids else None

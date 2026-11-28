@@ -185,6 +185,11 @@ export class SingleFlightRefreshCoordinator {
       (typeof jwtClaims?.sub === "string" && jwtClaims.sub.trim()) ||
       session.user_sub;
 
+    const refreshedProviderToken =
+      (typeof payload.provider_token === "string" &&
+        payload.provider_token.trim()) ||
+      session.provider_token;
+
     // Preserve session_id and issued_at across silent refresh so session-bound
     // CSRF tokens remain valid across open tabs without rotation-induced 403s.
     const nextSession: SessionEnvelope = {
@@ -194,6 +199,9 @@ export class SingleFlightRefreshCoordinator {
       user_sub: userSub,
       session_id: session.session_id,
       issued_at: session.issued_at,
+      ...(refreshedProviderToken
+        ? { provider_token: refreshedProviderToken }
+        : {}),
     };
 
     this.recentRotationsByTokenKey.set(tokenKey, {

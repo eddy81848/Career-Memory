@@ -112,6 +112,8 @@ class PilotEnrollmentResult:
     role: str
     user_created: bool
     workspace_created: bool
+    source_account_id: str | None = None
+    source_resource_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -123,6 +125,8 @@ class PilotEnrollmentResult:
             "role": self.role,
             "user_created": self.user_created,
             "workspace_created": self.workspace_created,
+            "source_account_id": self.source_account_id,
+            "source_resource_ids": list(self.source_resource_ids),
         }
 
 
@@ -438,6 +442,7 @@ def enroll_pilot_user(
     display_name: str | None = None,
     github_login: str | None = None,
     github_external_id: str | None = None,
+    public_repositories: Sequence[tuple[str, str]] = (),
     allow_transaction_pooler_for_tests: bool = False,
     allow_insecure_local_test: bool = False,
 ) -> PilotEnrollmentResult:
@@ -458,6 +463,8 @@ def enroll_pilot_user(
     now = datetime.now(UTC)
     user_created = False
     workspace_created = False
+    source_account_id: str | None = None
+    enrolled_resource_ids: list[str] = []
 
     with psycopg.connect(database_url, autocommit=False, connect_timeout=10) as conn:
         with conn.transaction():
@@ -593,6 +600,113 @@ def enroll_pilot_user(
                             ),
                         )
 
+                    cur.execute(
+                        """
+                        SELECT id::text
+                        FROM public.source_accounts
+                        WHERE workspace_id = %s::uuid
+                          AND provider = 'GITHUB'
+                          AND external_account_id = %s
+                        LIMIT 1
+                        """,
+                        (ws_id, gh_ext_id),
+                    )
+                    sa_row = cur.fetchone()
+                    if sa_row is not None:
+                        source_account_id = str(sa_row[0])
+                        cur.execute(
+                            """
+                            UPDATE public.source_accounts
+                            SET status = 'ACTIVE',
+                                revoked_at = NULL,
+                                scopes = ARRAY['read:user']::text[]
+                            WHERE workspace_id = %s::uuid
+                              AND id = %s::uuid
+                            """,
+                            (ws_id, source_account_id),
+                        )
+                    else:
+                        source_account_id = str(uuid.uuid4())
+                        cur.execute(
+                            """
+                            INSERT INTO public.source_accounts (
+                                id, workspace_id, provider, external_account_id,
+                                token_secret_ref, scopes, status, revoked_at
+                            )
+                            VALUES (
+                                %s::uuid, %s::uuid, 'GITHUB', %s,
+                                'hosted:github-public-read:v1', ARRAY['read:user']::text[],
+                                'ACTIVE', NULL
+                            )
+                            """,
+                            (source_account_id, ws_id, gh_ext_id),
+                        )
+
+                    for raw_res_id, raw_full_name in public_repositories:
+                        clean_res_id = str(raw_res_id).strip()
+                        clean_full_name = str(raw_full_name).strip().strip("/")
+                        if not clean_res_id or "/" not in clean_full_name:
+                            raise HostedConfigurationError(
+                                f"Invalid public repository spec ({raw_res_id!r}, {raw_full_name!r})."
+                            )
+                        canonical_url = f"https://github.com/{clean_full_name}"
+                        cur.execute(
+                            """
+                            SELECT id::text, status
+                            FROM public.source_resources
+                            WHERE workspace_id = %s::uuid
+                              AND source_account_id = %s::uuid
+                              AND provider_resource_id = %s
+                            LIMIT 1
+                            """,
+                            (ws_id, source_account_id, clean_res_id),
+                        )
+                        sr_row = cur.fetchone()
+                        if sr_row is not None:
+                            sr_id = str(sr_row[0])
+                            sr_status = str(sr_row[1])
+                            if sr_status == "ACTIVE":
+                                cur.execute(
+                                    """
+                                    UPDATE public.source_resources
+                                    SET name = %s,
+                                        canonical_url = %s,
+                                        last_visibility_checked_at = %s
+                                    WHERE workspace_id = %s::uuid
+                                      AND id = %s::uuid
+                                    """,
+                                    (clean_full_name, canonical_url, now, ws_id, sr_id),
+                                )
+                            enrolled_resource_ids.append(sr_id)
+                        else:
+                            sr_id = str(uuid.uuid4())
+                            cur.execute(
+                                """
+                                INSERT INTO public.source_resources (
+                                    id, workspace_id, source_account_id, provider_resource_id,
+                                    resource_type, name, canonical_url, visibility,
+                                    processing_mode, raw_storage_mode, raw_retention_seconds,
+                                    status, policy_version, consent_version, last_visibility_checked_at
+                                )
+                                VALUES (
+                                    %s::uuid, %s::uuid, %s::uuid, %s,
+                                    'GITHUB_REPOSITORY', %s, %s, 'PUBLIC',
+                                    'PUBLIC_CLOUD', 'NONE', NULL,
+                                    'ACTIVE', 'plan-c-v1', NULL, %s
+                                )
+                                """,
+                                (
+                                    sr_id,
+                                    ws_id,
+                                    source_account_id,
+                                    clean_res_id,
+                                    clean_full_name,
+                                    canonical_url,
+                                    now,
+                                ),
+                            )
+                            enrolled_resource_ids.append(sr_id)
+
     return PilotEnrollmentResult(
         user_id=user_id,
         workspace_id=ws_id,
@@ -602,6 +716,8 @@ def enroll_pilot_user(
         role="OWNER",
         user_created=user_created,
         workspace_created=workspace_created,
+        source_account_id=source_account_id,
+        source_resource_ids=tuple(enrolled_resource_ids),
     )
 
 

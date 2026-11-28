@@ -251,7 +251,11 @@ def classify_changed_paths(
             if p == "apps/web/.gitignore":
                 continue
             run_web_test = True
-            if p.startswith("apps/web/tests/contract-http/") or p.startswith("apps/web/src/adapters/"):
+            if (
+                p.startswith("apps/web/tests/contract-http/")
+                or p.startswith("apps/web/src/adapters/")
+                or p == "apps/web/vitest.contract-http.config.ts"
+            ):
                 run_web_contract_http = True
             if p.startswith("apps/web/e2e/") or p == "apps/web/playwright.config.ts":
                 run_web_build = True
@@ -273,10 +277,18 @@ def classify_changed_paths(
             continue
 
         # 7. Artifact Registry cleanup policy & Cloudflare edge infra config
-        if p == "infra/gcp/artifact-registry-cleanup-policy.json":
-            sync_ar_policy = True
+        if p.startswith("infra/gcp/"):
+            run_api_unit = True
+            if p == "infra/gcp/artifact-registry-cleanup-policy.json":
+                sync_ar_policy = True
             continue
         if p.startswith("infra/cloudflare/"):
+            run_web_test = True
+            continue
+
+        # 7b. Offline evaluation datasets & fixture validators (evaluation/**)
+        if p.startswith("evaluation/"):
+            run_api_unit = True
             continue
 
         # 8. CI/CD workflows -> audited by static gate (`detect-and-static` runs edge_guard + pilot_gate)

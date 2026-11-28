@@ -81,11 +81,33 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--github-login", default=None, help="Optional verified GitHub username.")
     parser.add_argument("--github-external-id", default=None, help="Optional GitHub numeric user ID.")
     parser.add_argument(
+        "--public-repos-csv",
+        default=None,
+        help="Optional comma-separated '<provider_resource_id>:<owner/repo>' allowlisted public repos.",
+    )
+    parser.add_argument(
         "--allow-insecure-local-test",
         action="store_true",
         help="Allow non-TLS connections strictly for ephemeral local PG18 testing.",
     )
     return parser.parse_args(argv)
+
+
+def _parse_public_repos_csv(raw: str | None) -> tuple[tuple[str, str], ...]:
+    if not raw or not raw.strip():
+        return ()
+    parsed: list[tuple[str, str]] = []
+    for item in raw.split(","):
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        if ":" not in cleaned:
+            raise ValueError(
+                f"Expected '<provider_resource_id>:<owner/repo>' in --public-repos-csv, got {cleaned!r}"
+            )
+        res_id, full_name = cleaned.split(":", 1)
+        parsed.append((res_id.strip(), full_name.strip()))
+    return tuple(parsed)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -111,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             display_name=args.display_name,
             github_login=args.github_login,
             github_external_id=args.github_external_id,
+            public_repositories=_parse_public_repos_csv(args.public_repos_csv),
             allow_insecure_local_test=bool(args.allow_insecure_local_test),
         )
         print(json.dumps(res.to_dict(), indent=2, sort_keys=True))

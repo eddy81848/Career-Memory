@@ -213,11 +213,13 @@ describe("OD-010 / OD-013 Next.js BFF Security & Proxy Handlers", () => {
       expect(authUrl.origin).toBe("https://supabase.test.example");
       expect(authUrl.pathname).toBe("/auth/v1/authorize");
       expect(authUrl.searchParams.get("provider")).toBe("github");
-      expect(authUrl.searchParams.get("redirect_to")).toBe(
+      const redirectToRaw = authUrl.searchParams.get("redirect_to") || "";
+      const redirectToUrl = new URL(redirectToRaw);
+      expect(`${redirectToUrl.origin}${redirectToUrl.pathname}`).toBe(
         "https://app.career-memory.example/auth/callback"
       );
       expect(authUrl.searchParams.get("code_challenge_method")).toBe("s256");
-      const state = authUrl.searchParams.get("state") || "";
+      const state = redirectToUrl.searchParams.get("state") || "";
       const codeChallenge = authUrl.searchParams.get("code_challenge") || "";
       expect(state.length).toBeGreaterThanOrEqual(24);
       expect(codeChallenge.length).toBeGreaterThanOrEqual(32);

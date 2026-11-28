@@ -29,10 +29,12 @@
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "e2e/**/*.ts",
+    "e2e-hosted/**/*.ts",
     ".next/types/**/*.ts",
     "vitest.config.ts",
     "vitest.contract-http.config.ts",
     "playwright.config.ts",
+    "playwright.hosted.config.ts",
     "next.config.ts"
   ],
   "exclude": ["node_modules"]

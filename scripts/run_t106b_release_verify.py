@@ -303,6 +303,34 @@ def _http_probe(
         return int(exc.code), hdrs, body, elapsed_ms
 
 
+def _derive_edge_subkey(origin_hmac_secret: str) -> str:
+    import hashlib
+    import hmac
+
+    return hmac.new(
+        origin_hmac_secret.strip().encode("utf-8"),
+        b"cm-cloudflare-edge-v1",
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _sign_edge_auth_header(edge_subkey: str, *, method: str, path: str, timestamp: int) -> str:
+    import hashlib
+    import hmac
+
+    norm_path = path if path.startswith("/") else f"/{path}"
+    msg = f"{timestamp}.{method.upper()}.{norm_path}".encode("utf-8")
+    sig = hmac.new(edge_subkey.strip().encode("utf-8"), msg, hashlib.sha256).hexdigest()
+    return f"t={timestamp},sig={sig}"
+
+
+def _is_run_app_url(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    return host == "run.app" or host.endswith(".run.app")
+
+
 def run_smoke_checks(
     *,
     api_url: str,
@@ -310,6 +338,7 @@ def run_smoke_checks(
     worker_url: str | None = None,
     worker_oidc_token: str | None = None,
     web_url: str | None = None,
+    direct_web_run_app_url: str | None = None,
     supabase_url: str | None = None,
     supabase_anon_key: str | None = None,
     timeout_seconds: float = 20.0,
@@ -615,15 +644,61 @@ def run_smoke_checks(
                 }
             )
 
-    # 5. Next.js BFF cm-web checks (OD-010 PKCE, __Host- HttpOnly/Secure cookie, CSRF, no-store)
+    # 5. Next.js BFF cm-web checks (direct *.run.app 403 block, OD-010 PKCE, __Host- cookie, CSRF, no-store)
+    if direct_web_run_app_url and direct_web_run_app_url.strip():
+        base_direct_web = direct_web_run_app_url.strip().rstrip("/")
+        for chk_name, probe_path in (
+            ("web_direct_run_app_bypass_blocked_403", "/"),
+            ("web_direct_run_app_session_bypass_blocked_403", "/auth/session"),
+        ):
+            st_dw, hdr_dw, body_dw, _ = _http_probe(
+                f"{base_direct_web}{probe_path}",
+                method="GET",
+                timeout_seconds=timeout_seconds,
+                follow_redirects=False,
+            )
+            cc_dw = hdr_dw.get("cache-control", "").lower()
+            results.append(
+                {
+                    "check": chk_name,
+                    "passed": (
+                        st_dw == 403
+                        and "EDGE_ORIGIN_AUTH_REQUIRED" in body_dw
+                        and "private" in cc_dw
+                        and "no-store" in cc_dw
+                    ),
+                    "status_code": st_dw,
+                }
+            )
+
     if web_url:
         base_web = web_url.rstrip("/")
+        web_is_run_app = _is_run_app_url(base_web)
+        edge_subkey = _derive_edge_subkey(cleaned_hmac) if (web_is_run_app and cleaned_hmac) else ""
+
+        def _web_headers(method: str, path_only: str, extra: dict[str, str] | None = None) -> dict[str, str]:
+            hdrs: dict[str, str] = dict(extra or {})
+            if edge_subkey:
+                hdrs["X-CM-Edge-Auth"] = _sign_edge_auth_header(
+                    edge_subkey,
+                    method=method,
+                    path=path_only,
+                    timestamp=int(time.time()),
+                )
+            return hdrs
+
         st_web_h, hdr_web_h, _, lat_web_ms = _http_probe(
-            f"{base_web}/api/health", method="GET", timeout_seconds=timeout_seconds
+            f"{base_web}/api/health",
+            method="GET",
+            headers=_web_headers("GET", "/api/health"),
+            timeout_seconds=timeout_seconds,
         )
         if st_web_h == 404:
             st_web_h, hdr_web_h, _, lat_web_ms = _http_probe(
-                f"{base_web}/healthz", method="GET", timeout_seconds=timeout_seconds
+                f"{base_web}/healthz",
+                method="GET",
+                headers=_web_headers("GET", "/healthz"),
+                timeout_seconds=timeout_seconds,
             )
         results.append(
             {
@@ -635,7 +710,10 @@ def run_smoke_checks(
             }
         )
         st_web_s, hdr_web_s, body_web_s, _ = _http_probe(
-            f"{base_web}/auth/session", method="GET", timeout_seconds=timeout_seconds
+            f"{base_web}/auth/session",
+            method="GET",
+            headers=_web_headers("GET", "/auth/session"),
+            timeout_seconds=timeout_seconds,
         )
         cc_web_s = hdr_web_s.get("cache-control", "").lower()
         results.append(
@@ -654,6 +732,7 @@ def run_smoke_checks(
         st_pkce, hdr_pkce, _, _ = _http_probe(
             f"{base_web}/auth/login?next=/event-review",
             method="GET",
+            headers=_web_headers("GET", "/auth/login"),
             timeout_seconds=timeout_seconds,
             follow_redirects=False,
         )
@@ -677,6 +756,7 @@ def run_smoke_checks(
         st_open_redir, _, _, _ = _http_probe(
             f"{base_web}/auth/login?next=//evil.example",
             method="GET",
+            headers=_web_headers("GET", "/auth/login"),
             timeout_seconds=timeout_seconds,
             follow_redirects=False,
         )
@@ -690,7 +770,11 @@ def run_smoke_checks(
         st_csrf, _, _, _ = _http_probe(
             f"{base_web}/bff/v1/sync-runs",
             method="POST",
-            headers={"Origin": "https://evil.example", "Content-Type": "application/json"},
+            headers=_web_headers(
+                "POST",
+                "/bff/v1/sync-runs",
+                {"Origin": "https://evil.example", "Content-Type": "application/json"},
+            ),
             body_bytes=b"{}",
             timeout_seconds=timeout_seconds,
         )

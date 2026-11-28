@@ -10,4 +10,6 @@ routes = [
 
 [vars]
 CANONICAL_HOST = "career-memory.site"
-UPSTREAM_WEB_ORIGIN = "https://cm-web-oaxjehpcqq-uc.a.run.app"
+# Encrypted secrets (never stored in Git; managed via `wrangler secret put`):
+# - CF_UPSTREAM_WEB_ORIGIN
+# - CF_EDGE_AUTH_SECRET

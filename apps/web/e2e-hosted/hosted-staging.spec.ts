@@ -1,14 +1,88 @@
-import { expect, test } from "@playwright/test";
+import crypto from "node:crypto";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+const CANDIDATE_EDGE_SUBKEY = (process.env.CM_EDGE_AUTH_SUBKEY || "").trim();
+
+function buildCandidateEdgeHeaders(
+  baseURL: string | undefined,
+  method: string,
+  pathOrUrl: string,
+  extra?: Record<string, string>
+): Record<string, string> | undefined {
+  if (!CANDIDATE_EDGE_SUBKEY || !baseURL) return extra;
+  const parsedBase = new URL(baseURL);
+  if (!parsedBase.hostname.toLowerCase().endsWith(".run.app")) {
+    return extra;
+  }
+  const resolved = new URL(pathOrUrl, parsedBase);
+  if (resolved.hostname.toLowerCase() !== parsedBase.hostname.toLowerCase()) {
+    return extra;
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  const msg = `${nowSec}.${method.toUpperCase()}.${resolved.pathname}`;
+  const sig = crypto
+    .createHmac("sha256", CANDIDATE_EDGE_SUBKEY)
+    .update(msg)
+    .digest("hex");
+  return {
+    ...(extra ?? {}),
+    "X-CM-Edge-Auth": `t=${nowSec},sig=${sig}`,
+  };
+}
+
+function wrapRequestForCandidate(
+  request: APIRequestContext,
+  baseURL: string | undefined
+) {
+  return {
+    get: (pathOrUrl: string, opts?: Parameters<APIRequestContext["get"]>[1]) =>
+      request.get(pathOrUrl, {
+        ...(opts ?? {}),
+        headers: buildCandidateEdgeHeaders(
+          baseURL,
+          "GET",
+          pathOrUrl,
+          opts?.headers as Record<string, string> | undefined
+        ),
+      }),
+    post: (
+      pathOrUrl: string,
+      opts?: Parameters<APIRequestContext["post"]>[1]
+    ) =>
+      request.post(pathOrUrl, {
+        ...(opts ?? {}),
+        headers: buildCandidateEdgeHeaders(
+          baseURL,
+          "POST",
+          pathOrUrl,
+          opts?.headers as Record<string, string> | undefined
+        ),
+      }),
+  };
+}
 
 /**
  * LIVE DEPLOYED SERVER HOSTED BROWSER & BFF SECURITY E2E SUITE.
  *
- * Runs real headless Chromium + live HTTP probes against deployed Cloud Run `cm-web`
- * (`HOSTED_WEB_URL`) and live Supabase Auth (`PKCE S256` authorize hop).
- * Executed both during CD (pre-promotion candidate & post-promotion public URL,
- * triggering automatic rollback on any failure) and every night in Nightly CI.
+ * Runs real headless Chromium + live HTTP probes against `https://career-memory.site`
+ * (through Cloudflare Edge -> Cloud Run `cm-web`) as well as pre-promotion candidate revisions.
  */
 test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
+  test.beforeEach(async ({ page, baseURL }) => {
+    if (!CANDIDATE_EDGE_SUBKEY || !baseURL) return;
+    const host = new URL(baseURL).hostname.toLowerCase();
+    if (!host.endsWith(".run.app")) return;
+    await page.route("**/*", async (route) => {
+      const req = route.request();
+      const hdrs = buildCandidateEdgeHeaders(
+        baseURL,
+        req.method(),
+        req.url(),
+        req.headers()
+      );
+      await route.continue({ headers: hdrs });
+    });
+  });
   for (const routePath of ["/", "/event-review", "/claim-review", "/search"]) {
     test(`renders ${routePath} in hosted mode with Next.js hydration, PKCE gate, zero runtime/console errors, and zero Web Storage tokens`, async ({
       page,
@@ -82,8 +156,10 @@ test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
   });
 
   test("verifies live PKCE S256 OAuth redirect chain through live Supabase Auth toward GitHub OAuth", async ({
-    request,
+    request: rawRequest,
+    baseURL,
   }) => {
+    const request = wrapRequestForCandidate(rawRequest, baseURL);
     const healthRes = await request.get("/api/health");
     expect(healthRes.status()).toBe(200);
     expect(healthRes.headers()["cache-control"] ?? "").toContain("no-store");
@@ -146,8 +222,10 @@ test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
   });
 
   test("enforces fail-closed /auth/callback PKCE state guards and /auth/logout CSRF & cookie clearing", async ({
-    request,
+    request: rawRequest,
+    baseURL,
   }) => {
+    const request = wrapRequestForCandidate(rawRequest, baseURL);
     // 1. /auth/callback with missing state cookie -> 400 PKCE_STATE_MISMATCH, 0 session cookie minted
     const missingCookieCb = await request.get(
       "/auth/callback?code=synthetic_code&state=missing_cookie_state",
@@ -225,8 +303,10 @@ test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
   });
 
   test("enforces BFF proxy 401 no-store without cookie, 401 clean rejection on forged AES-256-GCM cookie, and 403 cross-origin CSRF block", async ({
-    request,
+    request: rawRequest,
+    baseURL,
   }) => {
+    const request = wrapRequestForCandidate(rawRequest, baseURL);
     const bffReadRoutes = [
       "/bff/v1/session",
       "/bff/v1/work-events",

@@ -12,9 +12,9 @@
 
 | Plane / Service | Live Endpoint / Target | Runtime Identity & Guardrails | Scale / Cost Caps (`OD-015`) |
 |---|---|---|---|
-| **`cm-web` (Next.js BFF)** | `https://cm-web-oaxjehpcqq-uc.a.run.app` | `cm-web-sa`, PKCE S256 + `__Host-cm_session` AES-256-GCM `HttpOnly; Secure; SameSite=Lax`, signs `X-CM-Origin-Auth` HMAC | `min-instances=0`, `max-instances=2`, `1 vCPU`, `512 MiB` |
-| **`cm-api` (FastAPI Public API)** | `https://cm-api-oaxjehpcqq-uc.a.run.app` | `cm-api-sa`, `cm_api_app` (`:6543` Supavisor, `NOBYPASSRLS`), `T-507` `edge_guard` (`403 ORIGIN_AUTH_REQUIRED` on direct bypass, `403` on `/internal/worker/**`) | `min-instances=0`, `max-instances=2`, `1 vCPU`, `512 MiB` |
-| **`cm-worker` (Private Worker)** | `https://cm-worker-oaxjehpcqq-uc.a.run.app` | `cm-worker-sa`, `--no-allow-unauthenticated` (`roles/run.invoker` granted strictly to `cm-api-sa` & `cm-deploy-sa`) + app-layer Google OIDC verifier, `cm_worker_app` (`:6543`, `NOBYPASSRLS`) | `min-instances=0`, `max-instances=1`, `1 vCPU`, `512 MiB`, `concurrency=4`, `timeout=60s` |
+| **`cm-web` (Next.js BFF)** | `https://career-memory.site` (origin `https://cm-web-<redacted>-uc.a.run.app`, direct `.run.app` `403` blocked via `X-CM-Edge-Auth`) | `cm-web-sa`, PKCE S256 + `__Host-cm_session` AES-256-GCM `HttpOnly; Secure; SameSite=Lax`, signs `X-CM-Origin-Auth` HMAC | `min-instances=0`, `max-instances=2`, `1 vCPU`, `512 MiB` |
+| **`cm-api` (FastAPI Public API)** | `https://cm-api-<redacted>-uc.a.run.app` | `cm-api-sa`, `cm_api_app` (`:6543` Supavisor, `NOBYPASSRLS`), `T-507` `edge_guard` (`403 ORIGIN_AUTH_REQUIRED` on direct bypass, `403` on `/internal/worker/**`) | `min-instances=0`, `max-instances=2`, `1 vCPU`, `512 MiB` |
+| **`cm-worker` (Private Worker)** | `https://cm-worker-<redacted>-uc.a.run.app` | `cm-worker-sa`, `--no-allow-unauthenticated` (`roles/run.invoker` granted strictly to `cm-api-sa` & `cm-deploy-sa`) + app-layer Google OIDC verifier, `cm_worker_app` (`:6543`, `NOBYPASSRLS`) | `min-instances=0`, `max-instances=1`, `1 vCPU`, `512 MiB`, `concurrency=4`, `timeout=60s` |
 | **Supabase PostgreSQL 17.12** | `ap-northeast-1` (`mkzqvxcuqhrmfnkgjpfh`) | `0010..0080` applied via `:5432` Session Pooler (`cm_migrator`); `46/46` `ENABLE + FORCE RLS`; `anon`/`authenticated` `public` grants revoked (`401` on PostgREST bypass) | Free Tier (`paid_pitr_assumed=false`; encrypted `pg_dump` drill in `T505_BACKUP_RESTORE_DRILL_REPORT.md`) |
 
 ### Secret Hygiene Verification (`INF-09`)

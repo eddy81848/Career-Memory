@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
 """Comprehensive Live Deployed Server E2E Verification Suite (Post-Deploy CD & Nightly CI).
 
-Verifies live deployed Cloud Run instances (`cm-web`, `cm-api`, `cm-worker`), live Supabase
-Auth + PostgREST isolation, and read-only OD-015 Free-Tier Cloud Pre-Flight caps:
-1. Live `cm-api` Origin-HMAC Signed Contract Probes (`X-CM-Origin-Auth` unsigned -> 403,
-   tampered -> 403, valid HMAC + unauthenticated Bearer -> 401 live auth verifier reached,
-   `/internal/worker/wake` even with HMAC -> 403 `PUBLIC_WORKER_ROUTE_FORBIDDEN`).
-2. Live `cm-worker` Private IAM + OIDC + `:6543` Supavisor Pooler Probes (unauthenticated
-   -> 401/403, OIDC `POST /internal/worker/recover` & `POST /internal/worker/wake` -> 200 JSON
-   with `:6543` `cm_worker_app` FORCE RLS connectivity).
-3. Headless Chromium Playwright Live Hosted Browser & BFF Security E2E (`apps/web/e2e-hosted/`).
-4. Live Supabase PostgREST Isolation (`OD006-5`) + Read-Only `OD-015` Cloud Pre-Flight (`GO`).
+Verifies live deployed Cloud Run instances (`cm-web`, `cm-api`, `cm-worker`), Cloudflare edge
+(`https://career-memory.site`) + direct `*.run.app` bypass block (`403 EDGE_ORIGIN_AUTH_REQUIRED`),
+live Supabase Auth + PostgREST isolation, and read-only OD-015 Free-Tier Cloud Pre-Flight caps.
 
-Zero-secret invariant:
+Zero-secret & URL-redaction invariant:
 - Secret/token values are held strictly in process memory and NEVER printed, echoed, or persisted.
+- Raw Cloud Run `*.run.app` service hashes are masked (`<redacted>`) in emitted JSON reports.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _API_SRC = _REPO_ROOT / "apps" / "api" / "src"
@@ -37,6 +35,28 @@ from career_memory_api.hosted_runtime.preflight_od015 import (  # noqa: E402
     collect_gcp_preflight_observation,
     evaluate_od015_preflight,
 )
+
+_RUN_APP_URL_RE = re.compile(
+    r"(https?://(?:[a-z0-9-]+---)?(?:cm-web|cm-api|cm-worker)-)[a-z0-9-]+(\.a\.run\.app\b)",
+    re.IGNORECASE,
+)
+
+
+def _redact_run_app_url(text: str) -> str:
+    return _RUN_APP_URL_RE.sub(r"\1<redacted>\2", text)
+
+
+def _is_run_app_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host == "run.app" or host.endswith(".run.app")
+
+
+def _derive_edge_subkey(origin_hmac_secret: str) -> str:
+    return hmac.new(
+        origin_hmac_secret.strip().encode("utf-8"),
+        b"cm-cloudflare-edge-v1",
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _load_t106b_module() -> Any:
@@ -73,7 +93,7 @@ def _run_gcloud_capture(args: list[str], *, timeout_seconds: float = 30.0) -> st
     )
     if proc.returncode != 0:
         err_msg = redact_text((proc.stderr or "").strip() or f"exit={proc.returncode}")
-        raise RuntimeError(f"gcloud {args[0]} failed: {err_msg}")
+        raise RuntimeError(f"gcloud {args[0]} failed: {_redact_run_app_url(err_msg)}")
     return proc.stdout.strip()
 
 
@@ -152,10 +172,20 @@ def _mint_worker_oidc_token(
     )
 
 
-def _run_playwright_hosted_e2e(web_url: str, *, timeout_seconds: float = 180.0) -> dict[str, Any]:
+def _run_playwright_hosted_e2e(
+    web_url: str,
+    *,
+    edge_subkey_for_candidate: str | None = None,
+    timeout_seconds: float = 180.0,
+) -> dict[str, Any]:
     web_dir = _REPO_ROOT / "apps" / "web"
     env = dict(os.environ)
     env["HOSTED_WEB_URL"] = web_url
+    if edge_subkey_for_candidate:
+        env["CM_EDGE_AUTH_SUBKEY"] = edge_subkey_for_candidate
+    else:
+        env.pop("CM_EDGE_AUTH_SUBKEY", None)
+
     proc = subprocess.run(
         ["npm", "run", "test:e2e:hosted"],
         cwd=str(web_dir),
@@ -165,8 +195,8 @@ def _run_playwright_hosted_e2e(web_url: str, *, timeout_seconds: float = 180.0) 
         timeout=timeout_seconds,
         check=False,
     )
-    safe_stdout = redact_text((proc.stdout or "").strip())
-    safe_stderr = redact_text((proc.stderr or "").strip())
+    safe_stdout = _redact_run_app_url(redact_text((proc.stdout or "").strip()))
+    safe_stderr = _redact_run_app_url(redact_text((proc.stderr or "").strip()))
     if safe_stdout:
         print(safe_stdout)
     if proc.returncode != 0 and safe_stderr:
@@ -174,7 +204,7 @@ def _run_playwright_hosted_e2e(web_url: str, *, timeout_seconds: float = 180.0) 
     return {
         "passed": proc.returncode == 0,
         "exit_code": proc.returncode,
-        "target_web_url": web_url,
+        "target_web_url": _redact_run_app_url(web_url),
     }
 
 
@@ -206,14 +236,12 @@ def run_live_server_e2e(
     fetch_gcp_credentials: bool = False,
     require_origin_hmac: bool = True,
     require_worker_oidc: bool = True,
+    verify_direct_web_bypass_block: bool = True,
     skip_playwright: bool = False,
     skip_od015: bool = False,
     phase_label: str = "Live Deployed Server E2E",
 ) -> dict[str, Any]:
     """Execute full multi-layer live server E2E verification and return a redacted report."""
-    api_doc: dict[str, Any] | None = None
-    web_doc: dict[str, Any] | None = None
-
     resolved_api_url = (api_url or "").strip()
     resolved_web_url = (web_url or "").strip()
     resolved_worker_url = (worker_url or "").strip()
@@ -236,14 +264,25 @@ def run_live_server_e2e(
         if not resolved_anon_key:
             resolved_anon_key = _extract_service_env_var(api_doc, "SUPABASE_ANON_KEY")
 
-    if not resolved_web_url or not resolved_supabase_url:
+    direct_web_run_app_url = ""
+    web_edge_auth_enabled = False
+    if not resolved_web_url or not resolved_supabase_url or verify_direct_web_bypass_block:
         web_doc = _describe_cloud_run_service_json(
             "cm-web", project_id=project_id, region=region
         )
+        direct_web_run_app_url = str((web_doc.get("status") or {}).get("url") or "").strip()
+        web_edge_auth_enabled = (
+            _extract_service_env_var(web_doc, "CAREER_MEMORY_REQUIRE_EDGE_AUTH").lower()
+            == "true"
+        )
         if not resolved_web_url:
-            resolved_web_url = str((web_doc.get("status") or {}).get("url") or "").strip()
+            pub_origin = _extract_service_env_var(web_doc, "CAREER_MEMORY_PUBLIC_WEB_ORIGIN")
+            resolved_web_url = pub_origin or direct_web_run_app_url
         if not resolved_supabase_url:
             resolved_supabase_url = _extract_service_env_var(web_doc, "SUPABASE_URL")
+
+    if _is_run_app_url(resolved_web_url):
+        direct_web_run_app_url = resolved_web_url
 
     if not resolved_worker_url:
         worker_doc = _describe_cloud_run_service_json(
@@ -269,14 +308,21 @@ def run_live_server_e2e(
             "Missing live cm-worker OIDC token (set WORKER_OIDC_TOKEN or pass --fetch-gcp-credentials)."
         )
 
+    check_direct_web = (
+        direct_web_run_app_url
+        if (verify_direct_web_bypass_block and (web_edge_auth_enabled or _is_run_app_url(resolved_web_url)))
+        else None
+    )
+
     t106b = _load_t106b_module()
-    print(f"=== [{phase_label}] 1/3 Cross-Service Origin-HMAC / Worker-OIDC / PostgREST E2E ===")
+    print(f"=== [{phase_label}] 1/3 Cross-Service Origin-HMAC / Edge-Lock / Worker-OIDC / PostgREST E2E ===")
     smoke_report: dict[str, Any] = t106b.run_smoke_checks(
         api_url=resolved_api_url,
         origin_hmac_secret=resolved_hmac or None,
         worker_url=resolved_worker_url or None,
         worker_oidc_token=resolved_oidc or None,
         web_url=resolved_web_url or None,
+        direct_web_run_app_url=check_direct_web,
         supabase_url=resolved_supabase_url or None,
         supabase_anon_key=resolved_anon_key or None,
     )
@@ -287,7 +333,15 @@ def run_live_server_e2e(
     playwright_report: dict[str, Any] = {"passed": True, "skipped": True}
     if not skip_playwright:
         print(f"=== [{phase_label}] 2/3 Headless Chromium Playwright Live Hosted Browser & BFF E2E ===")
-        playwright_report = _run_playwright_hosted_e2e(resolved_web_url)
+        cand_edge_subkey = (
+            _derive_edge_subkey(resolved_hmac)
+            if (_is_run_app_url(resolved_web_url) and resolved_hmac)
+            else None
+        )
+        playwright_report = _run_playwright_hosted_e2e(
+            resolved_web_url,
+            edge_subkey_for_candidate=cand_edge_subkey,
+        )
         playwright_report["skipped"] = False
 
     od015_summary: dict[str, Any] = {"passed": True, "skipped": True}
@@ -321,12 +375,13 @@ def run_live_server_e2e(
         "project_id": project_id,
         "region": region,
         "targets": {
-            "api_url": resolved_api_url,
-            "web_url": resolved_web_url,
-            "worker_url": resolved_worker_url,
+            "api_url": _redact_run_app_url(resolved_api_url),
+            "web_url": _redact_run_app_url(resolved_web_url),
+            "worker_url": _redact_run_app_url(resolved_worker_url),
             "supabase_url": resolved_supabase_url,
             "origin_hmac_verified": bool(resolved_hmac),
             "worker_oidc_verified": bool(resolved_oidc),
+            "direct_web_run_app_blocked_verified": bool(check_direct_web),
         },
         "http_contract_and_isolation": smoke_report,
         "playwright_hosted_browser_e2e": playwright_report,
@@ -338,7 +393,7 @@ def run_live_server_e2e(
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run comprehensive Live Deployed Server E2E verification against Cloud Run & Supabase."
+        description="Run comprehensive Live Deployed Server E2E verification against Cloudflare, Cloud Run & Supabase."
     )
     parser.add_argument("--project-id", default="career-memory-516011")
     parser.add_argument("--region", default="us-central1")
@@ -365,6 +420,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_false",
         default=True,
     )
+    parser.add_argument(
+        "--no-verify-direct-web-bypass-block",
+        dest="verify_direct_web_bypass_block",
+        action="store_false",
+        default=True,
+    )
     parser.add_argument("--skip-playwright", action="store_true")
     parser.add_argument("--skip-od015", action="store_true")
     parser.add_argument("--phase-label", default="Live Deployed Server E2E")
@@ -387,12 +448,16 @@ def main(argv: list[str] | None = None) -> int:
             fetch_gcp_credentials=args.fetch_gcp_credentials,
             require_origin_hmac=args.require_origin_hmac,
             require_worker_oidc=args.require_worker_oidc,
+            verify_direct_web_bypass_block=args.verify_direct_web_bypass_block,
             skip_playwright=args.skip_playwright,
             skip_od015=args.skip_od015,
             phase_label=args.phase_label,
         )
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: Live server E2E failed: {redact_text(str(exc))}", file=sys.stderr)
+        print(
+            f"ERROR: Live server E2E failed: {_redact_run_app_url(redact_text(str(exc)))}",
+            file=sys.stderr,
+        )
         return 1
 
     if args.output is not None:

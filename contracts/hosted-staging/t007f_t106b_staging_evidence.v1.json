@@ -9,7 +9,7 @@
       "max_instances": 2,
       "memory_mib": 512,
       "min_instances": 0,
-      "public_url": "https://cm-web-oaxjehpcqq-uc.a.run.app",
+      "public_url": "https://cm-web-<redacted>-uc.a.run.app",
       "rollback_revision_verified": "cm-web-00003-fom",
       "service_name": "cm-web"
     },
@@ -21,7 +21,7 @@
       "max_instances": 2,
       "memory_mib": 512,
       "min_instances": 0,
-      "public_url": "https://cm-api-oaxjehpcqq-uc.a.run.app",
+      "public_url": "https://cm-api-<redacted>-uc.a.run.app",
       "rollback_revision_verified": "cm-api-00003-sev",
       "service_name": "cm-api"
     },
@@ -33,7 +33,7 @@
       "max_instances": 1,
       "memory_mib": 512,
       "min_instances": 0,
-      "public_url": "https://cm-worker-oaxjehpcqq-uc.a.run.app",
+      "public_url": "https://cm-worker-<redacted>-uc.a.run.app",
       "rollback_revision_verified": "cm-worker-00004-v6l",
       "service_name": "cm-worker"
     }

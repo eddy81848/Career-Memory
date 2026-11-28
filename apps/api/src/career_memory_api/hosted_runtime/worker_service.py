@@ -459,6 +459,10 @@ def create_hosted_worker_app(
     def healthz() -> dict[str, str]:
         return {"status": "ok", "role": "worker"}
 
+    @app.get("/api/health", include_in_schema=False)
+    def api_health() -> dict[str, str]:
+        return {"status": "ok", "role": "worker"}
+
     @app.post("/internal/worker/wake")
     def internal_worker_wake(payload: WorkerWakeRequest | None = None) -> dict[str, Any]:
         req = payload or WorkerWakeRequest()

@@ -693,6 +693,10 @@ def create_hosted_api_app(
         response.headers["CDN-Cache-Control"] = "no-store"
         return payload.to_dict()
 
+    @app.get("/api/health", include_in_schema=False)
+    def api_health() -> dict[str, str]:
+        return {"status": "ok", "service": "career-memory-api"}
+
     return app
 
 

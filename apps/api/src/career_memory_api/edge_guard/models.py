@@ -456,13 +456,13 @@ def classify_route(
 
     normalized_path = path.rstrip("/") if path != "/" else "/"
 
-    # 1. PUBLIC_HEALTH: GET/HEAD /healthz
-    if normalized_path == "/healthz":
+    # 1. PUBLIC_HEALTH: GET/HEAD /healthz or /api/health (Cloud Run GFE reserves /*z paths externally)
+    if normalized_path in ("/healthz", "/api/health"):
         if norm_method in ("GET", "HEAD"):
             return RouteClassification(
                 trust_class=RouteTrustClass.PUBLIC_HEALTH,
                 pause_policy=EdgePausePolicy.ESSENTIAL_SAFETY_ALWAYS_ALLOWED,
-                matched_rule="GET /healthz",
+                matched_rule=f"GET {normalized_path}",
                 normalized_path=normalized_path,
                 method=norm_method,
             )

@@ -332,6 +332,7 @@ jobs:
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
@@ -344,7 +345,7 @@ jobs:
             CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           fi
           WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
-          WORKER_OIDC_TOKEN="$(gcloud auth print-identity-token --audiences="$WORKER_URL")"
+          WORKER_OIDC_TOKEN="$(gcloud auth print-identity-token --impersonate-service-account="$DEPLOY_SA" --audiences="$WORKER_URL" --include-email)"
 
           cd apps/api
           uv run python ../../scripts/run_t106b_release_verify.py \
@@ -359,6 +360,15 @@ jobs:
             gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
+
+          # Prune older untagged digests beyond the 2 newest images per repo to preserve <= 250 MB Free Tier headroom
+          for IMG_NAME in cm-api cm-web; do
+            IMG_PATH="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/${IMG_NAME}"
+            OLD_DIGESTS="$(gcloud artifacts docker images list "$IMG_PATH" --include-tags --sort-by=~UPDATE_TIME --format='value(version)' | tail -n +3 || true)"
+            for D in $OLD_DIGESTS; do
+              gcloud artifacts docker images delete "${IMG_PATH}@${D}" --delete-tags --quiet || true
+            done
+          done
 
       - name: Rollback cm-api, cm-web (instant traffic shift) and cm-worker (@sha256 digest restore)
         if: ${{ inputs.action == 'rollback' }}

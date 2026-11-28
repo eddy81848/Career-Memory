@@ -88,14 +88,16 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          PUBLIC_WEB_ORIGIN: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
         run: |
           uv run python ../../scripts/run_live_server_e2e.py \
             --project-id "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --deploy-service-account "$DEPLOY_SA" \
             --fetch-gcp-credentials \
+            --web-url "$PUBLIC_WEB_ORIGIN" \
             --supabase-url "$SUPABASE_URL" \
-            --phase-label "Nightly Live Deployed Server E2E" \
+            --phase-label "Nightly Live Deployed Server E2E (Cloudflare + Cloud Run)" \
             --output /tmp/nightly-live-e2e-report.json
 
   gate:

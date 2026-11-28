@@ -832,6 +832,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          PUBLIC_WEB_ORIGIN: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
           ACTION: ${{ needs.test.outputs.action }}
           DEPLOY_API: ${{ needs.test.outputs.deploy_api }}
@@ -955,6 +956,7 @@ jobs:
             fi
           fi
 
-          if ! run_live_suite "$LIVE_API_URL" "$LIVE_WEB_URL" "$WORKER_URL" "Post-Promotion Live Public"; then
+          PUBLIC_EDGE_WEB_URL="${PUBLIC_WEB_ORIGIN:-$LIVE_WEB_URL}"
+          if ! run_live_suite "$LIVE_API_URL" "$PUBLIC_EDGE_WEB_URL" "$WORKER_URL" "Post-Promotion Live Public (Cloudflare Edge)"; then
             auto_rollback "Post-promotion Live Server E2E verification failed"
           fi

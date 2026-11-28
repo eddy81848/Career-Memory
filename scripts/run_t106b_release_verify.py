@@ -281,7 +281,10 @@ def _http_probe(
         if follow_redirects
         else urllib.request.build_opener(_NoRedirect)
     )
-    req = urllib.request.Request(url, data=body_bytes, headers=headers or {}, method=method)
+    req_headers: dict[str, str] = dict(headers or {})
+    if not any(k.lower() == "user-agent" for k in req_headers):
+        req_headers["User-Agent"] = "CareerMemory-LiveVerify/1.0"
+    req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method=method)
     t0 = time.perf_counter()
     try:
         with opener.open(req, timeout=timeout_seconds) as resp:

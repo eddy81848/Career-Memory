@@ -117,6 +117,10 @@ def collapse_event_ids_for_search_and_export(
     return collapsed
 
 
+def _escape_like_token(token: str) -> str:
+    return token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def query_searchable_top_level_work_events(
     conn: ConnOrCursor,
     *,
@@ -127,10 +131,12 @@ def query_searchable_top_level_work_events(
 ) -> list[str]:
     """Search non-raw WorkEvent fields & source identifiers, collapsing to active top-level IDs.
 
-    Matches against title/problem/action/outcome and linked ``source_objects.provider_object_id``
-    across both active top-level events and ``SUPERSEDED`` composite members, then collapses
-    every hit through ``collapse_event_ids_for_search_and_export`` so active ``USER_COMPOSITE``
-    events appear at most once and ``REJECTED`` / dissolved composites never leak.
+    Splits ``query_text`` into whitespace-delimited search tokens and requires EVERY token
+    (case-insensitive AND semantics) to match across title/problem/action/outcome or linked
+    ``source_objects.provider_object_id`` on either active top-level events or ``SUPERSEDED``
+    composite members, then collapses every hit through ``collapse_event_ids_for_search_and_export``
+    so active ``USER_COMPOSITE`` events appear at most once and ``REJECTED`` / dissolved
+    composites never leak.
     """
     ws_uuid = _normalize_uuid(workspace_id, "workspace_id")
     res_uuid = (
@@ -138,51 +144,57 @@ def query_searchable_top_level_work_events(
         if source_resource_id is not None
         else None
     )
-    cleaned_query = query_text.strip()
-    if not cleaned_query or limit < 1:
+    tokens = list(dict.fromkeys(tok for tok in query_text.strip().split() if tok))
+    if not tokens or limit < 1:
         return []
 
-    like_pattern = f"%{cleaned_query}%"
     where_clauses: list[str] = [
         "we.workspace_id = %s::uuid",
         "we.status <> 'REJECTED'",
-        """
-        (
-            we.title ILIKE %s
-            OR COALESCE(we.problem, '') ILIKE %s
-            OR COALESCE(we.action, '') ILIKE %s
-            OR COALESCE(we.outcome, '') ILIKE %s
-            OR EXISTS (
-                SELECT 1
-                FROM public.source_objects so_pa
-                WHERE so_pa.workspace_id = we.workspace_id
-                  AND so_pa.id = we.primary_anchor_source_object_id
-                  AND so_pa.provider_object_id ILIKE %s
+    ]
+    params: list[object] = [ws_uuid]
+
+    for tok in tokens:
+        like_pattern = f"%{_escape_like_token(tok)}%"
+        where_clauses.append(
+            """
+            (
+                we.title ILIKE %s ESCAPE '\\'
+                OR COALESCE(we.problem, '') ILIKE %s ESCAPE '\\'
+                OR COALESCE(we.action, '') ILIKE %s ESCAPE '\\'
+                OR COALESCE(we.outcome, '') ILIKE %s ESCAPE '\\'
+                OR EXISTS (
+                    SELECT 1
+                    FROM public.source_objects so_pa
+                    WHERE so_pa.workspace_id = we.workspace_id
+                      AND so_pa.id = we.primary_anchor_source_object_id
+                      AND so_pa.provider_object_id ILIKE %s ESCAPE '\\'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM public.event_memberships em
+                    INNER JOIN public.source_objects so
+                        ON so.workspace_id = em.workspace_id
+                       AND so.id = em.source_object_id
+                    WHERE em.workspace_id = we.workspace_id
+                      AND em.event_id = we.id
+                      AND em.status = 'ACTIVE'
+                      AND em.relation_class = 'MUST_LINK'
+                      AND so.provider_object_id ILIKE %s ESCAPE '\\'
+                )
             )
-            OR EXISTS (
-                SELECT 1
-                FROM public.event_memberships em
-                INNER JOIN public.source_objects so
-                    ON so.workspace_id = em.workspace_id
-                   AND so.id = em.source_object_id
-                WHERE em.workspace_id = we.workspace_id
-                  AND em.event_id = we.id
-                  AND em.status = 'ACTIVE'
-                  AND em.relation_class = 'MUST_LINK'
-                  AND so.provider_object_id ILIKE %s
-            )
+            """
         )
-        """,
-    ]
-    params: list[object] = [
-        ws_uuid,
-        like_pattern,
-        like_pattern,
-        like_pattern,
-        like_pattern,
-        like_pattern,
-        like_pattern,
-    ]
+        params.extend(
+            [
+                like_pattern,
+                like_pattern,
+                like_pattern,
+                like_pattern,
+                like_pattern,
+                like_pattern,
+            ]
+        )
 
     if res_uuid is not None:
         where_clauses.append(

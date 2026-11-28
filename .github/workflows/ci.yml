@@ -103,13 +103,22 @@ jobs:
         run: |
           uv run pytest -q -m ""
           uv run python ../../scripts/run_conformance_ci.py --with-postgres
+          PYTHONDONTWRITEBYTECODE=1 uv run python -m py_compile ../../scripts/*.py
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/lint uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/lint -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/review-candidates/m0-gate-spec-delta uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/review-candidates/m0-gate-spec-delta -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/claim-draft/tools uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/claim-draft/tools -q
 
-      - name: Run fast non-Postgres API unit tests (when PG18 paths are untouched)
+      - name: Run all non-Postgres API unit, script & evaluation tests (when PG18 paths are untouched)
         if: >-
           needs.detect-and-static.outputs.run_api_unit == 'true' &&
           needs.detect-and-static.outputs.run_api_pg18 != 'true'
         working-directory: apps/api
-        run: uv run pytest tests/edge_guard tests/pilot_gate tests/llm_gate -q
+        run: |
+          uv run pytest -q
+          PYTHONDONTWRITEBYTECODE=1 uv run python -m py_compile ../../scripts/*.py
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/lint uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/lint -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/review-candidates/m0-gate-spec-delta uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/review-candidates/m0-gate-spec-delta -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/claim-draft/tools uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/claim-draft/tools -q
 
       - name: Run M0 CONTRACT-06 Initial Import Regression (only when import contract touched)
         if: needs.detect-and-static.outputs.run_m0_spike == 'true'

@@ -140,3 +140,29 @@ def test_root_dockerignore_and_unknown_future_paths_fail_safe() -> None:
     assert res_unknown.run_web_contract_http is True
     assert res_unknown.run_web_build is True
     assert res_unknown.run_web_e2e is True
+
+
+def test_infra_evaluation_and_contract_http_config_trigger_targeted_suites() -> None:
+    res_cf = classify_changed_paths(
+        ["infra/cloudflare/src/worker.mjs", "infra/cloudflare/wrangler.toml"]
+    )
+    assert res_cf.run_web_test is True
+    assert res_cf.run_web_build is False
+    assert res_cf.deploy_web is False
+    assert res_cf.deploy_api is False
+
+    res_gcp = classify_changed_paths(["infra/gcp/artifact-registry-cleanup-policy.json"])
+    assert res_gcp.run_api_unit is True
+    assert res_gcp.run_api_pg18 is False
+    assert res_gcp.sync_ar_policy is True
+    assert res_gcp.any_cd_work is True
+
+    res_eval = classify_changed_paths(["evaluation/claim-draft/tools/validate_dataset.py"])
+    assert res_eval.run_api_unit is True
+    assert res_eval.run_api_pg18 is False
+    assert res_eval.deploy_api is False
+
+    res_http_cfg = classify_changed_paths(["apps/web/vitest.contract-http.config.ts"])
+    assert res_http_cfg.run_web_test is True
+    assert res_http_cfg.run_web_contract_http is True
+    assert res_http_cfg.deploy_web is False

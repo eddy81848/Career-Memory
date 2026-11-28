@@ -200,6 +200,10 @@ jobs:
           uv run python ../../scripts/run_conformance_ci.py --with-postgres
           uv run python ../../scripts/run_t506_pilot_gate.py --verify
           uv run pytest -q -m ""
+          PYTHONDONTWRITEBYTECODE=1 uv run python -m py_compile ../../scripts/*.py
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/lint uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/lint -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/review-candidates/m0-gate-spec-delta uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/review-candidates/m0-gate-spec-delta -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/claim-draft/tools uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/claim-draft/tools -q
 
       - name: Run M0 CONTRACT-06 Initial Import Regression
         working-directory: apps/api

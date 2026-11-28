@@ -285,3 +285,98 @@ def test_t106b_smoke_checks_verify_origin_hmac_worker_oidc_and_postgrest(
     assert "worker_oidc_authorized_recover_200" in check_names
     assert "worker_oidc_authorized_wake_200" in check_names
     assert "supabase_postgrest_domain_table_bypass_blocked" in check_names
+
+
+def test_infra_gcp_cleanup_policy_json_and_prune_script_protect_rollback_revisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy_path = REPO_ROOT / "infra" / "gcp" / "artifact-registry-cleanup-policy.json"
+    policies = json.loads(policy_path.read_text(encoding="utf-8"))
+    assert isinstance(policies, list) and len(policies) >= 2
+    by_name = {entry["name"]: entry for entry in policies}
+    keep_rule = by_name["keep-2-most-recent-versions"]
+    assert keep_rule["action"]["type"] == "Keep"
+    assert keep_rule["mostRecentVersions"]["keepCount"] == 2
+    assert by_name["delete-untagged-older-than-1d"]["action"]["type"] == "Delete"
+    assert by_name["delete-tagged-older-than-7d"]["action"]["type"] == "Delete"
+
+    prune_mod = _load_script_module("prune_superseded_ar_images.py")
+    deleted_refs: list[str] = []
+
+    def _fake_check_output(cmd: list[str], **kwargs: object) -> str:
+        _ = kwargs
+        joined = " ".join(cmd)
+        if "services describe cm-api" in joined:
+            return json.dumps(
+                {
+                    "spec": {"template": {"spec": {"containers": [{"image": "repo/cm-api@sha256:" + "a" * 64}]}}},
+                    "status": {"traffic": [{"revisionName": "cm-api-00010", "percent": 100}]},
+                }
+            )
+        if "services describe cm-web" in joined:
+            return json.dumps(
+                {
+                    "spec": {"template": {"spec": {"containers": [{"image": "repo/cm-web@sha256:" + "b" * 64}]}}},
+                    "status": {"traffic": [{"revisionName": "cm-web-00010", "percent": 100}]},
+                }
+            )
+        if "services describe cm-worker" in joined:
+            return json.dumps(
+                {
+                    "spec": {"template": {"spec": {"containers": [{"image": "repo/cm-api@sha256:" + "a" * 64}]}}},
+                    "status": {"traffic": []},
+                }
+            )
+        if "revisions list" in joined and "cm-api" in joined:
+            return json.dumps(
+                [
+                    {"metadata": {"name": "cm-api-00010"}, "spec": {"containers": [{"image": "repo/cm-api@sha256:" + "a" * 64}]}},
+                    {"metadata": {"name": "cm-api-00009"}, "spec": {"containers": [{"image": "repo/cm-api@sha256:" + "c" * 64}]}},
+                    {"metadata": {"name": "cm-api-00005"}, "spec": {"containers": [{"image": "repo/cm-api@sha256:" + "d" * 64}]}},
+                ]
+            )
+        if "revisions list" in joined and "cm-web" in joined:
+            return json.dumps(
+                [
+                    {"metadata": {"name": "cm-web-00010"}, "spec": {"containers": [{"image": "repo/cm-web@sha256:" + "b" * 64}]}},
+                ]
+            )
+        if "docker images list" in joined and "cm-api" in joined:
+            return json.dumps(
+                [
+                    {"version": "sha256:" + "a" * 64},
+                    {"version": "sha256:" + "c" * 64},
+                    {"version": "sha256:" + "d" * 64},
+                    {"version": "sha256:" + "e" * 64},
+                ]
+            )
+        if "docker images list" in joined and "cm-web" in joined:
+            return json.dumps([{"version": "sha256:" + "b" * 64}])
+        return "[]"
+
+    class _FakeCompleted:
+        returncode = 0
+
+    def _fake_subprocess_run(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        _ = kwargs
+        if "delete" in cmd:
+            deleted_refs.append(cmd[5])
+        return _FakeCompleted()
+
+    monkeypatch.setattr(prune_mod.subprocess, "check_output", _fake_check_output)
+    monkeypatch.setattr(prune_mod.subprocess, "run", _fake_subprocess_run)
+
+    rc = prune_mod.main(
+        [
+            "--project-id",
+            "test-proj",
+            "--region",
+            "us-central1",
+            "--protect-revision",
+            "cm-api-00005",
+        ]
+    )
+    assert rc == 0
+    # Only 'e'*64 is unreferenced; 'a' (live), 'c' (top-2 newest), and 'd' (--protect-revision rollback) stay safe!
+    assert len(deleted_refs) == 1
+    assert deleted_refs[0].endswith("@sha256:" + "e" * 64)

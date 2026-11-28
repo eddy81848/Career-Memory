@@ -197,19 +197,28 @@ def test_pooler_zero_prepared_statements_cross_workspace_rollback_and_role_guard
             email="owner@pilot.test",
             display_name="Pilot Owner",
             github_login="pilot-owner",
+            github_external_id="83367652",
+            public_repositories=[("1463618273", "eddy81848/Career-Memory")],
             allow_insecure_local_test=True,
         )
         assert enrolled_1.user_created is True
         assert enrolled_1.workspace_created is True
+        assert enrolled_1.source_account_id is not None
+        assert len(enrolled_1.source_resource_ids) == 1
         enrolled_2 = enroll_pilot_user(
             admin_dsn,
             auth_issuer="https://pilot.supabase.test/auth/v1",
             auth_subject="sub-pilot-owner-001",
             workspace_name="Pilot Owner Workspace",
+            github_login="pilot-owner",
+            github_external_id="83367652",
+            public_repositories=[("1463618273", "eddy81848/Career-Memory")],
             allow_insecure_local_test=True,
         )
         assert enrolled_2.user_id == enrolled_1.user_id
         assert enrolled_2.workspace_id == enrolled_1.workspace_id
+        assert enrolled_2.source_account_id == enrolled_1.source_account_id
+        assert enrolled_2.source_resource_ids == enrolled_1.source_resource_ids
         assert enrolled_2.user_created is False
         assert enrolled_2.workspace_created is False
 

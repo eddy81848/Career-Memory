@@ -283,6 +283,10 @@ jobs:
         run: |
           uv run pytest -q -m ""
           uv run python ../../scripts/run_conformance_ci.py --with-postgres
+          PYTHONDONTWRITEBYTECODE=1 uv run python -m py_compile ../../scripts/*.py
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/lint uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/lint -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/event-draft/review-candidates/m0-gate-spec-delta uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/event-draft/review-candidates/m0-gate-spec-delta -q
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../../evaluation/claim-draft/tools uv run pytest -o cache_dir=/tmp/pytest-eval -m "" ../../evaluation/claim-draft/tools -q
 
       - name: Run M0 Import Spike Regression (only on unverified direct push / skewed merge)
         if: >-
@@ -582,6 +586,39 @@ jobs:
             --region "$GCP_REGION" \
             --json
 
+      - name: Idempotently enroll configured single-owner pilot workspace (when STAGING_PILOT_OWNER_AUTH_SUBJECT is set)
+        id: pilot_enroll
+        if: >-
+          needs.test.outputs.action == 'deploy' &&
+          (needs.test.outputs.run_migrations == 'true' || needs.test.outputs.deploy_api == 'true')
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+          SUPABASE_JWT_ISSUER: ${{ vars.STAGING_SUPABASE_JWT_ISSUER }}
+          PILOT_AUTH_SUBJECT: ${{ vars.STAGING_PILOT_OWNER_AUTH_SUBJECT }}
+          PILOT_WORKSPACE_NAME: ${{ vars.STAGING_PILOT_WORKSPACE_NAME }}
+          PILOT_DISPLAY_NAME: ${{ vars.STAGING_PILOT_DISPLAY_NAME }}
+          PILOT_GITHUB_LOGIN: ${{ vars.STAGING_PILOT_GITHUB_LOGIN }}
+          PILOT_GITHUB_EXTERNAL_ID: ${{ vars.STAGING_PILOT_GITHUB_EXTERNAL_ID }}
+          PILOT_PUBLIC_REPOS: ${{ vars.STAGING_PILOT_PUBLIC_REPOS }}
+          BASE_WORKER_WORKSPACE_IDS: ${{ vars.STAGING_WORKER_WORKSPACE_IDS }}
+        run: |
+          EFFECTIVE_WS_IDS="${BASE_WORKER_WORKSPACE_IDS:-}"
+          if [ -n "${PILOT_AUTH_SUBJECT:-}" ] && [ -n "${MIGRATION_DATABASE_URL:-}" ]; then
+            ENROLL_JSON="$(cd apps/api && uv run python ../../scripts/run_staging_migrations.py \
+              --enroll-pilot-user \
+              --auth-issuer "${SUPABASE_JWT_ISSUER}" \
+              --auth-subject "${PILOT_AUTH_SUBJECT}" \
+              --workspace-name "${PILOT_WORKSPACE_NAME:-Career Memory Workspace}" \
+              --display-name "${PILOT_DISPLAY_NAME:-Pilot Owner}" \
+              --github-login "${PILOT_GITHUB_LOGIN:-}" \
+              --github-external-id "${PILOT_GITHUB_EXTERNAL_ID:-}" \
+              --public-repos-csv "${PILOT_PUBLIC_REPOS:-}")"
+            ENROLLED_WS_ID="$(printf '%s' "$ENROLL_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("workspace_id",""))')"
+            EFFECTIVE_WS_IDS="$(python3 -c 'import sys; items=[x.strip() for x in sys.argv[1].split(",")+[sys.argv[2]] if x.strip()]; print(",".join(dict.fromkeys(items)))' "$EFFECTIVE_WS_IDS" "$ENROLLED_WS_ID")"
+            echo "✓ Enrolled pilot owner workspace_id=${ENROLLED_WS_ID}"
+          fi
+          echo "worker_workspace_ids=${EFFECTIVE_WS_IDS}" >> "$GITHUB_OUTPUT"
+
       - name: Deploy cm-worker & cm-api candidate revision (only when Backend/API changed)
         if: >-
           needs.test.outputs.action == 'deploy' &&
@@ -592,7 +629,7 @@ jobs:
           WORKER_SA: ${{ vars.GCP_WORKER_RUNTIME_SA }}
           API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
           DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          WORKER_WORKSPACE_IDS: ${{ vars.STAGING_WORKER_WORKSPACE_IDS }}
+          WORKER_WORKSPACE_IDS: ${{ steps.pilot_enroll.outputs.worker_workspace_ids || vars.STAGING_WORKER_WORKSPACE_IDS }}
           SUPABASE_JWT_ISSUER: ${{ vars.STAGING_SUPABASE_JWT_ISSUER }}
           SUPABASE_JWKS_URL: ${{ vars.STAGING_SUPABASE_JWKS_URL }}
           SUPABASE_AUTH_URL: ${{ vars.STAGING_SUPABASE_AUTH_URL }}

@@ -9,12 +9,12 @@ import os
 import subprocess
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-id", required=True)
     parser.add_argument("--region", default="us-central1")
     parser.add_argument("--protect-revision", action="append", default=[])
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     env = dict(os.environ)
     existing = env.get("CLOUDSDK_METRICS_ENVIRONMENT", "").strip()
@@ -48,6 +48,11 @@ def main() -> int:
         for tr in (svc_doc.get("status") or {}).get("traffic") or []:
             if tr.get("revisionName"):
                 protected_rev_names.add(str(tr["revisionName"]))
+        svc_containers = (((svc_doc.get("spec") or {}).get("template") or {}).get("spec") or {}).get(
+            "containers"
+        ) or []
+        if svc_containers and "@sha256:" in svc_containers[0].get("image", ""):
+            keep.add("sha256:" + svc_containers[0]["image"].split("@sha256:", 1)[1])
 
         revs = json.loads(
             subprocess.check_output(

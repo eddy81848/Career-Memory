@@ -184,10 +184,11 @@ test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
     expect(
       (parsedAuthUrl.searchParams.get("code_challenge_method") ?? "").toUpperCase()
     ).toBe("S256");
-    expect(parsedAuthUrl.searchParams.get("state")).toBeTruthy();
-    expect(parsedAuthUrl.searchParams.get("redirect_to") ?? "").toMatch(
-      /\/auth\/callback$/
-    );
+    const redirectToRaw = parsedAuthUrl.searchParams.get("redirect_to") ?? "";
+    const parsedRedirectTo = new URL(redirectToRaw);
+    expect(parsedRedirectTo.pathname).toBe("/auth/callback");
+    const embeddedState = parsedRedirectTo.searchParams.get("state") ?? "";
+    expect(embeddedState.length).toBeGreaterThanOrEqual(24);
 
     const setCookieLower = (pkceRes.headers()["set-cookie"] ?? "").toLowerCase();
     expect(setCookieLower).toContain("__host-cm_pkce=");
@@ -202,6 +203,9 @@ test.describe("Hosted Cloud Run cm-web Live Browser & BFF Security E2E", () => {
     if ([302, 303].includes(supaRes.status())) {
       const githubLocation = supaRes.headers()["location"] ?? "";
       expect(githubLocation).toContain("github.com/login/oauth/authorize");
+      expect(decodeURIComponent(githubLocation)).toContain(
+        `state=${embeddedState}`
+      );
     } else {
       expect(supaRes.status()).toBe(400);
       const supaBody = await supaRes.json();

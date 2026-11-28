@@ -116,12 +116,14 @@ export function buildSupabaseAuthorizeUrl(params: {
   codeChallenge: string;
   state: string;
 }): string {
+  const callbackWithState = new URL(params.callbackUrl);
+  callbackWithState.searchParams.set("state", params.state);
+
   const url = new URL(`${params.supabaseUrl.replace(/\/+$/, "")}/auth/v1/authorize`);
   url.searchParams.set("provider", params.provider);
-  url.searchParams.set("redirect_to", params.callbackUrl);
+  url.searchParams.set("redirect_to", callbackWithState.toString());
   url.searchParams.set("code_challenge", params.codeChallenge);
   url.searchParams.set("code_challenge_method", "s256");
-  url.searchParams.set("state", params.state);
   return url.toString();
 }
 

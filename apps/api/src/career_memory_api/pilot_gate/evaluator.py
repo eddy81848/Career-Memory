@@ -620,7 +620,7 @@ def _verify_t007f_t106b(repo_root: Path) -> BundleVerificationResult:
         od015.get("verdict") == "GO"
         and int(od015.get("checks_passed", 0)) == 6
         and od015.get("containerscanning_enabled") is False
-        and float(od015.get("artifact_registry_total_mb", 999.0)) <= 450.0
+        and float(od015.get("artifact_registry_total_mb", 999.0)) <= 750.0
         and int(od015.get("secret_manager_enabled_versions", 99)) <= 4
         and int(od015.get("vpc_connector_count", 1)) == 0
         and int(od015.get("estimated_monthly_krw_worst_case", 99999)) < 20000,

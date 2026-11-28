@@ -2,11 +2,16 @@
 
 import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type {
+  EventReviewAdapter,
+  EventReviewHarnessControls,
+} from "@/adapters/event-review-adapter";
+import type {
   ImportServiceAdapter,
   PrototypeHarnessControls,
 } from "@/adapters/import-service-adapter";
 import { MockFixtureImportAdapter } from "@/adapters/mock-fixture-adapter";
 import {
+  canEnterEventInbox,
   canExposeRetryAction,
   canSubmitInitialImport,
   createInitialImportJourneyState,
@@ -17,6 +22,7 @@ import {
 } from "@/domain/state-machine";
 import type { PrototypeScenarioId } from "@/domain/view-models";
 import { ConnectionStatusPanel } from "./ConnectionStatusPanel";
+import { EventInboxApp } from "./event-review/EventInboxApp";
 import { ImportStatusPanel } from "./ImportStatusPanel";
 import { PrototypeScenarioBar } from "./PrototypeScenarioBar";
 import { RepositorySelector } from "./RepositorySelector";
@@ -26,6 +32,10 @@ export interface ImportJourneyAppProps {
   adapter?: ImportServiceAdapter;
   /** Optional prototype-only controls; omitted when connected to a real backend. */
   harness?: PrototypeHarnessControls;
+  /** Optional injected M3 Event Review adapter for Event Inbox tab testing. */
+  eventReviewAdapter?: EventReviewAdapter;
+  /** Optional Event Review prototype harness controls. */
+  eventReviewHarness?: EventReviewHarnessControls;
   /** Polling interval while a run is actively running (ms). */
   pollIntervalMs?: number;
 }
@@ -33,6 +43,8 @@ export interface ImportJourneyAppProps {
 export function ImportJourneyApp({
   adapter: injectedAdapter,
   harness: injectedHarness,
+  eventReviewAdapter,
+  eventReviewHarness,
   pollIntervalMs = 500,
 }: ImportJourneyAppProps) {
   const defaultAdapterRef = useRef<MockFixtureImportAdapter | null>(null);
@@ -892,6 +904,16 @@ export function ImportJourneyApp({
 
   const isBusyConnection =
     state.phase === "bootstrapping" || state.phase === "mutating_connection";
+  const eventInboxEligible = canEnterEventInbox(state);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<
+    "import" | "event_inbox"
+  >("import");
+
+  useEffect(() => {
+    if (!eventInboxEligible && activeWorkspaceTab === "event_inbox") {
+      setActiveWorkspaceTab("import");
+    }
+  }, [eventInboxEligible, activeWorkspaceTab]);
 
   return (
     <div className="page-shell">
@@ -900,7 +922,13 @@ export function ImportJourneyApp({
       </a>
 
       <header className="page-header">
-        <div className="page-header__inner">
+        <div
+          className={`page-header__inner ${
+            activeWorkspaceTab === "event_inbox"
+              ? "page-header__inner--wide"
+              : ""
+          }`}
+        >
           <div className="brand-row">
             <span className="brand-mark" aria-hidden="true">
               CM
@@ -919,79 +947,138 @@ export function ImportJourneyApp({
         </div>
       </header>
 
-      <main id="main-content" className="main-content" tabIndex={-1}>
-        {harness && (
-          <PrototypeScenarioBar
-            scenarioId={state.scenarioId}
-            disabled={
-              state.phase === "bootstrapping" ||
-              state.phase === "submitting_import" ||
-              state.phase === "retrying_import"
-            }
-            onScenarioChange={handleScenarioChange}
-            onSimulateReloadRecovery={() => void runBootstrap(true)}
-            onSimulatePollNetworkError={() => {
-              harness.simulateNextPollNetworkFailure();
-              if (state.activeRun?.status === "running") {
-                void pollOnce(state.activeRun.runId, true);
-              }
-            }}
-            onResetPrototype={() => void handleResetActiveRun()}
-          />
+      <main
+        id="main-content"
+        className={`main-content ${
+          activeWorkspaceTab === "event_inbox" ? "main-content--wide" : ""
+        }`}
+        tabIndex={-1}
+      >
+        {eventInboxEligible && (
+          <nav
+            aria-label="작업 공간 단계 전환"
+            className="workspace-tab-bar"
+            data-testid="workspace-tab-bar"
+          >
+            <button
+              type="button"
+              className={`btn btn--sm ${
+                activeWorkspaceTab === "import" ? "btn--primary" : "btn--secondary"
+              }`}
+              data-testid="tab-import-journey"
+              onClick={() => setActiveWorkspaceTab("import")}
+            >
+              1. 가져오기 상태 확인
+            </button>
+            <button
+              type="button"
+              className={`btn btn--sm ${
+                activeWorkspaceTab === "event_inbox"
+                  ? "btn--primary"
+                  : "btn--secondary"
+              }`}
+              data-testid="tab-event-inbox"
+              onClick={() => setActiveWorkspaceTab("event_inbox")}
+            >
+              2. Event 후보 검토하기 (Event Inbox)
+            </button>
+            <a
+              href="/event-review"
+              className="btn btn--ghost btn--sm"
+              data-testid="direct-event-review-route-link"
+            >
+              독립 Event Inbox 페이지 열기 (/event-review)
+            </a>
+          </nav>
         )}
 
-        <ConnectionStatusPanel
-          serviceAuth={state.serviceAuth}
-          githubConnection={state.githubConnection}
-          isBusy={isBusyConnection}
-          onSignInService={() => void handleSignInService()}
-          onSignOutService={() => void handleSignOutService()}
-          onSimulateSessionExpired={() => void handleSimulateSessionExpired()}
-          onConnectGitHub={() => void handleConnectGitHub()}
-          onDisconnectGitHub={() => void handleDisconnectGitHub()}
-          onSimulateGitHubRevoked={() => void handleSimulateGitHubRevoked()}
-        />
+        {activeWorkspaceTab === "event_inbox" && eventInboxEligible ? (
+          <EventInboxApp
+            embedded
+            adapter={eventReviewAdapter}
+            harness={eventReviewHarness}
+            sourceResourceId={state.activeRun?.repositoryId}
+            repositoryLabel={state.activeRun?.repositoryFullName}
+            onBackToImport={() => setActiveWorkspaceTab("import")}
+          />
+        ) : (
+          <>
+            {harness && (
+              <PrototypeScenarioBar
+                scenarioId={state.scenarioId}
+                disabled={
+                  state.phase === "bootstrapping" ||
+                  state.phase === "submitting_import" ||
+                  state.phase === "retrying_import"
+                }
+                onScenarioChange={handleScenarioChange}
+                onSimulateReloadRecovery={() => void runBootstrap(true)}
+                onSimulatePollNetworkError={() => {
+                  harness.simulateNextPollNetworkFailure();
+                  if (state.activeRun?.status === "running") {
+                    void pollOnce(state.activeRun.runId, true);
+                  }
+                }}
+                onResetPrototype={() => void handleResetActiveRun()}
+              />
+            )}
 
-        <RepositorySelector
-          serviceAuth={state.serviceAuth}
-          githubConnection={state.githubConnection}
-          workspaceAccessRevoked={state.workspaceAccessRevoked}
-          repositories={state.repositories}
-          selectedRepoId={state.selectedRepoId}
-          isSubmitting={
-            state.phase === "submitting_import" ||
-            state.phase === "retrying_import"
-          }
-          isRunActive={state.activeRun?.status === "running"}
-          isSelectedRepoSucceeded={isSelectedRepositoryImportSucceeded(state)}
-          canSubmit={canSubmitInitialImport(state)}
-          duplicateGuardNotice={state.duplicateGuardNotice}
-          onSelectRepo={handleSelectRepo}
-          onSubmitImport={() => void handleSubmitImport()}
-        />
+            <ConnectionStatusPanel
+              serviceAuth={state.serviceAuth}
+              githubConnection={state.githubConnection}
+              isBusy={isBusyConnection}
+              onSignInService={() => void handleSignInService()}
+              onSignOutService={() => void handleSignOutService()}
+              onSimulateSessionExpired={() => void handleSimulateSessionExpired()}
+              onConnectGitHub={() => void handleConnectGitHub()}
+              onDisconnectGitHub={() => void handleDisconnectGitHub()}
+              onSimulateGitHubRevoked={() => void handleSimulateGitHubRevoked()}
+            />
 
-        <ImportStatusPanel
-          state={state}
-          onManualRefresh={() => {
-            if (state.activeRun) {
-              void pollOnce(state.activeRun.runId, true);
-            }
-          }}
-          onRetryImport={() => void handleRetryImport()}
-          onResendPendingRetry={() => void handleResendPendingRetry()}
-          onReconcileAfterFault={() => void handleRecoverStatus()}
-          onCheckRepositoryStatus={() => void handleRecoverStatus()}
-          onReconnectGitHub={() => void handleConnectGitHub()}
-          onReAuthenticateService={() => void handleSignInService()}
-        />
+            <RepositorySelector
+              serviceAuth={state.serviceAuth}
+              githubConnection={state.githubConnection}
+              workspaceAccessRevoked={state.workspaceAccessRevoked}
+              repositories={state.repositories}
+              selectedRepoId={state.selectedRepoId}
+              isSubmitting={
+                state.phase === "submitting_import" ||
+                state.phase === "retrying_import"
+              }
+              isRunActive={state.activeRun?.status === "running"}
+              isSelectedRepoSucceeded={isSelectedRepositoryImportSucceeded(state)}
+              canSubmit={canSubmitInitialImport(state)}
+              duplicateGuardNotice={state.duplicateGuardNotice}
+              onSelectRepo={handleSelectRepo}
+              onSubmitImport={() => void handleSubmitImport()}
+            />
 
-        <footer className="scope-footer">
-          <p>
-            <strong>범위 경계 안내:</strong> 이 화면은 승인된 API 계약 연결 전
-            로컬 UI Fixture 기반 프로토타입입니다. 삭제, Claim 생성, LLM 연동,
-            Event 편집 및 실제 외부 GitHub API/토큰 처리는 포함하지 않습니다.
-          </p>
-        </footer>
+            <ImportStatusPanel
+              state={state}
+              canOpenEventInbox={eventInboxEligible}
+              onEnterEventInbox={() => setActiveWorkspaceTab("event_inbox")}
+              onManualRefresh={() => {
+                if (state.activeRun) {
+                  void pollOnce(state.activeRun.runId, true);
+                }
+              }}
+              onRetryImport={() => void handleRetryImport()}
+              onResendPendingRetry={() => void handleResendPendingRetry()}
+              onReconcileAfterFault={() => void handleRecoverStatus()}
+              onCheckRepositoryStatus={() => void handleRecoverStatus()}
+              onReconnectGitHub={() => void handleConnectGitHub()}
+              onReAuthenticateService={() => void handleSignInService()}
+            />
+
+            <footer className="scope-footer">
+              <p>
+                <strong>범위 경계 안내:</strong> 이 화면은 승인된 API 계약 연결 전
+                로컬 UI Fixture 기반 프로토타입입니다. 삭제, Claim 생성, LLM 연동
+                및 실제 외부 GitHub API/토큰 처리는 포함하지 않습니다.
+              </p>
+            </footer>
+          </>
+        )}
       </main>
     </div>
   );

@@ -1,3 +1,4 @@
+import { resolveContractStatus } from "./import-status-presenter";
 import type {
   GitHubConnectionViewModel,
   ImportJourneyState,
@@ -240,6 +241,47 @@ export function hasDerivedStageLag(run: ImportRunViewModel | null): boolean {
     return false;
   }
   return run.readiness.importReady && !run.readiness.derivedAllReady;
+}
+
+/**
+ * Pure predicate (Product & UX Spec §5 entry gate):
+ * Event Inbox CTA / view MUST ONLY be enabled when:
+ *   - authenticated service session & connected GitHub scope (not revoked)
+ *   - activeRun status === "SUCCESS" (succeeded)
+ *   - activeRun.readiness.importReady === true
+ *   - activeRun.readiness.processingStatus !== "BLOCKED_POLICY" (and not "BLOCKED_SOURCE")
+ *
+ * PENDING, RUNNING, PARTIAL, PARTIAL_WITH_LIMIT, FAILED, CANCELED,
+ * import_ready=false, and BLOCKED_POLICY MUST NEVER expose Event Inbox results.
+ */
+export function canEnterEventInbox(state: ImportJourneyState): boolean {
+  if (
+    state.workspaceAccessRevoked ||
+    state.serviceAuth.status !== "authenticated" ||
+    state.githubConnection.status !== "connected" ||
+    !state.activeRun
+  ) {
+    return false;
+  }
+
+  const contractStatus = resolveContractStatus(state.activeRun);
+  if (
+    contractStatus !== "SUCCESS" ||
+    state.activeRun.status !== "succeeded" ||
+    state.activeRun.readiness.importReady !== true
+  ) {
+    return false;
+  }
+
+  const processingStatus = state.activeRun.readiness.processingStatus;
+  if (
+    processingStatus === "BLOCKED_POLICY" ||
+    processingStatus === "BLOCKED_SOURCE"
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export function buildRecoveryNotice(params: {

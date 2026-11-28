@@ -198,3 +198,90 @@ def test_pinned_auth_url_ssrf_and_role_parsing() -> None:
     assert HostedServiceRole.from_env("worker") is HostedServiceRole.WORKER
     with pytest.raises(HostedConfigurationError):
         HostedServiceRole.from_env("admin")
+
+
+def test_t106b_smoke_checks_verify_origin_hmac_worker_oidc_and_postgrest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _load_script_module("run_t106b_release_verify.py")
+
+    def _fake_probe(
+        url: str,
+        *,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        body_bytes: bytes | None = None,
+        timeout_seconds: float = 20.0,
+        follow_redirects: bool = True,
+    ) -> tuple[int, dict[str, str], str, float]:
+        _ = (body_bytes, timeout_seconds, follow_redirects)
+        hdrs = {k.lower(): v for k, v in (headers or {}).items()}
+        cc = {"cache-control": "private, no-store"}
+        if url.endswith("/api/health"):
+            return 200, {"cache-control": "no-store"}, '{"status":"ok"}', 5.0
+        if "cm-api.example" in url:
+            if url.endswith("/openapi.json"):
+                return 404, cc, '{"error":{"code":"ROUTE_NOT_DECLARED"}}', 2.0
+            if url.endswith("/internal/worker/wake"):
+                return 403, cc, '{"error":{"code":"PUBLIC_WORKER_ROUTE_FORBIDDEN"}}', 2.0
+            sig = hdrs.get("x-cm-origin-auth", "")
+            if not sig or sig.endswith("0" * 64):
+                return 403, cc, '{"error":{"code":"ORIGIN_AUTH_REQUIRED"}}', 2.0
+            if hdrs.get("origin") == "https://evil.example":
+                return 403, cc, '{"error":{"code":"CSRF_ORIGIN_DENIED"}}', 2.0
+            return 401, cc, '{"error":{"code":"UNAUTHENTICATED"}}', 3.0
+        if "cm-worker.example" in url:
+            if "authorization" not in hdrs:
+                return 403, cc, "", 2.0
+            if url.endswith("/v1/session"):
+                return 404, cc, '{"error":{"code":"ROUTE_NOT_DECLARED"}}', 2.0
+            if url.endswith("/internal/worker/recover"):
+                return 200, cc, '{"status":"ok","workspaces_scanned":1}', 4.0
+            return (
+                200,
+                cc,
+                '{"status":"ok","workspace_id":"00000000-0000-4000-8000-000000000000"}',
+                4.0,
+            )
+        if "cm-web.example" in url:
+            if url.endswith("/auth/session"):
+                return 200, cc, '{"authenticated":false}', 2.0
+            if "/auth/login?next=//evil.example" in url:
+                return 400, cc, '{"error":{"code":"INVALID_RETURN_PATH"}}', 2.0
+            if "/auth/login" in url:
+                return (
+                    302,
+                    {
+                        "location": "https://supa.example/auth/v1/authorize?code_challenge=abc&code_challenge_method=s256",
+                        "set-cookie": "__Host-cm_pkce=v1.a.b.c; Path=/; HttpOnly; Secure",
+                    },
+                    "",
+                    2.0,
+                )
+            if url.endswith("/bff/v1/sync-runs"):
+                return 403, cc, '{"error":{"code":"CSRF_VALIDATION_FAILED"}}', 2.0
+        if "supa.example" in url:
+            if url.endswith("/jwks.json"):
+                return 200, {}, '{"keys":[]}', 2.0
+            return 401, {}, '{"message":"No API key"}', 2.0
+        raise AssertionError(f"Unexpected probe URL: {method} {url}")
+
+    monkeypatch.setattr(mod, "_http_probe", _fake_probe)
+    smoke = mod.run_smoke_checks(
+        api_url="https://cm-api.example",
+        origin_hmac_secret="test-live-hmac-secret-not-real-0123456789",
+        worker_url="https://cm-worker.example",
+        worker_oidc_token="fake-oidc-token",
+        web_url="https://cm-web.example",
+        supabase_url="https://supa.example",
+        supabase_anon_key="fake-anon-key",
+    )
+    assert smoke["passed"] is True, f"Failed smoke checks: {[c for c in smoke['checks'] if not c['passed']]}"
+    check_names = {c["check"] for c in smoke["checks"]}
+    assert "api_signed_session_unauthenticated_401" in check_names
+    assert "api_signed_work_events_unauthenticated_401" in check_names
+    assert "api_signed_sync_runs_unauthenticated_401" in check_names
+    assert "api_internal_worker_route_blocked_even_with_hmac_403" in check_names
+    assert "worker_oidc_authorized_recover_200" in check_names
+    assert "worker_oidc_authorized_wake_200" in check_names
+    assert "supabase_postgrest_domain_table_bypass_blocked" in check_names

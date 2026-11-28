@@ -6,13 +6,15 @@ Enforces INF-09 / T-106B invariants:
 - Enforces immutable M0 OpenAPI blob SHA (``07594d75425744d6149250a9f7ff95ac24659f80``).
 - Enforces OD-015 Cloud Run service caps (`min_instances == 0`, `max_instances <= 2`,
   `cpu <= 1`, `memory_mib <= 512`).
-- Supports `--smoke-url` health/edge-guard verification and `--print-rollback` exact commands.
+- Supports `--smoke-url` live Cross-Service Origin-HMAC / Worker-OIDC / BFF / PostgREST E2E
+  verification and `--print-rollback` exact commands.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -30,6 +32,10 @@ if str(_API_SRC) not in sys.path:
 from career_memory_api.edge_guard.ci_trust_audit import (  # noqa: E402
     M0_IMMUTABLE_OPENAPI_BLOB_SHA,
 )
+from career_memory_api.edge_guard.models import (  # noqa: E402
+    DEFAULT_ORIGIN_AUTH_HEADER,
+    sign_origin_auth_header,
+)
 from career_memory_api.hosted_runtime.preflight_od015 import (  # noqa: E402
     MAX_CLOUD_RUN_CPU,
     MAX_CLOUD_RUN_MAX_INSTANCES,
@@ -43,6 +49,7 @@ _DIGEST_IMAGE_RE = re.compile(
     r"^[a-z0-9.\-]+/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$"
 )
 _REVISION_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{1,62}$")
+_SYNTHETIC_PROBE_WORKSPACE_ID = "00000000-0000-4000-8000-000000000000"
 
 
 class ReleaseManifestValidationError(ValueError):
@@ -261,6 +268,7 @@ def _http_probe(
     *,
     method: str = "GET",
     headers: dict[str, str] | None = None,
+    body_bytes: bytes | None = None,
     timeout_seconds: float = 20.0,
     follow_redirects: bool = True,
 ) -> tuple[int, dict[str, str], str, float]:
@@ -273,7 +281,7 @@ def _http_probe(
         if follow_redirects
         else urllib.request.build_opener(_NoRedirect)
     )
-    req = urllib.request.Request(url, headers=headers or {}, method=method)
+    req = urllib.request.Request(url, data=body_bytes, headers=headers or {}, method=method)
     t0 = time.perf_counter()
     try:
         with opener.open(req, timeout=timeout_seconds) as resp:
@@ -295,6 +303,7 @@ def _http_probe(
 def run_smoke_checks(
     *,
     api_url: str,
+    origin_hmac_secret: str | None = None,
     worker_url: str | None = None,
     worker_oidc_token: str | None = None,
     web_url: str | None = None,
@@ -302,11 +311,11 @@ def run_smoke_checks(
     supabase_anon_key: str | None = None,
     timeout_seconds: float = 20.0,
 ) -> dict[str, Any]:
-    """Run live staging smoke & isolation assertions across cm-api, cm-worker, cm-web & Data API."""
+    """Run live staging contract, security & isolation assertions across cm-api, cm-worker, cm-web & Supabase."""
     base_api = api_url.rstrip("/")
     results: list[dict[str, Any]] = []
 
-    # 1. GET /api/health (fallback /healthz locally) -> 200 (captures first-call cold start latency, T-007F Step 3)
+    # 1. GET /api/health (fallback /healthz locally) -> 200
     st_health, hdr_health, _, lat_api_ms = _http_probe(
         f"{base_api}/api/health", method="GET", timeout_seconds=timeout_seconds
     )
@@ -324,27 +333,37 @@ def run_smoke_checks(
         }
     )
 
-    # 2. Direct cm-api /v1/session without X-CM-Origin-Auth -> 403 ORIGIN_AUTH_REQUIRED + private, no-store
-    st_direct, hdr_direct, body_direct, lat_direct_ms = _http_probe(
-        f"{base_api}/v1/session", method="GET", timeout_seconds=timeout_seconds
-    )
-    cc_direct = hdr_direct.get("cache-control", "").lower()
-    results.append(
-        {
-            "check": "api_direct_origin_auth_blocked_403",
-            "passed": (
-                st_direct == 403
-                and "ORIGIN_AUTH_REQUIRED" in body_direct
-                and "private" in cc_direct
-                and "no-store" in cc_direct
-            ),
-            "status_code": st_direct,
-            "cache_control": hdr_direct.get("cache-control", ""),
-            "latency_ms": lat_direct_ms,
-        }
-    )
+    # 2. Direct cm-api /v1/session, /v1/work-events, /v1/sync-runs without X-CM-Origin-Auth -> 403 ORIGIN_AUTH_REQUIRED
+    for check_name, method, path, payload in (
+        ("api_direct_origin_auth_blocked_403", "GET", "/v1/session", None),
+        ("api_direct_work_events_origin_auth_blocked_403", "GET", "/v1/work-events", None),
+        ("api_direct_sync_runs_origin_auth_blocked_403", "POST", "/v1/sync-runs", b"{}"),
+    ):
+        probe_headers = {"Content-Type": "application/json"} if payload is not None else None
+        st_direct, hdr_direct, body_direct, lat_direct_ms = _http_probe(
+            f"{base_api}{path}",
+            method=method,
+            headers=probe_headers,
+            body_bytes=payload,
+            timeout_seconds=timeout_seconds,
+        )
+        cc_direct = hdr_direct.get("cache-control", "").lower()
+        results.append(
+            {
+                "check": check_name,
+                "passed": (
+                    st_direct == 403
+                    and "ORIGIN_AUTH_REQUIRED" in body_direct
+                    and "private" in cc_direct
+                    and "no-store" in cc_direct
+                ),
+                "status_code": st_direct,
+                "cache_control": hdr_direct.get("cache-control", ""),
+                "latency_ms": lat_direct_ms,
+            }
+        )
 
-    # 3. Direct /internal/worker/wake on cm-api -> 403 PUBLIC_WORKER_ROUTE_FORBIDDEN
+    # 3. Direct /internal/worker/wake & undeclared /openapi.json on cm-api
     st_api_worker, _, body_api_worker, _ = _http_probe(
         f"{base_api}/internal/worker/wake", method="POST", timeout_seconds=timeout_seconds
     )
@@ -357,11 +376,132 @@ def run_smoke_checks(
             "status_code": st_api_worker,
         }
     )
+    st_undeclared, _, body_undeclared, _ = _http_probe(
+        f"{base_api}/openapi.json", method="GET", timeout_seconds=timeout_seconds
+    )
+    results.append(
+        {
+            "check": "api_undeclared_openapi_route_blocked_404",
+            "passed": st_undeclared == 404 and "ROUTE_NOT_DECLARED" in body_undeclared,
+            "status_code": st_undeclared,
+        }
+    )
 
-    # 4. Private IAM cm-worker checks (T-007F Step 1 & 2)
+    # 3b. Live cm-api X-CM-Origin-Auth HMAC-signed contract probes (using live secret in memory, never logged)
+    cleaned_hmac = (origin_hmac_secret or "").strip()
+    if cleaned_hmac:
+        now_ts = int(time.time())
+        st_bad_hmac, _, body_bad_hmac, _ = _http_probe(
+            f"{base_api}/v1/session",
+            method="GET",
+            headers={DEFAULT_ORIGIN_AUTH_HEADER: f"t={now_ts},sig={'0' * 64}"},
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "api_tampered_origin_hmac_blocked_403",
+                "passed": st_bad_hmac == 403 and "ORIGIN_AUTH_REQUIRED" in body_bad_hmac,
+                "status_code": st_bad_hmac,
+            }
+        )
+
+        for check_name, method, path, payload in (
+            ("api_signed_session_unauthenticated_401", "GET", "/v1/session", None),
+            ("api_signed_work_events_unauthenticated_401", "GET", "/v1/work-events", None),
+            ("api_signed_sync_runs_unauthenticated_401", "POST", "/v1/sync-runs", b"{}"),
+        ):
+            sig_hdr = sign_origin_auth_header(
+                cleaned_hmac,
+                method=method,
+                path=path,
+                timestamp=int(time.time()),
+            )
+            signed_headers: dict[str, str] = {
+                DEFAULT_ORIGIN_AUTH_HEADER: sig_hdr,
+                "Authorization": "Bearer invalid.e2e.jwt",
+                "X-Workspace-ID": _SYNTHETIC_PROBE_WORKSPACE_ID,
+                "Accept": "application/json",
+            }
+            if payload is not None:
+                signed_headers["Content-Type"] = "application/json"
+            st_sig, hdr_sig, _, lat_sig_ms = _http_probe(
+                f"{base_api}{path}",
+                method=method,
+                headers=signed_headers,
+                body_bytes=payload,
+                timeout_seconds=timeout_seconds,
+            )
+            cc_sig = hdr_sig.get("cache-control", "").lower()
+            results.append(
+                {
+                    "check": check_name,
+                    "passed": (
+                        st_sig == 401
+                        and "private" in cc_sig
+                        and "no-store" in cc_sig
+                    ),
+                    "status_code": st_sig,
+                    "cache_control": hdr_sig.get("cache-control", ""),
+                    "latency_ms": lat_sig_ms,
+                }
+            )
+
+        sig_csrf = sign_origin_auth_header(
+            cleaned_hmac,
+            method="POST",
+            path="/v1/sync-runs",
+            timestamp=int(time.time()),
+        )
+        st_api_csrf, _, body_api_csrf, _ = _http_probe(
+            f"{base_api}/v1/sync-runs",
+            method="POST",
+            headers={
+                DEFAULT_ORIGIN_AUTH_HEADER: sig_csrf,
+                "Origin": "https://evil.example",
+                "Content-Type": "application/json",
+            },
+            body_bytes=b"{}",
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "api_signed_sync_runs_evil_origin_csrf_403",
+                "passed": st_api_csrf == 403 and "CSRF_ORIGIN_DENIED" in body_api_csrf,
+                "status_code": st_api_csrf,
+            }
+        )
+
+        sig_worker = sign_origin_auth_header(
+            cleaned_hmac,
+            method="POST",
+            path="/internal/worker/wake",
+            timestamp=int(time.time()),
+        )
+        st_worker_hmac, _, body_worker_hmac, _ = _http_probe(
+            f"{base_api}/internal/worker/wake",
+            method="POST",
+            headers={
+                DEFAULT_ORIGIN_AUTH_HEADER: sig_worker,
+                "Content-Type": "application/json",
+            },
+            body_bytes=b"{}",
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "api_internal_worker_route_blocked_even_with_hmac_403",
+                "passed": (
+                    st_worker_hmac == 403
+                    and "PUBLIC_WORKER_ROUTE_FORBIDDEN" in body_worker_hmac
+                ),
+                "status_code": st_worker_hmac,
+            }
+        )
+
+    # 4. Private IAM cm-worker checks (IAM + OIDC + :6543 Supavisor cm_worker_app FORCE RLS connectivity)
     if worker_url:
         base_worker = worker_url.rstrip("/")
-        st_worker, _, _, lat_worker_unauth_ms = _http_probe(
+        st_worker_wake_unauth, _, _, lat_worker_unauth_ms = _http_probe(
             f"{base_worker}/internal/worker/wake",
             method="POST",
             timeout_seconds=timeout_seconds,
@@ -369,27 +509,106 @@ def run_smoke_checks(
         results.append(
             {
                 "check": "worker_unauthenticated_blocked_401_403",
-                "passed": st_worker in (401, 403),
-                "status_code": st_worker,
+                "passed": st_worker_wake_unauth in (401, 403),
+                "status_code": st_worker_wake_unauth,
                 "latency_ms": lat_worker_unauth_ms,
             }
         )
+        st_worker_rec_unauth, _, _, _ = _http_probe(
+            f"{base_worker}/internal/worker/recover",
+            method="POST",
+            timeout_seconds=timeout_seconds,
+        )
+        results.append(
+            {
+                "check": "worker_unauthenticated_recover_blocked_401_403",
+                "passed": st_worker_rec_unauth in (401, 403),
+                "status_code": st_worker_rec_unauth,
+            }
+        )
         if worker_oidc_token and worker_oidc_token.strip():
-            st_w_auth, _, body_w_auth, lat_worker_auth_ms = _http_probe(
+            oidc_bearer = f"Bearer {worker_oidc_token.strip()}"
+            recover_payload = json.dumps(
+                {
+                    "workspace_id": _SYNTHETIC_PROBE_WORKSPACE_ID,
+                    "max_slices": 1,
+                    "outbox_limit": 5,
+                }
+            ).encode("utf-8")
+            st_w_rec, _, body_w_rec, lat_worker_rec_ms = _http_probe(
                 f"{base_worker}/internal/worker/recover",
                 method="POST",
                 headers={
-                    "Authorization": f"Bearer {worker_oidc_token.strip()}",
+                    "Authorization": oidc_bearer,
                     "Content-Type": "application/json",
                 },
+                body_bytes=recover_payload,
+                timeout_seconds=timeout_seconds,
+            )
+            parsed_rec: dict[str, Any] = {}
+            try:
+                parsed_rec = json.loads(body_w_rec) if body_w_rec else {}
+            except Exception:  # noqa: BLE001
+                parsed_rec = {}
+            results.append(
+                {
+                    "check": "worker_oidc_authorized_recover_200",
+                    "passed": (
+                        st_w_rec == 200
+                        and parsed_rec.get("status") == "ok"
+                        and parsed_rec.get("workspaces_scanned") == 1
+                    ),
+                    "status_code": st_w_rec,
+                    "workspaces_scanned": parsed_rec.get("workspaces_scanned"),
+                    "latency_ms": lat_worker_rec_ms,
+                }
+            )
+
+            wake_payload = json.dumps(
+                {
+                    "workspace_id": _SYNTHETIC_PROBE_WORKSPACE_ID,
+                    "max_slices": 1,
+                }
+            ).encode("utf-8")
+            st_w_wake, _, body_w_wake, lat_worker_wake_ms = _http_probe(
+                f"{base_worker}/internal/worker/wake",
+                method="POST",
+                headers={
+                    "Authorization": oidc_bearer,
+                    "Content-Type": "application/json",
+                },
+                body_bytes=wake_payload,
+                timeout_seconds=timeout_seconds,
+            )
+            parsed_wake: dict[str, Any] = {}
+            try:
+                parsed_wake = json.loads(body_w_wake) if body_w_wake else {}
+            except Exception:  # noqa: BLE001
+                parsed_wake = {}
+            results.append(
+                {
+                    "check": "worker_oidc_authorized_wake_200",
+                    "passed": (
+                        st_w_wake == 200
+                        and parsed_wake.get("status") == "ok"
+                        and parsed_wake.get("workspace_id") == _SYNTHETIC_PROBE_WORKSPACE_ID
+                    ),
+                    "status_code": st_w_wake,
+                    "latency_ms": lat_worker_wake_ms,
+                }
+            )
+
+            st_w_v1, _, body_w_v1, _ = _http_probe(
+                f"{base_worker}/v1/session",
+                method="GET",
+                headers={"Authorization": oidc_bearer},
                 timeout_seconds=timeout_seconds,
             )
             results.append(
                 {
-                    "check": "worker_oidc_authorized_recover_200",
-                    "passed": st_w_auth == 200 and '"status"' in body_w_auth,
-                    "status_code": st_w_auth,
-                    "latency_ms": lat_worker_auth_ms,
+                    "check": "worker_public_v1_route_denied_404",
+                    "passed": st_w_v1 == 404 and "ROUTE_NOT_DECLARED" in body_w_v1,
+                    "status_code": st_w_v1,
                 }
             )
 
@@ -443,6 +662,7 @@ def run_smoke_checks(
                 "passed": (
                     st_pkce in (302, 303, 307)
                     and "code_challenge=" in loc_hdr
+                    and "code_challenge_method=s256" in loc_hdr.lower()
                     and "httponly" in set_cookie_hdr.lower()
                 ),
                 "status_code": st_pkce,
@@ -468,6 +688,7 @@ def run_smoke_checks(
             f"{base_web}/bff/v1/sync-runs",
             method="POST",
             headers={"Origin": "https://evil.example", "Content-Type": "application/json"},
+            body_bytes=b"{}",
             timeout_seconds=timeout_seconds,
         )
         results.append(
@@ -478,25 +699,44 @@ def run_smoke_checks(
             }
         )
 
-    # 6. Supabase Data API (PostgREST) direct domain table bypass blocked (OD006-5)
-    if supabase_url and supabase_anon_key:
+    # 6. Supabase Data API (PostgREST) direct domain table bypass blocked (OD006-5) + JWKS health
+    if supabase_url:
         supa_base = supabase_url.rstrip("/")
-        st_rest, _, _, _ = _http_probe(
-            f"{supa_base}/rest/v1/work_events?select=id&limit=1",
+        st_jwks, _, body_jwks, _ = _http_probe(
+            f"{supa_base}/auth/v1/.well-known/jwks.json",
             method="GET",
-            headers={
-                "apikey": supabase_anon_key.strip(),
-                "Authorization": f"Bearer {supabase_anon_key.strip()}",
-            },
             timeout_seconds=timeout_seconds,
         )
         results.append(
             {
-                "check": "supabase_postgrest_domain_table_bypass_blocked",
-                "passed": st_rest in (401, 403, 404),
-                "status_code": st_rest,
+                "check": "supabase_auth_jwks_reachable_200",
+                "passed": st_jwks == 200 and '"keys"' in body_jwks,
+                "status_code": st_jwks,
             }
         )
+        if supabase_anon_key and supabase_anon_key.strip():
+            anon_hdrs = {
+                "apikey": supabase_anon_key.strip(),
+                "Authorization": f"Bearer {supabase_anon_key.strip()}",
+            }
+            for check_name, table_name in (
+                ("supabase_postgrest_domain_table_bypass_blocked", "work_events"),
+                ("supabase_postgrest_claims_bypass_blocked", "claims"),
+                ("supabase_postgrest_workspaces_bypass_blocked", "workspaces"),
+            ):
+                st_rest, _, _, _ = _http_probe(
+                    f"{supa_base}/rest/v1/{table_name}?select=id&limit=1",
+                    method="GET",
+                    headers=anon_hdrs,
+                    timeout_seconds=timeout_seconds,
+                )
+                results.append(
+                    {
+                        "check": check_name,
+                        "passed": st_rest in (401, 403, 404),
+                        "status_code": st_rest,
+                    }
+                )
 
     return {
         "passed": all(r["passed"] for r in results),
@@ -520,8 +760,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--project-id", default="career-memory-staging")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--smoke-url", default=None, help="Live cm-api URL to smoke test.")
+    parser.add_argument(
+        "--origin-hmac-secret",
+        default=None,
+        help="Optional X-CM-Origin-Auth HMAC secret (defaults to CM_ORIGIN_HMAC_SECRET env var; never printed).",
+    )
     parser.add_argument("--worker-url", default=None, help="Live cm-worker URL to smoke test.")
-    parser.add_argument("--worker-oidc-token", default=None, help="OIDC token for cm-worker recover check.")
+    parser.add_argument("--worker-oidc-token", default=None, help="OIDC token for cm-worker recover/wake checks.")
     parser.add_argument("--web-url", default=None, help="Live cm-web URL to smoke test.")
     parser.add_argument("--supabase-url", default=None, help="Supabase project URL for Data API isolation check.")
     parser.add_argument("--supabase-anon-key", default=None, help="Supabase anon key for Data API isolation check.")
@@ -537,13 +782,21 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     if args.smoke_url:
+        resolved_hmac = args.origin_hmac_secret or os.environ.get("CM_ORIGIN_HMAC_SECRET")
+        resolved_oidc = args.worker_oidc_token or os.environ.get("WORKER_OIDC_TOKEN")
+        resolved_anon = (
+            args.supabase_anon_key
+            or os.environ.get("STAGING_SUPABASE_ANON_KEY")
+            or os.environ.get("SUPABASE_ANON_KEY")
+        )
         smoke = run_smoke_checks(
             api_url=args.smoke_url,
+            origin_hmac_secret=resolved_hmac,
             worker_url=args.worker_url,
-            worker_oidc_token=args.worker_oidc_token,
+            worker_oidc_token=resolved_oidc,
             web_url=args.web_url,
             supabase_url=args.supabase_url,
-            supabase_anon_key=args.supabase_anon_key,
+            supabase_anon_key=resolved_anon,
         )
         print(json.dumps(smoke, indent=2, sort_keys=True))
         return 0 if smoke["passed"] else 1

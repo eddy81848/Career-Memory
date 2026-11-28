@@ -27,21 +27,41 @@ def test_repo_pr_conformance_workflow_passes_inf09_audit() -> None:
     results = audit_workflows_directory(WORKFLOWS_DIR)
     assert len(results) >= 1
 
-    pr_wf = audit_workflow_file(WORKFLOWS_DIR / "ci.yml")
+    pr_path = WORKFLOWS_DIR / "ci.yml"
+    pr_content = pr_path.read_text(encoding="utf-8")
+    pr_wf = audit_workflow_file(pr_path)
     assert pr_wf.passed is True, f"Unexpected INF-09 findings: {pr_wf.findings}"
     assert pr_wf.top_level_permissions == {"contents": "read"}
     assert "pull_request" in pr_wf.triggers
     assert "pull_request_target" not in pr_wf.triggers
     assert pr_wf.openapi_pin_present is True
     assert pr_wf.secret_references == ()
+    assert "pr-merge-gate:" in pr_content
+    assert "name: 3. PR 머지 게이트" in pr_content
 
-    nightly_wf = audit_workflow_file(WORKFLOWS_DIR / "nightly-ci.yml")
+    nightly_path = WORKFLOWS_DIR / "nightly-ci.yml"
+    nightly_content = nightly_path.read_text(encoding="utf-8")
+    nightly_wf = audit_workflow_file(nightly_path)
     assert nightly_wf.passed is True, f"Unexpected INF-09 findings: {nightly_wf.findings}"
     assert nightly_wf.top_level_permissions == {"contents": "read", "actions": "read"}
     assert "schedule" in nightly_wf.triggers
     assert "pull_request_target" not in nightly_wf.triggers
     assert nightly_wf.openapi_pin_present is True
     assert nightly_wf.secret_references == ()
+
+    nightly_rel = validate_release_workflow_manifest(
+        nightly_content,
+        workflow_name=nightly_path.name,
+    )
+    assert nightly_rel.has_concurrency_group is True
+    assert nightly_rel.cancel_in_progress is False
+    assert nightly_rel.image_references == ()
+    assert {f.rule_id for f in nightly_rel.findings} == {"INF09_IMAGE_REFERENCE_MISSING"}
+    assert "name: Nightly CI — 라이브 서버 & 전체 회귀 검증" in nightly_content
+    assert "1. 라이브 배포 서버 E2E 검증 (Cloud Run · Supabase)" in nightly_content
+    assert "environment: staging" in nightly_content
+    assert "id-token: write" in nightly_content
+    assert "run_live_server_e2e.py" in nightly_content
 
 
 def test_ci_audit_rejects_write_all_id_token_write_and_missing_permissions() -> None:
@@ -252,6 +272,15 @@ def test_repo_staging_deploy_workflow_passes_release_manifest_validation() -> No
     assert "environment: staging" in content
     assert "secrets.STAGING_MIGRATION_DATABASE_URL" in content
     assert "--set-secrets" in content
+    for expected_job in (
+        "build-api:",
+        "build-web:",
+        "deploy-api:",
+        "deploy-web:",
+        "verify-and-rollback:",
+    ):
+        assert expected_job in content
+    assert "run_live_server_e2e.py" in content
 
 
 def test_t507_route_trust_matrix_evidence_contract_is_redacted_and_consistent() -> None:

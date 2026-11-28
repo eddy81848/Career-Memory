@@ -1,0 +1,113 @@
+{
+  "drill_timestamp_utc": "2026-11-28T12:00:00Z",
+  "encryption_envelope": {
+    "aad_bound_fields": [
+      "cipher",
+      "created_at",
+      "format_version",
+      "kdf",
+      "nonce_b64",
+      "pg_version",
+      "plaintext_sha256",
+      "plaintext_size_bytes",
+      "salt_b64",
+      "schema_migrations"
+    ],
+    "cipher": "AES-256-GCM",
+    "format_version": "cm-pg18-aes256gcm-v1",
+    "kdf": "SCRYPT-N16384-R8-P1",
+    "plaintext_files_committed": 0,
+    "tamper_checks": {
+      "sha256_integrity_verified": true,
+      "tamper_aad_header_rejected": true,
+      "tamper_ciphertext_rejected": true,
+      "wrong_passphrase_rejected": true
+    }
+  },
+  "external_cloud_calls": 0,
+  "gate_ids": [
+    "INF-10",
+    "REL-01",
+    "DELETE-07",
+    "REF-04"
+  ],
+  "invariants": {
+    "all_passed": true,
+    "plan_c_audit": {
+      "audited_jsonb_column_count": 38,
+      "audited_table_count": 46,
+      "backup_metadata_clean": true,
+      "canary_string_hits": 0,
+      "raw_text_violations": 0,
+      "secret_key_violations": 0
+    },
+    "repo_a_parity": {
+      "exact_parity": true,
+      "table_row_counts": {
+        "claim_atoms": 1,
+        "claims": 1,
+        "exports": 1,
+        "external_identity_mappings": 1,
+        "facts": 1,
+        "identities": 1,
+        "review_actions": 1,
+        "search_entries": 3,
+        "work_event_versions": 2,
+        "work_events": 1,
+        "workspace_memberships": 1,
+        "workspace_quota_ledgers": 7
+      }
+    },
+    "repo_b_deletion_fence": {
+      "completed_components_count": 5,
+      "export_blocked": true,
+      "fence_survived_restore": true,
+      "post_restore_completion_status": "SUCCEEDED",
+      "post_restore_completion_succeeded": true,
+      "post_restore_status_before_resume": "PARTIAL",
+      "pre_restore_status": "PARTIAL",
+      "refetch_blocked": true,
+      "replay_commit_blocked": true,
+      "repo_a_intact_after_repo_b_purge": true,
+      "resurrected_rows": 0,
+      "search_blocked": true
+    },
+    "rls_isolation": {
+      "all_runtime_roles_nobypassrls": true,
+      "all_tables_force_rls": true,
+      "catalog_violations": 0,
+      "cross_workspace_reads_blocked": true,
+      "restored_table_count": 46
+    }
+  },
+  "issue_number": 29,
+  "measured_rto_metrics": {
+    "backup_duration_ms": 90,
+    "restore_duration_ms": 240,
+    "rto_budget_ms": 30000,
+    "total_rto_ms": 330,
+    "within_rto_budget": true
+  },
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "postgres_major_version": 18,
+  "rpo_model": "LOGICAL_SNAPSHOT_ON_DEMAND_OR_SCHEDULED",
+  "schema_migrations": [
+    "0010_identity_workspace_source_auth.sql",
+    "0020_source_provenance_metadata.sql",
+    "0030_events_facts_claims_contributions.sql",
+    "0040_sync_runs_jobs_outbox_audit.sql",
+    "0050_m2_backfill_observations.sql",
+    "0060_m3_event_versions_and_constraints.sql",
+    "0070_m4_fact_versions_and_exports.sql",
+    "0080_m5_search_deletion_and_budgets.sql"
+  ],
+  "schema_version": "t505-restore-evidence-v1",
+  "supabase_free_hosting_constraints": {
+    "hosted_public_pilot_gate": "HELD_NO_GO_PENDING_OD013_OD015",
+    "isolated_restore_drill_verified": true,
+    "notes": "Supabase Free does not include paid Point-In-Time Recovery (PITR) at ₩0; recovery relies on on-demand/scheduled encrypted logical pg_dump snapshots verified via isolated PostgreSQL 18 restore drills.",
+    "paid_pitr_assumed": false,
+    "zero_spend_backup_mechanism": "LOGICAL_PG_DUMP_AES256_GCM_ENCRYPTED_ENVELOPE"
+  },
+  "task_id": "T-505"
+}

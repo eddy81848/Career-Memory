@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -38,6 +40,7 @@ def create_app(
     claims_router: APIRouter | None = None,
     exports_router: APIRouter | None = None,
     deletion_router: APIRouter | None = None,
+    budgets_router: APIRouter | None = None,
     install_contract_handlers: bool = False,
     install_github_connect_handlers: bool = False,
     install_work_events_handlers: bool = False,
@@ -46,6 +49,9 @@ def create_app(
     install_claims_handlers: bool = False,
     install_exports_handlers: bool = False,
     install_deletion_handlers: bool = False,
+    install_budgets_handlers: bool = False,
+    edge_guard_config: Any | None = None,
+    edge_pause_controller: Any | None = None,
 ) -> FastAPI:
     """Create a FastAPI app instance.
 
@@ -139,6 +145,13 @@ def create_app(
 
         install_deletion_error_handlers(app)
 
+    if install_budgets_handlers:
+        from career_memory_api.budgets.router import (
+            install_budgets_error_handlers,
+        )
+
+        install_budgets_error_handlers(app)
+
     if sync_runs_router is not None:
         app.include_router(sync_runs_router)
     if resolver_router is not None:
@@ -159,5 +172,16 @@ def create_app(
         app.include_router(exports_router)
     if deletion_router is not None:
         app.include_router(deletion_router)
+    if budgets_router is not None:
+        app.include_router(budgets_router)
+
+    if edge_guard_config is not None:
+        from career_memory_api.edge_guard.middleware import install_edge_guard
+
+        install_edge_guard(
+            app,
+            edge_guard_config,
+            controller=edge_pause_controller,
+        )
 
     return app

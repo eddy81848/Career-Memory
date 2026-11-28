@@ -304,6 +304,14 @@
         "title": "CannotLinkSummary",
         "type": "object"
       },
+      "CircuitBreakerState": {
+        "enum": [
+          "CLOSED",
+          "OPEN",
+          "HALF_OPEN"
+        ],
+        "type": "string"
+      },
       "ClaimApproveRequest": {
         "additionalProperties": false,
         "description": "POST /v1/claims/{claim_id}/approve request contract (verification absent).",
@@ -4617,6 +4625,174 @@
         ],
         "type": "string"
       },
+      "QuotaAdmissionState": {
+        "enum": [
+          "ALLOWED",
+          "WARNING_80_PERCENT",
+          "CUTOFF_95_PERCENT",
+          "PAUSED"
+        ],
+        "type": "string"
+      },
+      "QuotaMeterItem": {
+        "additionalProperties": false,
+        "description": "Single quota meter snapshot matching Wave 2B Frontend contract 1:1.",
+        "properties": {
+          "hard_cutoff_limit": {
+            "minimum": 0,
+            "title": "Hard Cutoff Limit",
+            "type": "integer"
+          },
+          "metric_kind": {
+            "$ref": "#/components/schemas/QuotaMetricKind"
+          },
+          "soft_warning_limit": {
+            "minimum": 0,
+            "title": "Soft Warning Limit",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/QuotaMeterStatus"
+          },
+          "used_value": {
+            "minimum": 0,
+            "title": "Used Value",
+            "type": "integer"
+          },
+          "utilization_percent": {
+            "minimum": 0.0,
+            "title": "Utilization Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric_kind",
+          "used_value",
+          "soft_warning_limit",
+          "hard_cutoff_limit",
+          "utilization_percent",
+          "status"
+        ],
+        "title": "QuotaMeterItem",
+        "type": "object"
+      },
+      "QuotaMeterStatus": {
+        "enum": [
+          "OK",
+          "WARNING",
+          "CUTOFF"
+        ],
+        "type": "string"
+      },
+      "QuotaMetricKind": {
+        "enum": [
+          "IMPORT_OBJECTS",
+          "PROVIDER_REQUESTS",
+          "REFETCH_BYTES",
+          "EXPORT_BUILDS",
+          "SEARCH_QUERIES",
+          "ESTIMATED_COST_KRW",
+          "LLM_TOKENS"
+        ],
+        "type": "string"
+      },
+      "QuotaStatusResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/quota-status response contract matching Wave 2B Frontend 1:1.",
+        "properties": {
+          "admission_state": {
+            "$ref": "#/components/schemas/QuotaAdmissionState"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "circuit_breaker_state": {
+            "$ref": "#/components/schemas/CircuitBreakerState"
+          },
+          "free_alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Free Alternatives",
+            "type": "array"
+          },
+          "high_cost_operations_allowed": {
+            "title": "High Cost Operations Allowed",
+            "type": "boolean"
+          },
+          "meters": {
+            "items": {
+              "$ref": "#/components/schemas/QuotaMeterItem"
+            },
+            "title": "Meters",
+            "type": "array"
+          },
+          "paid_fallback_allowed": {
+            "const": false,
+            "default": false,
+            "title": "Paid Fallback Allowed",
+            "type": "boolean"
+          },
+          "pause_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pause Reason Code"
+          },
+          "pause_state": {
+            "$ref": "#/components/schemas/RuntimePauseState"
+          },
+          "period_key": {
+            "minLength": 1,
+            "title": "Period Key",
+            "type": "string"
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Retry After Seconds"
+          },
+          "safety_operations_allowed": {
+            "const": true,
+            "default": true,
+            "title": "Safety Operations Allowed",
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "period_key",
+          "admission_state",
+          "pause_state",
+          "circuit_breaker_state",
+          "high_cost_operations_allowed",
+          "free_alternatives",
+          "meters",
+          "checked_at"
+        ],
+        "title": "QuotaStatusResponse",
+        "type": "object"
+      },
       "RecordOrigin": {
         "enum": [
           "RULE",
@@ -5000,6 +5176,15 @@
         ],
         "title": "RevokeIdentityMappingResponse",
         "type": "object"
+      },
+      "RuntimePauseState": {
+        "enum": [
+          "ACTIVE",
+          "PAUSED_QUOTA",
+          "PAUSED_CIRCUIT_BREAKER",
+          "PAUSED_OPERATOR"
+        ],
+        "type": "string"
       },
       "SearchEntityType": {
         "enum": [
@@ -9108,6 +9293,87 @@
         "summary": "Atomically revoke an identity mapping and cascade STALE/INVALIDATED downstream (ID-05)",
         "tags": [
           "identities"
+        ]
+      }
+    },
+    "/v1/quota-status": {
+      "get": {
+        "operationId": "getWorkspaceQuotaStatus",
+        "parameters": [
+          {
+            "description": "Optional source resource UUID to include resource-level pause controls.",
+            "in": "query",
+            "name": "source_resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional source resource UUID to include resource-level pause controls.",
+              "title": "Source Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Auth or budget verification unavailable."
+          }
+        },
+        "summary": "Read workspace quota meters, admission state, pause controls, and circuit breaker state",
+        "tags": [
+          "quotas"
         ]
       }
     },

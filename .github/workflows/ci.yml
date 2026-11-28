@@ -1,8 +1,8 @@
 # Smart Path-Aware PR Test Workflow (INF-09 Zero-Secret Conformance & Selective Tests)
 #
 # - Runs ONLY on pull_request / manual dispatch with minimal `contents: read` permissions and 0 secrets.
-# - Uses `scripts/detect_ci_changes.py` to run ONLY direct + indirect affected test suites
-#   (skipping PostgreSQL 18 setup, frozen M0 spikes, or Web builds when unrelated).
+# - Uses `scripts/detect_ci_changes.py --merge-base` (`base...head`) so `main` advancing does not
+#   falsely trigger unrelated suites on a feature PR, while failing safe on unknown paths.
 
 name: CI — PR 테스트
 
@@ -29,6 +29,7 @@ jobs:
       run_web_test: ${{ steps.scope.outputs.run_web_test }}
       run_web_contract_http: ${{ steps.scope.outputs.run_web_contract_http }}
       run_web_build: ${{ steps.scope.outputs.run_web_build }}
+      run_web_e2e: ${{ steps.scope.outputs.run_web_e2e }}
 
     steps:
       - name: Checkout repository
@@ -48,7 +49,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
 
-      - name: Detect direct & indirect affected test scopes
+      - name: Detect direct & indirect affected test scopes (merge-base)
         id: scope
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -56,7 +57,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE_SHA" ]; then
-            python3 scripts/detect_ci_changes.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"
+            python3 scripts/detect_ci_changes.py --merge-base --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"
           else
             python3 scripts/detect_ci_changes.py --force-all
           fi
@@ -117,6 +118,14 @@ jobs:
           uv run --with-requirements ../../spikes/import-contract/requirements.txt
           python -m pytest -q ../../spikes/import-contract/test_contract.py
 
+      - name: Set up Node.js 22 (only when FE↔BE HTTP Contract Interop is affected)
+        if: needs.detect-and-static.outputs.run_web_contract_http == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
       - name: Run FE↔BE HTTP Contract Interop Tests (when shared API/adapter contracts change)
         if: needs.detect-and-static.outputs.run_web_contract_http == 'true'
         run: |
@@ -154,3 +163,10 @@ jobs:
         if: needs.detect-and-static.outputs.run_web_build == 'true'
         working-directory: apps/web
         run: npm run build
+
+      - name: Run Playwright UI Workflow E2E (16 scenarios, only when UI/E2E files changed)
+        if: needs.detect-and-static.outputs.run_web_e2e == 'true'
+        working-directory: apps/web
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e

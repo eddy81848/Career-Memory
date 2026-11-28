@@ -1,13 +1,14 @@
 # Automated Main CD Pipeline: Test -> Build & Push -> Deploy -> Post-Deploy E2E & Auto-Rollback
 #
-# Security & Cost Controls (T-106B / INF-09 / OD-015):
-# - Triggered automatically on `push` to `main` (and manual `workflow_dispatch` override).
-# - Skips duplicate tests when a commit on `main` already passed PR CI on its merged PR.
+# Edge-Case & Safety Hardening (T-106B / INF-09 / OD-015):
+# - Full history (`fetch-depth: 0`) + last-successful-CD-run catch-up diff so multi-commit pushes,
+#   rebase merges, or a failed prior CD run followed by a docs commit NEVER drop pending deploys.
+# - PR duplicate-test skip requires BOTH exact Git tree SHA equality (`main^{tree} == pr_head^{tree}`,
+#   preventing semantic merge skew when `main` moved underneath an older PR, while supporting merge,
+#   squash, and rebase merges) AND verified completion of `CI — PR 테스트`.
 # - Builds, pushes, and deploys ONLY the changed service(s) (`cm-api`+`cm-worker` vs `cm-web`).
-# - Enforces GCP Artifact Registry native cleanup policy (`keep-2-most-recent-versions`).
-# - Runs post-deploy live API/Worker-OIDC/PostgREST checks + headless Chromium Playwright E2E,
-#   and AUTOMATICALLY rolls back to pre-deploy revisions/@sha256 digests on any failure.
-# - Keyless OIDC WIF ONLY (zero static service account keys); all actions pinned to 40-char SHAs.
+# - Runs 11-check Cross-Service API/Worker-OIDC/PostgREST E2E + 5-scenario Chromium Playwright Browser E2E
+#   before and after 100% traffic promotion, automatically rolling back on any failure.
 
 name: CD — 빌드 & 자동 배포
 
@@ -47,6 +48,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   checks: read
   pull-requests: read
   id-token: write
@@ -62,7 +64,7 @@ env:
 
 jobs:
   # ============================================================================
-  # STAGE 1: 테스트 (변경 영역 감지 & PR 테스트 통과 시 중복 생략)
+  # STAGE 1: 테스트 (변경 영역 감지 · 미배포 누적 커밋 자동 포함 · PR 트리 일치 시 중복 생략)
   # ============================================================================
   test:
     name: 1. 테스트 (변경 감지 & PR 중복 생략)
@@ -77,10 +79,10 @@ jobs:
       pr_checks_verified: ${{ steps.pr_dedup.outputs.pr_checks_verified }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (full history for multi-commit & catch-up diff)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Verify M0 immutable OpenAPI snapshot blob hash
         run: |
@@ -93,18 +95,66 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
 
+      - name: Resolve diff base (catch up from last successful CD run if prior run failed)
+        id: diff_base
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.request
+
+          repo = os.environ["REPO"]
+          before_sha = os.environ.get("BEFORE_SHA", "").strip()
+          head_sha = os.environ["HEAD_SHA"].strip()
+          token = os.environ.get("GITHUB_TOKEN", "")
+          gh_out = os.environ["GITHUB_OUTPUT"]
+
+          chosen_base = before_sha
+          try:
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/actions/workflows/cd.yml/runs?branch=main&event=push&status=success&per_page=5",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  runs = json.loads(resp.read().decode("utf-8")).get("workflow_runs", [])
+              for run in runs:
+                  cand = (run.get("head_sha") or "").strip()
+                  if not cand or cand == head_sha:
+                      continue
+                  anc = subprocess.run(
+                      ["git", "merge-base", "--is-ancestor", cand, head_sha],
+                      check=False,
+                  )
+                  if anc.returncode == 0:
+                      chosen_base = cand
+                      print(f"Using last successful CD head_sha as diff base: {chosen_base[:7]}")
+                      break
+          except Exception as exc:
+              print(f"Fallback to github.event.before ({type(exc).__name__}).")
+
+          with open(gh_out, "a", encoding="utf-8") as fh:
+              fh.write(f"base_sha={chosen_base}\n")
+          PY
+
       - name: Detect changed deploy & migration targets
         id: scope
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ steps.diff_base.outputs.base_sha }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_ALL: ${{ inputs.force_deploy_all }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE_ALL" = "true" ]; then
             python3 scripts/detect_ci_changes.py --force-all
           else
-            python3 scripts/detect_ci_changes.py --base "$BEFORE_SHA" --head "$HEAD_SHA"
+            python3 scripts/detect_ci_changes.py --base "$BASE_SHA" --head "$HEAD_SHA"
           fi
 
       - name: Compute CD execution plan
@@ -126,13 +176,12 @@ jobs:
           echo "any_cd_work=${ANY_CD}" >> "$GITHUB_OUTPUT"
           echo "CD Plan: action=${ACTION}, any_cd_work=${ANY_CD}"
 
-      - name: Check if merged PR already passed CI tests (skip duplicate runs)
+      - name: Check if merged PR already passed CI on identical Git tree (prevent merge-skew)
         id: pr_dedup
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.sha }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request
@@ -156,6 +205,8 @@ jobs:
 
           verified = False
           try:
+              main_commit = gh_get(f"commits/{sha}")
+              main_tree = ((main_commit.get("commit") or {}).get("tree") or {}).get("sha", "")
               prs = gh_get(f"commits/{sha}/pulls")
               for pr in prs:
                   if not pr.get("merged_at"):
@@ -164,13 +215,31 @@ jobs:
                   pr_head = (pr.get("head") or {}).get("sha", "")
                   if not pr_head:
                       continue
+                  pr_commit = gh_get(f"commits/{pr_head}")
+                  pr_tree = ((pr_commit.get("commit") or {}).get("tree") or {}).get("sha", "")
+                  if not main_tree or main_tree != pr_tree:
+                      print(
+                          f"PR #{pr_num} tree ({pr_tree[:7]}) != main tree ({main_tree[:7]}) "
+                          "(main advanced concurrently); running affected tests on merged tree."
+                      )
+                      continue
                   checks = gh_get(f"commits/{pr_head}/check-runs").get("check_runs", [])
-                  if checks and all(
-                      c.get("status") == "completed"
-                      and c.get("conclusion") in ("success", "skipped", "neutral")
+                  has_ci_gate = any(
+                      "변경 영역 감지" in (c.get("name") or "")
+                      and c.get("status") == "completed"
+                      and c.get("conclusion") == "success"
                       for c in checks
-                  ):
-                      print(f"✓ PR #{pr_num} (head {pr_head[:7]}) already passed {len(checks)} PR check(s); skipping duplicate tests.")
+                  )
+                  all_passed = bool(checks) and all(
+                      c.get("status") == "completed"
+                      and c.get("conclusion") in ("success", "skipped")
+                      for c in checks
+                  )
+                  if has_ci_gate and all_passed:
+                      print(
+                          f"✓ PR #{pr_num} (head {pr_head[:7]}, identical tree {main_tree[:7]}) "
+                          f"already passed {len(checks)} CI check(s); skipping duplicate tests."
+                      )
                       verified = True
                       break
           except Exception as exc:
@@ -180,48 +249,78 @@ jobs:
               fh.write(f"pr_checks_verified={'true' if verified else 'false'}\n")
           PY
 
-      - name: Run fast static Conformance & Release Gate check
+      - name: Run fast static Conformance, Release Gate & CI Trust Audit
         working-directory: apps/api
         run: |
           uv run python ../../scripts/run_conformance_ci.py
           uv run python ../../scripts/run_t506_pilot_gate.py --verify
+          uv run pytest tests/edge_guard tests/pilot_gate -q
 
-      - name: Run Backend & PG18 tests (only on unverified direct push affecting API/DB)
+      - name: Install PostgreSQL 18 (only on unverified direct push / skewed merge affecting DB)
         if: >-
           steps.plan.outputs.action == 'deploy' &&
           steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
-          steps.scope.outputs.run_api_pg18 == 'true'
+          (steps.scope.outputs.run_api_pg18 == 'true' || steps.scope.outputs.run_web_contract_http == 'true')
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-18
-          export PATH="/usr/lib/postgresql/18/bin:$PATH"
-          cd apps/api
-          uv run pytest -q -m ""
-          uv run python ../../scripts/run_conformance_ci.py --with-postgres
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
 
-      - name: Set up Node.js 22 (only on unverified direct push affecting Web)
+      - name: Run Backend & PG18 tests (only on unverified direct push / skewed merge)
         if: >-
           steps.plan.outputs.action == 'deploy' &&
           steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
-          steps.scope.outputs.run_web_test == 'true'
+          steps.scope.outputs.run_api_pg18 == 'true'
+        working-directory: apps/api
+        run: |
+          uv run pytest -q -m ""
+          uv run python ../../scripts/run_conformance_ci.py --with-postgres
+
+      - name: Run M0 Import Spike Regression (only on unverified direct push / skewed merge)
+        if: >-
+          steps.plan.outputs.action == 'deploy' &&
+          steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
+          steps.scope.outputs.run_m0_spike == 'true'
+        working-directory: apps/api
+        run: >-
+          uv run --with-requirements ../../spikes/import-contract/requirements.txt
+          python -m pytest -q ../../spikes/import-contract/test_contract.py
+
+      - name: Set up Node.js 22 (only on unverified direct push / skewed merge affecting Web)
+        if: >-
+          steps.plan.outputs.action == 'deploy' &&
+          steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
+          (steps.scope.outputs.run_web_test == 'true' || steps.scope.outputs.run_web_contract_http == 'true')
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Run Web tests (only on unverified direct push affecting Web)
+      - name: Run Web & FE↔BE Contract tests (only on unverified direct push / skewed merge)
         if: >-
           steps.plan.outputs.action == 'deploy' &&
           steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
-          steps.scope.outputs.run_web_test == 'true'
-        working-directory: apps/web
+          (steps.scope.outputs.run_web_test == 'true' || steps.scope.outputs.run_web_contract_http == 'true')
+        env:
+          RUN_WEB_TEST: ${{ steps.scope.outputs.run_web_test }}
+          RUN_WEB_BUILD: ${{ steps.scope.outputs.run_web_build }}
+          RUN_CONTRACT_HTTP: ${{ steps.scope.outputs.run_web_contract_http }}
         run: |
-          npm ci
-          npm run typecheck
-          npm test
+          cd apps/web && npm ci
+          if [ "$RUN_WEB_TEST" = "true" ]; then
+            npm run typecheck
+            npm test
+          fi
+          if [ "$RUN_WEB_BUILD" = "true" ]; then
+            npm run build
+          fi
+          if [ "$RUN_CONTRACT_HTTP" = "true" ]; then
+            (cd ../api && uv sync --frozen)
+            npm run test:contract-http
+          fi
 
   # ============================================================================
   # STAGE 2: 빌드 & 푸시 (변경된 이미지만 빌드·푸시 + Artifact Registry 정리 정책 동기화)

@@ -90,15 +90,21 @@ jobs:
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
           PUBLIC_WEB_ORIGIN: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
         run: |
+          LIVE_WEB_RUN_URL="$(CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           uv run python ../../scripts/run_live_server_e2e.py \
             --project-id "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --deploy-service-account "$DEPLOY_SA" \
             --fetch-gcp-credentials \
-            --web-url "$PUBLIC_WEB_ORIGIN" \
+            --web-url "$LIVE_WEB_RUN_URL" \
             --supabase-url "$SUPABASE_URL" \
-            --phase-label "Nightly Live Deployed Server E2E (Cloudflare + Cloud Run)" \
+            --phase-label "Nightly Live Deployed Server E2E (Cloud Run · Supabase)" \
             --output /tmp/nightly-live-e2e-report.json
+          if [ -n "${PUBLIC_WEB_ORIGIN:-}" ]; then
+            CF_INTERNAL_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${PUBLIC_WEB_ORIGIN%/}/internal/worker/wake")"
+            test "$CF_INTERNAL_CODE" = "403"
+            echo "✓ Cloudflare edge ${PUBLIC_WEB_ORIGIN} /internal/* block verified (403)."
+          fi
 
   gate:
     name: 2. 신규 커밋 확인

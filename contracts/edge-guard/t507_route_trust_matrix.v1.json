@@ -1,0 +1,231 @@
+{
+  "ci_trust_audit": {
+    "audited_workflow": ".github/workflows/pr-conformance-local.yml",
+    "cloud_deploy_secrets_referenced": 0,
+    "openapi_pin_verified": true,
+    "passed": true,
+    "pull_request_target_present": false,
+    "release_manifest_validator_available": true,
+    "top_level_permissions": {
+      "contents": "read"
+    }
+  },
+  "cost_and_pause_invariants": {
+    "api_request_slice_timeout_seconds": 15.0,
+    "essential_safety_routes_allowed_during_pause": [
+      "GET /healthz",
+      "POST /v1/source-accounts/{id}/disconnect",
+      "POST /v1/source-resources/{id}/deletion-preview",
+      "POST /v1/source-resources/{id}/deletion-confirm",
+      "GET /v1/deletion-jobs/{id}"
+    ],
+    "growth_routes_blocked_during_cost_guard_pause": [
+      "POST /v1/sync-runs",
+      "POST /v1/sync-runs/{id}/retry",
+      "POST /v1/work-events/{id}/claims:generate",
+      "POST /v1/exports"
+    ],
+    "max_concurrent_requests_default": 16,
+    "max_request_body_bytes_default": 262144,
+    "paid_fallback_allowed": false,
+    "rate_limit_per_window_default": 60,
+    "rate_window_seconds_default": 60.0,
+    "resume_requires_budget_verified_true": true,
+    "worker_request_slice_timeout_seconds": 60.0
+  },
+  "external_cloud_calls": 0,
+  "gate_ids": [
+    "INF-07",
+    "INF-09",
+    "SEC-01"
+  ],
+  "hosted_public_pilot_gate": "HELD_NO_GO_PENDING_OD013_OD015",
+  "issue_number": 26,
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "policy_version": "edge-guard-policy-v1",
+  "route_trust_matrix": [
+    {
+      "cache_control": "no-store",
+      "cdn_cache_control": "no-store",
+      "origin_auth_required": false,
+      "pause_behavior": "ALWAYS_ALLOWED",
+      "sample_routes": [
+        "GET /healthz"
+      ],
+      "security_headers": [
+        "X-Content-Type-Options: nosniff",
+        "X-Frame-Options: DENY",
+        "Referrer-Policy: no-referrer"
+      ],
+      "trust_class": "PUBLIC_HEALTH"
+    },
+    {
+      "cache_control": "private, no-store",
+      "cdn_cache_control": "no-store",
+      "csrf_cors_enforced": true,
+      "origin_auth_required": true,
+      "pause_behavior": "GROWTH_BLOCKED_SAFETY_ALLOWED",
+      "pragma": "no-cache",
+      "sample_routes": [
+        "GET /v1/work-events/ev-1",
+        "GET /v1/content-units/cu-1/content",
+        "POST /v1/sync-runs",
+        "POST /v1/sync-runs/run-1/retry",
+        "POST /v1/work-events/ev-1/claims:generate",
+        "POST /v1/exports",
+        "POST /v1/source-accounts/acc-1/disconnect",
+        "POST /v1/source-resources/res-1/deletion-preview",
+        "POST /v1/source-resources/res-1/deletion-confirm",
+        "GET /v1/deletion-jobs/job-1"
+      ],
+      "security_headers": [
+        "X-Content-Type-Options: nosniff",
+        "X-Frame-Options: DENY",
+        "Referrer-Policy: no-referrer"
+      ],
+      "trust_class": "AUTHENTICATED_API",
+      "vary": "Authorization, Cookie, X-Workspace-ID, Origin"
+    },
+    {
+      "cache_control": "private, no-store",
+      "cdn_cache_control": "no-store",
+      "edge_browser_session_headers_forbidden": true,
+      "internal_oidc_iam_required": true,
+      "pause_behavior": "BLOCKED_IN_COST_GUARD",
+      "sample_routes": [
+        "POST /internal/worker/sync-slice"
+      ],
+      "trust_class": "INTERNAL_WORKER_ONLY"
+    },
+    {
+      "cache_control": "private, no-store",
+      "cdn_cache_control": "no-store",
+      "fail_closed_status": 404,
+      "pause_behavior": "ALWAYS_DENIED",
+      "sample_routes": [
+        "GET /debug",
+        "GET /admin",
+        "GET /metrics",
+        "GET /v1/byok",
+        "GET /v1/llm/callback"
+      ],
+      "trust_class": "DENIED_UNDECLARED"
+    }
+  ],
+  "schema_version": "1.0.0",
+  "task_id": "T-507",
+  "verification_cases": [
+    {
+      "case_id": "INF07-01",
+      "category": "DIRECT_RUN_APP_AND_MISSING_ORIGIN_AUTH_BLOCKED",
+      "expected_status": 403,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "ORIGIN_AUTH_REQUIRED"
+    },
+    {
+      "case_id": "INF07-02",
+      "category": "ORIGIN_HMAC_SIGNATURE_AND_SECRET_RING_ROTATION",
+      "expected_status": 200,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "VERIFIED"
+    },
+    {
+      "case_id": "INF07-03",
+      "category": "MTLS_CLIENT_CERT_TRUSTED_PROXY_ONLY",
+      "expected_status": 403,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "ORIGIN_AUTH_REQUIRED"
+    },
+    {
+      "case_id": "INF07-04",
+      "category": "INTERNAL_WORKER_ROUTE_FORBIDS_EDGE_BROWSER_SESSION",
+      "expected_status": 403,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "PUBLIC_WORKER_ROUTE_FORBIDDEN"
+    },
+    {
+      "case_id": "INF07-05",
+      "category": "SESSION_TENANT_CACHE_ISOLATION_2XX_4XX_5XX",
+      "expected_status": 200,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "PRIVATE_NO_STORE_ENFORCED"
+    },
+    {
+      "case_id": "INF07-06",
+      "category": "UNDECLARED_AND_PROHIBITED_ROUTES_FAIL_CLOSED",
+      "expected_status": 404,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "ROUTE_NOT_DECLARED"
+    },
+    {
+      "case_id": "INF07-07",
+      "category": "STRICT_SINGLE_ORIGIN_CORS_AND_CSRF_GUARD",
+      "expected_status": 403,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "CSRF_ORIGIN_DENIED"
+    },
+    {
+      "case_id": "INF07-08",
+      "category": "BODY_SIZE_CAP_CONTENT_LENGTH_AND_STREAMED_CHUNKS",
+      "expected_status": 413,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "REQUEST_BODY_TOO_LARGE"
+    },
+    {
+      "case_id": "INF07-09",
+      "category": "BOUNDED_CONCURRENCY_CAP_NO_UNBOUNDED_QUEUEING",
+      "expected_status": 503,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "CONCURRENCY_CAP_REACHED"
+    },
+    {
+      "case_id": "INF07-10",
+      "category": "SLIDING_WINDOW_RATE_LIMIT_ACTOR_ISOLATED",
+      "expected_status": 429,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "RATE_LIMIT_EXCEEDED"
+    },
+    {
+      "case_id": "INF07-11",
+      "category": "REQUEST_SLICE_TIMEOUT_CLEAN_504",
+      "expected_status": 504,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "REQUEST_SLICE_TIMEOUT"
+    },
+    {
+      "case_id": "INF07-12",
+      "category": "MANUAL_PAUSE_BLOCKS_GROWTH_PRESERVES_DISCONNECT_DELETION",
+      "expected_status": 503,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "RUNTIME_PAUSED_COST_GUARD"
+    },
+    {
+      "case_id": "INF09-01",
+      "category": "PR_WORKFLOW_MINIMAL_PERMISSIONS_NO_PRT_ZERO_SECRETS_OPENAPI_PIN",
+      "expected_status": 0,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "CI_TRUST_BOUNDARY_VERIFIED"
+    },
+    {
+      "case_id": "INF09-02",
+      "category": "RELEASE_MANIFEST_DIGEST_PIN_CONCURRENCY_WIF_VALIDATOR",
+      "expected_status": 0,
+      "external_cloud_calls": 0,
+      "passed": true,
+      "reason_code": "RELEASE_MANIFEST_POLICY_VERIFIED"
+    }
+  ]
+}

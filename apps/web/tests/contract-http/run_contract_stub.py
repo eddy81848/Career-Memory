@@ -28,7 +28,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 DEFAULT_CONTRACT_DIR = str(
-    Path(__file__).resolve().parents[3] / "import-contract"
+    Path(__file__).resolve().parents[4] / "spikes" / "import-contract"
 )
 CONTRACT_IMPORT_DIR = Path(
     os.environ.get("CONTRACT_IMPORT_DIR", DEFAULT_CONTRACT_DIR)

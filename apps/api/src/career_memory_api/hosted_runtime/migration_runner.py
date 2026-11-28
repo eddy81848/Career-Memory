@@ -712,66 +712,46 @@ def _sync_single_gcp_secret_version(
     }
 
 
-def provision_and_sync_runtime_db_secrets(
-    migration_database_url: str,
+def _read_existing_gcp_secret_version(
     *,
-    gcp_project_id: str | None = None,
-    api_login_role: str = "cm_staging_api_login",
-    worker_login_role: str = "cm_staging_worker_login",
-    target_pooler_port: int | None = None,
-    allow_insecure_local_test: bool = False,
-) -> dict[str, Any]:
-    """Create/rotate least-privilege runtime LOGIN roles, verify :6543 pooler, & sync Secret Manager."""
-    assert_safe_migration_dsn(
-        migration_database_url,
-        allow_insecure_local_test=allow_insecure_local_test,
+    gcp_project_id: str,
+    secret_name: str,
+) -> str | None:
+    """Read the latest enabled Secret Manager value in memory (returns None if uninitialized)."""
+    env = os.environ.copy()
+    env["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
+    existing_metric = env.get("CLOUDSDK_METRICS_ENVIRONMENT", "").strip()
+    env["CLOUDSDK_METRICS_ENVIRONMENT"] = (
+        f"{existing_metric} datacloud.antigravity" if existing_metric else "datacloud.antigravity"
     )
-    api_pw = secrets.token_hex(24)
-    worker_pw = secrets.token_hex(24)
-
-    with psycopg.connect(migration_database_url, autocommit=True, connect_timeout=10) as conn:
-        with conn.cursor() as cur:
-            for login_role, pw, group_role in (
-                (api_login_role, api_pw, "cm_api_app"),
-                (worker_login_role, worker_pw, "cm_worker_app"),
-            ):
-                if not login_role.replace("_", "").isalnum():
-                    raise HostedConfigurationError(f"Invalid role identifier: {login_role!r}")
-                cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (login_role,))
-                if cur.fetchone() is None:
-                    cur.execute(
-                        f"CREATE ROLE {login_role} LOGIN PASSWORD '{pw}' "
-                        "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS"
-                    )
-                else:
-                    cur.execute(
-                        f"ALTER ROLE {login_role} WITH LOGIN PASSWORD '{pw}' "
-                        "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS"
-                    )
-                cur.execute(f"GRANT {group_role} TO {login_role}")
-
-    parsed = urlsplit(migration_database_url.strip())
-    is_supabase_pooler = (parsed.hostname or "").lower().endswith(".pooler.supabase.com")
-    effective_port = (
-        target_pooler_port
-        if target_pooler_port is not None
-        else (6543 if is_supabase_pooler else parsed.port)
+    proc = subprocess.run(
+        [
+            "gcloud",
+            "--quiet",
+            "secrets",
+            "versions",
+            "access",
+            "latest",
+            f"--secret={secret_name}",
+            f"--project={gcp_project_id}",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
     )
+    if proc.returncode != 0:
+        return None
+    val = proc.stdout.strip()
+    return val if val else None
 
-    api_dsn = build_runtime_pooler_dsn(
-        migration_database_url,
-        base_login_role=api_login_role,
-        password=api_pw,
-        target_port=effective_port,
-    )
-    worker_dsn = build_runtime_pooler_dsn(
-        migration_database_url,
-        base_login_role=worker_login_role,
-        password=worker_pw,
-        target_port=effective_port,
-    )
 
-    # Verify live Transaction Pooler (:6543) connectivity, prepare_threshold=None, and fail-closed RLS!
+def _verify_runtime_pooler_dsns(
+    *,
+    api_dsn: str,
+    worker_dsn: str,
+    effective_port: int | None,
+) -> list[dict[str, Any]]:
     pooler_checks: list[dict[str, Any]] = []
     for label, dsn in (("api_pooler", api_dsn), ("worker_pooler", worker_dsn)):
         with psycopg.connect(dsn, autocommit=False, prepare_threshold=None, connect_timeout=10) as rconn:
@@ -794,6 +774,111 @@ def provision_and_sync_runtime_db_secrets(
                 raise PostMigrationAuditError(
                     f"Runtime pooler check {label} failed: unscoped={unscoped_rows}, prepared={prepared_cnt}"
                 )
+    return pooler_checks
+
+
+def provision_and_sync_runtime_db_secrets(
+    migration_database_url: str,
+    *,
+    gcp_project_id: str | None = None,
+    api_login_role: str = "cm_staging_api_login",
+    worker_login_role: str = "cm_staging_worker_login",
+    target_pooler_port: int | None = None,
+    force_rotate: bool = False,
+    allow_insecure_local_test: bool = False,
+) -> dict[str, Any]:
+    """Provision/reuse least-privilege runtime LOGIN roles, verify :6543 pooler, & sync Secret Manager."""
+    assert_safe_migration_dsn(
+        migration_database_url,
+        allow_insecure_local_test=allow_insecure_local_test,
+    )
+    parsed = urlsplit(migration_database_url.strip())
+    is_supabase_pooler = (parsed.hostname or "").lower().endswith(".pooler.supabase.com")
+    effective_port = (
+        target_pooler_port
+        if target_pooler_port is not None
+        else (6543 if is_supabase_pooler else parsed.port)
+    )
+
+    # Zero-downtime canary/rollback reuse: if Secret Manager already holds valid :6543 DSNs, reuse them!
+    if gcp_project_id and gcp_project_id.strip() and not force_rotate:
+        proj = gcp_project_id.strip()
+        existing_api = _read_existing_gcp_secret_version(
+            gcp_project_id=proj, secret_name="cm-api-database-url"
+        )
+        existing_worker = _read_existing_gcp_secret_version(
+            gcp_project_id=proj, secret_name="cm-worker-database-url"
+        )
+        if existing_api and existing_worker:
+            try:
+                checks = _verify_runtime_pooler_dsns(
+                    api_dsn=existing_api,
+                    worker_dsn=existing_worker,
+                    effective_port=effective_port,
+                )
+                return {
+                    "api_login_role": api_login_role,
+                    "worker_login_role": worker_login_role,
+                    "runtime_pooler_port": effective_port,
+                    "reused_existing_secrets": True,
+                    "pooler_verification": checks,
+                    "gcp_secret_manager_synced": [],
+                }
+            except Exception:  # noqa: BLE001
+                pass
+
+    api_pw = secrets.token_hex(24)
+    worker_pw = secrets.token_hex(24)
+
+    with psycopg.connect(migration_database_url, autocommit=True, connect_timeout=10) as conn:
+        with conn.cursor() as cur:
+            for login_role, pw, group_role in (
+                (api_login_role, api_pw, "cm_api_app"),
+                (worker_login_role, worker_pw, "cm_worker_app"),
+            ):
+                if not login_role.replace("_", "").isalnum():
+                    raise HostedConfigurationError(f"Invalid role identifier: {login_role!r}")
+                cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (login_role,))
+                if cur.fetchone() is None:
+                    cur.execute(
+                        f"CREATE ROLE {login_role} LOGIN PASSWORD '{pw}' "
+                        "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS"
+                    )
+                else:
+                    # Non-superuser CREATEROLE accounts on PG17 cannot specify NOSUPERUSER/NOBYPASSRLS on ALTER ROLE
+                    cur.execute(
+                        f"ALTER ROLE {login_role} WITH LOGIN PASSWORD '{pw}' "
+                        "NOCREATEDB NOCREATEROLE INHERIT"
+                    )
+                cur.execute(f"GRANT {group_role} TO {login_role}")
+                cur.execute(
+                    "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = %s",
+                    (login_role,),
+                )
+                r_flags = cur.fetchone()
+                if r_flags is None or bool(r_flags[0]) or bool(r_flags[1]):
+                    raise HostedRoleSecurityError(
+                        f"Runtime login role {login_role!r} failed least-privilege audit: {r_flags!r}"
+                    )
+
+    api_dsn = build_runtime_pooler_dsn(
+        migration_database_url,
+        base_login_role=api_login_role,
+        password=api_pw,
+        target_port=effective_port,
+    )
+    worker_dsn = build_runtime_pooler_dsn(
+        migration_database_url,
+        base_login_role=worker_login_role,
+        password=worker_pw,
+        target_port=effective_port,
+    )
+
+    pooler_checks = _verify_runtime_pooler_dsns(
+        api_dsn=api_dsn,
+        worker_dsn=worker_dsn,
+        effective_port=effective_port,
+    )
 
     synced_secrets: list[dict[str, Any]] = []
     if gcp_project_id and gcp_project_id.strip():
@@ -817,6 +902,7 @@ def provision_and_sync_runtime_db_secrets(
         "api_login_role": api_login_role,
         "worker_login_role": worker_login_role,
         "runtime_pooler_port": effective_port,
+        "reused_existing_secrets": False,
         "pooler_verification": pooler_checks,
         "gcp_secret_manager_synced": synced_secrets,
     }

@@ -1,7 +1,7 @@
 # Closed Pilot & 3-Tier Release Gate Contract (`T-506`)
 
 ## Scope
-`career_memory_api.pilot_gate` programmatically loads, hashes, and verifies every committed M0–M5 & Track 2 hosted staging evidence bundle (`B-004`, `T-306A`, `T-407A`, `T-408`/`INF-08`, `T-507`/`INF-07`, `T-505`/`INF-10`, `T-504A`, `T-007F/T-106B`), verifies the immutable M0 OpenAPI blob SHA (`07594d75425744d6149250a9f7ff95ac24659f80`), and emits the deterministic 3-tier release gate evaluation bundle (`contracts/pilot-gate/t506_release_gate.v1.json`).
+`career_memory_api.pilot_gate` programmatically loads, hashes, and verifies every committed M0–M5, Track 2 hosted staging, and Track 3 LLM policy audit evidence bundle (`B-004`, `T-306A`, `T-407A`, `T-408`/`INF-08`, `T-507`/`INF-07`, `T-505`/`INF-10`, `T-504A`, `T-007F/T-106B`, `T-006`), verifies the immutable M0 OpenAPI blob SHA (`07594d75425744d6149250a9f7ff95ac24659f80`), and emits the deterministic 3-tier release gate evaluation bundle (`contracts/pilot-gate/t506_release_gate.v1.json`).
 
 ## Strict 3-Tier Separation (`ADR-018`, `ADR-019`, `ADR-020`)
 1. **`LOCAL_DETERMINISTIC_MVP_GATE`**: `GO` (`PASSED`) iff all 7 local M0–M5 evidence bundles, all required invariant groups (`SEARCH-01..05`, `DELETE-01..07`, `SEC-01..02`, `REL-01..02`, `EXPORT-01..02`, `PERF-01`, `INF-01..10`, `OD-003`, `OD-008`, `ADR-013` Plan C `0` leaks, `M0-OPENAPI-PIN`), and live FE↔BE PG18 integration suites are verified at `₩0`.

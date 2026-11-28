@@ -12,7 +12,7 @@
 ## 1. Executive Summary — Strict 3-Tier Release Gate Decision (`ADR-018`, `ADR-019`, `ADR-020`)
 
 ### 한국어 요약
-본 평가는 M0–M5 및 Track 2 호스티드 스테이징의 8개 커밋된 증거 번들(`B-004`, `T-306A`, `T-407A`, `T-408/INF-08`, `T-507/INF-07`, `T-505/INF-10`, `T-504A`, `T-007F/T-106B`)과 실제 PostgreSQL 18 + Next.js FE↔BE 및 GCP Cloud Run (`us-central1`) + Supabase PG17 라이브 검증 결과를 프로그래밍 방식으로 검증하여 **3단계 릴리스 게이트**를 정직하게 분리 판정합니다.
+본 평가는 M0–M5, Track 2 호스티드 스테이징, Track 3 구독 LLM 정책 실사의 9개 커밋된 증거 번들(`B-004`, `T-306A`, `T-407A`, `T-408/INF-08`, `T-507/INF-07`, `T-505/INF-10`, `T-504A`, `T-007F/T-106B`, `T-006`)과 실제 PostgreSQL 18 + Next.js FE↔BE 및 GCP Cloud Run (`us-central1`) + Supabase PG17 라이브 검증 결과를 프로그래밍 방식으로 검증하여 **3단계 릴리스 게이트**를 정직하게 분리 판정합니다.
 
 1. **`LOCAL_DETERMINISTIC_MVP_GATE` — `GO (PASSED)`**:
    - `GitHub OAuth/Allowlist → Initial Import → Event Review → Identity/Fact/Claim Review → Plan C Ephemeral Refetch → Zero-Quote Export → PG18 FTS Search → OD-003 Source Deletion → Quota/Circuit-Breaker → Encrypted PG18 Backup/Restore` 전 여정이 실제 PostgreSQL 18 (`0010..0080`, 46개 테이블 `FORCE RLS` + `NOBYPASSRLS`) 및 Next.js UI(`/`, `/event-review`, `/claim-review`, `/search`)에서 **외부 호출 0회, `₩0` 비용, Plan C 원문·시크릿 유출 0건**으로 완전히 검증되었습니다.
@@ -31,7 +31,7 @@
 
 ---
 
-## 2. Programmatically Verified Evidence Bundles (8/8 Verified)
+## 2. Programmatically Verified Evidence Bundles (9/9 Verified)
 
 | Bundle | Contract Path | Verified Scope | Key Metrics |
 |---|---|---|---|
@@ -43,6 +43,7 @@
 | **`T-505/INF-10`** | `contracts/backup-restore/t505_restore_evidence.v1.json` | AES-256-GCM encrypted PG18 `pg_dump`/`pg_restore` & fence drill | `46` tables FORCE RLS, RTO `330ms <= 30,000ms`, `0` resurrected rows, `paid_pitr_assumed=false` |
 | **`T-504A`** | `contracts/fault-matrix/t504a_evidence_bundle.v1.json` | Cross-subsystem fault & `threading.Barrier` race matrix (`XFLT-01..12`) | `12/12` scenarios, `167/167` assertions, `4` barrier races, `0` sleep waits, `0` leaks |
 | **`T-007F/T-106B`** | `contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json` | Live Cloud Run (`us-central1`) + Supabase PG17 `:6543` + WIF deploy & rollback | `OD-015` `GO` (`₩0`), `46/46` `FORCE RLS`, WIF deploy `11/11` & rollback `11/11`, `0` static keys |
+| **`T-006`** | `contracts/llm-gate/t006_policy_audit.v1.json` | Official 3-provider (`OpenAI`, `Anthropic`, `Google`) hosting, training & zero-overage audit | Hosted Cloud Run locked `OFF_MANUAL_ONLY`, `0` LLM token storage, `LIVE_SUBSCRIPTION_AI_PILOT_GATE` held `NO-GO` |
 
 ---
 

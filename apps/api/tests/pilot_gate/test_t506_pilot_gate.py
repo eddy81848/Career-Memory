@@ -24,8 +24,8 @@ from career_memory_api.pilot_gate import (
 )
 
 
-def test_t506_release_gate_verifies_all_8_bundles_and_zero_drift() -> None:
-    """Verify all 8 M0-M5 & Track 2 evidence bundles, 3-tier gate separation, and 0 drift against committed JSON."""
+def test_t506_release_gate_verifies_all_9_bundles_and_zero_drift() -> None:
+    """Verify all 9 M0-M5, Track 2 & Track 3 evidence bundles, 3-tier gate separation, and 0 drift against committed JSON."""
     repo_root = default_repo_root()
     bundle = evaluate_t506_pilot_gate(repo_root=repo_root)
 
@@ -34,8 +34,8 @@ def test_t506_release_gate_verifies_all_8_bundles_and_zero_drift() -> None:
     assert bundle.external_network_calls == 0
     assert bundle.spend_krw == 0
 
-    assert bundle.summary["bundles_total"] == 8
-    assert bundle.summary["bundles_verified"] == 8
+    assert bundle.summary["bundles_total"] == 9
+    assert bundle.summary["bundles_verified"] == 9
     assert bundle.summary["invariants_passed"] == bundle.summary["invariants_total"]
     assert all(b.verified for b in bundle.evidence_bundles)
     assert all(i.passed for i in bundle.invariants)

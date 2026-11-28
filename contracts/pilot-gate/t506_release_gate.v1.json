@@ -1,0 +1,286 @@
+{
+  "deterministic_gate_sha256": "sha256:761b41b733b713119f62db060bdb31569c5ff40d1bb7e0a0df57bf27a09c8641",
+  "evidence_bundles": [
+    {
+      "bundle_id": "B-004",
+      "checks_passed": 4,
+      "checks_total": 4,
+      "file_sha256": "sha256:5f02c1ec4b60bdcc3b4de93d9db228c7f0cfdff331f2e9180c6fdf57e5a6d268",
+      "findings": [],
+      "metrics": {
+        "scenarios_passed": 16,
+        "scenarios_total": 16,
+        "total_canary_hits": 0
+      },
+      "present": true,
+      "relative_path": "contracts/fault-harness/b004_evidence_bundle.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-306A",
+      "checks_passed": 8,
+      "checks_total": 8,
+      "file_sha256": "sha256:1cd454c452d94ee2f38e50f063fdf9c696b0895eed869c88b86c71767b661de8",
+      "findings": [],
+      "metrics": {
+        "passed_bundles": 16,
+        "passed_cases": 21,
+        "total_cases": 21,
+        "total_plan_c_violations": 0
+      },
+      "present": true,
+      "relative_path": "contracts/event-eval/t306a_eval_bundle.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-407A",
+      "checks_passed": 9,
+      "checks_total": 9,
+      "file_sha256": "sha256:ff7efc40802eaededc4405fc0cb28fc8687ce326349466432e0fd7ccfb338177",
+      "findings": [],
+      "metrics": {
+        "live_llm_semantic_eval": "NOT_RUN_BLOCKED_BY_OD002_OD014",
+        "live_pilot_gate_eligible": false,
+        "ref_families_verified": 8,
+        "refetch_cases_passed": 27,
+        "scenarios_passed": 16
+      },
+      "present": true,
+      "relative_path": "contracts/claim-eval/t407a_eval_bundle.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-408/INF-08",
+      "checks_passed": 6,
+      "checks_total": 6,
+      "file_sha256": "sha256:2d78eee93eee5f81f3e63c059bb23c555fff39e84c191c13522908b632b33815",
+      "findings": [],
+      "metrics": {
+        "cases_passed": 17,
+        "cases_total": 17,
+        "live_ai_gate_status": "OFF_NOT_PASSED_PENDING_OD002_OD014",
+        "token_or_raw_leaks": 0
+      },
+      "present": true,
+      "relative_path": "contracts/llm-gate/inf08_evidence.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-507/INF-07",
+      "checks_passed": 6,
+      "checks_total": 6,
+      "file_sha256": "sha256:901675c7599c3acf805544e5a804b415c43cd5bd8fc6a4d57caead9369eec3b4",
+      "findings": [],
+      "metrics": {
+        "cases_passed": 14,
+        "cases_total": 14,
+        "ci_trust_audit_passed": true,
+        "hosted_public_pilot_gate": "HELD_NO_GO_PENDING_OD013_OD015"
+      },
+      "present": true,
+      "relative_path": "contracts/edge-guard/t507_route_trust_matrix.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-505/INF-10",
+      "checks_passed": 7,
+      "checks_total": 7,
+      "file_sha256": "sha256:977c7ddb541fff4e5532d84b3716671bd5c608cd2221ad073fd709b4a5a12a32",
+      "findings": [],
+      "metrics": {
+        "paid_pitr_assumed": false,
+        "restored_table_count": 46,
+        "resurrected_rows": 0,
+        "within_rto_budget": true
+      },
+      "present": true,
+      "relative_path": "contracts/backup-restore/t505_restore_evidence.v1.json",
+      "verified": true
+    },
+    {
+      "bundle_id": "T-504A",
+      "checks_passed": 7,
+      "checks_total": 7,
+      "file_sha256": "sha256:7f759ef57fcddd6a53509ed7d1e09802922ca64e7e86007b6b824e13b7ac2f03",
+      "findings": [],
+      "metrics": {
+        "barrier_synchronized_scenarios": 4,
+        "deterministic_matrix_sha256": "sha256:2004529c896fdea68b123ce8c4957c7704131c4c05638433adf3ad649bf35fab",
+        "passed_scenarios": 12,
+        "total_assertions_checked": 167
+      },
+      "present": true,
+      "relative_path": "contracts/fault-matrix/t504a_evidence_bundle.v1.json",
+      "verified": true
+    }
+  ],
+  "external_network_calls": 0,
+  "invariants": [
+    {
+      "category": "CONTRACT_IMMUTABILITY",
+      "evidence_sources": [
+        "contracts/import-v1/openapi.yaml",
+        "B-004",
+        "T-306A",
+        "T-407A",
+        "T-408/INF-08",
+        "T-507/INF-07",
+        "T-505/INF-10",
+        "T-504A"
+      ],
+      "invariant_id": "M0-OPENAPI-PIN",
+      "passed": true,
+      "summary": "Immutable M0 OpenAPI blob SHA verified (07594d75425744d6149250a9f7ff95ac24659f80)."
+    },
+    {
+      "category": "DATA_PRIVACY_PLAN_C",
+      "evidence_sources": [
+        "B-004",
+        "T-306A",
+        "T-407A",
+        "T-408/INF-08",
+        "T-505/INF-10",
+        "T-504A"
+      ],
+      "invariant_id": "ADR-013-PLAN-C-ZERO-LEAKS",
+      "passed": true,
+      "summary": "0 raw source bodies persisted, 0 forbidden JSONB keys, and 0 canary/secret leaks across all 46 PG18 tables, logs, and exports."
+    },
+    {
+      "category": "MEMORY_SEARCH",
+      "evidence_sources": [
+        "T-504A (XFLT-02, XFLT-05, XFLT-06, XFLT-12)",
+        "T-505/INF-10",
+        "live-backend-memory-ops.test.tsx"
+      ],
+      "invariant_id": "SEARCH-01..05+OD-008",
+      "passed": true,
+      "summary": "Permission-safe PG18 FTS search with pre-response authoritative recheck, index-lag filtering, cursor version/scope binding, and zero project_id scope."
+    },
+    {
+      "category": "SOURCE_DELETION",
+      "evidence_sources": [
+        "T-504A (XFLT-04, XFLT-05, XFLT-08, XFLT-09, XFLT-11)",
+        "T-505/INF-10",
+        "live-backend-memory-ops.test.tsx"
+      ],
+      "invariant_id": "DELETE-01..07+OD-003",
+      "passed": true,
+      "summary": "Version-bound OD-003 deletion preview/confirm, zero-window fence, 5-component receipt idempotency, 4-worker barrier zero resurrection, and post-restore fence survival."
+    },
+    {
+      "category": "SECURITY_AND_ISOLATION",
+      "evidence_sources": [
+        "T-504A (XFLT-07, XFLT-09, XFLT-10)",
+        "T-507/INF-07",
+        "T-407A"
+      ],
+      "invariant_id": "SEC-01..02",
+      "passed": true,
+      "summary": "Hostile prompt-injection/XSS/binary/oversized neutralization, SSRF/redirect block (REF-05), read-only verification guard, private no-store cache isolation, and 46-table FORCE RLS."
+    },
+    {
+      "category": "RELIABILITY_AND_RECOVERY",
+      "evidence_sources": [
+        "B-004",
+        "T-504A (XFLT-01, XFLT-11, XFLT-12)",
+        "T-505/INF-10"
+      ],
+      "invariant_id": "REL-01..02",
+      "passed": true,
+      "summary": "Poison job/outbox terminal isolation, unique logical-effect replay safety, encrypted PG18 backup/restore parity, and canonical clean-vs-fault snapshot convergence."
+    },
+    {
+      "category": "ZERO_QUOTE_EXPORTS",
+      "evidence_sources": [
+        "T-407A",
+        "T-504A (XFLT-03, XFLT-04, XFLT-10, XFLT-12)",
+        "live-backend-claim-review.test.tsx"
+      ],
+      "invariant_id": "EXPORT-01..02",
+      "passed": true,
+      "summary": "Zero-quote Markdown/JSON exports with live EXPORT_DOWNLOAD refetch gate and FOR UPDATE build-time invalidation fence."
+    },
+    {
+      "category": "QUOTAS_AND_COST_SAFETY",
+      "evidence_sources": [
+        "T-504A (XFLT-08, XFLT-09, XFLT-10)",
+        "T-507/INF-07",
+        "live-backend-memory-ops.test.tsx"
+      ],
+      "invariant_id": "PERF-01+INF-03+INF-06",
+      "passed": true,
+      "summary": "Operation caps, circuit breaker, ambiguous billable timeout no-auto-retry, and 80%/95% quota cutoff blocking growth with paid_fallback_allowed=False while preserving disconnect & deletion rights."
+    },
+    {
+      "category": "INFRASTRUCTURE_AND_GOVERNANCE",
+      "evidence_sources": [
+        "T-408/INF-08",
+        "T-507/INF-07",
+        "T-505/INF-10",
+        "T-504A"
+      ],
+      "invariant_id": "INF-01..10",
+      "passed": true,
+      "summary": "All app-layer & local PG18 guards (FORCE RLS, edge origin/worker/cache/pause, CI trust audit, LLM hard-OFF policy gate, encrypted backup/restore drill) verified at ₩0."
+    }
+  ],
+  "issue_number": 33,
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "openapi_pin_verified": true,
+  "release_gates": [
+    {
+      "blocking_open_decisions": [],
+      "decision": "GO",
+      "rationale": "Full local end-to-end journey (GitHub OAuth/Allowlist -> Initial Import -> Event Review -> Identity/Fact/Claim Review -> Plan C Ephemeral Refetch -> Zero-Quote Export -> FTS Search -> OD-003 Deletion -> Quota/Circuit-Breaker -> Encrypted PG18 Backup/Restore) verified on real PostgreSQL 18 + Next.js UI at ₩0 spend with 0 Plan C leaks.",
+      "required_operator_actions": [],
+      "status_code": "PASSED",
+      "tier": "LOCAL_DETERMINISTIC_MVP_GATE"
+    },
+    {
+      "blocking_open_decisions": [
+        "OD-013",
+        "OD-015"
+      ],
+      "decision": "NO-GO",
+      "rationale": "App-layer guards (T-503 quotas/circuit breaker, T-505 encrypted PG18 backup/restore drill, T-507 edge origin/worker/cache/pause middleware & CI trust audit) are verified locally, but live external Cloud Run / Cloudflare / Supabase Free internet exposure is intentionally held OFF until operator billing hard-caps, platform-level origin mTLS/IAM ingress locks, and Supabase Free project/auth/backup checks are executed and approved under OD-013 and OD-015.",
+      "required_operator_actions": [
+        "Verify GCP Cloud Billing hard cutoff / budget automation or explicit spend approval (OD-015, ADR-020).",
+        "Provision and live-probe Cloudflare Origin mTLS / Transform Rule + Cloud Run ingress/IAM blocking direct *.run.app access and isolating /internal/worker/** (INF-07, OD-013).",
+        "Provision Supabase Free project, verify Auth redirect allowlist, RLS roles, connection pooler caps, and scheduled encrypted logical pg_dump off-host storage (INF-10, OD-013)."
+      ],
+      "status_code": "HELD_PENDING_OD013_OD015",
+      "tier": "PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE"
+    },
+    {
+      "blocking_open_decisions": [
+        "OD-002",
+        "OD-014"
+      ],
+      "decision": "NO-GO",
+      "rationale": "Synthetic/contract/safety gates (T-407A 16 scenarios + 27 refetch cases, T-408/INF-08 17 gate cases) passed with 0 leaks and 0 external calls, but per M4/M5 Exit Criteria and ADR-018/ADR-020, synthetic fixture passes NEVER close the live model gate while external subscription LLM transmission remains OFF.",
+      "required_operator_actions": [
+        "Confirm and sign off on external model data handling / consent policy for public-only unmasked payloads (OD-002).",
+        "Provision and verify external encrypted user-subscription OAuth token vault & unlink/wipe automation without storing raw tokens in PostgreSQL (OD-014, INF-08).",
+        "Execute live closed-pilot semantic groundedness & review-time evaluation against real subscription model traffic before enabling live AI extraction/generation (ADR-018)."
+      ],
+      "status_code": "HELD_PENDING_OD002_OD014",
+      "tier": "LIVE_SUBSCRIPTION_AI_PILOT_GATE"
+    }
+  ],
+  "schema_version": "t506-release-gate-v1",
+  "spend_krw": 0,
+  "summary": {
+    "bundles_total": 7,
+    "bundles_verified": 7,
+    "external_network_calls": 0,
+    "invariants_passed": 9,
+    "invariants_total": 9,
+    "live_fe_be_pg18_suites_present": true,
+    "live_subscription_ai_pilot_decision": "NO-GO",
+    "local_deterministic_mvp_decision": "GO",
+    "public_cloud_hosted_closed_pilot_decision": "NO-GO",
+    "spend_krw": 0
+  },
+  "task_id": "T-506"
+}

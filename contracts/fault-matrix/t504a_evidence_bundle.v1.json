@@ -1,0 +1,593 @@
+{
+  "deterministic_matrix_sha256": "sha256:2004529c896fdea68b123ce8c4957c7704131c4c05638433adf3ad649bf35fab",
+  "external_network_calls": 0,
+  "issue_number": 33,
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "postgres_major_version": 18,
+  "rls_catalog_verified": {
+    "all_runtime_roles_nobypassrls": true,
+    "all_tables_force_rls": true,
+    "catalog_violations": 0,
+    "table_count": 46
+  },
+  "scenarios": [
+    {
+      "assertions_checked": 21,
+      "assertions_failed": 0,
+      "barrier_synchronized": true,
+      "fault_points": [
+        "JOB_POISON_MAX_ATTEMPTS",
+        "OUTBOX_PUBLISH_POISON",
+        "CONCURRENT_JOB_REPLAY_BARRIER"
+      ],
+      "notes": [
+        "Verified 3-attempt poison isolation on jobs + outbox and barrier-synchronized unique logical-effect replay guard."
+      ],
+      "observed_metrics": {
+        "concurrent_replay_blocked": 1,
+        "concurrent_replay_winners": 1,
+        "effect_applied": true,
+        "outbox_terminal_status": "FAILED_TERMINAL",
+        "parent_error_class": "POISON_BUDGET_EXHAUSTED",
+        "parent_job_status": "FAILED_TERMINAL",
+        "post_success_replay_blocked": true,
+        "replayed_child_status": "SUCCEEDED"
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "REL-02"
+      ],
+      "scenario_id": "XFLT-01",
+      "subsystems": [
+        "jobs",
+        "outbox",
+        "sync_runs"
+      ],
+      "title": "REL-02 Poison Job & Outbox Terminal Isolation + Safe Operator Replay"
+    },
+    {
+      "assertions_checked": 9,
+      "assertions_failed": 0,
+      "barrier_synchronized": true,
+      "fault_points": [
+        "CLAIM_APPROVAL_BEFORE_LOCK_BARRIER"
+      ],
+      "notes": [
+        "Both identity-revocation and PRIVATE-policy barrier races failed closed before FOR UPDATE commit with 0 stale approved or searchable claims."
+      ],
+      "observed_metrics": {
+        "identity_race_code": "SUPPORT_INCOMPLETE",
+        "identity_race_status": 409,
+        "private_policy_race_code": "SOURCE_POLICY_BLOCKED",
+        "private_policy_race_status": 403,
+        "stale_approved_claims": 0,
+        "stale_searchable_claims": 0
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "CLAIM-09",
+        "ID-05",
+        "SEARCH-01"
+      ],
+      "scenario_id": "XFLT-02",
+      "subsystems": [
+        "claims",
+        "identities",
+        "resolver",
+        "search"
+      ],
+      "title": "CLAIM-09 Approval vs Concurrent Identity Revocation & Source PRIVATE Transition Race"
+    },
+    {
+      "assertions_checked": 7,
+      "assertions_failed": 0,
+      "barrier_synchronized": true,
+      "fault_points": [
+        "EXPORT_BEFORE_PUBLISH_BARRIER",
+        "EXPORT_DOWNLOAD_REVISION_DRIFT"
+      ],
+      "notes": [
+        "Build-time ER-012 Fact edit invalidated pending export with NULL artifact_payload; download-time provider SHA drift blocked live EXPORT_DOWNLOAD refetch."
+      ],
+      "observed_metrics": {
+        "build_race_artifact_null": true,
+        "build_race_export_db_status": "INVALIDATED",
+        "build_race_status": 409,
+        "download_drift_code": "SOURCE_REVISION_MISMATCH",
+        "download_drift_status": 409
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "EXPORT-02",
+        "ER-012",
+        "REF-03",
+        "REF-07"
+      ],
+      "scenario_id": "XFLT-03",
+      "subsystems": [
+        "exports",
+        "facts",
+        "resolver"
+      ],
+      "title": "EXPORT-02 Export Build/Download vs Concurrent Fact Edit & Provider Revision Drift Race"
+    },
+    {
+      "assertions_checked": 7,
+      "assertions_failed": 0,
+      "barrier_synchronized": true,
+      "fault_points": [
+        "FOUR_WORKER_PRE_COMMIT_DELETION_BARRIER"
+      ],
+      "notes": [
+        "All 4 concurrent workers synchronized on 5-party threading.Barrier aborted cleanly on deletion fence with 0 resurrected rows."
+      ],
+      "observed_metrics": {
+        "deletion_final_status": "SUCCEEDED",
+        "resurrected_rows_total": 0,
+        "worker_1_derived_units": "BLOCKED_POLICY:DELETION_FENCE_ACTIVE",
+        "worker_2_claim_draft": "DELETION_PENDING",
+        "worker_3_search_indexer": "DELETION_FENCE_ACTIVE",
+        "worker_4_export_publish": "EXPORT_INVALIDATED"
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "DELETE-07",
+        "EXPORT-02"
+      ],
+      "scenario_id": "XFLT-04",
+      "subsystems": [
+        "initial_import",
+        "claims",
+        "search",
+        "exports",
+        "deletion"
+      ],
+      "title": "DELETE-07 End-to-End Deletion Fence vs 4 Concurrent Workers (5-Party Barrier)"
+    },
+    {
+      "assertions_checked": 25,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "DELETION_COMPONENT_FTS_FAILURE",
+        "DELETION_COMPONENT_DOMAIN_FAILURE"
+      ],
+      "notes": [
+        "Verified 100% blocking during PARTIAL, incremental component retry without re-executing SUCCEEDED components, and full preservation of sibling Repo B."
+      ],
+      "observed_metrics": {
+        "component_attempts_final": {
+          "AUTHORITATIVE_DOMAIN": 2,
+          "EPHEMERAL_CACHE": 1,
+          "EXPORTS": 1,
+          "FTS_INDEX": 2,
+          "JOBS_AND_OUTBOX": 1
+        },
+        "final_user_visible_state": "DELETED",
+        "partial_user_visible_state": "DELETION_PENDING",
+        "repo_b_export_status": "READY",
+        "repo_b_search_hits_preserved": 3
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "DELETE-05",
+        "DELETE-06",
+        "OD-003"
+      ],
+      "scenario_id": "XFLT-05",
+      "subsystems": [
+        "deletion",
+        "search",
+        "resolver",
+        "exports"
+      ],
+      "title": "DELETE-05 & DELETE-06 Partial Component Failure -> Degraded Block -> Idempotent Convergence"
+    },
+    {
+      "assertions_checked": 11,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "SEARCH_INDEX_LAG_SKIP_UPDATE",
+        "SEARCH_CURSOR_VERSION_AND_SCOPE_DRIFT"
+      ],
+      "notes": [
+        "Pre-response authoritative recheck filtered 100% of lagged Claim/Fact/WorkEvent index rows and rejected all stale/cross-scope cursors with 400 INVALID_SEARCH_CURSOR."
+      ],
+      "observed_metrics": {
+        "cross_repo_cursor_error": "400:INVALID_SEARCH_CURSOR",
+        "cross_workspace_cursor_error": "400:INVALID_SEARCH_CURSOR",
+        "cross_workspace_resource_error": "404:RESOURCE_NOT_FOUND",
+        "lag_filtered_count": 3,
+        "prohibited_project_id_error": "422:PROHIBITED_PROJECT_ID_SCOPE",
+        "stale_entries_remaining_in_index": 3,
+        "stale_hits_returned": 0,
+        "stale_index_version_cursor_error": "400:INVALID_SEARCH_CURSOR"
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "SEARCH-01",
+        "SEARCH-03",
+        "SEARCH-04",
+        "SEARCH-05",
+        "OD-008"
+      ],
+      "scenario_id": "XFLT-06",
+      "subsystems": [
+        "search",
+        "work_events",
+        "facts",
+        "claims"
+      ],
+      "title": "SEARCH-05 FTS Index Lag + Stale/Cross-Repo/Cross-Workspace Cursor Isolation"
+    },
+    {
+      "assertions_checked": 14,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "HOSTILE_PAYLOAD_AND_SSRF_REDIRECT"
+      ],
+      "notes": [
+        "Hostile prompt-injection, XSS, binary/oversized payloads, SSRF/redirects, and secret tokens remained 100% inert with 0 leaks across 46 tables, logs, and exports."
+      ],
+      "observed_metrics": {
+        "binary_rejected_status": "SKIPPED",
+        "canary_and_secret_leaks": 0,
+        "cross_tenant_claim_status": 404,
+        "oversized_body_status": 413,
+        "readonly_verification_write_status": 422,
+        "ssrf_redirect_blocked": true,
+        "ssrf_urls_blocked": 6
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "SEC-01",
+        "SEC-02",
+        "REF-04",
+        "REF-05"
+      ],
+      "scenario_id": "XFLT-07",
+      "subsystems": [
+        "canonicalization",
+        "claims",
+        "exports",
+        "resolver",
+        "search",
+        "edge_guard"
+      ],
+      "title": "SEC-01 & SEC-02 Hostile Prompt-Injection, XSS, Binary/Oversized, SSRF & Cross-Tenant Isolation"
+    },
+    {
+      "assertions_checked": 25,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "PROVIDER_CIRCUIT_BREAKER_AND_AMBIGUOUS_TIMEOUT",
+        "QUOTA_CUTOFF_95_PERCENT"
+      ],
+      "notes": [
+        "Circuit breaker, ambiguous billable timeout no-auto-retry, and 95% cutoff blocked high-cost ops with paid_fallback_allowed=False while disconnect and OD-003 deletion succeeded."
+      ],
+      "observed_metrics": {
+        "ambiguous_auto_retry_allowed": false,
+        "circuit_open_block": "503:CIRCUIT_BREAKER_OPEN",
+        "cutoff_admission_state": "CUTOFF_95_PERCENT",
+        "deletion_status_under_cutoff": "SUCCEEDED",
+        "disconnect_account_status_under_cutoff": "REVOKED",
+        "export_blocked_status": 429,
+        "paid_fallback_allowed": false,
+        "sync_blocked_status": 429
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "INF-03",
+        "INF-06",
+        "PERF-01",
+        "OD-003"
+      ],
+      "scenario_id": "XFLT-08",
+      "subsystems": [
+        "budgets",
+        "circuit_breaker",
+        "github_connect",
+        "deletion"
+      ],
+      "title": "INF-03 & INF-06 Circuit Breaker + Ambiguous Timeout + 95% Cutoff Preserving Safety Rights"
+    },
+    {
+      "assertions_checked": 18,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "EDGE_ORIGIN_BYPASS_AND_MANUAL_PAUSE"
+      ],
+      "notes": [
+        "Direct *.run.app bypass and edge-injected worker ingress blocked (403); PAUSED_COST_GUARD blocked growth while preserving OD-003 deletion; resume enforced budget_verified=True."
+      ],
+      "observed_metrics": {
+        "paused_deletion_confirm_status": 202,
+        "paused_deletion_preview_status": 200,
+        "paused_sync_status": 503,
+        "resume_without_budget_verified_rejected": true,
+        "resumed_sync_status": 200,
+        "run_app_bypass_status": 403,
+        "worker_edge_header_status": 403,
+        "worker_oidc_valid_status": 200
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "INF-07",
+        "SEC-01",
+        "OD-003"
+      ],
+      "scenario_id": "XFLT-09",
+      "subsystems": [
+        "edge_guard",
+        "budgets",
+        "deletion",
+        "search"
+      ],
+      "title": "INF-07 Edge Origin Bypass, Private Worker Route Isolation & Manual Cost Pause/Resume"
+    },
+    {
+      "assertions_checked": 13,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "REFETCH_GATE_MATRIX_AND_BUDGET_CAP"
+      ],
+      "notes": [
+        "Verified exact transient 503 (retryable=True) vs permanent 409/403 (retryable=False) distinction, budget caps (REF-08), and 0 raw persistence (REF-04)."
+      ],
+      "observed_metrics": {
+        "approval_mismatch_status": 409,
+        "approval_unavailable_status": 503,
+        "budget_max_bytes_status": "PARTIAL_WITH_LIMIT",
+        "budget_max_requests_status": "PARTIAL_WITH_LIMIT",
+        "export_mismatch_status": 409,
+        "view_matched_status": 200,
+        "view_mismatch_status_retryable": "409:False",
+        "view_policy_blocked_status_zero_fetch": "403:True",
+        "view_unavailable_status_retryable": "503:True"
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "REF-01",
+        "REF-02",
+        "REF-03",
+        "REF-04",
+        "REF-05",
+        "REF-06",
+        "REF-07",
+        "REF-08"
+      ],
+      "scenario_id": "XFLT-10",
+      "subsystems": [
+        "resolver",
+        "claims",
+        "exports"
+      ],
+      "title": "REF-01..08 Cross-Gate Refetch Matrix (VIEW / APPROVAL / EXPORT_DOWNLOAD)"
+    },
+    {
+      "assertions_checked": 9,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "MID_LIFECYCLE_ENCRYPTED_BACKUP_RESTORE"
+      ],
+      "notes": [
+        "Encrypted PG18 dump/restore preserved Repo A approval lineage, retained Repo B PARTIAL deletion fence, blocked late replay, and completed remaining components cleanly."
+      ],
+      "observed_metrics": {
+        "late_replay_blocked": true,
+        "repo_a_approved_lineage_preserved": 1,
+        "repo_b_resurrected_rows": 0,
+        "restored_final_deletion_status": "SUCCEEDED",
+        "restored_pre_resume_status": "PARTIAL",
+        "tamper_ciphertext_rejected": true
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "INF-10",
+        "REL-01",
+        "DELETE-07"
+      ],
+      "scenario_id": "XFLT-11",
+      "subsystems": [
+        "backup_restore",
+        "deletion",
+        "search",
+        "jobs"
+      ],
+      "title": "INF-10 / REL-01 Encrypted Backup -> Isolated Restore -> Active Deletion Fence & Replay Safety"
+    },
+    {
+      "assertions_checked": 8,
+      "assertions_failed": 0,
+      "barrier_synchronized": false,
+      "fault_points": [
+        "MULTI_STAGE_TRANSIENT_RECOVERY_CONVERGENCE"
+      ],
+      "notes": [
+        "Full Sync -> Event -> Fact -> Claim -> Search -> Export pipeline converged to the exact same canonical SHA-256 snapshot after transient job, outbox, refetch, and index-lag faults."
+      ],
+      "observed_metrics": {
+        "baseline_snapshot_sha256": "sha256:f2ed8033fb86b1ce5547875d2f30f3591dd6ddebf15bc44dcf23f0a88d5896f8",
+        "exact_canonical_convergence": true,
+        "exports_converged": 1,
+        "fault_recovery_snapshot_sha256": "sha256:f2ed8033fb86b1ce5547875d2f30f3591dd6ddebf15bc44dcf23f0a88d5896f8",
+        "search_entries_converged": 3
+      },
+      "passed": true,
+      "plan_c_audit": {
+        "audited_jsonb_column_count": 38,
+        "audited_table_count": 46,
+        "canary_string_hits": 0,
+        "export_canary_hits": 0,
+        "log_canary_hits": 0,
+        "passed": true,
+        "raw_text_violations": 0,
+        "secret_key_violations": 0
+      },
+      "requirement_ids": [
+        "REL-01",
+        "REL-02",
+        "SEARCH-01",
+        "EXPORT-01"
+      ],
+      "scenario_id": "XFLT-12",
+      "subsystems": [
+        "jobs",
+        "outbox",
+        "initial_import",
+        "work_events",
+        "facts",
+        "claims",
+        "search",
+        "exports"
+      ],
+      "title": "Clean Baseline vs Fault-Injected Recovery Canonical Snapshot Convergence"
+    }
+  ],
+  "schema_migrations": [
+    "0010_identity_workspace_source_auth.sql",
+    "0020_source_provenance_metadata.sql",
+    "0030_events_facts_claims_contributions.sql",
+    "0040_sync_runs_jobs_outbox_audit.sql",
+    "0050_m2_backfill_observations.sql",
+    "0060_m3_event_versions_and_constraints.sql",
+    "0070_m4_fact_versions_and_exports.sql",
+    "0080_m5_search_deletion_and_budgets.sql"
+  ],
+  "schema_version": "t504a-fault-matrix-evidence-v1",
+  "sleep_based_race_waits": 0,
+  "spend_krw": 0,
+  "summary": {
+    "all_passed": true,
+    "barrier_synchronized_scenarios": 4,
+    "external_network_calls": 0,
+    "failed_scenarios": 0,
+    "passed_scenarios": 12,
+    "spend_krw": 0,
+    "total_assertions_checked": 167,
+    "total_assertions_failed": 0,
+    "total_plan_c_and_secret_violations": 0,
+    "total_scenarios": 12
+  },
+  "task_ids": [
+    "T-504",
+    "T-504A"
+  ]
+}

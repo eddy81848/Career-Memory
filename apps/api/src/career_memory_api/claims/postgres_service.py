@@ -778,6 +778,11 @@ class PostgresClaimService:
                         """,
                         (access.workspace_id, claim_uuid),
                     )
+                    initial_atom_status = (
+                        ClaimAtomStatus.STALE.value
+                        if claim_version > 1
+                        else ClaimAtomStatus.UNSUPPORTED.value
+                    )
                     for atom in atom_res.atoms:
                         cur.execute(
                             """
@@ -786,7 +791,7 @@ class PostgresClaimService:
                                 atom_text, status, created_at
                             ) VALUES (
                                 %s::uuid, %s::uuid, %s::uuid, %s, %s,
-                                %s, 'UNSUPPORTED', %s
+                                %s, %s, %s
                             )
                             """,
                             (
@@ -796,6 +801,7 @@ class PostgresClaimService:
                                 atom.ordinal,
                                 atom.atom_type.value,
                                 atom.atom_text,
+                                initial_atom_status,
                                 ts,
                             ),
                         )

@@ -16,6 +16,10 @@ from career_memory_api.claims.context_builder import (
     ClaimContextBundle,
     EligibleFactContextItem,
 )
+from career_memory_api.claims.deletion_cascade import (
+    SourceDeletionCascadeCounts,
+    execute_source_deletion_m4_cascade,
+)
 from career_memory_api.claims.generator import (
     CLAIM_DRAFT_SCHEMA_ID,
     ClaimDraftGenerationRequest,
@@ -157,6 +161,7 @@ __all__ = [
     "PostgresClaimService",
     "RejectClaimActionRequest",
     "RevalidateClaimRequest",
+    "SourceDeletionCascadeCounts",
     "VerificationCalculator",
     "assert_no_forbidden_claim_write_keys",
     "compute_atomization_input_hash",
@@ -169,5 +174,6 @@ __all__ = [
     "deterministic_classify_atom_type",
     "deterministic_split_claim_atoms",
     "encode_claim_cursor",
+    "execute_source_deletion_m4_cascade",
     "install_claims_error_handlers",
 ]

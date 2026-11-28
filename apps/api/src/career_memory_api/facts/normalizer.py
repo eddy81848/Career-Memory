@@ -101,7 +101,10 @@ class CanonicalFactNormalizer:
     ) -> bool:
         return (
             subject_identity_id is not None
-            or fact_type is FactType.ROLE
+            or (
+                fact_type is FactType.ROLE
+                and semantic.scope is not FactAttributionScope.TEAM
+            )
             or semantic.scope is FactAttributionScope.INDIVIDUAL
         )
 

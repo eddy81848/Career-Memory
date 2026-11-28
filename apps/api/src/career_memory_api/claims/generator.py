@@ -161,6 +161,17 @@ class ClaimDraftGenerationResult:
     free_alternatives: tuple[str, ...] = ()
 
 
+_NON_PRODUCTION_QUALIFIER_RE = re.compile(
+    r"\b(?:before|prior to|not deployed to|never deployed to|without|preventing|blocked before)\s+(?:production|prod|live traffic)\b",
+    re.IGNORECASE,
+)
+
+
+def _asserts_production_scope(text: str) -> bool:
+    stripped = _NON_PRODUCTION_QUALIFIER_RE.sub("", text)
+    return bool(_PRODUCTION_TERM_RE.search(stripped))
+
+
 def _check_manifest_hallucination_guards(
     *,
     claim_text: str,
@@ -184,7 +195,7 @@ def _check_manifest_hallucination_guards(
         )
         for f in selected_facts
     )
-    if has_staging_fact and not has_prod_fact and _PRODUCTION_TERM_RE.search(claim_text):
+    if has_staging_fact and not has_prod_fact and _asserts_production_scope(claim_text):
         return "INVENTED_ENVIRONMENT_SCOPE"
 
     # 2. Invented numeric metric guard: numeric metrics in claim_text must appear in selected facts

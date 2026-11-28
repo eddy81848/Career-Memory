@@ -134,20 +134,60 @@ function extractMeta(res: Response): ClaimReviewResponseMeta {
 // =============================================================================
 
 function normalizeLocator(raw: unknown): SpanLocatorV1 | null {
-  const obj = asRecord(raw);
-  if (!obj) return null;
+  const outer = asRecord(raw);
+  if (!outer) return null;
+  const nested = asRecord(outer.locator);
+  const obj = nested ? { ...outer, ...nested } : outer;
+  const startLine =
+    typeof obj.start_line === "number"
+      ? obj.start_line
+      : typeof obj.line_start === "number"
+        ? obj.line_start
+        : null;
+  const endLine =
+    typeof obj.end_line === "number"
+      ? obj.end_line
+      : typeof obj.line_end === "number"
+        ? obj.line_end
+        : null;
+  const startChar =
+    typeof obj.start_char === "number"
+      ? obj.start_char
+      : typeof obj.char_start === "number"
+        ? obj.char_start
+        : null;
+  const endChar =
+    typeof obj.end_char === "number"
+      ? obj.end_char
+      : typeof obj.char_end === "number"
+        ? obj.char_end
+        : null;
+  const schema =
+    typeof obj.schema === "string"
+      ? obj.schema
+      : typeof obj.locator_spec_version === "string"
+        ? obj.locator_spec_version
+        : typeof obj.locator_version === "string"
+          ? obj.locator_version
+          : "cm-locator-v1";
+  const sourceUrl =
+    typeof obj.source_url === "string"
+      ? obj.source_url
+      : typeof obj.canonical_url === "string"
+        ? obj.canonical_url
+        : null;
   return {
     ...obj,
-    schema: typeof obj.schema === "string" ? obj.schema : "cm-locator-v1",
+    schema,
     file_path: typeof obj.file_path === "string" ? obj.file_path : null,
     section: typeof obj.section === "string" ? obj.section : null,
     hunk_header: typeof obj.hunk_header === "string" ? obj.hunk_header : null,
-    start_line: typeof obj.start_line === "number" ? obj.start_line : null,
-    end_line: typeof obj.end_line === "number" ? obj.end_line : null,
-    start_char: typeof obj.start_char === "number" ? obj.start_char : null,
-    end_char: typeof obj.end_char === "number" ? obj.end_char : null,
+    start_line: startLine,
+    end_line: endLine,
+    start_char: startChar,
+    end_char: endChar,
     span_sha256: typeof obj.span_sha256 === "string" ? obj.span_sha256 : null,
-    source_url: typeof obj.source_url === "string" ? obj.source_url : null,
+    source_url: sourceUrl,
   };
 }
 
@@ -260,11 +300,17 @@ export function normalizeFactSupportItem(raw: unknown): FactSupportItem {
           : null,
     revision_is_tombstone: Boolean(obj.revision_is_tombstone),
     last_checked_at:
-      typeof obj.last_checked_at === "string" ? obj.last_checked_at : null,
+      typeof obj.last_checked_at === "string"
+        ? obj.last_checked_at
+        : typeof supportMeta.checked_at === "string"
+          ? supportMeta.checked_at
+          : null,
     last_resolution_status:
       typeof obj.last_resolution_status === "string"
         ? (obj.last_resolution_status as SourceResolutionStatus)
-        : null,
+        : typeof supportMeta.resolution_status === "string"
+          ? (supportMeta.resolution_status as SourceResolutionStatus)
+          : null,
     support_metadata: supportMeta,
     created_at: typeof obj.created_at === "string" ? obj.created_at : "",
   };
@@ -327,7 +373,10 @@ export function normalizeClaimSummary(raw: unknown): ClaimSummaryItem {
     approvable: Boolean(obj.approvable),
     approval_block_reasons: asStringArray(obj.approval_block_reasons),
     support_graph_epoch:
-      typeof obj.support_graph_epoch === "number" ? obj.support_graph_epoch : 1,
+      typeof obj.support_graph_epoch === "string" ||
+      typeof obj.support_graph_epoch === "number"
+        ? obj.support_graph_epoch
+        : 1,
     approved_at: typeof obj.approved_at === "string" ? obj.approved_at : null,
     last_verified_at:
       typeof obj.last_verified_at === "string" ? obj.last_verified_at : null,
@@ -344,8 +393,8 @@ export function normalizeClaimSummary(raw: unknown): ClaimSummaryItem {
 
 function normalizeClaimAtomDetail(raw: unknown, idx: number): ClaimAtomDetailItem {
   const obj = asRecord(raw) ?? {};
-  const rg = asRecord(obj.role_grounding);
-  const md = asRecord(obj.metric_details);
+  const rg = asRecord(obj.role_grounding ?? obj.role_contribution_grounding);
+  const md = asRecord(obj.metric_details ?? obj.metric_grounding);
   return {
     atom_id: typeof obj.atom_id === "string" ? obj.atom_id : `atom_${idx + 1}`,
     ordinal: typeof obj.ordinal === "number" ? obj.ordinal : idx + 1,
@@ -356,7 +405,12 @@ function normalizeClaimAtomDetail(raw: unknown, idx: number): ClaimAtomDetailIte
     status: (typeof obj.status === "string"
       ? obj.status
       : "UNSUPPORTED") as ClaimAtomStatus,
-    block_reason: typeof obj.block_reason === "string" ? obj.block_reason : null,
+    block_reason:
+      typeof obj.block_reason === "string"
+        ? obj.block_reason
+        : typeof obj.unsupported_reason === "string"
+          ? obj.unsupported_reason
+          : null,
     role_grounding: rg
       ? {
           role: typeof rg.role === "string" ? rg.role : null,
@@ -405,6 +459,7 @@ export function normalizeClaimDetail(raw: unknown): ClaimDetailResponse {
 
 function normalizeClaimFactSupportNode(raw: unknown): ClaimFactSupportNode {
   const obj = asRecord(raw) ?? {};
+  const supportMeta = asRecord(obj.support_metadata) ?? {};
   return {
     fact_support_id:
       typeof obj.fact_support_id === "string"
@@ -439,11 +494,17 @@ function normalizeClaimFactSupportNode(raw: unknown): ClaimFactSupportNode {
         : null,
     revision_is_tombstone: Boolean(obj.revision_is_tombstone),
     last_checked_at:
-      typeof obj.last_checked_at === "string" ? obj.last_checked_at : null,
+      typeof obj.last_checked_at === "string"
+        ? obj.last_checked_at
+        : typeof supportMeta.checked_at === "string"
+          ? supportMeta.checked_at
+          : null,
     last_resolution_status:
       typeof obj.last_resolution_status === "string"
         ? (obj.last_resolution_status as SourceResolutionStatus)
-        : null,
+        : typeof supportMeta.resolution_status === "string"
+          ? (supportMeta.resolution_status as SourceResolutionStatus)
+          : null,
   };
 }
 
@@ -513,13 +574,25 @@ export function normalizeClaimSupports(raw: unknown): ClaimSupportsResponse {
       ? obj.computed_verification
       : "UNVERIFIED") as ComputedVerification,
     support_graph_epoch:
-      typeof obj.support_graph_epoch === "number" ? obj.support_graph_epoch : 1,
+      typeof obj.support_graph_epoch === "string" ||
+      typeof obj.support_graph_epoch === "number"
+        ? obj.support_graph_epoch
+        : 1,
     atoms,
   };
 }
 
 export function normalizeExportSummary(raw: unknown): ExportSummaryItem {
   const obj = asRecord(raw) ?? {};
+  const rawManifest = asRecord(obj.manifest) ?? {};
+  const claimVersions = asRecord(rawManifest.claim_versions);
+  const claimIds = asStringArray(obj.claim_ids);
+  const resolvedClaimIds =
+    claimIds.length > 0
+      ? claimIds
+      : claimVersions
+        ? Object.keys(claimVersions)
+        : [];
   return {
     export_id: typeof obj.export_id === "string" ? obj.export_id : "",
     workspace_id: typeof obj.workspace_id === "string" ? obj.workspace_id : "",
@@ -530,7 +603,7 @@ export function normalizeExportSummary(raw: unknown): ExportSummaryItem {
     status: (typeof obj.status === "string"
       ? obj.status
       : "ACTIVE") as ExportStatus,
-    claim_ids: asStringArray(obj.claim_ids),
+    claim_ids: resolvedClaimIds,
     invalidation_reason:
       typeof obj.invalidation_reason === "string"
         ? obj.invalidation_reason
@@ -544,9 +617,72 @@ export function normalizeExportDetail(raw: unknown): ExportDetailResponse {
   const obj = asRecord(raw) ?? {};
   const summary = normalizeExportSummary(obj);
   const rawManifest = asRecord(obj.manifest) ?? {};
+  const renderedJson = asRecord(obj.rendered_json);
   const rawCitations = Array.isArray(rawManifest.citations)
     ? rawManifest.citations
     : [];
+
+  let citations = rawCitations.map((c) => {
+    const ci = asRecord(c) ?? {};
+    return {
+      claim_id: typeof ci.claim_id === "string" ? ci.claim_id : "",
+      claim_version: typeof ci.claim_version === "number" ? ci.claim_version : 1,
+      computed_verification: (typeof ci.computed_verification === "string"
+        ? ci.computed_verification
+        : "SOURCE_VERIFIED") as ComputedVerification,
+      source_url: typeof ci.source_url === "string" ? ci.source_url : null,
+      locator: normalizeLocator(ci.locator),
+      revision_content_hash:
+        typeof ci.revision_content_hash === "string"
+          ? ci.revision_content_hash
+          : null,
+      observed_at: typeof ci.observed_at === "string" ? ci.observed_at : null,
+      checked_at: typeof ci.checked_at === "string" ? ci.checked_at : null,
+    };
+  });
+
+  // Backend JSON export places structured citations under rendered_json.claims[].atoms[].citations[]
+  if (citations.length === 0 && renderedJson && Array.isArray(renderedJson.claims)) {
+    const flattened: ExportManifest["citations"] = [];
+    for (const rawClaim of renderedJson.claims) {
+      const cObj = asRecord(rawClaim);
+      if (!cObj) continue;
+      const cid = typeof cObj.claim_id === "string" ? cObj.claim_id : "";
+      const cver = typeof cObj.claim_version === "number" ? cObj.claim_version : 1;
+      const cverif = (typeof cObj.computed_verification === "string"
+        ? cObj.computed_verification
+        : "SOURCE_VERIFIED") as ComputedVerification;
+      const atoms = Array.isArray(cObj.atoms) ? cObj.atoms : [];
+      for (const rawAtom of atoms) {
+        const aObj = asRecord(rawAtom);
+        if (!aObj || !Array.isArray(aObj.citations)) continue;
+        for (const rawCit of aObj.citations) {
+          const ci = asRecord(rawCit);
+          if (!ci) continue;
+          flattened.push({
+            claim_id: cid,
+            claim_version: cver,
+            computed_verification: cverif,
+            source_url:
+              typeof ci.canonical_url === "string"
+                ? ci.canonical_url
+                : typeof ci.source_url === "string"
+                  ? ci.source_url
+                  : null,
+            locator: normalizeLocator(ci.locator),
+            revision_content_hash:
+              typeof ci.revision_content_hash === "string"
+                ? ci.revision_content_hash
+                : null,
+            observed_at: typeof ci.observed_at === "string" ? ci.observed_at : null,
+            checked_at: typeof ci.checked_at === "string" ? ci.checked_at : null,
+          });
+        }
+      }
+    }
+    citations = flattened;
+  }
+
   const manifest: ExportManifest = {
     export_policy:
       rawManifest.export_policy === "ALLOW_USER_CONFIRMED"
@@ -555,34 +691,22 @@ export function normalizeExportDetail(raw: unknown): ExportDetailResponse {
     claim_count:
       typeof rawManifest.claim_count === "number"
         ? rawManifest.claim_count
-        : summary.claim_ids.length,
-    includes_user_confirmed: Boolean(rawManifest.includes_user_confirmed),
+        : typeof obj.claim_count === "number"
+          ? obj.claim_count
+          : summary.claim_ids.length,
+    includes_user_confirmed: Boolean(
+      rawManifest.includes_user_confirmed ??
+        (summary.export_policy === "ALLOW_USER_CONFIRMED")
+    ),
     contains_raw_quotes: false,
-    citations: rawCitations.map((c) => {
-      const ci = asRecord(c) ?? {};
-      return {
-        claim_id: typeof ci.claim_id === "string" ? ci.claim_id : "",
-        claim_version: typeof ci.claim_version === "number" ? ci.claim_version : 1,
-        computed_verification: (typeof ci.computed_verification === "string"
-          ? ci.computed_verification
-          : "SOURCE_VERIFIED") as ComputedVerification,
-        source_url: typeof ci.source_url === "string" ? ci.source_url : null,
-        locator: normalizeLocator(ci.locator),
-        revision_content_hash:
-          typeof ci.revision_content_hash === "string"
-            ? ci.revision_content_hash
-            : null,
-        observed_at: typeof ci.observed_at === "string" ? ci.observed_at : null,
-        checked_at: typeof ci.checked_at === "string" ? ci.checked_at : null,
-      };
-    }),
+    citations,
   };
 
   return {
     ...summary,
     rendered_markdown:
       typeof obj.rendered_markdown === "string" ? obj.rendered_markdown : null,
-    rendered_json: asRecord(obj.rendered_json),
+    rendered_json: renderedJson,
     manifest,
   };
 }
@@ -602,7 +726,7 @@ interface RawErrorBody {
       fact_id?: string;
       current_version?: number;
       current_status?: string;
-      current_support_graph_epoch?: number;
+      current_support_graph_epoch?: string | number;
       block_reasons?: string[];
     };
   };
@@ -627,7 +751,8 @@ function classifyClaimReviewError(
     status === 409 &&
     (code === "CLAIM_VERSION_CONFLICT" ||
       code === "FACT_VERSION_CONFLICT" ||
-      code === "EXPORT_CLAIM_VERSION_CONFLICT")
+      code === "EXPORT_CLAIM_VERSION_CONFLICT" ||
+      code === "EXPORT_CLAIM_VERSION_MISMATCH")
   ) {
     return {
       kind: "version_conflict",

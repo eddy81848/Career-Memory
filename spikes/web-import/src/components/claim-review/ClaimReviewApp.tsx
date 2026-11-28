@@ -622,6 +622,13 @@ export function ClaimReviewApp({
             </div>
             <div className="action-row">
               <a
+                href="/search"
+                className="btn btn--secondary btn--sm"
+                data-testid="open-memory-ops-link"
+              >
+                메모리 검색 · 삭제 · 한도 관리 (/search)
+              </a>
+              <a
                 href="/event-review"
                 className="btn btn--secondary btn--sm"
                 data-testid="back-to-event-review-link"

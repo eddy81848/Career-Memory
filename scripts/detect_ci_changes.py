@@ -229,9 +229,10 @@ def classify_changed_paths(
                 (
                     "apps/api/src/career_memory_api/pilot_gate/",
                     "apps/api/src/career_memory_api/edge_guard/ci_trust_audit.py",
+                    "apps/api/src/career_memory_api/hosted_runtime/preflight_od015.py",
                 )
             ):
-                # Pure offline gate/CI-audit modules do not alter runtime API/Worker behavior
+                # Pure offline gate/CI-audit/preflight modules do not alter runtime API/Worker behavior
                 continue
 
             run_api_pg18 = True

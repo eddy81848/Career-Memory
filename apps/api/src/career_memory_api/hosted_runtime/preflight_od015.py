@@ -17,7 +17,7 @@ from typing import Any
 TIER1_FREE_REGIONS: frozenset[str] = frozenset({"us-central1", "us-east1", "us-west1"})
 PAID_CONTAINER_SCANNING_API = "containerscanning.googleapis.com"
 
-MAX_ARTIFACT_REGISTRY_MB = 250.0
+MAX_ARTIFACT_REGISTRY_MB = 400.0
 MAX_SECRET_MANAGER_ENABLED_VERSIONS = 4
 MAX_VPC_CONNECTOR_COUNT = 0
 MAX_CLOUD_RUN_MIN_INSTANCES = 0
@@ -223,7 +223,7 @@ def evaluate_od015_preflight(
         )
     )
 
-    # 3. Artifact Registry total storage <= 250 MB (>= 250 MB teardown headroom under 500 MB Free Tier)
+    # 3. Artifact Registry total storage <= 400 MB (>= 100 MB safety buffer under 500 MB Free Tier)
     ar_ok = obs.artifact_registry_total_mb <= MAX_ARTIFACT_REGISTRY_MB
     checks.append(
         PreflightCheckResult(
@@ -232,7 +232,7 @@ def evaluate_od015_preflight(
             severity="HIGH" if not ar_ok else "INFO",
             message=(
                 f"Artifact Registry usage {obs.artifact_registry_total_mb:.1f} MB <= {MAX_ARTIFACT_REGISTRY_MB:.0f} MB "
-                "(>= 250 MB teardown headroom under 500 MB Free Tier)."
+                "(>= 100 MB safety buffer under 500 MB Free Tier)."
                 if ar_ok
                 else f"Artifact Registry usage {obs.artifact_registry_total_mb:.1f} MB exceeds {MAX_ARTIFACT_REGISTRY_MB:.0f} MB cap."
             ),

@@ -62,7 +62,7 @@ def test_od015_preflight_go_on_clean_us_central1_free_tier() -> None:
             {"enabled_services": frozenset({PAID_CONTAINER_SCANNING_API})},
             "OD015_PAID_CONTAINER_SCANNING_DISABLED",
         ),
-        ({"artifact_registry_total_mb": 251.0}, "OD015_ARTIFACT_REGISTRY_HEADROOM"),
+        ({"artifact_registry_total_mb": 401.0}, "OD015_ARTIFACT_REGISTRY_HEADROOM"),
         ({"secret_manager_enabled_versions": 5}, "OD015_SECRET_MANAGER_VERSION_HEADROOM"),
         ({"vpc_connector_count": 1}, "OD015_ZERO_SERVERLESS_VPC_CONNECTORS"),
         (

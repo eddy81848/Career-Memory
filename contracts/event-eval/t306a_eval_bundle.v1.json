@@ -1,0 +1,1501 @@
+{
+  "approved_21_bundle_sha256": "91cac742b48ad3bebee2e84aac3f6d3c5d9202c65d2406f3828b8494bf114a4d",
+  "cases": [
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-001",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "3079a2b7aba4e14110d790cd9639f0a5e99c61500a3b638beaa2ca5d76df1193",
+      "logical_state_sha256": "bde18e86311adf979322146a3e798e439493dad4eba3c54b16cb6a9004eb6080",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=1, direct_commit=0, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 29,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-001",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-002",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "3660bc403dcbb8cfda0df53d39fb92345f032c79773e5c2688a29fa2e0371c52",
+      "logical_state_sha256": "21457ea1f6de1bd728a72c3b1cacec9f79d2b88c33196e3413e6b11f4cb75559",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=0, direct_commit=1, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 32,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "REPLACED_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 0,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "DELTA-EV-002",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 1,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": "SYNC_RUN_NOT_IMPORT_READY",
+      "builder_status": "REJECTED",
+      "case_id": "EV-003",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_billing_engine",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "047309ade40cab34331e6ee6abf2a8348e6120def96c418472c17f3001219aef",
+      "logical_state_sha256": "e17b0c3e8afe01ae4f3e14d893f3f53afa49512f688b7ec5c864008046519e02",
+      "notes": [
+        "PostgresEventCandidateBuilder held/rejected run (status=REJECTED, error=SYNC_RUN_NOT_IMPORT_READY, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 18,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 0,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-003",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 0,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 0,
+        "total_held_items": 1,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-004",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_search_indexer",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "4926170e905b76eb28dcc5568e5f3337ab874fd64fe1c952a14fb6cadcd7da89",
+      "logical_state_sha256": "c2c0ee34c6d647961fbf3497419149800f2c14ccda550bb798d599f7956b076f",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=0, direct_commit=0, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 17,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 0,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-004",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 0,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 0,
+        "total_held_items": 1,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-005",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_notification_hub",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "4f0542d63a4e7a5d11a87f7f12e2724009eb5726cf3bf40b1e7fdab6c6e2f196",
+      "logical_state_sha256": "a9bfdc04840e3d16f540867a8f40fc540f382e5b565c2eff9d23fd907dbcf187",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=1, direct_commit=0, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 29,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-005",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-006",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "9ac7652635e702c0c1977cdbae7f943837f6d1f0cae7d791d025b74a4a732bdc",
+      "logical_state_sha256": "ab812614c87036c98a1e599cc5fdaaaa73b4881f2a59fc2ade80ba5afe244eb9",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=2, direct_commit=0, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 43,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-006",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 2,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-007",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "38f935bcef9c4fcd74468bbf66157633a737b1c2b1ddbd37c96172d05bf7c4b5",
+      "logical_state_sha256": "1bd28d2e7d60ee6eb2f5018c05de754d75ba34341fd16736a8d2d64e09dcd764",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=1, direct_commit=0, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 31,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "EV-007",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-008",
+      "command_results": [
+        {
+          "command_action": "split",
+          "command_id": "cmd_syn_008_split",
+          "error_code": null,
+          "http_method": "POST",
+          "http_path": "/v1/work-events/16c0dcb7-51b4-528b-8cad-45cc8d31545b/actions/split",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "created:PR_SEGMENT:Refactor auth header parser",
+            "created:PR_SEGMENT:Add monthly CSV export"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "5f7fd823d6c412c6cd5332fc1062070c8ae888eb233654d2a4335ad9611837b8",
+      "logical_state_sha256": "1cd05a1a3d0f2f247441c8f9666a5d8b375c7a489a318917fac5664429f70507",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 73,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-008",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 2,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 3,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-009",
+      "command_results": [
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_009_merge",
+          "error_code": null,
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "created:USER_COMPOSITE:Ship end-to-end SKU deprecation model and API filter"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "2531245ccbb9f661498965857208a40cf668a8dec8dfb5f2fca3b3118f92f2f4",
+      "logical_state_sha256": "e45b8b29729dc9f3d2c3be60bbdff0a4b34b5c7dfb87e5a1711c0e34e96886cf",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 65,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-009",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 3,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 1
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-010",
+      "command_results": [],
+      "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+      "execution_mode": "READ_COLLAPSE",
+      "file_sha256": "8402d24af183808241a56061e78e1b8726a3e4f605506188a23e4a63bdce8e59",
+      "logical_state_sha256": "92ee590718ad4f155026f93a51b0b3ed38228bf2a38edf66671e8cf4a7146671",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 82,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 3,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-010",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 3,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 4,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 1
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-011",
+      "command_results": [
+        {
+          "command_action": "exclude",
+          "command_id": "cmd_syn_011_exclude",
+          "error_code": null,
+          "http_method": "POST",
+          "http_path": "/v1/work-events/3eb7c8e5-872e-564b-83fc-6daeea2d86fa/actions/reject",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "ev_init_011_noise"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_web_portal",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "7b766cb20bce985735015e4895d32db45035f3eec95ba0e3d42b83a27219e67c",
+      "logical_state_sha256": "148cf824f5720232182d55e7e2f93e62def21cd185848d90c4dd81d321e087ac",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 49,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-011",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 2,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 2,
+        "total_held_items": 0,
+        "total_rejected_events": 1,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-012",
+      "command_results": [
+        {
+          "command_action": "dissolve",
+          "command_id": "cmd_syn_012_dissolve",
+          "error_code": null,
+          "http_method": "POST",
+          "http_path": "/v1/work-events/d9653f2f-e148-53f2-a2e9-c703b9df0d99/actions/dissolve",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "ev_init_012_m1",
+            "ev_init_012_m2"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "0e8d8f70ccb11ddc986754a1f676c7fc09be2cd30a3780086c07176d762c885a",
+      "logical_state_sha256": "a81cca3f49748ada99e80fbca813a92b67804bed475ceaa20363582e87e6cc51",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 72,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-012",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 3,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-013",
+      "command_results": [
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_013_link_ticket",
+          "error_code": "NON_EVENT_MEMBER_NOT_ALLOWED",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 422,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        },
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_013_link_unknown",
+          "error_code": "PR_ASSOCIATION_INCOMPLETE",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_auth_services",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "fafb94669999d2c3edbfc765b84a3943781bea2928ad94647f1dfc213a277c59",
+      "logical_state_sha256": "d76df833f7f790210cbc9844cba40155093ab5bb9f3e278f619ff05192d93e73",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 40,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-013",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 1,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-014",
+      "command_results": [
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_014_nested",
+          "error_code": "MEMBER_ALREADY_COMPOSED",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        },
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_014_nested_root",
+          "error_code": "NESTED_COMPOSITE_NOT_ALLOWED",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        },
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_014_excluded",
+          "error_code": "MEMBER_NOT_ACTIVE",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_analytics_pipe",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "d80e571a21dbfaea8b79c71a6684e956be323b19d88429c647089c7a12612a26",
+      "logical_state_sha256": "6f697ec0a307c2c4b7e0bced38bdba46a06fe4df9916d9e6f62630904440032f",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 105,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 4,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-014",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 5,
+        "total_held_items": 0,
+        "total_rejected_events": 1,
+        "total_user_composite_events": 1
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-015",
+      "command_results": [
+        {
+          "command_action": "exclude",
+          "command_id": "cmd_syn_015_stale_exclude",
+          "error_code": "EVENT_VERSION_CONFLICT",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/bde3758b-c5a1-565e-bcce-83f0a48ecdaf/actions/reject",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "478e15b0d2401b452cb3253aa23eecfa52eef9d0f5695bcbc36464c4eaa1a02f",
+      "logical_state_sha256": "5bc652971cb3882749b52525f3c4113f0a2f0a1ed082c3a3adfec6c9a6412d29",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 34,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-015",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-016",
+      "command_results": [
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_016_cross_merge",
+          "error_code": "RESOURCE_NOT_FOUND",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 404,
+          "internal_policy_code": "CROSS_WORKSPACE_MEMBER",
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        },
+        {
+          "command_action": "exclude",
+          "command_id": "cmd_syn_016_wrong_ws",
+          "error_code": "RESOURCE_NOT_FOUND",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/17943e7c-e31c-54e2-a010-55e7aab36f77/actions/reject",
+          "http_status": 404,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        },
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_016_cross_repo_same_ws",
+          "error_code": "CROSS_REPOSITORY_MEMBER",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        }
+      ],
+      "eval_bundle_id": "bundle_mvp_multi_workspace",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "7ff70aef52fc382f780e63eeb8a8d481a5faef1e0d20c8b58687dd281f9700a7",
+      "logical_state_sha256": "c34af38eff2f3e2b44aa4d45ea5499b3e12c17770226939073df9527c056c910",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 72,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "BASELINE_1_0_0",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 3,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "EV-016",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 3,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 3,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": "SUCCEEDED",
+      "case_id": "EV-019",
+      "command_results": [],
+      "eval_bundle_id": "bundle_cand_payments_trunk",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "4c4c290ea30259b46cb44c704d688cc72ebc42b58365a2ed898ed9f3ea79468a",
+      "logical_state_sha256": "bb7b18b1dcc3bed7f05a58d25feb883ef5fbf6f3a68982f2395ab169ae3ddd88",
+      "notes": [
+        "PostgresEventCandidateBuilder succeeded (pr=2, direct_commit=1, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 75,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "NEW_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "CAND-EV-019",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 4,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 3,
+        "total_direct_commit_events": 1,
+        "total_events_in_db": 3,
+        "total_held_items": 2,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": "SYNC_RUN_NOT_IMPORT_READY",
+      "builder_status": "REJECTED",
+      "case_id": "EV-020",
+      "command_results": [],
+      "eval_bundle_id": "bundle_cand_legacy_master",
+      "execution_mode": "CANDIDATE_BUILDER",
+      "file_sha256": "4b502caf60bf508844862c97f1ecd2b0d7ba192754ac6f4c185102afd80818d8",
+      "logical_state_sha256": "a033cdcfd3652c286a31a450903ded8d42c0b1cad729f1111e6af339cdf8f7cb",
+      "notes": [
+        "PostgresEventCandidateBuilder held/rejected run (status=REJECTED, error=SYNC_RUN_NOT_IMPORT_READY, replay_idempotent=True)."
+      ],
+      "oracle_comparison": {
+        "assertions_checked": 24,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "NEW_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": true,
+      "replay_idempotency_passed": true,
+      "source_record_id": "CAND-EV-020",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 2,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 0,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 0,
+        "total_held_items": 2,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-021",
+      "command_results": [
+        {
+          "command_action": "manual_merge",
+          "command_id": "cmd_syn_021_merge_cannot_link",
+          "error_code": "CANNOT_LINK_CONFLICT",
+          "http_method": "POST",
+          "http_path": "/v1/work-events/actions/merge",
+          "http_status": 409,
+          "internal_policy_code": null,
+          "outcome": "REJECTED",
+          "resulting_event_ids": [],
+          "state_mutated": false
+        }
+      ],
+      "eval_bundle_id": "bundle_cand_policy_engine",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "6cfdd2360a7ec7be9f79be71b399b3f312edf979115db9fd594eb583952ef68d",
+      "logical_state_sha256": "9e018ff832d09c4e1b1249ce74b7fe14d6af6d5a18c0cda9a0a8aa7317583bd3",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 59,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "NEW_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 2,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "CAND-EV-021",
+      "summary_counts": {
+        "review_action_count": 0,
+        "search_check_count": 2,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 2,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-022",
+      "command_results": [
+        {
+          "command_action": "confirm",
+          "command_id": "cmd_syn_022_confirm",
+          "error_code": null,
+          "http_method": "POST",
+          "http_path": "/v1/work-events/c522ce0b-8648-5b0e-8da1-f43e8b4caf74/actions/confirm",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "ev_init_022_1"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "0e7d5f21b77a73f94d0b71cc571ee6c17c7610c4e020d8ed4d30010aca961258",
+      "logical_state_sha256": "6841235e25898bf50d289ff46d91ccc3ca125afe8dcd99b425e4f2c14ff5961d",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 43,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "NEW_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "CAND-EV-022",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 1,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 1,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 1,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    },
+    {
+      "builder_error_code": null,
+      "builder_status": null,
+      "case_id": "EV-023",
+      "command_results": [
+        {
+          "command_action": "edit",
+          "command_id": "cmd_syn_023_edit",
+          "error_code": null,
+          "http_method": "PATCH",
+          "http_path": "/v1/work-events/549243b3-7c5a-5888-982d-1ddcd74eaf87",
+          "http_status": 200,
+          "internal_policy_code": null,
+          "outcome": "ACCEPTED",
+          "resulting_event_ids": [
+            "ev_init_023_1"
+          ],
+          "state_mutated": true
+        }
+      ],
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "execution_mode": "CURATION_COMMANDS",
+      "file_sha256": "38616516e864988fb8e28d69f92fdc082c438e598e7e02e65708aa572a4da0cb",
+      "logical_state_sha256": "7caf623ad9673f655a18f094501e4ebae5bbf6d23dccf2c350744b02c251deda",
+      "notes": [],
+      "oracle_comparison": {
+        "assertions_checked": 62,
+        "diff_count": 0,
+        "diffs": [],
+        "matched": true
+      },
+      "origin": "NEW_FROM_M0_GATE_DELTA",
+      "passed": true,
+      "plan_c_audit": {
+        "canaries_checked": 1,
+        "canary_hits": 0,
+        "content_units_plan_c_compliant": true,
+        "fact_support_plan_c_compliant": true,
+        "jsonb_forbidden_key_hits": 0,
+        "leak_locations": [],
+        "passed": true,
+        "tables_scanned": 39
+      },
+      "replay_idempotency_checked": false,
+      "replay_idempotency_passed": null,
+      "source_record_id": "CAND-EV-023",
+      "summary_counts": {
+        "review_action_count": 1,
+        "search_check_count": 2,
+        "top_level_duplicate_count": 0,
+        "total_countable_events": 2,
+        "total_direct_commit_events": 0,
+        "total_events_in_db": 2,
+        "total_held_items": 0,
+        "total_rejected_events": 0,
+        "total_user_composite_events": 0
+      }
+    }
+  ],
+  "curation_usability_telemetry": {
+    "governance_policy": {
+      "auto_clustering_enabled": false,
+      "auto_clustering_policy_note": "Per T-306, curation telemetry and data cost observations MUST NOT activate automatic multi-PR or multi-direct-commit clustering in MVP.",
+      "classification_boundary": "Results are classified as contract regression (SYNTHETIC_CONTRACT_REGRESSION) and R-002 usability evidence (CLOSED_PILOT_USER_TELEMETRY), NOT architecture go/no-go.",
+      "strict_partition_separation": true
+    },
+    "partitions": {
+      "CLOSED_PILOT_USER_TELEMETRY": {
+        "action_counts": {
+          "CONFIRM": 0,
+          "DISSOLVE": 0,
+          "EDIT": 0,
+          "MERGE": 0,
+          "REJECT": 0,
+          "SPLIT": 0
+        },
+        "action_distribution_ratio": {
+          "CONFIRM": 0.0,
+          "DISSOLVE": 0.0,
+          "EDIT": 0.0,
+          "MERGE": 0.0,
+          "REJECT": 0.0,
+          "SPLIT": 0.0
+        },
+        "candidate_anchor_counts": {
+          "DIRECT_COMMIT": 0,
+          "PR": 0,
+          "direct_commit_share": null,
+          "direct_commit_to_pr_ratio": null
+        },
+        "classification": "R-002_USABILITY_EVIDENCE",
+        "events_reviewed_count": 0,
+        "honesty_note": "Closed pilot has not yet been executed. Real human review duration (p50/p95) and R-002 usability rates are intentionally null/0 and NEVER substituted with synthetic regression timings.",
+        "partition": "CLOSED_PILOT_USER_TELEMETRY",
+        "pilot_session_count": 0,
+        "post_merge_top_level_search_export_duplicate_count": 0,
+        "review_flag_stats": {
+          "flag_hit_rate": null,
+          "flag_utilization_rate": null,
+          "flagged_events_acted_upon": 0,
+          "flagged_events_total": 0
+        },
+        "status": "NOT_YET_COLLECTED_PRE_PILOT",
+        "total_command_samples": 0,
+        "user_composite_merge_stats": {
+          "accepted_merges": 0,
+          "attempted_merges": 0,
+          "merge_frequency_of_accepted_actions": null
+        }
+      },
+      "SYNTHETIC_CONTRACT_REGRESSION": {
+        "accepted_action_counts": {
+          "CONFIRM": 1,
+          "DISSOLVE": 1,
+          "EDIT": 1,
+          "MERGE": 1,
+          "REJECT": 1,
+          "SPLIT": 1
+        },
+        "accepted_command_samples": 6,
+        "action_counts": {
+          "CONFIRM": 1,
+          "DISSOLVE": 1,
+          "EDIT": 1,
+          "MERGE": 9,
+          "REJECT": 3,
+          "SPLIT": 1
+        },
+        "action_distribution_ratio": {
+          "CONFIRM": 0.0625,
+          "DISSOLVE": 0.0625,
+          "EDIT": 0.0625,
+          "MERGE": 0.5625,
+          "REJECT": 0.1875,
+          "SPLIT": 0.0625
+        },
+        "candidate_anchor_counts": {
+          "DIRECT_COMMIT": 2,
+          "PR": 7,
+          "direct_commit_share": 0.2222,
+          "direct_commit_to_pr_ratio": 0.2857
+        },
+        "classification": "CONTRACT_REGRESSION_ONLY_NOT_ARCHITECTURE_GO_NO_GO",
+        "partition": "SYNTHETIC_CONTRACT_REGRESSION",
+        "pilot_session_count": 0,
+        "post_merge_top_level_search_export_duplicate_count": 0,
+        "rejected_action_counts": {
+          "CONFIRM": 0,
+          "DISSOLVE": 0,
+          "EDIT": 0,
+          "MERGE": 8,
+          "REJECT": 2,
+          "SPLIT": 0
+        },
+        "rejected_command_samples": 10,
+        "review_flag_stats": {
+          "flag_hit_rate": 0.4444,
+          "flag_utilization_rate": 0.25,
+          "flagged_events_acted_upon": 1,
+          "flagged_events_total": 4
+        },
+        "status": "SYNTHETIC_21_CASE_REGRESSION_EXECUTED",
+        "synthetic_case_count": 17,
+        "total_command_samples": 16,
+        "total_samples": 25,
+        "user_composite_merge_stats": {
+          "accepted_merges": 1,
+          "attempted_merges": 9,
+          "merge_frequency_of_accepted_actions": 0.1667
+        }
+      }
+    }
+  },
+  "database_engine": "PostgreSQL 18 (local ephemeral, migrations 0010..0060, NOBYPASSRLS + FORCE RLS)",
+  "dataset_version": "1.1.0-mvp-approved",
+  "evaluation_bundles": [
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-001",
+        "EV-015"
+      ],
+      "eval_bundle_id": "bundle_mvp_ledger_service",
+      "passed_count": 2,
+      "total_count": 2
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-002"
+      ],
+      "eval_bundle_id": "bundle_mvp_edge_gateway",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-003"
+      ],
+      "eval_bundle_id": "bundle_mvp_billing_engine",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-004"
+      ],
+      "eval_bundle_id": "bundle_mvp_search_indexer",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-005"
+      ],
+      "eval_bundle_id": "bundle_mvp_notification_hub",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-006",
+        "EV-009",
+        "EV-012"
+      ],
+      "eval_bundle_id": "bundle_mvp_catalog_api",
+      "passed_count": 3,
+      "total_count": 3
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-007",
+        "EV-008"
+      ],
+      "eval_bundle_id": "bundle_mvp_reporting_core",
+      "passed_count": 2,
+      "total_count": 2
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-010"
+      ],
+      "eval_bundle_id": "bundle_mvp_queue_dispatcher",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-011"
+      ],
+      "eval_bundle_id": "bundle_mvp_web_portal",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-013"
+      ],
+      "eval_bundle_id": "bundle_mvp_auth_services",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-014"
+      ],
+      "eval_bundle_id": "bundle_mvp_analytics_pipe",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-016"
+      ],
+      "eval_bundle_id": "bundle_mvp_multi_workspace",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-019"
+      ],
+      "eval_bundle_id": "bundle_cand_payments_trunk",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-020"
+      ],
+      "eval_bundle_id": "bundle_cand_legacy_master",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-021"
+      ],
+      "eval_bundle_id": "bundle_cand_policy_engine",
+      "passed_count": 1,
+      "total_count": 1
+    },
+    {
+      "all_passed": true,
+      "case_ids": [
+        "EV-022",
+        "EV-023"
+      ],
+      "eval_bundle_id": "bundle_cand_workflow_audit",
+      "passed_count": 2,
+      "total_count": 2
+    }
+  ],
+  "issue_ref": "#11",
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "production_entry_points": [
+    "career_memory_api.event_candidates.PostgresEventCandidateBuilder",
+    "career_memory_api.work_events.PostgresWorkEventsReadService",
+    "career_memory_api.work_events.PostgresWorkEventMutationService",
+    "career_memory_api.work_events.create_work_events_router",
+    "career_memory_api.work_events.query_searchable_top_level_work_events",
+    "career_memory_api.work_events.collapse_event_ids_for_search_and_export"
+  ],
+  "read_only_oracle_policy": {
+    "auto_update_oracle_supported": false,
+    "excluded_from_mvp_truth_comparison": [
+      "UI badge strings & unconfirmed API field names for direct-commit association confirmation (DELTA-EV-002, CAND-EV-019)",
+      "External API ReviewAction response tokens (CAND-EV-022, CAND-EV-023; domain ReviewAction CONFIRM/EDIT is verified)",
+      "Unconfirmed HTTP status codes (409 vs 412, If-Match, 403 vs 404, CANNOT_LINK_CONFLICT HTTP code, confirm/edit HTTP codes)",
+      "Internal diagnostic record persistence format & live GitHub API lookup assumptions for out-of-window PR deduplication (CAND-EV-019)",
+      "OD-007 physical database table / storage layout details",
+      "Editing behavior on an already-CONFIRMED Event (CAND-EV-023 covers active CANDIDATE -> new CANDIDATE only)",
+      "Multi-violation error precedence (EV-014 cmd_syn_014_nested: MEMBER_ALREADY_COMPOSED vs MEMBER_NOT_ACTIVE)",
+      "Non-Event ID wire error codes (EV-013), unauthorized foreign-workspace external wire codes (EV-016), mixed-purpose review flag literal (EV-007), and historical SUPERSEDED detail GET shape (EV-010)"
+    ],
+    "frozen_dataset_modified": false,
+    "unimplemented_m5_contract_boundaries": [
+      "M5 Full-Text Search (FTS) ranking engine is not yet implemented; search_checks verify single-logical-event collapse and non-raw text matching via production query_searchable_top_level_work_events() and GET /v1/work-events.",
+      "M5 Export download/generation table and adapter are not yet implemented in migrations 0010..0060; EV-012 Export STALE invalidation is verified at contract level via atomic WORK_EVENT_COMPOSITE_DISSOLVED outbox cleanup intent alongside direct PG18 STALE verification on facts and claims."
+    ]
+  },
+  "schema_migrations": [
+    "0010_identity_workspace_source_auth.sql",
+    "0020_source_provenance_metadata.sql",
+    "0030_events_facts_claims_contributions.sql",
+    "0040_sync_runs_jobs_outbox_audit.sql",
+    "0050_m2_backfill_observations.sql",
+    "0060_m3_event_versions_and_constraints.sql"
+  ],
+  "schema_version": "cm-t306a-event-eval-bundle.v1",
+  "summary": {
+    "all_passed": true,
+    "failed_cases": 0,
+    "passed_bundles": 16,
+    "passed_cases": 21,
+    "total_bundles": 16,
+    "total_cases": 21,
+    "total_jsonb_forbidden_key_hits": 0,
+    "total_oracle_diffs": 0,
+    "total_plan_c_violations": 0,
+    "total_raw_body_canary_hits": 0
+  },
+  "task_refs": [
+    "T-306",
+    "T-306A"
+  ],
+  "volatile_runtime_metrics": {
+    "per_case_execution_ms": {
+      "EV-001": 162.166,
+      "EV-002": 151.499,
+      "EV-003": 105.795,
+      "EV-004": 113.952,
+      "EV-005": 132.477,
+      "EV-006": 135.02,
+      "EV-007": 147.074,
+      "EV-008": 191.913,
+      "EV-009": 183.885,
+      "EV-010": 157.793,
+      "EV-011": 151.973,
+      "EV-012": 189.243,
+      "EV-013": 178.423,
+      "EV-014": 236.967,
+      "EV-015": 158.493,
+      "EV-016": 190.906,
+      "EV-019": 159.271,
+      "EV-020": 107.327,
+      "EV-021": 165.752,
+      "EV-022": 160.297,
+      "EV-023": 166.249
+    },
+    "telemetry_timings": {
+      "CLOSED_PILOT_USER_TELEMETRY": {
+        "review_time_p50_ms": null,
+        "review_time_p95_ms": null,
+        "sample_count": 0
+      },
+      "SYNTHETIC_CONTRACT_REGRESSION": {
+        "execution_or_review_p50_ms": 28.697,
+        "execution_or_review_p95_ms": 151.499,
+        "sample_count": 25
+      }
+    },
+    "total_suite_execution_ms": 3346.474
+  }
+}

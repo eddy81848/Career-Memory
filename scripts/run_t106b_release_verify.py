@@ -306,14 +306,18 @@ def run_smoke_checks(
     base_api = api_url.rstrip("/")
     results: list[dict[str, Any]] = []
 
-    # 1. GET /healthz -> 200 (captures first-call cold start latency sample, T-007F Step 3)
+    # 1. GET /api/health (fallback /healthz locally) -> 200 (captures first-call cold start latency, T-007F Step 3)
     st_health, hdr_health, _, lat_api_ms = _http_probe(
-        f"{base_api}/healthz", method="GET", timeout_seconds=timeout_seconds
+        f"{base_api}/api/health", method="GET", timeout_seconds=timeout_seconds
     )
+    if st_health == 404:
+        st_health, hdr_health, _, lat_api_ms = _http_probe(
+            f"{base_api}/healthz", method="GET", timeout_seconds=timeout_seconds
+        )
     results.append(
         {
-            "check": "api_healthz_200",
-            "passed": st_health == 200,
+            "check": "api_health_200",
+            "passed": st_health == 200 and "no-store" in hdr_health.get("cache-control", "").lower(),
             "status_code": st_health,
             "cache_control": hdr_health.get("cache-control", ""),
             "latency_ms": lat_api_ms,
@@ -392,14 +396,19 @@ def run_smoke_checks(
     # 5. Next.js BFF cm-web checks (OD-010 PKCE, __Host- HttpOnly/Secure cookie, CSRF, no-store)
     if web_url:
         base_web = web_url.rstrip("/")
-        st_web_h, _, _, lat_web_ms = _http_probe(
-            f"{base_web}/healthz", method="GET", timeout_seconds=timeout_seconds
+        st_web_h, hdr_web_h, _, lat_web_ms = _http_probe(
+            f"{base_web}/api/health", method="GET", timeout_seconds=timeout_seconds
         )
+        if st_web_h == 404:
+            st_web_h, hdr_web_h, _, lat_web_ms = _http_probe(
+                f"{base_web}/healthz", method="GET", timeout_seconds=timeout_seconds
+            )
         results.append(
             {
-                "check": "web_healthz_200",
-                "passed": st_web_h == 200,
+                "check": "web_health_200",
+                "passed": st_web_h == 200 and "no-store" in hdr_web_h.get("cache-control", "").lower(),
                 "status_code": st_web_h,
+                "cache_control": hdr_web_h.get("cache-control", ""),
                 "latency_ms": lat_web_ms,
             }
         )

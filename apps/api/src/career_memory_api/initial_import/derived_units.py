@@ -20,6 +20,7 @@ Enforces 방안 C §3.4:
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -148,6 +149,8 @@ class DerivedUnitIngestionProcessor:
         workspace_id: str,
         sync_run_id: str,
         now: datetime | None = None,
+        skip_already_ingested: bool = False,
+        deadline_monotonic: float | None = None,
     ) -> DerivedUnitIngestionResult:
         """Refetch ephemeral source bytes for an `IMPORT_READY` run and persist unit metadata."""
         ts = now or self._clock()
@@ -345,9 +348,18 @@ class DerivedUnitIngestionProcessor:
                           AND so.source_resource_id = %s::uuid
                           AND rev.is_tombstone = false
                           AND so.lifecycle_state = 'ACTIVE'
+                          AND (
+                              NOT %s
+                              OR NOT EXISTS (
+                                  SELECT 1
+                                  FROM public.content_units cu
+                                  WHERE cu.workspace_id = rev.workspace_id
+                                    AND cu.source_object_revision_id = rev.id
+                              )
+                          )
                         ORDER BY so.object_type ASC, so.provider_object_id ASC, rev.observed_at ASC
                         """,
-                        (ws_uuid, resource_id),
+                        (ws_uuid, resource_id, bool(skip_already_ingested)),
                     )
                     revisions = [
                         (
@@ -366,6 +378,16 @@ class DerivedUnitIngestionProcessor:
         operation_id = f"derived-units:{run_uuid}"
 
         for rev_id, obj_type, provider_object_id, provider_revision_id, expected_hash, norm_meta in revisions:
+            if deadline_monotonic is not None and time.monotonic() >= deadline_monotonic:
+                return DerivedUnitIngestionResult(
+                    executed=True,
+                    sync_run_id=run_uuid,
+                    sync_run_status=SyncRunStatus.SUCCESS,
+                    processing_status=ProcessingStatus.RUNNING,
+                    revisions_processed=revisions_processed,
+                    content_units_inserted=units_inserted,
+                    reason_code="SLICE_BUDGET_PAUSED",
+                )
             source_kind = _OBJECT_TYPE_TO_SOURCE_KIND.get(obj_type)
             if source_kind is None:
                 continue

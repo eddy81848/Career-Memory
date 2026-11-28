@@ -166,22 +166,22 @@ class InitialBackfillJobWorker:
                 final_job_status = JobStatus.CANCELED
 
             if (
-                run_derived_units
-                and self._derived_unit_processor is not None
+                run_event_candidate_builder
+                and self._event_candidate_builder is not None
                 and execution.import_ready
             ):
-                derived_res = self._derived_unit_processor.process_import_ready_run(
+                candidate_res = self._event_candidate_builder.build_candidates_for_sync_run(
                     workspace_id=job.workspace_id,
                     sync_run_id=execution.sync_run_id,
                     now=self._clock(),
                 )
 
             if (
-                run_event_candidate_builder
-                and self._event_candidate_builder is not None
+                run_derived_units
+                and self._derived_unit_processor is not None
                 and execution.import_ready
             ):
-                candidate_res = self._event_candidate_builder.build_candidates_for_sync_run(
+                derived_res = self._derived_unit_processor.process_import_ready_run(
                     workspace_id=job.workspace_id,
                     sync_run_id=execution.sync_run_id,
                     now=self._clock(),

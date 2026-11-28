@@ -105,7 +105,7 @@ export interface RevalidateClaimInput {
 export interface ApproveClaimInput {
   claim_id: string;
   expected_version: number;
-  expected_support_graph_epoch?: number;
+  expected_support_graph_epoch?: string | number;
   acknowledge_user_confirmed_atoms: boolean;
   idempotency_key?: string;
 }

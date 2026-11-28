@@ -93,7 +93,11 @@ class ExportRenderOutput:
 def _sanitize_locator(raw_locator: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(raw_locator, Mapping):
         return {}
-    cleaned = {k: raw_locator[k] for k in _ALLOWED_LOCATOR_KEYS if k in raw_locator}
+    nested = raw_locator.get("locator")
+    effective: Mapping[str, Any] = (
+        {**raw_locator, **nested} if isinstance(nested, Mapping) else raw_locator
+    )
+    cleaned = {k: effective[k] for k in _ALLOWED_LOCATOR_KEYS if k in effective}
     assert_no_forbidden_raw_keys(cleaned, field_name="export.citation.locator")
     return cleaned
 

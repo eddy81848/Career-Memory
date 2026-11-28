@@ -1116,7 +1116,7 @@ export class MockClaimReviewAdapter
     const claim = this.claims.get(claimId);
     if (!claim) return;
     claim.version += 1;
-    claim.support_graph_epoch += 1;
+    claim.support_graph_epoch = typeof claim.support_graph_epoch === "number" ? claim.support_graph_epoch + 1 : 2;
     claim.updated_at = nowIso();
     this.conflictArmedForClaimIds.add(claimId);
   }
@@ -1545,7 +1545,7 @@ export class MockClaimReviewAdapter
       if (this.conflictArmedNextMutation) {
         this.conflictArmedNextMutation = false;
         claim.version += 1;
-        claim.support_graph_epoch += 1;
+        claim.support_graph_epoch = typeof claim.support_graph_epoch === "number" ? claim.support_graph_epoch + 1 : 2;
         claim.updated_at = nowIso();
       }
       this.conflictArmedForClaimIds.delete(claim.claim_id);
@@ -1617,7 +1617,7 @@ export class MockClaimReviewAdapter
       ],
       approved_at: null,
       last_verified_at: null,
-      support_graph_epoch: prev.support_graph_epoch + 1,
+      support_graph_epoch: typeof prev.support_graph_epoch === "number" ? prev.support_graph_epoch + 1 : 2,
       updated_at: nowIso(),
       atoms: prev.atoms.map((atom) => ({
         ...clone(atom),
@@ -1742,7 +1742,7 @@ export class MockClaimReviewAdapter
 
     claim.last_verified_at = nowIso();
     claim.last_verification_run_id = `run_reval_${++this.seq}`;
-    claim.support_graph_epoch += 1;
+    claim.support_graph_epoch = typeof claim.support_graph_epoch === "number" ? claim.support_graph_epoch + 1 : 2;
     claim.updated_at = nowIso();
 
     const sup = this.claimSupports.get(claim.claim_id);

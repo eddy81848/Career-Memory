@@ -211,7 +211,7 @@ export interface ClaimSummaryItem {
   stale_atom_count: number;
   approvable: boolean;
   approval_block_reasons: string[];
-  support_graph_epoch: number;
+  support_graph_epoch: string | number;
   approved_at: string | null;
   last_verified_at: string | null;
   generator_run_id: string | null;
@@ -300,7 +300,7 @@ export interface ClaimSupportsResponse {
   event_id: string;
   status: ClaimStatus;
   computed_verification: ComputedVerification;
-  support_graph_epoch: number;
+  support_graph_epoch: string | number;
   atoms: ClaimAtomSupportsItem[];
 }
 
@@ -388,7 +388,13 @@ export type ExportFormat = "MARKDOWN" | "JSON";
 
 export type ExportPolicy = "SOURCE_VERIFIED_ONLY" | "ALLOW_USER_CONFIRMED";
 
-export type ExportStatus = "ACTIVE" | "READY" | "INVALIDATED" | "DELETED";
+export type ExportStatus =
+  | "PENDING"
+  | "ACTIVE"
+  | "READY"
+  | "INVALIDATED"
+  | "FAILED"
+  | "DELETED";
 
 export interface ExportCitationManifestItem {
   claim_id: string;
@@ -467,7 +473,7 @@ export interface ClaimConflictDetails {
   fact_id?: string;
   current_version?: number;
   current_status?: string;
-  current_support_graph_epoch?: number;
+  current_support_graph_epoch?: string | number;
   block_reasons?: string[];
 }
 

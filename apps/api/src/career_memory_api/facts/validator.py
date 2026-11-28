@@ -400,10 +400,15 @@ class FactSupportValidator:
                     rev_loc_verified=False,
                 )
 
-            # 1c. Identity Attribution Gate (ID-04, SCN-11)
+            # 1c. Identity Attribution Gate (ID-04, SCN-11, SCN-15)
+            # TEAM-scoped ROLE facts without an individual subject_identity_id (e.g. SCN-15 fact-15-2
+            # documenting another engineer/team led an audit) do not assert individual attribution.
             needs_identity_gate = (
                 request.subject_identity_id is not None
-                or request.fact_type is FactType.ROLE
+                or (
+                    request.fact_type is FactType.ROLE
+                    and request.semantic.scope is not FactAttributionScope.TEAM
+                )
                 or request.semantic.scope is FactAttributionScope.INDIVIDUAL
             )
             if needs_identity_gate:

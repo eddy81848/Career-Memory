@@ -79,6 +79,10 @@ from career_memory_api.schema_contracts.enums import (
 CLAIM_SUPPORT_VALIDATION_SCHEMA_ID = f"{SCHEMA_BASE_URI}/claim_support_validation.v1.schema.json"
 
 _PRODUCTION_ASSERTION_RE = re.compile(r"\b(production|prod|live traffic)\b", re.IGNORECASE)
+_NON_PRODUCTION_QUALIFIER_RE = re.compile(
+    r"\b(?:before|prior to|not deployed to|never deployed to|without|preventing|blocked before)\s+(?:production|prod|live traffic)\b",
+    re.IGNORECASE,
+)
 _CAUSAL_ASSERTION_RE = re.compile(
     r"\b(caused|drove|directly resulted in|directly increased|directly reduced|solely caused)\b",
     re.IGNORECASE,
@@ -402,6 +406,7 @@ def _metric_grounding_matches_fact(
     atom_text: str,
     proposed_metric: Mapping[str, Any] | None,
     fact_metric: MetricDetailsModel | None,
+    fact_object_text: str = "",
 ) -> tuple[bool, str | None]:
     """CLAIM-06 6-element metric verification (value, unit, period, source_basis, env, scope)."""
     if proposed_metric is None or fact_metric is None:
@@ -432,7 +437,7 @@ def _metric_grounding_matches_fact(
             if _norm_str(match.group(0)) not in fact_scope_norm:
                 return False, "METRIC_SCOPE_OVERGENERALIZED"
 
-    # Guard against numeric distortion in atom_text vs fact value (e.g., 10x distortion SCN-14)
+    # Guard against numeric distortion in atom_text vs fact value/object_text (e.g., 10x distortion SCN-14)
     atom_nums = {
         re.sub(r"\s+", "", m.group(0).lower()) for m in _NUMBER_TOKEN_RE.finditer(atom_text)
     }
@@ -440,7 +445,8 @@ def _metric_grounding_matches_fact(
     fact_all_nums = {
         re.sub(r"\s+", "", m.group(0).lower())
         for m in _NUMBER_TOKEN_RE.finditer(
-            f"{fact_metric.value} {fact_metric.unit} {fact_metric.period} {fact_metric.measurement_scope}"
+            f"{fact_metric.value} {fact_metric.unit} {fact_metric.period} "
+            f"{fact_metric.source_basis} {fact_metric.measurement_scope} {fact_object_text}"
         )
     } | {fact_val_clean}
     for num in atom_nums:
@@ -476,9 +482,9 @@ def _semantic_fidelity_check(
     ):
         return "TEAM_SCOPE_CANNOT_SUPPORT_INDIVIDUAL_ROLE"
 
-    # SCN-09: STAGING_TEST fact cannot support PRODUCTION claim
+    # SCN-09: STAGING_TEST fact cannot support positive PRODUCTION claim (excluding explicit pre-production rollbacks like SCN-07)
     if sem.environment_scope is FactEnvironmentScope.STAGING_TEST and _PRODUCTION_ASSERTION_RE.search(
-        atom_text
+        _NON_PRODUCTION_QUALIFIER_RE.sub("", atom_text)
     ):
         return "STAGING_FACT_CANNOT_SUPPORT_PRODUCTION_CLAIM"
 
@@ -1099,6 +1105,7 @@ class ClaimSupportValidator:
                     atom_text=atom.atom_text,
                     proposed_metric=raw_mg if isinstance(raw_mg, Mapping) else None,
                     fact_metric=mfact.metric_details,
+                    fact_object_text=mfact.object_text,
                 )
                 if ok:
                     matched_metric = True

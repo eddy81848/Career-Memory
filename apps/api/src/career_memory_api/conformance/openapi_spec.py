@@ -31,6 +31,14 @@ from career_memory_api.github_connect.models import (
     PolicyGuidanceCode,
     PolicyTransitionKind,
 )
+from career_memory_api.identities.models import (
+    ConfirmIdentityMappingRequest,
+    ConfirmIdentityMappingResponse,
+    IdentityAttributionBlockReason,
+    IdentityListResponse,
+    RevokeIdentityMappingRequest,
+    RevokeIdentityMappingResponse,
+)
 from career_memory_api.resolver.models import ResolutionStatus
 from career_memory_api.schema_contracts.enums import (
     ClaimStatus,
@@ -39,7 +47,12 @@ from career_memory_api.schema_contracts.enums import (
     EventConstraintOrigin,
     EventConstraintStatus,
     EventConstraintType,
+    ExternalIdentityMappingStatus,
+    IdentityStatus,
+    IdentityType,
+    IdentityVerificationMethod,
     RecordOrigin,
+    SourceProvider,
     WorkEventAnchorMode,
     WorkEventStatus,
 )
@@ -570,6 +583,11 @@ def _shared_components() -> dict[str, Any]:
         MergeWorkEventsResponse,
         DissolveWorkEventRequest,
         DissolveWorkEventResponse,
+        IdentityListResponse,
+        ConfirmIdentityMappingRequest,
+        ConfirmIdentityMappingResponse,
+        RevokeIdentityMappingRequest,
+        RevokeIdentityMappingResponse,
         ErrorEnvelope,
     ]
     extracted_schemas: dict[str, Any] = {}
@@ -662,6 +680,30 @@ def _shared_components() -> dict[str, Any]:
         "WorkEventPolicyState": {
             "type": "string",
             "enum": [e.value for e in WorkEventPolicyState],
+        },
+        "SourceProvider": {
+            "type": "string",
+            "enum": [e.value for e in SourceProvider],
+        },
+        "IdentityType": {
+            "type": "string",
+            "enum": [e.value for e in IdentityType],
+        },
+        "IdentityStatus": {
+            "type": "string",
+            "enum": [e.value for e in IdentityStatus],
+        },
+        "IdentityVerificationMethod": {
+            "type": "string",
+            "enum": [e.value for e in IdentityVerificationMethod],
+        },
+        "ExternalIdentityMappingStatus": {
+            "type": "string",
+            "enum": [e.value for e in ExternalIdentityMappingStatus],
+        },
+        "IdentityAttributionBlockReason": {
+            "type": "string",
+            "enum": [e.value for e in IdentityAttributionBlockReason],
         },
         "GitHubOAuthStartRequest": {
             "type": "object",

@@ -61,9 +61,17 @@ MIGRATION_0060_TABLES: tuple[str, ...] = (
     "work_event_versions",
 )
 
+MIGRATION_0070_TABLES: tuple[str, ...] = (
+    "exports",
+    "export_claims",
+)
+
 TENANT_DOMAIN_TABLES: tuple[str, ...] = MIGRATION_0020_TABLES + MIGRATION_0030_TABLES
 ALL_TENANT_DOMAIN_TABLES: tuple[str, ...] = (
-    TENANT_DOMAIN_TABLES + MIGRATION_0050_TABLES + MIGRATION_0060_TABLES
+    TENANT_DOMAIN_TABLES
+    + MIGRATION_0050_TABLES
+    + MIGRATION_0060_TABLES
+    + MIGRATION_0070_TABLES
 )
 
 READONLY_PROVENANCE_VIEWS: tuple[str, ...] = (
@@ -133,6 +141,13 @@ MIGRATION_0060_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
     ("work_event_versions", "event_id", "work_events"),
     ("work_event_versions", "primary_anchor_source_object_id", "source_objects"),
     ("work_event_versions", "created_by_review_action_id", "review_actions"),
+)
+
+MIGRATION_0070_COMPOSITE_FK_SPEC: tuple[tuple[str, str, str], ...] = (
+    ("facts", "supersedes_fact_id", "facts"),
+    ("exports", "source_resource_id", "source_resources"),
+    ("export_claims", "export_id", "exports"),
+    ("export_claims", "claim_id", "claims"),
 )
 
 
@@ -331,6 +346,7 @@ class FactStatus(StrEnum):
     CONFLICTED = "CONFLICTED"
     STALE = "STALE"
     REJECTED = "REJECTED"
+    SUPERSEDED = "SUPERSEDED"
 
 
 class SupportType(StrEnum):
@@ -438,3 +454,30 @@ class EventConstraintOrigin(StrEnum):
 class EventConstraintStatus(StrEnum):
     ACTIVE = "ACTIVE"
     REVOKED = "REVOKED"
+
+
+# =============================================================================
+# Migration 0070 — M4 Exports & Export Claims (MVP API §7, T-407, EXPORT-02)
+# =============================================================================
+class ExportFormat(StrEnum):
+    MARKDOWN = "MARKDOWN"
+    JSON = "JSON"
+
+
+class ExportPolicy(StrEnum):
+    SOURCE_VERIFIED_ONLY = "SOURCE_VERIFIED_ONLY"
+    ALLOW_USER_CONFIRMED = "ALLOW_USER_CONFIRMED"
+
+
+class ExportStatus(StrEnum):
+    PENDING = "PENDING"
+    READY = "READY"
+    INVALIDATED = "INVALIDATED"
+    FAILED = "FAILED"
+    DELETED = "DELETED"
+
+
+class ExportVerificationClass(StrEnum):
+    SOURCE_VERIFIED = "SOURCE_VERIFIED"
+    USER_CONFIRMED = "USER_CONFIRMED"
+    MIXED = "MIXED"

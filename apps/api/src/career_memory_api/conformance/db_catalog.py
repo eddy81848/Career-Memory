@@ -31,6 +31,7 @@ from career_memory_api.schema_contracts.enums import (
     DEFERRED_POST_MVP_TABLES,
     MIGRATION_0050_COMPOSITE_FK_SPEC,
     MIGRATION_0060_COMPOSITE_FK_SPEC,
+    MIGRATION_0070_COMPOSITE_FK_SPEC,
     READONLY_PROVENANCE_VIEWS,
 )
 
@@ -43,6 +44,7 @@ FULL_M1_MIGRATIONS: tuple[str, ...] = (
     "0040_sync_runs_jobs_outbox_audit.sql",
     "0050_m2_backfill_observations.sql",
     "0060_m3_event_versions_and_constraints.sql",
+    "0070_m4_fact_versions_and_exports.sql",
 )
 
 EXPECTED_ROLES: tuple[str, ...] = (
@@ -75,9 +77,13 @@ M1_REQUIRED_COMPOSITE_FKS: tuple[tuple[str, tuple[str, str], str, tuple[str, str
         (child, ("workspace_id", col), parent, ("workspace_id", "id"))
         for child, col, parent in MIGRATION_0060_COMPOSITE_FK_SPEC
     ),
+    *(
+        (child, ("workspace_id", col), parent, ("workspace_id", "id"))
+        for child, col, parent in MIGRATION_0070_COMPOSITE_FK_SPEC
+    ),
 )
 
-# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020..0060.
+# Mandatory Plan C (방안 C) raw-text non-persistence CHECK constraints across 0020..0070.
 REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("source_resources", "ck_source_resources_raw_storage_mode_none"),
     ("source_resources", "ck_source_resources_raw_retention_null"),
@@ -115,6 +121,11 @@ REQUIRED_PLAN_C_CONSTRAINTS: tuple[tuple[str, str], ...] = (
     ("work_event_versions", "ck_work_event_versions_anchor_scope_no_raw"),
     ("work_event_versions", "ck_work_event_versions_summary_metadata_no_raw"),
     ("work_event_versions", "ck_work_event_versions_membership_snapshot_no_raw"),
+    ("exports", "ck_exports_manifest_no_raw"),
+    ("exports", "ck_exports_manifest_no_secret"),
+    ("exports", "ck_exports_artifact_payload_no_raw"),
+    ("exports", "ck_exports_artifact_payload_no_secret"),
+    ("export_claims", "ck_export_claims_snapshot_no_raw"),
 )
 
 CRITICAL_PARTIAL_UNIQUE_INDEXES: tuple[str, ...] = (
@@ -939,7 +950,82 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 )
             conn.commit()
 
-        # Stage 7: Re-apply 0010 -> 0020 -> 0030 -> 0040 -> 0050 -> 0060 (full idempotency) & verify data preservation
+        # Stage 7: 0070 + seed versioned fact, claim, export & export_claims
+        fact_v1_id = str(uuid.uuid4())
+        fact_v2_id = str(uuid.uuid4())
+        claim_id = str(uuid.uuid4())
+        export_id = str(uuid.uuid4())
+        export_claim_id = str(uuid.uuid4())
+        cluster.apply_sql_file(staged_db, migration_paths[6])
+        with psycopg.connect(cluster.dsn(staged_db)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.facts (
+                        id, workspace_id, event_id, fact_type, predicate,
+                        object_text, status, extractor_version, version
+                    ) VALUES (
+                        %s, %s, %s, 'ACTION', 'implemented',
+                        'Staged Fact v1', 'SUPERSEDED', 'v1', 1
+                    )
+                    """,
+                    (fact_v1_id, ws_id, evt_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.facts (
+                        id, workspace_id, event_id, fact_type, predicate,
+                        object_text, status, extractor_version, version, supersedes_fact_id
+                    ) VALUES (
+                        %s, %s, %s, 'ACTION', 'implemented',
+                        'Staged Fact v2', 'SUPPORTED', 'v1', 2, %s
+                    )
+                    """,
+                    (fact_v2_id, ws_id, evt_id, fact_v1_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.claims (
+                        id, workspace_id, event_id, version, claim_text, status
+                    ) VALUES (
+                        %s, %s, %s, 1, 'Staged Approved Claim', 'APPROVED'
+                    )
+                    """,
+                    (claim_id, ws_id, evt_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.exports (
+                        id, workspace_id, source_resource_id, requested_by_user_id,
+                        format, export_policy, status, idempotency_key, input_hash, policy_version
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        'MARKDOWN', 'SOURCE_VERIFIED_ONLY', 'READY', %s, %s, 'v1'
+                    )
+                    """,
+                    (
+                        export_id,
+                        ws_id,
+                        res_id,
+                        user_id,
+                        str(uuid.uuid4()),
+                        f"sha256:{digest}",
+                    ),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO public.export_claims (
+                        id, workspace_id, export_id, claim_id, claim_version,
+                        computed_verification_at_export, ordinal
+                    ) VALUES (
+                        %s, %s, %s, %s, 1, 'SOURCE_VERIFIED', 0
+                    )
+                    """,
+                    (export_claim_id, ws_id, export_id, claim_id),
+                )
+            conn.commit()
+
+        # Stage 8: Re-apply 0010 -> ... -> 0070 (full idempotency) & verify data preservation
         for path in migration_paths:
             cluster.apply_sql_file(staged_db, path)
 
@@ -966,6 +1052,21 @@ def run_fresh_and_staged_pg18_catalog_smoke(
                 cur.execute(
                     "SELECT COUNT(*) FROM public.event_constraints WHERE id = %s",
                     (constraint_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.facts WHERE id = %s AND version = 2 AND supersedes_fact_id = %s",
+                    (fact_v2_id, fact_v1_id),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.exports WHERE id = %s",
+                    (export_id,),
+                )
+                assert cur.fetchone() == (1,)
+                cur.execute(
+                    "SELECT COUNT(*) FROM public.export_claims WHERE id = %s",
+                    (export_claim_id,),
                 )
                 assert cur.fetchone() == (1,)
             staged_snapshot = introspect_postgres_catalog(conn)

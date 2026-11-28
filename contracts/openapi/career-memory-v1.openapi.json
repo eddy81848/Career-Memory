@@ -609,6 +609,55 @@
         "title": "CompositeSummary",
         "type": "object"
       },
+      "ConfirmIdentityMappingRequest": {
+        "additionalProperties": false,
+        "description": "Request body for ``POST /v1/identities/mappings/{mapping_id}/actions/confirm``.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "title": "ConfirmIdentityMappingRequest",
+        "type": "object"
+      },
+      "ConfirmIdentityMappingResponse": {
+        "additionalProperties": false,
+        "description": "Response body for ``POST /v1/identities/mappings/{mapping_id}/actions/confirm``.",
+        "properties": {
+          "attribution_eligibility": {
+            "$ref": "#/components/schemas/IdentityAttributionEligibility"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/ExternalIdentityMappingRecord"
+          }
+        },
+        "required": [
+          "identity_id",
+          "mapping",
+          "attribution_eligibility"
+        ],
+        "title": "ConfirmIdentityMappingResponse",
+        "type": "object"
+      },
       "ConfirmWorkEventRequest": {
         "additionalProperties": false,
         "description": "POST /v1/work-events/{id}/actions/confirm request payload (UI Keep).",
@@ -1463,6 +1512,128 @@
         "title": "EventVersionSnapshotItem",
         "type": "object"
       },
+      "ExternalIdentityMappingRecord": {
+        "additionalProperties": false,
+        "description": "Wire projection of ``public.external_identity_mappings`` (email_hash only, never raw email).",
+        "properties": {
+          "confidence_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confidence Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Email Hash"
+          },
+          "external_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "External User Id"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "mapping_id": {
+            "title": "Mapping Id",
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/SourceProvider"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Revoked At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExternalIdentityMappingStatus"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Username"
+          },
+          "verification_method": {
+            "$ref": "#/components/schemas/IdentityVerificationMethod"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "mapping_id",
+          "identity_id",
+          "provider",
+          "verification_method",
+          "status",
+          "created_at"
+        ],
+        "title": "ExternalIdentityMappingRecord",
+        "type": "object"
+      },
+      "ExternalIdentityMappingStatus": {
+        "enum": [
+          "VERIFIED",
+          "USER_CONFIRMED",
+          "HEURISTIC",
+          "CONFLICTED",
+          "REVOKED"
+        ],
+        "type": "string"
+      },
       "GitHubCredentialMode": {
         "enum": [
           "OAUTH_APP",
@@ -1630,6 +1801,258 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IdentityAttributionBlockReason": {
+        "enum": [
+          "IDENTITY_HEURISTIC_ONLY",
+          "IDENTITY_CONFLICTED",
+          "IDENTITY_REVOKED",
+          "IDENTITY_AMBIGUOUS",
+          "IDENTITY_IS_BOT",
+          "IDENTITY_NOT_FOUND"
+        ],
+        "type": "string"
+      },
+      "IdentityAttributionEligibility": {
+        "additionalProperties": false,
+        "description": "Computed downstream attribution eligibility for an Identity (ID-01..ID-05).",
+        "properties": {
+          "active_conflicted_mapping_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Active Conflicted Mapping Count",
+            "type": "integer"
+          },
+          "active_heuristic_mapping_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Active Heuristic Mapping Count",
+            "type": "integer"
+          },
+          "active_user_confirmed_mapping_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Active User Confirmed Mapping Count",
+            "type": "integer"
+          },
+          "active_verified_mapping_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Active Verified Mapping Count",
+            "type": "integer"
+          },
+          "block_reason_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdentityAttributionBlockReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "can_support_source_verified": {
+            "title": "Can Support Source Verified",
+            "type": "boolean"
+          },
+          "can_support_user_confirmed": {
+            "title": "Can Support User Confirmed",
+            "type": "boolean"
+          },
+          "identity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Identity Id"
+          },
+          "identity_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdentityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "identity_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdentityType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "revoked_mapping_count": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Revoked Mapping Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "can_support_source_verified",
+          "can_support_user_confirmed"
+        ],
+        "title": "IdentityAttributionEligibility",
+        "type": "object"
+      },
+      "IdentityInvalidationCounts": {
+        "additionalProperties": false,
+        "description": "Atomic downstream invalidation counts produced by revocation or conflict (ID-05).",
+        "properties": {
+          "claim_atoms": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Claim Atoms",
+            "type": "integer"
+          },
+          "claims": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Claims",
+            "type": "integer"
+          },
+          "contributions": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Contributions",
+            "type": "integer"
+          },
+          "exports": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Exports",
+            "type": "integer"
+          },
+          "facts": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Facts",
+            "type": "integer"
+          }
+        },
+        "title": "IdentityInvalidationCounts",
+        "type": "object"
+      },
+      "IdentityListResponse": {
+        "additionalProperties": false,
+        "description": "Response payload for ``GET /v1/identities``.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityWithMappingsRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "IdentityListResponse",
+        "type": "object"
+      },
+      "IdentityStatus": {
+        "enum": [
+          "ACTIVE",
+          "AMBIGUOUS",
+          "MERGED",
+          "REVOKED"
+        ],
+        "type": "string"
+      },
+      "IdentityType": {
+        "enum": [
+          "PERSON",
+          "BOT",
+          "UNKNOWN"
+        ],
+        "type": "string"
+      },
+      "IdentityVerificationMethod": {
+        "enum": [
+          "OAUTH_ACCOUNT",
+          "PROVIDER_ASSOCIATION",
+          "USER_CONFIRMATION"
+        ],
+        "type": "string"
+      },
+      "IdentityWithMappingsRecord": {
+        "additionalProperties": false,
+        "description": "Workspace identity with redacted external mappings and attribution eligibility.",
+        "properties": {
+          "attribution_eligibility": {
+            "$ref": "#/components/schemas/IdentityAttributionEligibility"
+          },
+          "canonical_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Canonical User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "identity_type": {
+            "$ref": "#/components/schemas/IdentityType"
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalIdentityMappingRecord"
+            },
+            "title": "Mappings",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IdentityStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity_id",
+          "workspace_id",
+          "display_name",
+          "identity_type",
+          "status",
+          "created_at",
+          "updated_at",
+          "attribution_eligibility"
+        ],
+        "title": "IdentityWithMappingsRecord",
         "type": "object"
       },
       "ImportConflict": {
@@ -2415,6 +2838,55 @@
         "title": "ReviewActionType",
         "type": "string"
       },
+      "RevokeIdentityMappingRequest": {
+        "additionalProperties": false,
+        "description": "Request body for ``POST /v1/identities/mappings/{mapping_id}/actions/revoke``.",
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RevokeIdentityMappingRequest",
+        "type": "object"
+      },
+      "RevokeIdentityMappingResponse": {
+        "additionalProperties": false,
+        "description": "Response body for ``POST /v1/identities/mappings/{mapping_id}/actions/revoke``.",
+        "properties": {
+          "attribution_eligibility": {
+            "$ref": "#/components/schemas/IdentityAttributionEligibility"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "invalidated_counts": {
+            "$ref": "#/components/schemas/IdentityInvalidationCounts"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/ExternalIdentityMappingRecord"
+          }
+        },
+        "required": [
+          "identity_id",
+          "mapping",
+          "attribution_eligibility",
+          "invalidated_counts"
+        ],
+        "title": "RevokeIdentityMappingResponse",
+        "type": "object"
+      },
       "SearchEntityType": {
         "enum": [
           "WORK_EVENT",
@@ -2672,6 +3144,12 @@
           "COMMENT"
         ],
         "title": "SourceObjectType",
+        "type": "string"
+      },
+      "SourceProvider": {
+        "enum": [
+          "GITHUB"
+        ],
         "type": "string"
       },
       "SourceResolutionErrorCode": {
@@ -4317,6 +4795,307 @@
         "summary": "Ephemerally refetch and verify a persisted Content Unit (Plan C §7)",
         "tags": [
           "content-units"
+        ]
+      }
+    },
+    "/v1/identities": {
+      "get": {
+        "operationId": "listWorkspaceIdentities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "List workspace identities, redacted mappings (email_hash only), and attribution eligibility",
+        "tags": [
+          "identities"
+        ]
+      }
+    },
+    "/v1/identities/mappings/{mapping_id}/actions/confirm": {
+      "post": {
+        "operationId": "confirmIdentityMapping",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmIdentityMappingRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmIdentityMappingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace)."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "MAPPING_CONFLICTED, MAPPING_REVOKED, MAPPING_ALREADY_VERIFIED, MAPPING_ALREADY_CONFIRMED, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY, BOT_IDENTITY_CONFIRMATION_FORBIDDEN, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Promote an eligible HEURISTIC PERSON mapping to USER_CONFIRMED (never VERIFIED)",
+        "tags": [
+          "identities"
+        ]
+      }
+    },
+    "/v1/identities/mappings/{mapping_id}/actions/revoke": {
+      "post": {
+        "operationId": "revokeIdentityMapping",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeIdentityMappingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeIdentityMappingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace)."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "MAPPING_ALREADY_REVOKED, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY, INVALID_REVOKE_IDENTITY_REQUEST, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Atomically revoke an identity mapping and cascade STALE/INVALIDATED downstream (ID-05)",
+        "tags": [
+          "identities"
         ]
       }
     },

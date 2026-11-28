@@ -45,6 +45,15 @@ from career_memory_api.schema_contracts.enums import (
 )
 from career_memory_api.sync_runs.models import ProcessingStatus, SyncRunMode, SyncRunStatus
 from career_memory_api.work_events.models import (
+    ConfirmWorkEventRequest,
+    DissolveWorkEventRequest,
+    DissolveWorkEventResponse,
+    EditWorkEventRequest,
+    MergeWorkEventsRequest,
+    MergeWorkEventsResponse,
+    RejectWorkEventRequest,
+    SplitWorkEventRequest,
+    SplitWorkEventResponse,
     WorkEventDetailResponse,
     WorkEventListResponse,
     WorkEventPolicyState,
@@ -552,6 +561,15 @@ def _shared_components() -> dict[str, Any]:
         SearchResponse,
         WorkEventListResponse,
         WorkEventDetailResponse,
+        ConfirmWorkEventRequest,
+        EditWorkEventRequest,
+        RejectWorkEventRequest,
+        SplitWorkEventRequest,
+        SplitWorkEventResponse,
+        MergeWorkEventsRequest,
+        MergeWorkEventsResponse,
+        DissolveWorkEventRequest,
+        DissolveWorkEventResponse,
         ErrorEnvelope,
     ]
     extracted_schemas: dict[str, Any] = {}

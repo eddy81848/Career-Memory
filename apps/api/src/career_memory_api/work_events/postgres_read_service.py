@@ -270,6 +270,7 @@ class PostgresWorkEventsReadService:
                         we.reviewed_at,
                         we.updated_at,
                         ({active_top_level_sql}) AS is_active_top_level,
+                        we.anchor_scope,
                         {sort_expr} AS sort_ts
                     FROM public.work_events we
                     WHERE {' AND '.join(list_where)}
@@ -291,7 +292,7 @@ class PostgresWorkEventsReadService:
                 next_cursor: str | None = None
                 if has_more and page_rows:
                     last_row = page_rows[-1]
-                    last_sort_ts = last_row[17]
+                    last_sort_ts = last_row[18]
                     next_cursor = encode_work_event_cursor(
                         WorkEventCursorPayload(
                             workspace_id=access.workspace_id,
@@ -321,81 +322,96 @@ class PostgresWorkEventsReadService:
 
         with self._api_connection_factory() as conn:
             with workspace_scoped_transaction(conn, access) as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        we.id::text,
-                        we.workspace_id::text,
-                        we.primary_anchor_source_object_id::text,
-                        we.anchor_mode,
-                        we.status,
-                        we.version,
-                        we.title,
-                        we.problem,
-                        we.action,
-                        we.outcome,
-                        we.summary_metadata,
-                        we.created_by,
-                        we.occurred_start_at,
-                        we.occurred_end_at,
-                        we.reviewed_at,
-                        we.updated_at,
-                        (
-                            we.status IN ('CANDIDATE', 'CONFIRMED', 'STALE')
-                            AND NOT EXISTS (
-                                SELECT 1
-                                FROM public.event_composite_memberships ecm_top
-                                WHERE ecm_top.workspace_id = we.workspace_id
-                                  AND ecm_top.member_event_id = we.id
-                                  AND ecm_top.status = 'ACTIVE'
-                            )
-                        ) AS is_active_top_level,
-                        we.anchor_scope
-                    FROM public.work_events we
-                    WHERE we.workspace_id = %s::uuid
-                      AND we.id = %s::uuid
-                    """,
-                    (access.workspace_id, normalized_event_id),
-                )
-                row = cur.fetchone()
-                if row is None:
-                    raise WorkspaceResourceNotFoundError()
-
-                summary = self._hydrate_summary_item(cur, workspace_id=access.workspace_id, row=row)
-                primary_anchor_id = str(row[2]) if row[2] is not None else None
-                anchor_scope = dict(row[17]) if row[17] is not None else None
-                summary_metadata = dict(row[10] or {})
-
-                evidence_memberships = list_active_evidence_memberships(
-                    cur, workspace_id=access.workspace_id, event_id=normalized_event_id
-                )
-                context_relations = list_active_context_relations(
-                    cur, workspace_id=access.workspace_id, event_id=normalized_event_id
-                )
-                cannot_link_constraints = list_cannot_link_summary(
-                    cur, workspace_id=access.workspace_id, event_id=normalized_event_id
-                )
-                composite_details = self._load_composite_details(
+                return self.hydrate_work_event_detail_in_tx(
                     cur,
                     workspace_id=access.workspace_id,
                     event_id=normalized_event_id,
-                    anchor_mode=summary.anchor_mode,
-                    event_version=summary.version,
-                    summary_metadata=summary_metadata,
                 )
-                downstream_impact = self._load_downstream_impact(
-                    cur,
-                    workspace_id=access.workspace_id,
-                    event_id=normalized_event_id,
-                    event_status=summary.status,
-                    policy_state=summary.policy_state,
-                )
-                version_history = list_event_version_history(
-                    cur, workspace_id=access.workspace_id, event_id=normalized_event_id
-                )
-                review_actions = list_work_event_review_actions(
-                    cur, workspace_id=access.workspace_id, event_id=normalized_event_id
-                )
+
+    @classmethod
+    def hydrate_work_event_detail_in_tx(
+        cls,
+        cur: psycopg.Cursor,
+        *,
+        workspace_id: str,
+        event_id: str,
+    ) -> WorkEventDetailResponse:
+        """Hydrate full WorkEventDetailResponse inside an open workspace-scoped transaction."""
+        cur.execute(
+            """
+            SELECT
+                we.id::text,
+                we.workspace_id::text,
+                we.primary_anchor_source_object_id::text,
+                we.anchor_mode,
+                we.status,
+                we.version,
+                we.title,
+                we.problem,
+                we.action,
+                we.outcome,
+                we.summary_metadata,
+                we.created_by,
+                we.occurred_start_at,
+                we.occurred_end_at,
+                we.reviewed_at,
+                we.updated_at,
+                (
+                    we.status IN ('CANDIDATE', 'CONFIRMED', 'STALE')
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM public.event_composite_memberships ecm_top
+                        WHERE ecm_top.workspace_id = we.workspace_id
+                          AND ecm_top.member_event_id = we.id
+                          AND ecm_top.status = 'ACTIVE'
+                    )
+                ) AS is_active_top_level,
+                we.anchor_scope
+            FROM public.work_events we
+            WHERE we.workspace_id = %s::uuid
+              AND we.id = %s::uuid
+            """,
+            (workspace_id, event_id),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise WorkspaceResourceNotFoundError()
+
+        summary = cls._hydrate_summary_item(cur, workspace_id=workspace_id, row=row)
+        primary_anchor_id = str(row[2]) if row[2] is not None else None
+        anchor_scope = dict(row[17]) if row[17] is not None else None
+        summary_metadata = dict(row[10] or {})
+
+        evidence_memberships = list_active_evidence_memberships(
+            cur, workspace_id=workspace_id, event_id=event_id
+        )
+        context_relations = list_active_context_relations(
+            cur, workspace_id=workspace_id, event_id=event_id
+        )
+        cannot_link_constraints = list_cannot_link_summary(
+            cur, workspace_id=workspace_id, event_id=event_id
+        )
+        composite_details = cls._load_composite_details(
+            cur,
+            workspace_id=workspace_id,
+            event_id=event_id,
+            anchor_mode=summary.anchor_mode,
+            event_version=summary.version,
+            summary_metadata=summary_metadata,
+        )
+        downstream_impact = cls._load_downstream_impact(
+            cur,
+            workspace_id=workspace_id,
+            event_id=event_id,
+            event_status=summary.status,
+            policy_state=summary.policy_state,
+        )
+        version_history = list_event_version_history(
+            cur, workspace_id=workspace_id, event_id=event_id
+        )
+        review_actions = list_work_event_review_actions(
+            cur, workspace_id=workspace_id, event_id=event_id
+        )
 
         return WorkEventDetailResponse(
             **summary.model_dump(),
@@ -499,8 +515,9 @@ class PostgresWorkEventsReadService:
 
         return where, params
 
+    @classmethod
     def _hydrate_summary_item(
-        self,
+        cls,
         cur: psycopg.Cursor,
         *,
         workspace_id: str,
@@ -522,6 +539,7 @@ class PostgresWorkEventsReadService:
         reviewed_at = row[14]
         updated_at = row[15]
         is_active_top_level = bool(row[16])
+        anchor_scope = dict(row[17]) if len(row) > 17 and isinstance(row[17], dict) else None
 
         # Evidence count (STRICTLY MUST_LINK + ACTIVE) & Context count (STRICTLY CONTEXT_ONLY + ACTIVE)
         cur.execute(
@@ -541,14 +559,14 @@ class PostgresWorkEventsReadService:
         context_count = int(cnt_row[1]) if cnt_row is not None else 0
 
         # Resolve linked source_resource_ids & real-time policy/deletion state
-        linked_resource_ids = self._resolve_linked_source_resource_ids(
+        linked_resource_ids = cls._resolve_linked_source_resource_ids(
             cur,
             workspace_id=workspace_id,
             event_id=event_id,
             primary_anchor_source_object_id=primary_anchor_id,
         )
         primary_resource_id = linked_resource_ids[0] if linked_resource_ids else None
-        policy_state = self._evaluate_live_policy_state(
+        policy_state = cls._evaluate_live_policy_state(
             cur,
             workspace_id=workspace_id,
             resource_ids=linked_resource_ids,
@@ -557,7 +575,7 @@ class PostgresWorkEventsReadService:
         # DIRECT_COMMIT badge
         direct_commit_badge: DirectCommitSummary | None = None
         if anchor_mode is WorkEventAnchorMode.DIRECT_COMMIT:
-            direct_commit_badge = self._build_direct_commit_badge(
+            direct_commit_badge = cls._build_direct_commit_badge(
                 cur,
                 workspace_id=workspace_id,
                 primary_anchor_source_object_id=primary_anchor_id,
@@ -594,6 +612,7 @@ class PostgresWorkEventsReadService:
             status=status,
             policy_state=policy_state,
             is_active_top_level=is_active_top_level,
+            anchor_scope=anchor_scope,
         )
 
         return WorkEventSummaryItem(

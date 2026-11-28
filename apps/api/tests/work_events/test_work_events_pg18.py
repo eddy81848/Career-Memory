@@ -1414,7 +1414,7 @@ def test_t303_work_events_read_api_list_detail_composite_policy_and_rls(
             "pr_association_state": "NO_MATCH_OBSERVED",
             "requires_user_confirmation": True,
         }
-        assert dc_json["allowed_actions"] == ["CONFIRM", "EDIT", "MERGE", "REJECT"]
+        assert dc_json["allowed_actions"] == ["CONFIRM", "EDIT", "SPLIT", "MERGE", "REJECT"]
 
         # 4. Detail: USER_COMPOSITE immutable member snapshots from work_event_versions!
         d_comp = client.get(f"/v1/work-events/{ev_composite}")

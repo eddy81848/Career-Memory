@@ -188,6 +188,59 @@
         "title": "AffectedDownstreamImpact",
         "type": "object"
       },
+      "ApproveFactRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/facts/{fact_id}/actions/approve request payload.",
+        "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "title": "ApproveFactRequest",
+        "type": "object"
+      },
+      "ApproveFactResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/facts/{fact_id}/actions/approve response payload.",
+        "properties": {
+          "fact": {
+            "$ref": "#/components/schemas/FactSummaryItem"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fact"
+        ],
+        "title": "ApproveFactResponse",
+        "type": "object"
+      },
       "CannotLinkSummary": {
         "additionalProperties": false,
         "description": "Combined source-level and pairwise event-level CANNOT_LINK constraints (never evidence).",
@@ -1088,6 +1141,116 @@
         "title": "DownstreamImpactSummary",
         "type": "object"
       },
+      "EditFactRequest": {
+        "additionalProperties": false,
+        "description": "PATCH /v1/facts/{fact_id} request payload (ER-012 non-overwrite versioned edit).",
+        "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          },
+          "normalized_value": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Normalized Value"
+          },
+          "object_text": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Object Text"
+          },
+          "predicate": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Predicate"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          }
+        },
+        "title": "EditFactRequest",
+        "type": "object"
+      },
+      "EditFactResponse": {
+        "additionalProperties": false,
+        "description": "PATCH /v1/facts/{fact_id} response payload returning the newly versioned CANDIDATE row.",
+        "properties": {
+          "fact": {
+            "$ref": "#/components/schemas/FactSummaryItem"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "invalidated_counts": {
+            "$ref": "#/components/schemas/FactInvalidationCounts"
+          },
+          "superseded_fact_id": {
+            "minLength": 1,
+            "title": "Superseded Fact Id",
+            "type": "string"
+          },
+          "superseded_version": {
+            "minimum": 1,
+            "title": "Superseded Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fact",
+          "superseded_fact_id",
+          "superseded_version",
+          "invalidated_counts"
+        ],
+        "title": "EditFactResponse",
+        "type": "object"
+      },
       "EditWorkEventRequest": {
         "additionalProperties": false,
         "description": "PATCH /v1/work-events/{id} request payload (creates new CANDIDATE version).",
@@ -1631,6 +1794,382 @@
           "HEURISTIC",
           "CONFLICTED",
           "REVOKED"
+        ],
+        "type": "string"
+      },
+      "FactAttributionScope": {
+        "enum": [
+          "INDIVIDUAL",
+          "TEAM",
+          "UNSPECIFIED"
+        ],
+        "type": "string"
+      },
+      "FactCausalBasis": {
+        "enum": [
+          "DIRECT_CAUSATION",
+          "OBSERVED_CORRELATION",
+          "UNSPECIFIED"
+        ],
+        "type": "string"
+      },
+      "FactCompletionState": {
+        "enum": [
+          "COMPLETED",
+          "PLANNED",
+          "NEGATED",
+          "TARGET_UNMET"
+        ],
+        "type": "string"
+      },
+      "FactEnvironmentScope": {
+        "enum": [
+          "PRODUCTION",
+          "STAGING_TEST",
+          "UNSPECIFIED"
+        ],
+        "type": "string"
+      },
+      "FactInvalidationCounts": {
+        "additionalProperties": false,
+        "description": "Counts of downstream artifacts marked STALE or INVALIDATED atomically.",
+        "properties": {
+          "claim_atom_supports": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Claim Atom Supports",
+            "type": "integer"
+          },
+          "claim_atoms": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Claim Atoms",
+            "type": "integer"
+          },
+          "claims": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Claims",
+            "type": "integer"
+          },
+          "contribution_supports": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Contribution Supports",
+            "type": "integer"
+          },
+          "contributions": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Contributions",
+            "type": "integer"
+          },
+          "exports": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Exports",
+            "type": "integer"
+          }
+        },
+        "title": "FactInvalidationCounts",
+        "type": "object"
+      },
+      "FactListResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/facts response payload.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FactSummaryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/FactPageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "FactListResponse",
+        "type": "object"
+      },
+      "FactPageInfo": {
+        "additionalProperties": false,
+        "description": "Pagination envelope for GET /v1/facts.",
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "has_more"
+        ],
+        "title": "FactPageInfo",
+        "type": "object"
+      },
+      "FactStatus": {
+        "enum": [
+          "CANDIDATE",
+          "SUPPORTED",
+          "USER_CONFIRMED",
+          "CONFLICTED",
+          "STALE",
+          "REJECTED",
+          "SUPERSEDED"
+        ],
+        "type": "string"
+      },
+      "FactSummaryItem": {
+        "additionalProperties": false,
+        "description": "Single Fact projection returned by GET /v1/facts and mutation endpoints.",
+        "properties": {
+          "context_support_count": {
+            "minimum": 0,
+            "title": "Context Support Count",
+            "type": "integer"
+          },
+          "contradicts_support_count": {
+            "minimum": 0,
+            "title": "Contradicts Support Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "direct_support_count": {
+            "minimum": 0,
+            "title": "Direct Support Count",
+            "type": "integer"
+          },
+          "etag": {
+            "minLength": 1,
+            "title": "Etag",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "extractor_version": {
+            "minLength": 1,
+            "title": "Extractor Version",
+            "type": "string"
+          },
+          "fact_id": {
+            "minLength": 1,
+            "title": "Fact Id",
+            "type": "string"
+          },
+          "fact_metadata": {
+            "additionalProperties": true,
+            "title": "Fact Metadata",
+            "type": "object"
+          },
+          "fact_type": {
+            "$ref": "#/components/schemas/FactType"
+          },
+          "normalized_value": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Normalized Value"
+          },
+          "object_text": {
+            "minLength": 1,
+            "title": "Object Text",
+            "type": "string"
+          },
+          "predicate": {
+            "minLength": 1,
+            "title": "Predicate",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FactStatus"
+          },
+          "subject_identity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subject Identity Id"
+          },
+          "supersedes_fact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes Fact Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "workspace_id": {
+            "minLength": 1,
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fact_id",
+          "workspace_id",
+          "event_id",
+          "version",
+          "fact_type",
+          "predicate",
+          "object_text",
+          "status",
+          "extractor_version",
+          "direct_support_count",
+          "context_support_count",
+          "contradicts_support_count",
+          "etag",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FactSummaryItem",
+        "type": "object"
+      },
+      "FactSupportItem": {
+        "additionalProperties": false,
+        "description": "Single non-raw FactSupport item returned by GET /v1/facts/{fact_id}/supports.\n\nPlan C (ADR-013 / REF-04): ``extracted_span`` is strictly omitted from the wire schema\nand always ``NULL`` in PostgreSQL.",
+        "properties": {
+          "content_unit_id": {
+            "minLength": 1,
+            "title": "Content Unit Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "source_object_revision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Object Revision Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "support_id": {
+            "minLength": 1,
+            "title": "Support Id",
+            "type": "string"
+          },
+          "support_metadata": {
+            "additionalProperties": true,
+            "title": "Support Metadata",
+            "type": "object"
+          },
+          "support_type": {
+            "$ref": "#/components/schemas/SupportType"
+          },
+          "unit_type": {
+            "$ref": "#/components/schemas/ContentUnitType"
+          },
+          "validator": {
+            "$ref": "#/components/schemas/SupportValidator"
+          },
+          "validator_version": {
+            "minLength": 1,
+            "title": "Validator Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "support_id",
+          "content_unit_id",
+          "unit_type",
+          "support_type",
+          "status",
+          "validator",
+          "validator_version",
+          "created_at"
+        ],
+        "title": "FactSupportItem",
+        "type": "object"
+      },
+      "FactSupportsResponse": {
+        "additionalProperties": false,
+        "description": "GET /v1/facts/{fact_id}/supports response payload.",
+        "properties": {
+          "fact": {
+            "$ref": "#/components/schemas/FactSummaryItem"
+          },
+          "supports": {
+            "items": {
+              "$ref": "#/components/schemas/FactSupportItem"
+            },
+            "title": "Supports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fact",
+          "supports"
+        ],
+        "title": "FactSupportsResponse",
+        "type": "object"
+      },
+      "FactType": {
+        "enum": [
+          "PROBLEM",
+          "ACTION",
+          "TECHNOLOGY",
+          "RESULT",
+          "ROLE",
+          "METRIC"
         ],
         "type": "string"
       },
@@ -2217,6 +2756,13 @@
         ],
         "type": "object"
       },
+      "LinkStatus": {
+        "enum": [
+          "ACTIVE",
+          "INVALIDATED"
+        ],
+        "type": "string"
+      },
       "MergeMemberInput": {
         "additionalProperties": false,
         "description": "Member event reference and optimistic concurrency expected_version for MERGE.",
@@ -2635,6 +3181,59 @@
         "required": [
           "items"
         ],
+        "type": "object"
+      },
+      "RejectFactRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/facts/{fact_id}/actions/reject request payload.",
+        "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RejectFactRequest",
+        "type": "object"
+      },
+      "RejectFactResponse": {
+        "additionalProperties": false,
+        "description": "POST /v1/facts/{fact_id}/actions/reject response payload.",
+        "properties": {
+          "fact": {
+            "$ref": "#/components/schemas/FactSummaryItem"
+          },
+          "idempotent_replay": {
+            "default": false,
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "invalidated_counts": {
+            "$ref": "#/components/schemas/FactInvalidationCounts"
+          }
+        },
+        "required": [
+          "fact",
+          "invalidated_counts"
+        ],
+        "title": "RejectFactResponse",
         "type": "object"
       },
       "RejectWorkEventRequest": {
@@ -3682,6 +4281,22 @@
           "status"
         ],
         "type": "object"
+      },
+      "SupportType": {
+        "enum": [
+          "DIRECT",
+          "CONTEXT",
+          "CONTRADICTS"
+        ],
+        "type": "string"
+      },
+      "SupportValidator": {
+        "enum": [
+          "RULE",
+          "USER",
+          "MODEL"
+        ],
+        "type": "string"
       },
       "SyncRunAccepted": {
         "additionalProperties": false,
@@ -4795,6 +5410,671 @@
         "summary": "Ephemerally refetch and verify a persisted Content Unit (Plan C §7)",
         "tags": [
           "content-units"
+        ]
+      }
+    },
+    "/v1/facts": {
+      "get": {
+        "operationId": "listWorkspaceFacts",
+        "parameters": [
+          {
+            "description": "Optional WorkEvent UUID filter.",
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional WorkEvent UUID filter.",
+              "title": "Event Id"
+            }
+          },
+          {
+            "description": "Optional FactStatus filter.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FactStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional FactStatus filter.",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Optional FactType filter.",
+            "in": "query",
+            "name": "fact_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FactType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional FactType filter.",
+              "title": "Fact Type"
+            }
+          },
+          {
+            "description": "Include SUPERSEDED fact versions (defaults to false).",
+            "in": "query",
+            "name": "include_superseded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Include SUPERSEDED fact versions (defaults to false).",
+              "title": "Include Superseded",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque workspace- and filter-bound cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque workspace- and filter-bound cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_FACTS_CURSOR."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Validation error or PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "List workspace facts with optional event/status/type filters and opaque pagination",
+        "tags": [
+          "facts"
+        ]
+      }
+    },
+    "/v1/facts/{fact_id}": {
+      "patch": {
+        "operationId": "editFactVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "description": "Optional version token (e.g. \"v1\").",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional version token (e.g. \"v1\").",
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditFactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditFactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "FACT_VERSION_CONFLICT, FACT_NOT_EDITABLE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY, EMPTY_FACT_EDIT, INVALID_EDIT_FACT_REQUEST, PROHIBITED_FACT_STATUS_WRITE, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Create a new CANDIDATE fact version (ER-012 non-overwrite edit) and invalidate downstream",
+        "tags": [
+          "facts"
+        ]
+      }
+    },
+    "/v1/facts/{fact_id}/actions/approve": {
+      "post": {
+        "operationId": "approveFact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "description": "Optional version token (e.g. \"v1\").",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional version token (e.g. \"v1\").",
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveFactRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApproveFactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "FACT_VERSION_CONFLICT, FACT_NOT_APPROVABLE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY, MISSING_EXPECTED_VERSION, PROHIBITED_FACT_STATUS_WRITE, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Approve an eligible CANDIDATE fact as USER_CONFIRMED (never SUPPORTED)",
+        "tags": [
+          "facts"
+        ]
+      }
+    },
+    "/v1/facts/{fact_id}/actions/reject": {
+      "post": {
+        "operationId": "rejectFact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "title": "Fact Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required canonical UUID idempotency key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required canonical UUID idempotency key.",
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "description": "Optional version token (e.g. \"v1\").",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional version token (e.g. \"v1\").",
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectFactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectFactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "FACT_VERSION_CONFLICT, FACT_NOT_REJECTABLE, DELETION_PENDING, or IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "INVALID_IDEMPOTENCY_KEY, INVALID_REJECT_FACT_REQUEST, PROHIBITED_FACT_STATUS_WRITE, PROHIBITED_RAW_TEXT_PERSISTENCE, or PROHIBITED_PROJECT_ID_SCOPE."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Reject a fact and atomically cascade STALE/INVALIDATED downstream",
+        "tags": [
+          "facts"
+        ]
+      }
+    },
+    "/v1/facts/{fact_id}/supports": {
+      "get": {
+        "operationId": "getFactSupports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fact_id",
+            "required": true,
+            "schema": {
+              "title": "Fact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactSupportsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthenticated or session terminated."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Workspace scope violation."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "RESOURCE_NOT_FOUND (missing or cross-workspace)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "PROHIBITED_PROJECT_ID_SCOPE (OD-008)."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AUTH_VERIFICATION_UNAVAILABLE."
+          }
+        },
+        "summary": "Return a Fact and its non-raw FactSupport anchors (Plan C: zero raw quotes)",
+        "tags": [
+          "facts"
         ]
       }
     },

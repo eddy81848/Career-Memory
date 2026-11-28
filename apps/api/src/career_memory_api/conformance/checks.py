@@ -56,6 +56,12 @@ from career_memory_api.contracts_api.models import (
     FORBIDDEN_VERIFICATION_WRITE_FIELDS,
     SearchEntityType,
 )
+from career_memory_api.facts.models import (
+    FactAttributionScope,
+    FactCausalBasis,
+    FactCompletionState,
+    FactEnvironmentScope,
+)
 from career_memory_api.identities.models import IdentityAttributionBlockReason
 from career_memory_api.jobs.models import (
     AuditActorType,
@@ -317,6 +323,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
             ("0030_events_facts_claims_contributions.sql", "ck_contribution_support_status"),
             ("0030_events_facts_claims_contributions.sql", "ck_claim_atom_support_status"),
         ),
+        openapi_schema_name="LinkStatus",
     ),
     EnumParityBinding(
         name="CompositeMembershipStatus",
@@ -337,12 +344,14 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="FactType",
         enum_cls=FactType,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_facts_fact_type"),),
+        openapi_schema_name="FactType",
         ai_schema_paths=(("fact_candidate.v1.schema.json", ("properties", "fact_type", "enum")),),
     ),
     EnumParityBinding(
         name="FactStatus",
         enum_cls=FactStatus,
         sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_facts_status"),),
+        openapi_schema_name="FactStatus",
     ),
     EnumParityBinding(
         name="SupportType",
@@ -351,6 +360,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
             ("0030_events_facts_claims_contributions.sql", "ck_fact_support_type"),
             ("0030_events_facts_claims_contributions.sql", "ck_claim_atom_support_type"),
         ),
+        openapi_schema_name="SupportType",
         ai_schema_paths=(
             ("fact_support_validation.v1.schema.json", ("properties", "support_type", "enum")),
             (
@@ -363,6 +373,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="SupportValidator",
         enum_cls=SupportValidator,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_fact_support_validator"),),
+        openapi_schema_name="SupportValidator",
         ai_schema_paths=(
             ("fact_support_validation.v1.schema.json", ("properties", "validator", "enum")),
         ),
@@ -636,6 +647,35 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         openapi_schema_name="IdentityAttributionBlockReason",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
+    # M4 Wave 2 Facts API & Semantic Enums (T-402, T-403, T-403A, ER-012)
+    EnumParityBinding(
+        name="FactCompletionState",
+        enum_cls=FactCompletionState,
+        sql_targets=(),
+        openapi_schema_name="FactCompletionState",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="FactAttributionScope",
+        enum_cls=FactAttributionScope,
+        sql_targets=(),
+        openapi_schema_name="FactAttributionScope",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="FactEnvironmentScope",
+        enum_cls=FactEnvironmentScope,
+        sql_targets=(),
+        openapi_schema_name="FactEnvironmentScope",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="FactCausalBasis",
+        enum_cls=FactCausalBasis,
+        sql_targets=(),
+        openapi_schema_name="FactCausalBasis",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
 )
 
 
@@ -799,6 +839,11 @@ def validate_openapi_invariants(
         ("/v1/identities", "get"),
         ("/v1/identities/mappings/{mapping_id}/actions/confirm", "post"),
         ("/v1/identities/mappings/{mapping_id}/actions/revoke", "post"),
+        ("/v1/facts", "get"),
+        ("/v1/facts/{fact_id}/supports", "get"),
+        ("/v1/facts/{fact_id}/actions/approve", "post"),
+        ("/v1/facts/{fact_id}/actions/reject", "post"),
+        ("/v1/facts/{fact_id}", "patch"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:

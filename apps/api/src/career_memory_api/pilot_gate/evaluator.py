@@ -576,11 +576,21 @@ def evaluate_t506_pilot_gate(
     by_id = {b.bundle_id: b for b in bundles}
 
     fe_be_m4_exists = (
-        root / "spikes" / "web-import" / "tests" / "contract-http" / "live-backend-claim-review.test.tsx"
-    ).is_file()
+        (
+            root / "apps" / "web" / "tests" / "contract-http" / "live-backend-claim-review.test.tsx"
+        ).is_file()
+        or (
+            root / "spikes" / "web-import" / "tests" / "contract-http" / "live-backend-claim-review.test.tsx"
+        ).is_file()
+    )
     fe_be_m5_exists = (
-        root / "spikes" / "web-import" / "tests" / "contract-http" / "live-backend-memory-ops.test.tsx"
-    ).is_file()
+        (
+            root / "apps" / "web" / "tests" / "contract-http" / "live-backend-memory-ops.test.tsx"
+        ).is_file()
+        or (
+            root / "spikes" / "web-import" / "tests" / "contract-http" / "live-backend-memory-ops.test.tsx"
+        ).is_file()
+    )
     fe_be_present = (not require_live_fe_be_tests_present) or (fe_be_m4_exists and fe_be_m5_exists)
 
     invariants: list[InvariantVerificationItem] = [

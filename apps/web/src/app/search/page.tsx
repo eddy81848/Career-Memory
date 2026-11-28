@@ -1,5 +1,5 @@
 import React from "react";
-import { MemoryOpsApp } from "@/components/memory-ops/MemoryOpsApp";
+import { LiveFullstackShell } from "@/components/LiveFullstackShell";
 import type { MemoryOpsScenarioId } from "@/domain/memory-ops-models";
 
 const VALID_SCENARIOS = new Set<MemoryOpsScenarioId>([
@@ -30,6 +30,10 @@ export default async function MemoryOpsSearchPage({
       : "webhook";
 
   return (
-    <MemoryOpsApp initialScenario={scenario} initialQuery={initialQuery} />
+    <LiveFullstackShell
+      route="search"
+      initialMemoryOpsScenario={scenario}
+      initialQuery={initialQuery}
+    />
   );
 }

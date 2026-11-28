@@ -1,5 +1,5 @@
 import React from "react";
-import { ClaimReviewApp } from "@/components/claim-review/ClaimReviewApp";
+import { LiveFullstackShell } from "@/components/LiveFullstackShell";
 import type { ClaimReviewScenarioId } from "@/domain/claim-review-models";
 
 const VALID_SCENARIOS = new Set<ClaimReviewScenarioId>([
@@ -28,5 +28,11 @@ export default async function ClaimReviewPage({
       ? (params.scenario as ClaimReviewScenarioId)
       : "default_grounded";
 
-  return <ClaimReviewApp eventId={eventId} initialScenario={scenario} />;
+  return (
+    <LiveFullstackShell
+      route="claim-review"
+      eventId={eventId}
+      initialClaimScenario={scenario}
+    />
+  );
 }

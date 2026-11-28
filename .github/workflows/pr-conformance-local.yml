@@ -1,14 +1,15 @@
-# Local / PR Conformance & Drift CI Workflow (T-106 + T-106A)
+# Local / PR Conformance & Drift CI Workflow (T-106 + T-106A + apps/web Gate)
 #
 # Hosting Boundary Notice:
 #   Per owner decision, hosted staging/cloud deployment (T-106B: Cloud Run,
 #   Artifact Registry, WIF, and hosted Supabase staging deployment) is
-#   DEFERRED / WAIVED for the current M1 gate (not executed).
+#   DEFERRED / WAIVED for the current local MVP gate (not executed).
 #   This workflow intentionally contains ZERO cloud credentials, ZERO paid
 #   scanners, and ZERO deployment steps. It enforces pure contract, enum,
-#   AI JSON Schema, OpenAPI, and local PostgreSQL 18 conformance checks.
+#   AI JSON Schema, OpenAPI, local PostgreSQL 18 conformance, and apps/web
+#   typecheck/test/build checks.
 
-name: M1 PR Conformance & Drift Gate (Local / No Cloud Deploy)
+name: PR Conformance, PG18 & Web Gate (Local / No Cloud Deploy)
 
 on:
   pull_request:
@@ -20,7 +21,7 @@ permissions:
 
 jobs:
   conformance-and-tests:
-    name: M1 Unit, Contract, AI Schema & PostgreSQL 18 Conformance
+    name: API, Contract, AI Schema, PG18 & Web Conformance
     runs-on: ubuntu-latest
 
     steps:
@@ -47,7 +48,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Run M1 Integrated API & PostgreSQL 18 Test Suite
+      - name: Run Integrated API & PostgreSQL 18 Test Suite
         working-directory: apps/api
         run: uv run pytest -v -m ""
 
@@ -55,8 +56,35 @@ jobs:
         working-directory: apps/api
         run: uv run python ../../scripts/run_conformance_ci.py --with-postgres
 
+      - name: Run T-506 3-Tier Release Gate Verification (0 Drift)
+        working-directory: apps/api
+        run: uv run python ../../scripts/run_t506_pilot_gate.py --verify
+
       - name: Run M0 CONTRACT-06 Initial Import Regression Suite (38 tests)
         working-directory: apps/api
         run: >-
           uv run --with-requirements ../../spikes/import-contract/requirements.txt
           python -m pytest -v ../../spikes/import-contract/test_contract.py
+
+      - name: Set up Node.js 22 for apps/web
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install apps/web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Typecheck apps/web
+        working-directory: apps/web
+        run: npm run typecheck
+
+      - name: Run apps/web unit tests
+        working-directory: apps/web
+        run: npm test
+
+      - name: Build apps/web production bundle
+        working-directory: apps/web
+        run: npm run build

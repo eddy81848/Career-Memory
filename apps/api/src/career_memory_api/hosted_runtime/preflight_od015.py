@@ -334,6 +334,7 @@ def evaluate_od015_preflight(
 
 def _gcloud_env() -> dict[str, str]:
     env = os.environ.copy()
+    env["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
     existing = env.get("CLOUDSDK_METRICS_ENVIRONMENT", "").strip()
     env["CLOUDSDK_METRICS_ENVIRONMENT"] = (
         f"{existing} datacloud.antigravity" if existing else "datacloud.antigravity"
@@ -343,7 +344,7 @@ def _gcloud_env() -> dict[str, str]:
 
 def _run_gcloud_json(args: list[str], *, timeout_seconds: float = 20.0) -> Any:
     proc = subprocess.run(
-        ["gcloud", *args, "--format=json"],
+        ["gcloud", "--quiet", *args, "--format=json"],
         check=True,
         capture_output=True,
         text=True,
@@ -368,58 +369,61 @@ def collect_gcp_preflight_observation(
         for item in (services_raw if isinstance(services_raw, list) else [])
     )
 
-    repos_raw = _run_gcloud_json(
-        ["artifacts", "repositories", "list", f"--project={project_id}"]
-    )
-    total_bytes = 0
-    for repo in repos_raw if isinstance(repos_raw, list) else []:
-        size_val = repo.get("sizeBytes")
-        if size_val is not None:
-            try:
-                total_bytes += int(size_val)
-            except (TypeError, ValueError):
-                pass
-    ar_total_mb = total_bytes / (1024.0 * 1024.0)
-
-    secrets_raw = _run_gcloud_json(
-        ["secrets", "list", f"--project={project_id}"]
-    )
-    enabled_versions = 0
-    for sec in secrets_raw if isinstance(secrets_raw, list) else []:
-        sec_name = str(sec.get("name", "")).rsplit("/", 1)[-1]
-        if not sec_name:
-            continue
-        versions_raw = _run_gcloud_json(
-            [
-                "secrets",
-                "versions",
-                "list",
-                sec_name,
-                "--filter=state=ENABLED",
-                f"--project={project_id}",
-            ]
+    ar_total_mb = 0.0
+    if "artifactregistry.googleapis.com" in enabled_services:
+        repos_raw = _run_gcloud_json(
+            ["artifacts", "repositories", "list", f"--project={project_id}"]
         )
-        if isinstance(versions_raw, list):
-            enabled_versions += len(versions_raw)
+        total_bytes = 0
+        for repo in repos_raw if isinstance(repos_raw, list) else []:
+            size_val = repo.get("sizeBytes")
+            if size_val is not None:
+                try:
+                    total_bytes += int(size_val)
+                except (TypeError, ValueError):
+                    pass
+        ar_total_mb = total_bytes / (1024.0 * 1024.0)
+
+    enabled_versions = 0
+    if "secretmanager.googleapis.com" in enabled_services:
+        secrets_raw = _run_gcloud_json(
+            ["secrets", "list", f"--project={project_id}"]
+        )
+        for sec in secrets_raw if isinstance(secrets_raw, list) else []:
+            sec_name = str(sec.get("name", "")).rsplit("/", 1)[-1]
+            if not sec_name:
+                continue
+            versions_raw = _run_gcloud_json(
+                [
+                    "secrets",
+                    "versions",
+                    "list",
+                    sec_name,
+                    "--filter=state=ENABLED",
+                    f"--project={project_id}",
+                ]
+            )
+            if isinstance(versions_raw, list):
+                enabled_versions += len(versions_raw)
 
     vpc_count = 0
-    try:
-        vpc_raw = _run_gcloud_json(
-            [
-                "compute",
-                "networks",
-                "vpc-access",
-                "connectors",
-                "list",
-                f"--region={region}",
-                f"--project={project_id}",
-            ]
-        )
-        if isinstance(vpc_raw, list):
-            vpc_count = len(vpc_raw)
-    except subprocess.CalledProcessError:
-        # API not enabled => 0 VPC connectors
-        vpc_count = 0
+    if "vpcaccess.googleapis.com" in enabled_services:
+        try:
+            vpc_raw = _run_gcloud_json(
+                [
+                    "compute",
+                    "networks",
+                    "vpc-access",
+                    "connectors",
+                    "list",
+                    f"--region={region}",
+                    f"--project={project_id}",
+                ]
+            )
+            if isinstance(vpc_raw, list):
+                vpc_count = len(vpc_raw)
+        except subprocess.CalledProcessError:
+            vpc_count = 0
 
     return CloudPreflightObservation(
         project_id=project_id,

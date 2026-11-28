@@ -16,12 +16,16 @@ Key invariants:
 from __future__ import annotations
 
 import hashlib
+import json
+import os
+import secrets
+import subprocess
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 import psycopg
 
@@ -333,6 +337,23 @@ def run_staging_migrations(
                         "Another deployment holds the Career Memory migration advisory lock."
                     )
 
+            # Ensure managed non-superuser CREATEROLE accounts (e.g. Supabase PostgreSQL 17 'postgres')
+            # hold membership in cm_migrator before 0010 runs AUTHORIZATION / SET ROLE cm_migrator.
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cm_migrator') THEN
+                            CREATE ROLE cm_migrator
+                                NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+                        END IF;
+                        EXECUTE format('GRANT cm_migrator TO %I', current_user);
+                    END
+                    $$;
+                    """
+                )
+
             # Check whether auth_ctx.schema_migration_ledger already exists
             recorded: dict[str, str] = {}
             with conn.cursor() as cur:
@@ -584,6 +605,223 @@ def enroll_pilot_user(
     )
 
 
+def build_runtime_pooler_dsn(
+    migration_database_url: str,
+    *,
+    base_login_role: str,
+    password: str,
+    target_port: int | None = 6543,
+) -> str:
+    """Derive a Supavisor :6543 Transaction Pooler DSN preserving '.<project_ref>' suffixes."""
+    parsed = urlsplit(migration_database_url.strip())
+    mig_user = (parsed.username or "").strip()
+    project_suffix = ""
+    if "." in mig_user and (parsed.hostname or "").lower().endswith(".pooler.supabase.com"):
+        project_suffix = "." + mig_user.split(".", 1)[1]
+
+    runtime_user = f"{base_login_role}{project_suffix}"
+    encoded_user = quote(runtime_user, safe=".")
+    encoded_pw = quote(password, safe="")
+    host = parsed.hostname or "127.0.0.1"
+    effective_port = target_port if target_port is not None else parsed.port
+    port_part = f":{effective_port}" if effective_port else ""
+    netloc = f"{encoded_user}:{encoded_pw}@{host}{port_part}"
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def _sync_single_gcp_secret_version(
+    *,
+    gcp_project_id: str,
+    secret_name: str,
+    secret_value: str,
+) -> dict[str, Any]:
+    """Add a new Secret Manager version via stdin and destroy prior enabled versions (<= 4 cap)."""
+    env = os.environ.copy()
+    env["CLOUDSDK_CORE_DISABLE_PROMPTS"] = "1"
+    existing_metric = env.get("CLOUDSDK_METRICS_ENVIRONMENT", "").strip()
+    env["CLOUDSDK_METRICS_ENVIRONMENT"] = (
+        f"{existing_metric} datacloud.antigravity" if existing_metric else "datacloud.antigravity"
+    )
+
+    prior_raw = subprocess.check_output(
+        [
+            "gcloud",
+            "--quiet",
+            "secrets",
+            "versions",
+            "list",
+            secret_name,
+            "--filter=state=ENABLED",
+            f"--project={gcp_project_id}",
+            "--format=json",
+        ],
+        text=True,
+        env=env,
+    ).strip()
+    prior_items = json.loads(prior_raw) if prior_raw else []
+    prior_ids = [
+        str(item.get("name", "")).rsplit("/", 1)[-1]
+        for item in (prior_items if isinstance(prior_items, list) else [])
+        if str(item.get("name", "")).rsplit("/", 1)[-1]
+    ]
+
+    add_out = subprocess.check_output(
+        [
+            "gcloud",
+            "--quiet",
+            "secrets",
+            "versions",
+            "add",
+            secret_name,
+            "--data-file=-",
+            f"--project={gcp_project_id}",
+            "--format=json",
+        ],
+        input=secret_value,
+        text=True,
+        env=env,
+    ).strip()
+    added_obj = json.loads(add_out) if add_out else {}
+    new_version_id = str(added_obj.get("name", "")).rsplit("/", 1)[-1]
+
+    destroyed_ids: list[str] = []
+    for old_id in prior_ids:
+        if old_id and old_id != new_version_id:
+            subprocess.run(
+                [
+                    "gcloud",
+                    "--quiet",
+                    "secrets",
+                    "versions",
+                    "destroy",
+                    old_id,
+                    f"--secret={secret_name}",
+                    f"--project={gcp_project_id}",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            destroyed_ids.append(old_id)
+
+    return {
+        "secret_name": secret_name,
+        "active_version": new_version_id,
+        "destroyed_prior_versions": destroyed_ids,
+    }
+
+
+def provision_and_sync_runtime_db_secrets(
+    migration_database_url: str,
+    *,
+    gcp_project_id: str | None = None,
+    api_login_role: str = "cm_staging_api_login",
+    worker_login_role: str = "cm_staging_worker_login",
+    target_pooler_port: int | None = None,
+    allow_insecure_local_test: bool = False,
+) -> dict[str, Any]:
+    """Create/rotate least-privilege runtime LOGIN roles, verify :6543 pooler, & sync Secret Manager."""
+    assert_safe_migration_dsn(
+        migration_database_url,
+        allow_insecure_local_test=allow_insecure_local_test,
+    )
+    api_pw = secrets.token_hex(24)
+    worker_pw = secrets.token_hex(24)
+
+    with psycopg.connect(migration_database_url, autocommit=True, connect_timeout=10) as conn:
+        with conn.cursor() as cur:
+            for login_role, pw, group_role in (
+                (api_login_role, api_pw, "cm_api_app"),
+                (worker_login_role, worker_pw, "cm_worker_app"),
+            ):
+                if not login_role.replace("_", "").isalnum():
+                    raise HostedConfigurationError(f"Invalid role identifier: {login_role!r}")
+                cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (login_role,))
+                if cur.fetchone() is None:
+                    cur.execute(
+                        f"CREATE ROLE {login_role} LOGIN PASSWORD '{pw}' "
+                        "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS"
+                    )
+                else:
+                    cur.execute(
+                        f"ALTER ROLE {login_role} WITH LOGIN PASSWORD '{pw}' "
+                        "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS"
+                    )
+                cur.execute(f"GRANT {group_role} TO {login_role}")
+
+    parsed = urlsplit(migration_database_url.strip())
+    is_supabase_pooler = (parsed.hostname or "").lower().endswith(".pooler.supabase.com")
+    effective_port = (
+        target_pooler_port
+        if target_pooler_port is not None
+        else (6543 if is_supabase_pooler else parsed.port)
+    )
+
+    api_dsn = build_runtime_pooler_dsn(
+        migration_database_url,
+        base_login_role=api_login_role,
+        password=api_pw,
+        target_port=effective_port,
+    )
+    worker_dsn = build_runtime_pooler_dsn(
+        migration_database_url,
+        base_login_role=worker_login_role,
+        password=worker_pw,
+        target_port=effective_port,
+    )
+
+    # Verify live Transaction Pooler (:6543) connectivity, prepare_threshold=None, and fail-closed RLS!
+    pooler_checks: list[dict[str, Any]] = []
+    for label, dsn in (("api_pooler", api_dsn), ("worker_pooler", worker_dsn)):
+        with psycopg.connect(dsn, autocommit=False, prepare_threshold=None, connect_timeout=10) as rconn:
+            with rconn.transaction():
+                with rconn.cursor() as rcur:
+                    rcur.execute("SELECT count(*) FROM public.work_events")
+                    unscoped_rows = int((rcur.fetchone() or (0,))[0])
+                    rcur.execute("SELECT count(*) FROM pg_prepared_statements")
+                    prepared_cnt = int((rcur.fetchone() or (0,))[0])
+            pooler_checks.append(
+                {
+                    "role_check": label,
+                    "port": effective_port,
+                    "unscoped_work_events_rows": unscoped_rows,
+                    "prepared_statements_count": prepared_cnt,
+                    "passed": unscoped_rows == 0 and prepared_cnt == 0,
+                }
+            )
+            if unscoped_rows != 0 or prepared_cnt != 0:
+                raise PostMigrationAuditError(
+                    f"Runtime pooler check {label} failed: unscoped={unscoped_rows}, prepared={prepared_cnt}"
+                )
+
+    synced_secrets: list[dict[str, Any]] = []
+    if gcp_project_id and gcp_project_id.strip():
+        proj = gcp_project_id.strip()
+        synced_secrets.append(
+            _sync_single_gcp_secret_version(
+                gcp_project_id=proj,
+                secret_name="cm-api-database-url",
+                secret_value=api_dsn,
+            )
+        )
+        synced_secrets.append(
+            _sync_single_gcp_secret_version(
+                gcp_project_id=proj,
+                secret_name="cm-worker-database-url",
+                secret_value=worker_dsn,
+            )
+        )
+
+    return {
+        "api_login_role": api_login_role,
+        "worker_login_role": worker_login_role,
+        "runtime_pooler_port": effective_port,
+        "pooler_verification": pooler_checks,
+        "gcp_secret_manager_synced": synced_secrets,
+    }
+
+
 __all__ = [
     "EXPECTED_PUBLIC_TABLE_COUNT",
     "MIGRATION_ADVISORY_LOCK_KEY",
@@ -594,7 +832,9 @@ __all__ = [
     "PostMigrationAuditError",
     "PostMigrationSecurityAudit",
     "assert_safe_migration_dsn",
+    "build_runtime_pooler_dsn",
     "enroll_pilot_user",
+    "provision_and_sync_runtime_db_secrets",
     "run_post_migration_security_audit",
     "run_staging_migrations",
 ]

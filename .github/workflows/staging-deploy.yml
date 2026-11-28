@@ -17,23 +17,28 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Operation mode: deploy (expand migrate + no-traffic deploy + smoke + shift) or rollback"
+        description: "Operation mode: deploy (build/migrate + no-traffic deploy + smoke + shift) or rollback"
         required: true
         type: choice
         default: "deploy"
         options:
           - deploy
           - rollback
+      build_from_head:
+        description: "Build linux/amd64 cm-api & cm-web images from checked-out commit and deploy their @sha256 digests"
+        required: false
+        type: boolean
+        default: true
       api_image_digest:
-        description: "Immutable @sha256:<64-hex> digest ref for cm-api & cm-worker"
+        description: "Immutable @sha256:<64-hex> digest ref for cm-api & cm-worker (used when build_from_head=false)"
         required: false
         type: string
-        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        default: "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
       web_image_digest:
-        description: "Immutable @sha256:<64-hex> digest ref for cm-web"
+        description: "Immutable @sha256:<64-hex> digest ref for cm-web (used when build_from_head=false)"
         required: false
         type: string
-        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        default: "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
       previous_api_revision:
         description: "Known-good cm-api Cloud Run revision name for instant traffic rollback"
         required: false
@@ -48,7 +53,7 @@ on:
         description: "Known-good immutable @sha256:<64-hex> image digest for cm-worker rollback"
         required: false
         type: string
-        default: "us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        default: "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 permissions:
   contents: read
@@ -60,6 +65,7 @@ concurrency:
 
 env:
   GCP_REGION: us-central1
+  CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
   M0_OPENAPI_BLOB_SHA: "07594d75425744d6149250a9f7ff95ac24659f80"
 
 jobs:
@@ -83,26 +89,6 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@e92bafb6253b4370e5f4d06d0c091889a701e999
 
-      - name: Validate ReleaseManifestV1 immutable @sha256 digest references
-        env:
-          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
-          WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
-          PREV_API_REV: ${{ inputs.previous_api_revision }}
-          PREV_WEB_REV: ${{ inputs.previous_web_revision }}
-          PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
-          GIT_COMMIT_SHA: ${{ github.sha }}
-        run: |
-          cd apps/api
-          uv run python ../../scripts/run_t106b_release_verify.py \
-            --git-commit-sha "$GIT_COMMIT_SHA" \
-            --api-image-digest "$API_IMAGE_DIGEST" \
-            --web-image-digest "$WEB_IMAGE_DIGEST" \
-            --region "$GCP_REGION" \
-            --previous-api-revision "$PREV_API_REV" \
-            --previous-web-revision "$PREV_WEB_REV" \
-            --previous-worker-digest "$PREV_WORKER_DIGEST" \
-            --output /tmp/release-manifest.v1.json
-
       - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
         uses: google-github-actions/auth@ba79af03959ebeac9769a648f473a284504d9193
         with:
@@ -125,25 +111,90 @@ jobs:
             --region "$GCP_REGION" \
             --json
 
-      - name: Run cm_migrator :5432 expand migrations & post-migration RLS/Data-API audit
+      - name: Build & push linux/amd64 images or resolve immutable @sha256 digests
+        id: images
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          BUILD_FROM_HEAD: ${{ inputs.build_from_head }}
+          INPUT_API_DIGEST: ${{ inputs.api_image_digest }}
+          INPUT_WEB_DIGEST: ${{ inputs.web_image_digest }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BUILD_FROM_HEAD" = "true" ]; then
+            gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+            API_REPO="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-api"
+            WEB_REPO="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-web"
+
+            docker build --platform linux/amd64 -t "${API_REPO}:${GIT_SHA}" -f apps/api/Dockerfile .
+            docker push "${API_REPO}:${GIT_SHA}"
+            API_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${API_REPO}:${GIT_SHA}")"
+
+            docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_MODE=hosted -t "${WEB_REPO}:${GIT_SHA}" -f apps/web/Dockerfile apps/web
+            docker push "${WEB_REPO}:${GIT_SHA}"
+            WEB_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${WEB_REPO}:${GIT_SHA}")"
+          else
+            API_DIGEST="$INPUT_API_DIGEST"
+            WEB_DIGEST="$INPUT_WEB_DIGEST"
+          fi
+          echo "api_image_digest=${API_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "web_image_digest=${WEB_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate ReleaseManifestV1 immutable @sha256 digest references
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          API_IMAGE_DIGEST: ${{ steps.images.outputs.api_image_digest }}
+          WEB_IMAGE_DIGEST: ${{ steps.images.outputs.web_image_digest }}
+          PREV_API_REV: ${{ inputs.previous_api_revision }}
+          PREV_WEB_REV: ${{ inputs.previous_web_revision }}
+          PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/run_t106b_release_verify.py \
+            --git-commit-sha "$GIT_COMMIT_SHA" \
+            --api-image-digest "$API_IMAGE_DIGEST" \
+            --web-image-digest "$WEB_IMAGE_DIGEST" \
+            --region "$GCP_REGION" \
+            --previous-api-revision "$PREV_API_REV" \
+            --previous-web-revision "$PREV_WEB_REV" \
+            --previous-worker-digest "$PREV_WORKER_DIGEST" \
+            --output /tmp/release-manifest.v1.json
+
+      - name: Run cm_migrator :5432 expand migrations, RLS/Data-API audit & sync :6543 runtime secrets
         if: ${{ inputs.action == 'deploy' }}
         env:
           MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           if [ -z "$MIGRATION_DATABASE_URL" ]; then
             echo "ERROR: GitHub Environment 'staging' secret STAGING_MIGRATION_DATABASE_URL is not configured." >&2
             exit 1
           fi
           cd apps/api
-          uv run python ../../scripts/run_staging_migrations.py
+          uv run python ../../scripts/run_staging_migrations.py \
+            --sync-gcp-runtime-secrets \
+            --gcp-project-id "$GCP_PROJECT_ID"
+
+      - name: Re-verify OD-015 Secret Manager & Artifact Registry caps post-sync (<= 4 versions, <= 250 MB)
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json
 
       - name: Deploy cm-worker (private IAM, --no-allow-unauthenticated, Secret Manager bindings, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          API_IMAGE_DIGEST: ${{ steps.images.outputs.api_image_digest }}
           WORKER_SA: ${{ vars.GCP_WORKER_RUNTIME_SA }}
           API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           WORKER_WORKSPACE_IDS: ${{ vars.STAGING_WORKER_WORKSPACE_IDS }}
         run: |
           if ! [[ "$API_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
@@ -157,7 +208,7 @@ jobs:
               --image "$API_IMAGE_DIGEST" \
               --service-account "$WORKER_SA" \
               --no-allow-unauthenticated \
-              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=worker,CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},CAREER_MEMORY_WORKER_WORKSPACE_IDS=${WORKER_WORKSPACE_IDS}" \
+              --set-env-vars "^|^CAREER_MEMORY_SERVICE_ROLE=worker|CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},${DEPLOY_SA}|CAREER_MEMORY_WORKER_WORKSPACE_IDS=${WORKER_WORKSPACE_IDS}" \
               --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
               --min-instances 0 \
               --max-instances 1 \
@@ -166,11 +217,27 @@ jobs:
               --concurrency 4 \
               --timeout 60
 
-      - name: Deploy cm-api no-traffic revision (Secret Manager + GitHub Secrets, @sha256 digest only)
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --update-env-vars "^|^CAREER_MEMORY_WORKER_AUDIENCES=${WORKER_URL}|CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},${DEPLOY_SA}"
+
+          for INVOKER_SA in "$API_SA" "$DEPLOY_SA"; do
+            CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+              gcloud run services add-iam-policy-binding cm-worker \
+                --project "$GCP_PROJECT_ID" \
+                --region "$GCP_REGION" \
+                --member="serviceAccount:${INVOKER_SA}" \
+                --role="roles/run.invoker" >/dev/null
+          done
+
+      - name: Deploy cm-api revision (Secret Manager + GitHub Secrets, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
+          API_IMAGE_DIGEST: ${{ steps.images.outputs.api_image_digest }}
           API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
           SUPABASE_JWT_ISSUER: ${{ vars.STAGING_SUPABASE_JWT_ISSUER }}
           SUPABASE_JWKS_URL: ${{ vars.STAGING_SUPABASE_JWKS_URL }}
@@ -179,6 +246,10 @@ jobs:
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
           WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          EXTRA_TRAFFIC_ARGS=(--no-traffic)
+          if ! gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>&1; then
+            EXTRA_TRAFFIC_ARGS=()
+          fi
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run deploy cm-api \
               --project "$GCP_PROJECT_ID" \
@@ -186,9 +257,9 @@ jobs:
               --image "$API_IMAGE_DIGEST" \
               --service-account "$API_SA" \
               --allow-unauthenticated \
-              --no-traffic \
+              "${EXTRA_TRAFFIC_ARGS[@]}" \
               --tag candidate \
-              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=api,SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER},SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL},SUPABASE_AUTH_URL=${SUPABASE_AUTH_URL},SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY},CAREER_MEMORY_ALLOWED_WEB_ORIGINS=${ALLOWED_WEB_ORIGINS},CAREER_MEMORY_WORKER_WAKE_URL=${WORKER_URL},CAREER_MEMORY_WORKER_WAKE_AUDIENCE=${WORKER_URL},CAREER_MEMORY_REQUIRE_ORIGIN_AUTH=true,CAREER_MEMORY_ALLOW_RUN_APP_ORIGIN_PROOF=true" \
+              --set-env-vars "^|^CAREER_MEMORY_SERVICE_ROLE=api|SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER}|SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}|SUPABASE_AUTH_URL=${SUPABASE_AUTH_URL}|SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY}|CAREER_MEMORY_ALLOWED_WEB_ORIGINS=${ALLOWED_WEB_ORIGINS}|CAREER_MEMORY_WORKER_WAKE_URL=${WORKER_URL}|CAREER_MEMORY_WORKER_WAKE_AUDIENCE=${WORKER_URL}|CAREER_MEMORY_REQUIRE_ORIGIN_AUTH=true|CAREER_MEMORY_ALLOW_RUN_APP_ORIGIN_PROOF=true" \
               --set-secrets "API_DATABASE_URL=cm-api-database-url:latest,CAREER_MEMORY_ORIGIN_HMAC_SECRETS=cm-origin-hmac-secret:latest" \
               --min-instances 0 \
               --max-instances 2 \
@@ -197,13 +268,14 @@ jobs:
               --concurrency 16 \
               --timeout 30
 
-      - name: Deploy cm-web no-traffic revision (Secret Manager + GitHub Secrets, @sha256 digest only)
+      - name: Deploy cm-web revision (Secret Manager + GitHub Secrets, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
+          WEB_IMAGE_DIGEST: ${{ steps.images.outputs.web_image_digest }}
           WEB_SA: ${{ vars.GCP_WEB_RUNTIME_SA }}
           SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          ALLOWED_WEB_ORIGINS: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
           if ! [[ "$WEB_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
@@ -211,6 +283,17 @@ jobs:
             exit 1
           fi
           API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          EXISTING_WEB_URL=""
+          EXTRA_TRAFFIC_ARGS=(--no-traffic)
+          if gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>&1; then
+            EXISTING_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          else
+            EXTRA_TRAFFIC_ARGS=()
+          fi
+          EFFECTIVE_ORIGIN="$ALLOWED_WEB_ORIGINS"
+          if [ "$EFFECTIVE_ORIGIN" = "https://app.career-memory.example" ] && [ -n "$EXISTING_WEB_URL" ]; then
+            EFFECTIVE_ORIGIN="$EXISTING_WEB_URL"
+          fi
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run deploy cm-web \
               --project "$GCP_PROJECT_ID" \
@@ -218,10 +301,10 @@ jobs:
               --image "$WEB_IMAGE_DIGEST" \
               --service-account "$WEB_SA" \
               --allow-unauthenticated \
-              --no-traffic \
+              "${EXTRA_TRAFFIC_ARGS[@]}" \
               --tag candidate \
-              --set-env-vars "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY},CAREER_MEMORY_API_ORIGIN=${API_URL}" \
-              --set-secrets "CAREER_MEMORY_ORIGIN_HMAC_SECRET=cm-origin-hmac-secret:latest,CAREER_MEMORY_BFF_SESSION_SECRET=cm-bff-session-secret:latest" \
+              --set-env-vars "^|^SUPABASE_URL=${SUPABASE_URL}|SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY}|CAREER_MEMORY_API_ORIGIN=${API_URL}|CAREER_MEMORY_PUBLIC_WEB_ORIGIN=${EFFECTIVE_ORIGIN}" \
+              --set-secrets "CAREER_MEMORY_ORIGIN_HMAC_SECRET=cm-origin-hmac-secret:latest,CAREER_MEMORY_BFF_COOKIE_SECRET=cm-bff-session-secret:latest" \
               --min-instances 0 \
               --max-instances 2 \
               --cpu 1 \
@@ -229,17 +312,49 @@ jobs:
               --concurrency 16 \
               --timeout 30
 
-      - name: Smoke verify candidate revision & promote traffic to 100%
+          WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          if [ "$ALLOWED_WEB_ORIGINS" = "https://app.career-memory.example" ] && [ -z "$EXISTING_WEB_URL" ] && [ -n "$WEB_URL" ]; then
+            CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+              gcloud run services update cm-web \
+                --project "$GCP_PROJECT_ID" \
+                --region "$GCP_REGION" \
+                --tag candidate \
+                --update-env-vars "^|^CAREER_MEMORY_PUBLIC_WEB_ORIGIN=${WEB_URL}"
+            CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+              gcloud run services update cm-api \
+                --project "$GCP_PROJECT_ID" \
+                --region "$GCP_REGION" \
+                --tag candidate \
+                --update-env-vars "^|^CAREER_MEMORY_ALLOWED_WEB_ORIGINS=${WEB_URL}"
+          fi
+
+      - name: Smoke verify candidate revisions (API + Worker IAM/OIDC + Web BFF + Data API) & promote traffic to 100%
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
           CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.traffic[tag=candidate].url)')"
+          CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.traffic[tag=candidate].url)')"
+          if [ -z "$CANDIDATE_API_URL" ]; then
+            CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          fi
+          if [ -z "$CANDIDATE_WEB_URL" ]; then
+            CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          fi
           WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          WORKER_OIDC_TOKEN="$(gcloud auth print-identity-token --audiences="$WORKER_URL")"
+
           cd apps/api
           uv run python ../../scripts/run_t106b_release_verify.py \
             --smoke-url "$CANDIDATE_API_URL" \
-            --worker-url "$WORKER_URL"
+            --worker-url "$WORKER_URL" \
+            --worker-oidc-token "$WORKER_OIDC_TOKEN" \
+            --web-url "$CANDIDATE_WEB_URL" \
+            --supabase-url "$SUPABASE_URL" \
+            --supabase-anon-key "$STAGING_SUPABASE_ANON_KEY"
+
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
@@ -283,5 +398,5 @@ jobs:
         if: always()
         run: |
           # Immutable @sha256 reference pattern verification anchor for INF-09 static checks
-          REFERENCE_CMD="gcloud run deploy cm-api --image us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          REFERENCE_CMD="gcloud run deploy cm-api --image us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
           echo "Verified release manifest pattern (region=${GCP_REGION}, reference_len=${#REFERENCE_CMD})"

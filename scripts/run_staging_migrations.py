@@ -23,6 +23,7 @@ if str(_API_SRC) not in sys.path:
 from career_memory_api.hosted_runtime.migration_runner import (  # noqa: E402
     assert_safe_migration_dsn,
     enroll_pilot_user,
+    provision_and_sync_runtime_db_secrets,
     run_post_migration_security_audit,
     run_staging_migrations,
 )
@@ -53,6 +54,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--audit-only",
         action="store_true",
         help="Run the read-only post-migration RLS/role/Data-API security audit only.",
+    )
+    parser.add_argument(
+        "--sync-gcp-runtime-secrets",
+        action="store_true",
+        help=(
+            "Provision/rotate least-privilege cm_staging_api_login & cm_staging_worker_login "
+            "roles, verify :6543 Transaction Pooler isolation, and sync redacted DSNs to GCP Secret Manager."
+        ),
+    )
+    parser.add_argument(
+        "--gcp-project-id",
+        default=None,
+        help="GCP Project ID for Secret Manager sync when --sync-gcp-runtime-secrets is set.",
     )
     parser.add_argument(
         "--enroll-pilot-user",
@@ -118,7 +132,24 @@ def main(argv: list[str] | None = None) -> int:
         lock_timeout_seconds=args.lock_timeout_seconds,
         allow_insecure_local_test=bool(args.allow_insecure_local_test),
     )
-    print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    output: dict[str, object] = report.to_dict()
+
+    if args.sync_gcp_runtime_secrets:
+        gcp_project = (args.gcp_project_id or os.environ.get("GCP_PROJECT_ID") or "").strip()
+        if not gcp_project:
+            print(
+                "ERROR: --gcp-project-id or GCP_PROJECT_ID is required with --sync-gcp-runtime-secrets.",
+                file=sys.stderr,
+            )
+            return 2
+        sync_res = provision_and_sync_runtime_db_secrets(
+            db_url,
+            gcp_project_id=gcp_project,
+            allow_insecure_local_test=bool(args.allow_insecure_local_test),
+        )
+        output["runtime_secret_sync"] = sync_res
+
+    print(json.dumps(output, indent=2, sort_keys=True))
     return 0
 
 

@@ -1,0 +1,156 @@
+# Smart Path-Aware PR Test Workflow (INF-09 Zero-Secret Conformance & Selective Tests)
+#
+# - Runs ONLY on pull_request / manual dispatch with minimal `contents: read` permissions and 0 secrets.
+# - Uses `scripts/detect_ci_changes.py` to run ONLY direct + indirect affected test suites
+#   (skipping PostgreSQL 18 setup, frozen M0 spikes, or Web builds when unrelated).
+
+name: CI — PR 테스트
+
+on:
+  pull_request:
+    branches: [main, "foundation/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-and-static:
+    name: 1. 변경 영역 감지 & 정적 계약 검증
+    runs-on: ubuntu-latest
+    outputs:
+      run_api_unit: ${{ steps.scope.outputs.run_api_unit }}
+      run_api_pg18: ${{ steps.scope.outputs.run_api_pg18 }}
+      run_m0_spike: ${{ steps.scope.outputs.run_m0_spike }}
+      run_web_test: ${{ steps.scope.outputs.run_web_test }}
+      run_web_contract_http: ${{ steps.scope.outputs.run_web_contract_http }}
+      run_web_build: ${{ steps.scope.outputs.run_web_build }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Verify M0 immutable OpenAPI snapshot blob hash
+        run: |
+          ACTUAL="$(git rev-parse HEAD:contracts/import-v1/openapi.yaml)"
+          EXPECTED="07594d75425744d6149250a9f7ff95ac24659f80"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: contracts/import-v1/openapi.yaml was mutated ($ACTUAL != $EXPECTED)" >&2
+            exit 1
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Detect direct & indirect affected test scopes
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE_SHA" ]; then
+            python3 scripts/detect_ci_changes.py --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA"
+          else
+            python3 scripts/detect_ci_changes.py --force-all
+          fi
+
+      - name: Run fast static Conformance, Release Gate & CI Trust Audit (< 5s)
+        working-directory: apps/api
+        run: |
+          uv run python ../../scripts/run_conformance_ci.py
+          uv run python ../../scripts/run_t506_pilot_gate.py --verify
+          uv run pytest tests/edge_guard tests/pilot_gate -q
+
+  test-backend:
+    name: 2A. Backend · DB 선택 테스트
+    needs: [detect-and-static]
+    if: >-
+      needs.detect-and-static.outputs.run_api_unit == 'true' ||
+      needs.detect-and-static.outputs.run_api_pg18 == 'true' ||
+      needs.detect-and-static.outputs.run_m0_spike == 'true' ||
+      needs.detect-and-static.outputs.run_web_contract_http == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Install PostgreSQL 18 (only when DB/API runtime paths are affected)
+        if: >-
+          needs.detect-and-static.outputs.run_api_pg18 == 'true' ||
+          needs.detect-and-static.outputs.run_web_contract_http == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Run full API + PostgreSQL 18 test & conformance suite
+        if: needs.detect-and-static.outputs.run_api_pg18 == 'true'
+        working-directory: apps/api
+        run: |
+          uv run pytest -q -m ""
+          uv run python ../../scripts/run_conformance_ci.py --with-postgres
+
+      - name: Run fast non-Postgres API unit tests (when PG18 paths are untouched)
+        if: >-
+          needs.detect-and-static.outputs.run_api_unit == 'true' &&
+          needs.detect-and-static.outputs.run_api_pg18 != 'true'
+        working-directory: apps/api
+        run: uv run pytest tests/edge_guard tests/pilot_gate tests/llm_gate -q
+
+      - name: Run M0 CONTRACT-06 Initial Import Regression (only when import contract touched)
+        if: needs.detect-and-static.outputs.run_m0_spike == 'true'
+        working-directory: apps/api
+        run: >-
+          uv run --with-requirements ../../spikes/import-contract/requirements.txt
+          python -m pytest -q ../../spikes/import-contract/test_contract.py
+
+      - name: Run FE↔BE HTTP Contract Interop Tests (when shared API/adapter contracts change)
+        if: needs.detect-and-static.outputs.run_web_contract_http == 'true'
+        run: |
+          cd apps/api && uv sync --frozen
+          cd ../web && npm ci && npm run test:contract-http
+
+  test-web:
+    name: 2B. Web · BFF 선택 테스트
+    needs: [detect-and-static]
+    if: needs.detect-and-static.outputs.run_web_test == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install apps/web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Typecheck & unit-test apps/web
+        working-directory: apps/web
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build apps/web standalone bundle (only when runtime/build files changed)
+        if: needs.detect-and-static.outputs.run_web_build == 'true'
+        working-directory: apps/web
+        run: npm run build

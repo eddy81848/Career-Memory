@@ -27,7 +27,7 @@ def test_repo_pr_conformance_workflow_passes_inf09_audit() -> None:
     results = audit_workflows_directory(WORKFLOWS_DIR)
     assert len(results) >= 1
 
-    pr_wf = audit_workflow_file(WORKFLOWS_DIR / "pr-conformance-local.yml")
+    pr_wf = audit_workflow_file(WORKFLOWS_DIR / "ci.yml")
     assert pr_wf.passed is True, f"Unexpected INF-09 findings: {pr_wf.findings}"
     assert pr_wf.top_level_permissions == {"contents": "read"}
     assert "pull_request" in pr_wf.triggers
@@ -230,8 +230,8 @@ jobs:
 
 
 def test_repo_staging_deploy_workflow_passes_release_manifest_validation() -> None:
-    staging_path = WORKFLOWS_DIR / "staging-deploy.yml"
-    assert staging_path.is_file(), f"Missing staging deploy workflow: {staging_path}"
+    staging_path = WORKFLOWS_DIR / "cd.yml"
+    assert staging_path.is_file(), f"Missing CD deploy workflow: {staging_path}"
     content = staging_path.read_text(encoding="utf-8")
     res = validate_release_workflow_manifest(
         content,

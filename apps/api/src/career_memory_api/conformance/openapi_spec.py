@@ -10,6 +10,13 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from career_memory_api.budgets.models import (
+    CircuitBreakerState,
+    QuotaAdmissionState,
+    QuotaMeterItem,
+    QuotaMeterStatus,
+    QuotaStatusResponse,
+)
 from career_memory_api.claims.models import (
     ApproveClaimActionRequest,
     ClaimDetailResponse,
@@ -98,7 +105,9 @@ from career_memory_api.schema_contracts.enums import (
     IdentityType,
     IdentityVerificationMethod,
     LinkStatus,
+    QuotaMetricKind,
     RecordOrigin,
+    RuntimePauseState,
     SourceProvider,
     SupportType,
     SupportValidator,
@@ -622,6 +631,8 @@ def _shared_components() -> dict[str, Any]:
         DeletionConfirmAcceptedResponse,
         DeletionComponentReceiptItem,
         DeletionJobStatusResponse,
+        QuotaMeterItem,
+        QuotaStatusResponse,
         SearchResponse,
         WorkEventListResponse,
         WorkEventDetailResponse,
@@ -727,6 +738,26 @@ def _shared_components() -> dict[str, Any]:
         "DeletionComponentStatus": {
             "type": "string",
             "enum": [e.value for e in DeletionComponentStatus],
+        },
+        "QuotaMetricKind": {
+            "type": "string",
+            "enum": [e.value for e in QuotaMetricKind],
+        },
+        "RuntimePauseState": {
+            "type": "string",
+            "enum": [e.value for e in RuntimePauseState],
+        },
+        "QuotaAdmissionState": {
+            "type": "string",
+            "enum": [e.value for e in QuotaAdmissionState],
+        },
+        "QuotaMeterStatus": {
+            "type": "string",
+            "enum": [e.value for e in QuotaMeterStatus],
+        },
+        "CircuitBreakerState": {
+            "type": "string",
+            "enum": [e.value for e in CircuitBreakerState],
         },
         "SyncRunMode": {
             "type": "string",

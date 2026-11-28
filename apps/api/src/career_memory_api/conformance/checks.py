@@ -37,6 +37,11 @@ from career_memory_api.github_connect.models import (
     PolicyGuidanceCode,
     PolicyTransitionKind,
 )
+from career_memory_api.budgets.models import (
+    CircuitBreakerState,
+    QuotaAdmissionState,
+    QuotaMeterStatus,
+)
 from career_memory_api.claims.models import ClaimGenerationStatus
 from career_memory_api.conformance.ai_schemas import (
     AI_SCHEMA_BUILDERS,
@@ -715,6 +720,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="QuotaMetricKind",
         enum_cls=QuotaMetricKind,
         sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_workspace_quota_ledgers_metric_kind"),),
+        openapi_schema_name="QuotaMetricKind",
         authority=AUTHORITY_REFS["DATA_MODEL"],
     ),
     EnumParityBinding(
@@ -727,7 +733,29 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="RuntimePauseState",
         enum_cls=RuntimePauseState,
         sql_targets=(("0080_m5_search_deletion_and_budgets.sql", "ck_runtime_pause_controls_pause_state"),),
+        openapi_schema_name="RuntimePauseState",
         authority=AUTHORITY_REFS["DATA_MODEL"],
+    ),
+    EnumParityBinding(
+        name="QuotaAdmissionState",
+        enum_cls=QuotaAdmissionState,
+        sql_targets=(),
+        openapi_schema_name="QuotaAdmissionState",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="QuotaMeterStatus",
+        enum_cls=QuotaMeterStatus,
+        sql_targets=(),
+        openapi_schema_name="QuotaMeterStatus",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="CircuitBreakerState",
+        enum_cls=CircuitBreakerState,
+        sql_targets=(),
+        openapi_schema_name="CircuitBreakerState",
+        authority=AUTHORITY_REFS["MVP_API"],
     ),
 )
 
@@ -875,6 +903,7 @@ def validate_openapi_invariants(
         ("/v1/source-resources/{source_resource_id}/deletion-preview", "post"),
         ("/v1/source-resources/{source_resource_id}/deletion-confirm", "post"),
         ("/v1/deletion-jobs/{deletion_job_id}", "get"),
+        ("/v1/quota-status", "get"),
         ("/v1/sources/github/oauth/start", "post"),
         ("/v1/sources/github/oauth/callback", "post"),
         ("/v1/source-resources", "post"),

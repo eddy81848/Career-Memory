@@ -816,10 +816,14 @@ def create_m1_contract_app(
     exports_service: Any | None = None,
     search_service: Any | None = None,
     deletion_service: Any | None = None,
+    budgets_service: Any | None = None,
     resolve_access: AccessResolver | None = None,
+    edge_guard_config: Any | None = None,
+    edge_pause_controller: Any | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the full integrated contract surface (no BYOK / LLM callbacks)."""
     from career_memory_api.app import create_app
+    from career_memory_api.budgets.router import create_budgets_router
     from career_memory_api.claims.router import create_claims_router
     from career_memory_api.deletion.router import create_deletion_router
     from career_memory_api.exports.router import create_exports_router
@@ -872,6 +876,10 @@ def create_m1_contract_app(
         service=deletion_service,
         resolve_access=resolve_access,
     )
+    budgets_router = create_budgets_router(
+        service=budgets_service,
+        resolve_access=resolve_access,
+    )
     app = create_app(
         settings=settings,
         access_provider=access_provider,
@@ -882,6 +890,7 @@ def create_m1_contract_app(
         claims_router=claims_router,
         exports_router=exports_router,
         deletion_router=deletion_router,
+        budgets_router=budgets_router,
         install_contract_handlers=True,
         install_work_events_handlers=True,
         install_identities_handlers=True,
@@ -889,6 +898,9 @@ def create_m1_contract_app(
         install_claims_handlers=True,
         install_exports_handlers=True,
         install_deletion_handlers=True,
+        install_budgets_handlers=True,
+        edge_guard_config=edge_guard_config,
+        edge_pause_controller=edge_pause_controller,
     )
     install_auth_error_handlers(app)
     return app

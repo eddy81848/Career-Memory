@@ -67,6 +67,8 @@ DEFAULT_ALLOWED_API_PREFIXES: frozenset[str] = frozenset(
         "/v1/facts",
         "/v1/claims",
         "/v1/exports",
+        "/v1/search",
+        "/v1/quota-status",
         "/v1/workspaces",
         "/v1/me",
         "/v1/session",
@@ -110,6 +112,11 @@ _ESSENTIAL_USER_RIGHTS_PATTERNS: tuple[tuple[frozenset[str], re.Pattern[str], st
         frozenset({"GET", "HEAD"}),
         re.compile(r"^/v1/deletion-jobs/[^/]+$"),
         "GET /v1/deletion-jobs/{id}",
+    ),
+    (
+        frozenset({"GET", "HEAD"}),
+        re.compile(r"^/v1/quota-status$"),
+        "GET /v1/quota-status",
     ),
 )
 

@@ -35,11 +35,15 @@ def create_app(
     work_events_router: APIRouter | None = None,
     identities_router: APIRouter | None = None,
     facts_router: APIRouter | None = None,
+    claims_router: APIRouter | None = None,
+    exports_router: APIRouter | None = None,
     install_contract_handlers: bool = False,
     install_github_connect_handlers: bool = False,
     install_work_events_handlers: bool = False,
     install_identities_handlers: bool = False,
     install_facts_handlers: bool = False,
+    install_claims_handlers: bool = False,
+    install_exports_handlers: bool = False,
 ) -> FastAPI:
     """Create a FastAPI app instance.
 
@@ -112,6 +116,20 @@ def create_app(
 
         install_facts_error_handlers(app)
 
+    if install_claims_handlers:
+        from career_memory_api.claims.router import (
+            install_claims_error_handlers,
+        )
+
+        install_claims_error_handlers(app)
+
+    if install_exports_handlers:
+        from career_memory_api.exports.router import (
+            install_exports_error_handlers,
+        )
+
+        install_exports_error_handlers(app)
+
     if sync_runs_router is not None:
         app.include_router(sync_runs_router)
     if resolver_router is not None:
@@ -126,5 +144,9 @@ def create_app(
         app.include_router(identities_router)
     if facts_router is not None:
         app.include_router(facts_router)
+    if claims_router is not None:
+        app.include_router(claims_router)
+    if exports_router is not None:
+        app.include_router(exports_router)
 
     return app

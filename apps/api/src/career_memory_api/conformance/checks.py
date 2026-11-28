@@ -37,6 +37,7 @@ from career_memory_api.github_connect.models import (
     PolicyGuidanceCode,
     PolicyTransitionKind,
 )
+from career_memory_api.claims.models import ClaimGenerationStatus
 from career_memory_api.conformance.ai_schemas import (
     AI_SCHEMA_BUILDERS,
     generate_ai_schema_files,
@@ -441,6 +442,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="ClaimAtomType",
         enum_cls=ClaimAtomType,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_claim_atoms_atom_type"),),
+        openapi_schema_name="ClaimAtomType",
         ai_schema_paths=(
             (
                 "claim_atomization.v1.schema.json",
@@ -456,6 +458,7 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="ClaimAtomStatus",
         enum_cls=ClaimAtomStatus,
         sql_targets=(("0030_events_facts_claims_contributions.sql", "ck_claim_atoms_status"),),
+        openapi_schema_name="ClaimAtomStatus",
         ai_schema_paths=(
             (
                 "claim_support_validation.v1.schema.json",
@@ -620,24 +623,35 @@ ENUM_PARITY_MANIFEST: tuple[EnumParityBinding, ...] = (
         name="ExportFormat",
         enum_cls=ExportFormat,
         sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_format"),),
+        openapi_schema_name="ExportFormat",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
     EnumParityBinding(
         name="ExportPolicy",
         enum_cls=ExportPolicy,
         sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_policy"),),
+        openapi_schema_name="ExportPolicy",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
     EnumParityBinding(
         name="ExportStatus",
         enum_cls=ExportStatus,
         sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_exports_status"),),
+        openapi_schema_name="ExportStatus",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
     EnumParityBinding(
         name="ExportVerificationClass",
         enum_cls=ExportVerificationClass,
         sql_targets=(("0070_m4_fact_versions_and_exports.sql", "ck_export_claims_verification"),),
+        openapi_schema_name="ExportVerificationClass",
+        authority=AUTHORITY_REFS["MVP_API"],
+    ),
+    EnumParityBinding(
+        name="ClaimGenerationStatus",
+        enum_cls=ClaimGenerationStatus,
+        sql_targets=(),
+        openapi_schema_name="ClaimGenerationStatus",
         authority=AUTHORITY_REFS["MVP_API"],
     ),
     EnumParityBinding(
@@ -844,6 +858,17 @@ def validate_openapi_invariants(
         ("/v1/facts/{fact_id}/actions/approve", "post"),
         ("/v1/facts/{fact_id}/actions/reject", "post"),
         ("/v1/facts/{fact_id}", "patch"),
+        ("/v1/claims", "get"),
+        ("/v1/claims/generations", "post"),
+        ("/v1/claims/{claim_id}", "get"),
+        ("/v1/claims/{claim_id}/supports", "get"),
+        ("/v1/claims/{claim_id}/actions/revalidate", "post"),
+        ("/v1/claims/{claim_id}/actions/approve", "post"),
+        ("/v1/claims/{claim_id}/actions/reject", "post"),
+        ("/v1/exports", "get"),
+        ("/v1/exports", "post"),
+        ("/v1/exports/{export_id}", "get"),
+        ("/v1/exports/{export_id}", "delete"),
     )
     for route_path, method in required_routes:
         if route_path not in paths or method not in paths[route_path]:
@@ -895,6 +920,11 @@ def validate_openapi_invariants(
         "ClaimDraftCreateRequest",
         "ClaimEditRequest",
         "ClaimApproveRequest",
+        "GenerateEventClaimsRequest",
+        "RevalidateClaimRequest",
+        "ApproveClaimActionRequest",
+        "RejectClaimActionRequest",
+        "CreateExportRequest",
     ):
         req_schema = schemas.get(req_schema_name, {})
         if req_schema.get("additionalProperties") is not False:

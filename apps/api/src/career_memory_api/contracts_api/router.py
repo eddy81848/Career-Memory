@@ -700,6 +700,29 @@ def create_contracts_router(
     return router
 
 
+class _ClaimDelegatingContractBoundaryService(InMemoryContractBoundaryService):
+    """Delegates Claim boundary mutations to PostgresClaimService while preserving M1 search/deletion."""
+
+    def __init__(self, *, claims_service: Any) -> None:
+        super().__init__()
+        self._claims_service = claims_service
+
+    def create_claim_draft(
+        self, access: WorkspaceAccessContext, request: ClaimDraftCreateRequest
+    ) -> ClaimBoundaryResponse:
+        return self._claims_service.create_claim_draft(access, request)
+
+    def edit_claim(
+        self, access: WorkspaceAccessContext, claim_id: str, request: ClaimEditRequest
+    ) -> ClaimBoundaryResponse:
+        return self._claims_service.edit_claim(access, claim_id, request)
+
+    def approve_claim(
+        self, access: WorkspaceAccessContext, claim_id: str, request: ClaimApproveRequest
+    ) -> ClaimBoundaryResponse:
+        return self._claims_service.approve_claim(access, claim_id, request)
+
+
 def create_m1_contract_app(
     *,
     settings: Settings | None = None,
@@ -709,16 +732,30 @@ def create_m1_contract_app(
     work_events_mutation_service: Any | None = None,
     identities_service: Any | None = None,
     facts_service: Any | None = None,
+    claims_service: Any | None = None,
+    exports_service: Any | None = None,
     resolve_access: AccessResolver | None = None,
 ) -> FastAPI:
     """Create a FastAPI app exposing the full integrated contract surface (no BYOK / LLM callbacks)."""
     from career_memory_api.app import create_app
+    from career_memory_api.claims.router import create_claims_router
+    from career_memory_api.exports.router import create_exports_router
     from career_memory_api.facts.router import create_facts_router
     from career_memory_api.identities.router import create_identities_router
     from career_memory_api.work_events.router import create_work_events_router
 
+    effective_contracts_service: ContractBoundaryPort | None = contracts_service
+    if effective_contracts_service is None and claims_service is not None:
+        if all(
+            hasattr(claims_service, m)
+            for m in ("create_claim_draft", "edit_claim", "approve_claim")
+        ):
+            effective_contracts_service = _ClaimDelegatingContractBoundaryService(
+                claims_service=claims_service
+            )
+
     contracts_router = create_contracts_router(
-        service=contracts_service,
+        service=effective_contracts_service,
         resolve_access=resolve_access,
     )
     work_events_router = create_work_events_router(
@@ -734,6 +771,14 @@ def create_m1_contract_app(
         service=facts_service,
         resolve_access=resolve_access,
     )
+    claims_router = create_claims_router(
+        service=claims_service,
+        resolve_access=resolve_access,
+    )
+    exports_router = create_exports_router(
+        service=exports_service,
+        resolve_access=resolve_access,
+    )
     app = create_app(
         settings=settings,
         access_provider=access_provider,
@@ -741,10 +786,14 @@ def create_m1_contract_app(
         work_events_router=work_events_router,
         identities_router=identities_router,
         facts_router=facts_router,
+        claims_router=claims_router,
+        exports_router=exports_router,
         install_contract_handlers=True,
         install_work_events_handlers=True,
         install_identities_handlers=True,
         install_facts_handlers=True,
+        install_claims_handlers=True,
+        install_exports_handlers=True,
     )
     install_auth_error_handlers(app)
     return app

@@ -46,11 +46,14 @@ def main(argv: list[str] | None = None) -> int:
                 text=True,
             )
         )
+        live_rev_names: set[str] = set()
         for tr in (svc_doc.get("status") or {}).get("traffic") or []:
             if tr.get("revisionName") and int(tr.get("percent") or 0) > 0:
-                protected_rev_names.add(str(tr["revisionName"]))
+                rev_n = str(tr["revisionName"])
+                live_rev_names.add(rev_n)
+                protected_rev_names.add(rev_n)
         # Only protect spec.template image if no traffic split is reported yet
-        if not ((svc_doc.get("status") or {}).get("traffic") or []):
+        if not live_rev_names:
             svc_containers = (((svc_doc.get("spec") or {}).get("template") or {}).get("spec") or {}).get(
                 "containers"
             ) or []
@@ -79,13 +82,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         max_recent = max(0, int(args.max_recent_per_service))
         kept_recent = 0
+        seen_live = not bool(live_rev_names)
         for rev in revs:
             rev_name = str((rev.get("metadata") or {}).get("name") or "")
             containers = (rev.get("spec") or {}).get("containers") or []
             if not containers or "@sha256:" not in containers[0].get("image", ""):
                 continue
             digest = "sha256:" + containers[0]["image"].split("@sha256:", 1)[1]
-            if rev_name in protected_rev_names or kept_recent < max_recent:
+            if rev_name in live_rev_names:
+                seen_live = True
+            if rev_name in protected_rev_names:
+                keep.add(digest)
+                if seen_live and kept_recent < max_recent:
+                    kept_recent += 1
+            elif seen_live and kept_recent < max_recent:
                 keep.add(digest)
                 kept_recent += 1
 

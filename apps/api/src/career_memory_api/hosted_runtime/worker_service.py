@@ -402,16 +402,21 @@ class HostedWorkerRuntime:
             derived_resumed = 0
             if int(slice_report["sync_jobs_processed"]) == 0 and not self.shutdown_event.is_set():
                 pending_derived_run_ids = self._list_unfinished_derived_runs(ws_uuid, limit=2)
+                derived_deadline = time.monotonic() + max(
+                    10.0, float(self.config.worker_request_slice_timeout_seconds) - 40.0
+                )
                 for run_id_to_finish in pending_derived_run_ids:
-                    if self.shutdown_event.is_set():
+                    if self.shutdown_event.is_set() or time.monotonic() >= derived_deadline:
                         break
-                    self.derived_unit_processor.process_import_ready_run(
-                        workspace_id=ws_uuid,
-                        sync_run_id=run_id_to_finish,
-                    )
                     self.event_candidate_builder.build_candidates_for_sync_run(
                         workspace_id=ws_uuid,
                         sync_run_id=run_id_to_finish,
+                    )
+                    self.derived_unit_processor.process_import_ready_run(
+                        workspace_id=ws_uuid,
+                        sync_run_id=run_id_to_finish,
+                        skip_already_ingested=True,
+                        deadline_monotonic=derived_deadline,
                     )
                     derived_resumed += 1
 

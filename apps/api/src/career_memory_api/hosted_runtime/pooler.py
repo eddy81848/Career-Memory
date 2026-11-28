@@ -157,6 +157,10 @@ class HostedTransactionPool:
             min_size=config.min_size,
             max_size=config.max_size,
             open=False,
+            check=ConnectionPool.check_connection,
+            max_idle=45.0,
+            reconnect_timeout=5.0,
+            timeout=10.0,
             kwargs={
                 "prepare_threshold": None,
                 "autocommit": False,

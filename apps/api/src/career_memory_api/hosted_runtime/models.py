@@ -256,7 +256,7 @@ class HostedApiServiceConfig:
                 "API_DATABASE_URL or DATABASE_URL must be set for hosted API service."
             )
         allow_insecure = _parse_bool_env("CAREER_MEMORY_ALLOW_INSECURE_LOCAL_TEST", False)
-        max_pool = int(os.environ.get("CAREER_MEMORY_DB_MAX_POOL_SIZE", "2"))
+        max_pool = int(os.environ.get("CAREER_MEMORY_DB_MAX_POOL_SIZE", "4"))
         min_pool = int(os.environ.get("CAREER_MEMORY_DB_MIN_POOL_SIZE", "0"))
         stmt_timeout_ms = int(os.environ.get("CAREER_MEMORY_DB_STATEMENT_TIMEOUT_MS", "10000"))
         lock_timeout_ms = int(os.environ.get("CAREER_MEMORY_DB_LOCK_TIMEOUT_MS", "3000"))

@@ -21,6 +21,8 @@ import type {
 
 interface ImportStatusPanelProps {
   state: ImportJourneyState;
+  canOpenEventInbox?: boolean;
+  onEnterEventInbox?: () => void;
   onManualRefresh: () => void;
   onRetryImport: () => void;
   onResendPendingRetry?: () => void;
@@ -113,6 +115,8 @@ function getDerivedStageLabel(status: DerivedStageStatus): {
 
 export function ImportStatusPanel({
   state,
+  canOpenEventInbox = false,
+  onEnterEventInbox,
   onManualRefresh,
   onRetryImport,
   onResendPendingRetry,
@@ -931,6 +935,18 @@ export function ImportStatusPanel({
                   }
                 >
                   GitHub 수집 연결 다시 설정
+                </button>
+              )}
+
+              {canOpenEventInbox && onEnterEventInbox && (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  data-testid="enter-event-inbox-cta"
+                  onClick={onEnterEventInbox}
+                  disabled={isBusy}
+                >
+                  Event 후보 검토하기 (Event Inbox)
                 </button>
               )}
             </div>

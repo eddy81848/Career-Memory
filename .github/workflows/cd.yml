@@ -362,6 +362,15 @@ jobs:
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
 
+      - name: Prune superseded unreferenced Artifact Registry digests before pre-flight
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          python3 scripts/prune_superseded_ar_images.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --max-recent-per-service 1 || true
+
       - name: Run read-only OD-015 Cloud Pre-Flight Gate (0 mutations)
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -442,6 +451,15 @@ jobs:
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Prune superseded unreferenced Artifact Registry digests before pre-flight
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          python3 scripts/prune_superseded_ar_images.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --max-recent-per-service 1 || true
 
       - name: Run read-only OD-015 Cloud Pre-Flight Gate (0 mutations)
         env:
@@ -995,6 +1013,7 @@ jobs:
             python3 "${REPO_ROOT}/scripts/prune_superseded_ar_images.py" \
               --project-id "$GCP_PROJECT_ID" \
               --region "$GCP_REGION" \
+              --max-recent-per-service 1 \
               --protect-revision "${PREV_API_REV:-}" \
               --protect-revision "${PREV_WEB_REV:-}" || true
           fi

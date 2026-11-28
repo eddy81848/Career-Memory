@@ -1,0 +1,25 @@
+[
+  {
+    "name": "delete-untagged-older-than-1d",
+    "action": {"type": "Delete"},
+    "condition": {
+      "tagState": "UNTAGGED",
+      "olderThan": "86400s"
+    }
+  },
+  {
+    "name": "delete-tagged-older-than-7d",
+    "action": {"type": "Delete"},
+    "condition": {
+      "tagState": "TAGGED",
+      "olderThan": "604800s"
+    }
+  },
+  {
+    "name": "keep-2-most-recent-versions",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {
+      "keepCount": 2
+    }
+  }
+]

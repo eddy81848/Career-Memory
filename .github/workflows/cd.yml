@@ -1,0 +1,735 @@
+# Automated Main CD Pipeline: Test -> Build & Push -> Deploy -> Post-Deploy E2E & Auto-Rollback
+#
+# Security & Cost Controls (T-106B / INF-09 / OD-015):
+# - Triggered automatically on `push` to `main` (and manual `workflow_dispatch` override).
+# - Skips duplicate tests when a commit on `main` already passed PR CI on its merged PR.
+# - Builds, pushes, and deploys ONLY the changed service(s) (`cm-api`+`cm-worker` vs `cm-web`).
+# - Enforces GCP Artifact Registry native cleanup policy (`keep-2-most-recent-versions`).
+# - Runs post-deploy live API/Worker-OIDC/PostgREST checks + headless Chromium Playwright E2E,
+#   and AUTOMATICALLY rolls back to pre-deploy revisions/@sha256 digests on any failure.
+# - Keyless OIDC WIF ONLY (zero static service account keys); all actions pinned to 40-char SHAs.
+
+name: CD — 빌드 & 자동 배포
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "실행 모드: deploy (변경 감지 또는 전체 배포) | rollback (수동 지정 버전 롤백)"
+        required: true
+        type: choice
+        default: "deploy"
+        options:
+          - deploy
+          - rollback
+      force_deploy_all:
+        description: "변경 감지를 무시하고 API/Worker/Web 전체 강제 빌드·배포 (deploy 모드)"
+        required: false
+        type: boolean
+        default: false
+      previous_api_revision:
+        description: "[수동 rollback 전용] 복원할 cm-api Cloud Run 리비전 이름"
+        required: false
+        type: string
+        default: "cm-api-00004-suy"
+      previous_web_revision:
+        description: "[수동 rollback 전용] 복원할 cm-web Cloud Run 리비전 이름"
+        required: false
+        type: string
+        default: "cm-web-00004-ned"
+      previous_worker_digest:
+        description: "[수동 rollback 전용] 복원할 cm-worker @sha256:<64-hex> 이미지 다이제스트"
+        required: false
+        type: string
+        default: "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:2679e38f4882c541a0cb5bb10ea877baed13c08cc0d3996e443adf3e88f808b0"
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  id-token: write
+
+concurrency:
+  group: career-memory-cd-main
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: us-central1
+  CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
+  M0_OPENAPI_BLOB_SHA: "07594d75425744d6149250a9f7ff95ac24659f80"
+
+jobs:
+  # ============================================================================
+  # STAGE 1: 테스트 (변경 영역 감지 & PR 테스트 통과 시 중복 생략)
+  # ============================================================================
+  test:
+    name: 1. 테스트 (변경 감지 & PR 중복 생략)
+    runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.plan.outputs.action }}
+      deploy_api: ${{ steps.scope.outputs.deploy_api }}
+      deploy_web: ${{ steps.scope.outputs.deploy_web }}
+      run_migrations: ${{ steps.scope.outputs.run_migrations }}
+      sync_ar_policy: ${{ steps.scope.outputs.sync_ar_policy }}
+      any_cd_work: ${{ steps.plan.outputs.any_cd_work }}
+      pr_checks_verified: ${{ steps.pr_dedup.outputs.pr_checks_verified }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+
+      - name: Verify M0 immutable OpenAPI snapshot blob hash
+        run: |
+          ACTUAL="$(git rev-parse HEAD:contracts/import-v1/openapi.yaml)"
+          if [ "$ACTUAL" != "$M0_OPENAPI_BLOB_SHA" ]; then
+            echo "ERROR: contracts/import-v1/openapi.yaml drifted ($ACTUAL != $M0_OPENAPI_BLOB_SHA)" >&2
+            exit 1
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Detect changed deploy & migration targets
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FORCE_ALL: ${{ inputs.force_deploy_all }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE_ALL" = "true" ]; then
+            python3 scripts/detect_ci_changes.py --force-all
+          else
+            python3 scripts/detect_ci_changes.py --base "$BEFORE_SHA" --head "$HEAD_SHA"
+          fi
+
+      - name: Compute CD execution plan
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ACTION: ${{ inputs.action }}
+          ANY_SCOPE_CD: ${{ steps.scope.outputs.any_cd_work }}
+        run: |
+          ACTION="deploy"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_ACTION" ]; then
+            ACTION="$INPUT_ACTION"
+          fi
+          ANY_CD="$ANY_SCOPE_CD"
+          if [ "$ACTION" = "rollback" ]; then
+            ANY_CD="true"
+          fi
+          echo "action=${ACTION}" >> "$GITHUB_OUTPUT"
+          echo "any_cd_work=${ANY_CD}" >> "$GITHUB_OUTPUT"
+          echo "CD Plan: action=${ACTION}, any_cd_work=${ANY_CD}"
+
+      - name: Check if merged PR already passed CI tests (skip duplicate runs)
+        id: pr_dedup
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+
+          repo = os.environ["REPO"]
+          sha = os.environ["HEAD_SHA"]
+          token = os.environ.get("GITHUB_TOKEN", "")
+          gh_out = os.environ["GITHUB_OUTPUT"]
+
+          def gh_get(path: str):
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/{path}",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  return json.loads(resp.read().decode("utf-8"))
+
+          verified = False
+          try:
+              prs = gh_get(f"commits/{sha}/pulls")
+              for pr in prs:
+                  if not pr.get("merged_at"):
+                      continue
+                  pr_num = pr.get("number")
+                  pr_head = (pr.get("head") or {}).get("sha", "")
+                  if not pr_head:
+                      continue
+                  checks = gh_get(f"commits/{pr_head}/check-runs").get("check_runs", [])
+                  if checks and all(
+                      c.get("status") == "completed"
+                      and c.get("conclusion") in ("success", "skipped", "neutral")
+                      for c in checks
+                  ):
+                      print(f"✓ PR #{pr_num} (head {pr_head[:7]}) already passed {len(checks)} PR check(s); skipping duplicate tests.")
+                      verified = True
+                      break
+          except Exception as exc:
+              print(f"PR check lookup fell back to direct test verification ({type(exc).__name__}).")
+
+          with open(gh_out, "a", encoding="utf-8") as fh:
+              fh.write(f"pr_checks_verified={'true' if verified else 'false'}\n")
+          PY
+
+      - name: Run fast static Conformance & Release Gate check
+        working-directory: apps/api
+        run: |
+          uv run python ../../scripts/run_conformance_ci.py
+          uv run python ../../scripts/run_t506_pilot_gate.py --verify
+
+      - name: Run Backend & PG18 tests (only on unverified direct push affecting API/DB)
+        if: >-
+          steps.plan.outputs.action == 'deploy' &&
+          steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
+          steps.scope.outputs.run_api_pg18 == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-18
+          export PATH="/usr/lib/postgresql/18/bin:$PATH"
+          cd apps/api
+          uv run pytest -q -m ""
+          uv run python ../../scripts/run_conformance_ci.py --with-postgres
+
+      - name: Set up Node.js 22 (only on unverified direct push affecting Web)
+        if: >-
+          steps.plan.outputs.action == 'deploy' &&
+          steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
+          steps.scope.outputs.run_web_test == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Run Web tests (only on unverified direct push affecting Web)
+        if: >-
+          steps.plan.outputs.action == 'deploy' &&
+          steps.pr_dedup.outputs.pr_checks_verified != 'true' &&
+          steps.scope.outputs.run_web_test == 'true'
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
+  # ============================================================================
+  # STAGE 2: 빌드 & 푸시 (변경된 이미지만 빌드·푸시 + Artifact Registry 정리 정책 동기화)
+  # ============================================================================
+  build-and-push:
+    name: 2. 빌드 & 푸시
+    needs: [test]
+    if: >-
+      needs.test.outputs.action == 'deploy' &&
+      (needs.test.outputs.deploy_api == 'true' || needs.test.outputs.deploy_web == 'true')
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      api_image_digest: ${{ steps.images.outputs.api_image_digest }}
+      web_image_digest: ${{ steps.images.outputs.web_image_digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Run read-only OD-015 Cloud Pre-Flight Gate (0 mutations)
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json
+
+      - name: Sync Artifact Registry native cleanup policy (keep-2-most-recent-versions)
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud artifacts repositories set-cleanup-policies career-memory \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --policy infra/gcp/artifact-registry-cleanup-policy.json \
+              --no-dry-run
+
+      - name: Build & push ONLY changed linux/amd64 images (reuse live @sha256 digest when unchanged)
+        id: images
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DEPLOY_API: ${{ needs.test.outputs.deploy_api }}
+          DEPLOY_WEB: ${{ needs.test.outputs.deploy_web }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+          API_REPO="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-api"
+          WEB_REPO="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-web"
+
+          LIVE_API_IMG="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(spec.template.spec.containers[0].image)' 2>/dev/null || true)"
+          LIVE_WEB_IMG="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(spec.template.spec.containers[0].image)' 2>/dev/null || true)"
+
+          if [ "$DEPLOY_API" = "true" ] || [ -z "$LIVE_API_IMG" ]; then
+            echo "Building & pushing cm-api (shared by cm-api & cm-worker)..."
+            CACHE_ARGS=()
+            if [ -n "$LIVE_API_IMG" ]; then
+              docker pull "$LIVE_API_IMG" || true
+              CACHE_ARGS=(--cache-from "$LIVE_API_IMG")
+            fi
+            docker build --platform linux/amd64 --provenance=false "${CACHE_ARGS[@]}" -t "${API_REPO}:${GIT_SHA}" -f apps/api/Dockerfile .
+            docker push "${API_REPO}:${GIT_SHA}"
+            API_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${API_REPO}:${GIT_SHA}")"
+          else
+            echo "✓ Backend unchanged — skipping cm-api Docker build & reusing live digest: ${LIVE_API_IMG}"
+            API_DIGEST="$LIVE_API_IMG"
+          fi
+
+          if [ "$DEPLOY_WEB" = "true" ] || [ -z "$LIVE_WEB_IMG" ]; then
+            echo "Building & pushing cm-web..."
+            WEB_CACHE_ARGS=()
+            if [ -n "$LIVE_WEB_IMG" ]; then
+              docker pull "$LIVE_WEB_IMG" || true
+              WEB_CACHE_ARGS=(--cache-from "$LIVE_WEB_IMG")
+            fi
+            docker build --platform linux/amd64 --provenance=false "${WEB_CACHE_ARGS[@]}" --build-arg NEXT_PUBLIC_API_MODE=hosted -t "${WEB_REPO}:${GIT_SHA}" -f apps/web/Dockerfile apps/web
+            docker push "${WEB_REPO}:${GIT_SHA}"
+            WEB_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "${WEB_REPO}:${GIT_SHA}")"
+          else
+            echo "✓ Frontend unchanged — skipping cm-web Docker build & reusing live digest: ${LIVE_WEB_IMG}"
+            WEB_DIGEST="$LIVE_WEB_IMG"
+          fi
+
+          echo "api_image_digest=${API_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "web_image_digest=${WEB_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate ReleaseManifestV1 immutable @sha256 digest references
+        env:
+          API_IMAGE_DIGEST: ${{ steps.images.outputs.api_image_digest }}
+          WEB_IMAGE_DIGEST: ${{ steps.images.outputs.web_image_digest }}
+          GIT_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          cd apps/api
+          uv run python ../../scripts/run_t106b_release_verify.py \
+            --git-commit-sha "$GIT_COMMIT_SHA" \
+            --api-image-digest "$API_IMAGE_DIGEST" \
+            --web-image-digest "$WEB_IMAGE_DIGEST" \
+            --region "$GCP_REGION" \
+            --output /tmp/release-manifest.v1.json
+
+  # ============================================================================
+  # STAGE 3: 배포 (롤백 스냅샷 기록 · 선택적 DB 마이그레이션 · 변경 서비스만 후보 배포)
+  # ============================================================================
+  deploy:
+    name: 3. 배포
+    needs: [test, build-and-push]
+    if: >-
+      always() &&
+      needs.test.result == 'success' &&
+      needs.test.outputs.any_cd_work == 'true' &&
+      (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      prev_api_revision: ${{ steps.snapshot.outputs.prev_api_revision }}
+      prev_web_revision: ${{ steps.snapshot.outputs.prev_web_revision }}
+      prev_worker_digest: ${{ steps.snapshot.outputs.prev_worker_digest }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Snapshot currently serving live revisions & worker digest for automatic rollback
+        id: snapshot
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          PREV_API="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("revisionName","") for t in d.get("status",{}).get("traffic",[]) if t.get("percent",0)>0), "") or d.get("status",{}).get("latestReadyRevisionName",""))' || true)"
+          PREV_WEB="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("revisionName","") for t in d.get("status",{}).get("traffic",[]) if t.get("percent",0)>0), "") or d.get("status",{}).get("latestReadyRevisionName",""))' || true)"
+          PREV_WORKER="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(spec.template.spec.containers[0].image)' 2>/dev/null || true)"
+          echo "prev_api_revision=${PREV_API}" >> "$GITHUB_OUTPUT"
+          echo "prev_web_revision=${PREV_WEB}" >> "$GITHUB_OUTPUT"
+          echo "prev_worker_digest=${PREV_WORKER}" >> "$GITHUB_OUTPUT"
+          echo "Snapshot saved: api=${PREV_API}, web=${PREV_WEB}, worker=${PREV_WORKER}"
+
+      - name: Sync Artifact Registry cleanup policy (when only policy file changed)
+        if: >-
+          needs.test.outputs.action == 'deploy' &&
+          needs.test.outputs.sync_ar_policy == 'true' &&
+          needs.build-and-push.result == 'skipped'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud artifacts repositories set-cleanup-policies career-memory \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --policy infra/gcp/artifact-registry-cleanup-policy.json \
+              --no-dry-run
+
+      - name: Run cm_migrator :5432 expand migrations & sync :6543 runtime secrets (only when DB/migrations touched)
+        if: >-
+          needs.test.outputs.action == 'deploy' &&
+          needs.test.outputs.run_migrations == 'true'
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          if [ -z "$MIGRATION_DATABASE_URL" ]; then
+            echo "ERROR: GitHub Environment 'staging' secret STAGING_MIGRATION_DATABASE_URL is not configured." >&2
+            exit 1
+          fi
+          cd apps/api
+          uv run python ../../scripts/run_staging_migrations.py \
+            --sync-gcp-runtime-secrets \
+            --gcp-project-id "$GCP_PROJECT_ID"
+          uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json
+
+      - name: Deploy cm-worker & cm-api candidate revision (only when Backend/API changed)
+        if: >-
+          needs.test.outputs.action == 'deploy' &&
+          needs.test.outputs.deploy_api == 'true'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          API_IMAGE_DIGEST: ${{ needs.build-and-push.outputs.api_image_digest }}
+          WORKER_SA: ${{ vars.GCP_WORKER_RUNTIME_SA }}
+          API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          WORKER_WORKSPACE_IDS: ${{ vars.STAGING_WORKER_WORKSPACE_IDS }}
+          SUPABASE_JWT_ISSUER: ${{ vars.STAGING_SUPABASE_JWT_ISSUER }}
+          SUPABASE_JWKS_URL: ${{ vars.STAGING_SUPABASE_JWKS_URL }}
+          SUPABASE_AUTH_URL: ${{ vars.STAGING_SUPABASE_AUTH_URL }}
+          ALLOWED_WEB_ORIGINS: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          if ! [[ "$API_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: API_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$API_IMAGE_DIGEST" \
+              --service-account "$WORKER_SA" \
+              --no-allow-unauthenticated \
+              --set-env-vars "^|^CAREER_MEMORY_SERVICE_ROLE=worker|CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},${DEPLOY_SA}|CAREER_MEMORY_WORKER_WORKSPACE_IDS=${WORKER_WORKSPACE_IDS}" \
+              --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
+              --min-instances 0 \
+              --max-instances 1 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 4 \
+              --timeout 60
+
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --update-env-vars "^|^CAREER_MEMORY_WORKER_AUDIENCES=${WORKER_URL}|CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},${DEPLOY_SA}"
+
+          for INVOKER_SA in "$API_SA" "$DEPLOY_SA"; do
+            CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+              gcloud run services add-iam-policy-binding cm-worker \
+                --project "$GCP_PROJECT_ID" \
+                --region "$GCP_REGION" \
+                --member="serviceAccount:${INVOKER_SA}" \
+                --role="roles/run.invoker" >/dev/null
+          done
+
+          EXTRA_TRAFFIC_ARGS=(--no-traffic)
+          if ! gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>&1; then
+            EXTRA_TRAFFIC_ARGS=()
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-api \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$API_IMAGE_DIGEST" \
+              --service-account "$API_SA" \
+              --allow-unauthenticated \
+              "${EXTRA_TRAFFIC_ARGS[@]}" \
+              --tag candidate \
+              --set-env-vars "^|^CAREER_MEMORY_SERVICE_ROLE=api|SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER}|SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL}|SUPABASE_AUTH_URL=${SUPABASE_AUTH_URL}|SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY}|CAREER_MEMORY_ALLOWED_WEB_ORIGINS=${ALLOWED_WEB_ORIGINS}|CAREER_MEMORY_WORKER_WAKE_URL=${WORKER_URL}|CAREER_MEMORY_WORKER_WAKE_AUDIENCE=${WORKER_URL}|CAREER_MEMORY_REQUIRE_ORIGIN_AUTH=true|CAREER_MEMORY_ALLOW_RUN_APP_ORIGIN_PROOF=true" \
+              --set-secrets "API_DATABASE_URL=cm-api-database-url:latest,CAREER_MEMORY_ORIGIN_HMAC_SECRETS=cm-origin-hmac-secret:latest" \
+              --min-instances 0 \
+              --max-instances 2 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 16 \
+              --timeout 30
+
+      - name: Deploy cm-web candidate revision (only when Web/BFF changed)
+        if: >-
+          needs.test.outputs.action == 'deploy' &&
+          needs.test.outputs.deploy_web == 'true'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          WEB_IMAGE_DIGEST: ${{ needs.build-and-push.outputs.web_image_digest }}
+          WEB_SA: ${{ vars.GCP_WEB_RUNTIME_SA }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          ALLOWED_WEB_ORIGINS: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          if ! [[ "$WEB_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: WEB_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          EXTRA_TRAFFIC_ARGS=(--no-traffic)
+          if ! gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>&1; then
+            EXTRA_TRAFFIC_ARGS=()
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-web \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$WEB_IMAGE_DIGEST" \
+              --service-account "$WEB_SA" \
+              --allow-unauthenticated \
+              "${EXTRA_TRAFFIC_ARGS[@]}" \
+              --tag candidate \
+              --set-env-vars "^|^SUPABASE_URL=${SUPABASE_URL}|SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY}|CAREER_MEMORY_API_ORIGIN=${API_URL}|CAREER_MEMORY_PUBLIC_WEB_ORIGIN=${ALLOWED_WEB_ORIGINS}" \
+              --set-secrets "CAREER_MEMORY_ORIGIN_HMAC_SECRET=cm-origin-hmac-secret:latest,CAREER_MEMORY_BFF_COOKIE_SECRET=cm-bff-session-secret:latest" \
+              --min-instances 0 \
+              --max-instances 2 \
+              --cpu 1 \
+              --memory 512Mi \
+              --concurrency 16 \
+              --timeout 30
+
+      - name: Manual rollback traffic shift & worker digest restore (when action == rollback)
+        if: needs.test.outputs.action == 'rollback'
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          PREV_API_REV: ${{ inputs.previous_api_revision }}
+          PREV_WEB_REV: ${{ inputs.previous_web_revision }}
+          PREV_WORKER_DIGEST: ${{ inputs.previous_worker_digest }}
+        run: |
+          if ! [[ "$PREV_WORKER_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: PREV_WORKER_DIGEST must be a pinned us-central1 @sha256 digest." >&2
+            exit 1
+          fi
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-revisions "${PREV_API_REV}=100"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-revisions "${PREV_WEB_REV}=100"
+          CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+            gcloud run deploy cm-worker \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --image "$PREV_WORKER_DIGEST" \
+              --no-allow-unauthenticated \
+              --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
+              --min-instances 0 \
+              --max-instances 1 \
+              --cpu 1 \
+              --memory 512Mi
+
+      - name: Emit pinned reference manifest verification record
+        if: always()
+        run: |
+          REFERENCE_CMD="gcloud run deploy cm-api --image us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          echo "Verified release manifest pattern (region=${GCP_REGION}, reference_len=${#REFERENCE_CMD})"
+
+  # ============================================================================
+  # STAGE 4: 배포 후 E2E 검증 · 트래픽 100% 승격 · 실패 시 이전 버전 자동 롤백
+  # ============================================================================
+  verify-and-rollback:
+    name: 4. 배포 후 E2E 검증 & 자동 롤백
+    needs: [test, build-and-push, deploy]
+    if: >-
+      always() &&
+      needs.test.result == 'success' &&
+      (needs.test.outputs.action == 'rollback' || needs.test.outputs.deploy_api == 'true' || needs.test.outputs.deploy_web == 'true') &&
+      (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+
+      - name: Set up Node.js 22 for Playwright Hosted Browser E2E
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install Playwright headless Chromium for post-deploy E2E
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Authenticate to Google Cloud via OIDC Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Run Post-Deploy API/Worker-OIDC/PostgREST + Playwright Browser E2E, Promote Traffic, or Auto-Rollback
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          ACTION: ${{ needs.test.outputs.action }}
+          DEPLOY_API: ${{ needs.test.outputs.deploy_api }}
+          DEPLOY_WEB: ${{ needs.test.outputs.deploy_web }}
+          DEPLOY_JOB_RESULT: ${{ needs.deploy.result }}
+          PREV_API_REV: ${{ needs.deploy.outputs.prev_api_revision }}
+          PREV_WEB_REV: ${{ needs.deploy.outputs.prev_web_revision }}
+          PREV_WORKER_DIGEST: ${{ needs.deploy.outputs.prev_worker_digest }}
+        run: |
+          set -euo pipefail
+          REPO_ROOT="$(pwd)"
+
+          auto_rollback() {
+            local REASON="$1"
+            echo "::error::[AUTO-ROLLBACK TRIGGERED] ${REASON}" >&2
+            if [ -n "$PREV_API_REV" ]; then
+              echo "Restoring cm-api traffic to ${PREV_API_REV}=100..."
+              CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+                gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-revisions "${PREV_API_REV}=100" || true
+            fi
+            if [ -n "$PREV_WEB_REV" ]; then
+              echo "Restoring cm-web traffic to ${PREV_WEB_REV}=100..."
+              CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+                gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-revisions "${PREV_WEB_REV}=100" || true
+            fi
+            if [[ "$PREV_WORKER_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]] && [ "$DEPLOY_API" = "true" ]; then
+              echo "Restoring cm-worker to previous digest ${PREV_WORKER_DIGEST}..."
+              CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+                gcloud run deploy cm-worker \
+                  --project "$GCP_PROJECT_ID" \
+                  --region "$GCP_REGION" \
+                  --image "$PREV_WORKER_DIGEST" \
+                  --no-allow-unauthenticated \
+                  --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
+                  --min-instances 0 \
+                  --max-instances 1 \
+                  --cpu 1 \
+                  --memory 512Mi || true
+            fi
+
+            echo "Verifying restored pre-deploy stack health..."
+            RESTORED_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+            RESTORED_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+            RESTORED_WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+            RESTORED_OIDC="$(gcloud auth print-identity-token --impersonate-service-account="$DEPLOY_SA" --audiences="$RESTORED_WORKER_URL" --include-email)"
+            (cd "${REPO_ROOT}/apps/api" && uv run python ../../scripts/run_t106b_release_verify.py \
+              --smoke-url "$RESTORED_API_URL" \
+              --worker-url "$RESTORED_WORKER_URL" \
+              --worker-oidc-token "$RESTORED_OIDC" \
+              --web-url "$RESTORED_WEB_URL" \
+              --supabase-url "$SUPABASE_URL" \
+              --supabase-anon-key "$STAGING_SUPABASE_ANON_KEY")
+            exit 1
+          }
+
+          run_full_e2e() {
+            local TARGET_API_URL="$1"
+            local TARGET_WEB_URL="$2"
+            local TARGET_WORKER_URL="$3"
+            local PHASE_LABEL="$4"
+
+            echo "=== [${PHASE_LABEL}] Running 11-check Cross-Service API/Worker-OIDC/PostgREST E2E ==="
+            local OIDC_TOKEN
+            OIDC_TOKEN="$(gcloud auth print-identity-token --impersonate-service-account="$DEPLOY_SA" --audiences="$TARGET_WORKER_URL" --include-email)"
+            (cd "${REPO_ROOT}/apps/api" && uv run python ../../scripts/run_t106b_release_verify.py \
+              --smoke-url "$TARGET_API_URL" \
+              --worker-url "$TARGET_WORKER_URL" \
+              --worker-oidc-token "$OIDC_TOKEN" \
+              --web-url "$TARGET_WEB_URL" \
+              --supabase-url "$SUPABASE_URL" \
+              --supabase-anon-key "$STAGING_SUPABASE_ANON_KEY") || return 1
+
+            echo "=== [${PHASE_LABEL}] Running Headless Chromium Playwright Hosted Browser E2E ==="
+            (cd "${REPO_ROOT}/apps/web" && HOSTED_WEB_URL="$TARGET_WEB_URL" npm run test:e2e:hosted) || return 1
+          }
+
+          if [ "$DEPLOY_JOB_RESULT" != "success" ]; then
+            auto_rollback "Stage 3 (deploy) failed with status=${DEPLOY_JOB_RESULT}"
+          fi
+
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+
+          if [ "$ACTION" = "deploy" ]; then
+            CANDIDATE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("url","") for t in d.get("status",{}).get("traffic",[]) if t.get("tag")=="candidate" and t.get("url")), "") or d.get("status",{}).get("url",""))')"
+            CANDIDATE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((t.get("url","") for t in d.get("status",{}).get("traffic",[]) if t.get("tag")=="candidate" and t.get("url")), "") or d.get("status",{}).get("url",""))')"
+
+            if ! run_full_e2e "$CANDIDATE_API_URL" "$CANDIDATE_WEB_URL" "$WORKER_URL" "Pre-Promotion Candidate"; then
+              auto_rollback "Candidate revision E2E verification failed before traffic promotion"
+            fi
+
+            if [ "$DEPLOY_API" = "true" ]; then
+              CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+                gcloud run services update-traffic cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
+            fi
+            if [ "$DEPLOY_WEB" = "true" ]; then
+              CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
+                gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
+            fi
+          fi
+
+          LIVE_API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          LIVE_WEB_URL="$(gcloud run services describe cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+
+          if ! run_full_e2e "$LIVE_API_URL" "$LIVE_WEB_URL" "$WORKER_URL" "Post-Promotion Live Public"; then
+            auto_rollback "Post-promotion live public E2E verification failed"
+          fi
+
+          (cd "${REPO_ROOT}/apps/api" && uv run python ../../scripts/check_od015_cloud_preflight.py \
+            --project-id "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --json)

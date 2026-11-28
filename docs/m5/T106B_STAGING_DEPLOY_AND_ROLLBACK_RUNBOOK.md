@@ -5,7 +5,7 @@
 > - `PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE` (`GO` / `PASSED` in `contracts/pilot-gate/t506_release_gate.v1.json`) is backed by `contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json` (`OD-015` `GO`, WIF Deploy Run `46143882856` `11/11`, WIF Rollback Run `46144193821` `11/11`); if any hosted check fails or drifts, the gate fails closed to `NO-GO`.
 > - Subscription LLM (`OD-002` / `OD-014`) remains strictly **HARD-OFF** (`LlmRuntimeMode.OFF_MANUAL_ONLY`, `default_adapter=None`) on hosted Cloud Run.
 > - **Zero Secrets in Git**: NEVER commit real credentials, tokens, DSNs with passwords, HMAC/cookie secrets, project-specific secret values, private keys, or `.env*` files into Git, Dockerfiles, JSON manifests, or docs.
-> - **Keyless WIF + Encrypted Secrets Only**: `.github/workflows/staging-deploy.yml` is bound to GitHub Environment `staging`, authenticates to GCP exclusively via OIDC Workload Identity Federation (zero static service account keys), reads deployment secrets from GitHub Environment `staging` Encrypted Secrets, and mounts runtime credentials into Cloud Run strictly via `--set-secrets` referencing GCP Secret Manager names. `.github/workflows/pr-conformance-local.yml` stays 100% secret-free per `INF-09`.
+> - **Keyless WIF + Encrypted Secrets Only**: `.github/workflows/cd.yml` (`CD — 빌드 & 자동 배포`) triggers automatically on `push` to `main` (and manual `workflow_dispatch`), is bound to GitHub Environment `staging`, authenticates to GCP exclusively via OIDC Workload Identity Federation (zero static service account keys), builds/deploys ONLY changed services, runs post-deploy E2E + Playwright browser checks with automatic rollback on failure, and enforces `infra/gcp/artifact-registry-cleanup-policy.json`. `.github/workflows/ci.yml` (`CI — PR 테스트`) stays 100% secret-free per `INF-09`.
 
 ---
 
@@ -95,26 +95,19 @@ docker push "us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-api:$
 API_IMAGE_DIGEST="$(docker inspect --format='{{index .RepoDigests 0}}' "us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/career-memory/cm-api:${GIT_SHA}")"
 ```
 
-### Step 5: Trigger Manual WIF Deploy (`.github/workflows/staging-deploy.yml`)
-Trigger `workflow_dispatch` against GitHub Environment `staging` with `action=deploy`, immutable `@sha256:<64-hex>` `api_image_digest` & `web_image_digest`, and known-good `previous_*` rollback targets:
-1. Validates `contracts/import-v1/openapi.yaml` blob SHA (`07594d75425744d6149250a9f7ff95ac24659f80`) and `ReleaseManifestV1`.
-2. Authenticates via keyless OIDC WIF (`vars.GCP_WIF_PROVIDER` + `vars.GCP_DEPLOY_SERVICE_ACCOUNT`).
-3. Runs `check_od015_cloud_preflight.py` (`0` mutations).
-4. Runs `run_staging_migrations.py` using `secrets.STAGING_MIGRATION_DATABASE_URL`.
-5. Deploys `cm-worker` (`--no-allow-unauthenticated`, `--set-secrets`), then `cm-api` (`--no-traffic --tag candidate`, `--set-secrets`), then `cm-web` (`--no-traffic --tag candidate`, `--set-secrets`).
-6. Runs `run_t106b_release_verify.py --smoke-url <candidate-api-url> --worker-url <worker-url>` verifying:
-   - `GET /healthz` -> `200`
-   - Direct `GET /v1/session` without `X-CM-Origin-Auth` -> `403 ORIGIN_AUTH_REQUIRED` + `Cache-Control: private, no-store`
-   - `POST /internal/worker/wake` on `cm-api` -> `403 PUBLIC_WORKER_ROUTE_FORBIDDEN`
-   - Unauthenticated `POST /internal/worker/wake` on `cm-worker` -> `401/403`
-7. Shifts `cm-api` and `cm-web` traffic to `100%` (`--to-latest`) ONLY after smoke verification passes.
+### Step 5: Automated Main CD or Manual WIF Deploy (`.github/workflows/cd.yml`)
+Merging to `main` automatically triggers `.github/workflows/cd.yml` (`CD — 빌드 & 자동 배포`), or you can trigger `workflow_dispatch` against GitHub Environment `staging` with `action=deploy` (`force_deploy_all=true` if forcing all services):
+1. Stage `1. 테스트 (변경 감지 & PR 중복 생략)`: Validates `contracts/import-v1/openapi.yaml` blob SHA (`07594d75425744d6149250a9f7ff95ac24659f80`), skips duplicate tests already verified on the merged PR, and classifies changed deploy scopes.
+2. Stage `2. 빌드 & 푸시`: Authenticates via keyless OIDC WIF (`vars.GCP_WIF_PROVIDER` + `vars.GCP_DEPLOY_SERVICE_ACCOUNT`), runs `check_od015_cloud_preflight.py` (`0` mutations), syncs `infra/gcp/artifact-registry-cleanup-policy.json`, builds/pushes ONLY changed services (`--provenance=false`), and validates `ReleaseManifestV1`.
+3. Stage `3. 배포`: Snapshots currently serving revisions/digests, runs `run_staging_migrations.py` using `secrets.STAGING_MIGRATION_DATABASE_URL` when DB/migrations changed, and deploys changed services (`cm-worker` `--no-allow-unauthenticated`, `cm-api` `--no-traffic --tag candidate`, `cm-web` `--no-traffic --tag candidate`).
+4. Stage `4. 배포 후 E2E 검증 & 자동 롤백`: Runs 11-check `run_t106b_release_verify.py` + headless Chromium Playwright Browser E2E (`npm run test:e2e:hosted`), shifts traffic to `100%` (`--to-latest`), re-runs live public E2E, and **automatically rolls back** `cm-api`, `cm-web`, and `cm-worker` to pre-deploy revisions/digests if any step fails.
 
 ---
 
 ## 3. Instant Rollback Procedure
 
-### Option A: GitHub Actions Manual Rollback
-Dispatch `.github/workflows/staging-deploy.yml` with `action=rollback` and the recorded `previous_api_revision`, `previous_web_revision`, and `previous_worker_digest` (`@sha256:` pinned).
+### Option A: Automatic Post-Deploy Rollback or GitHub Actions Manual Rollback
+If post-deploy E2E fails, Stage 4 rolls back automatically. For manual operator rollback, dispatch `.github/workflows/cd.yml` (`CD — 빌드 & 자동 배포`) with `action=rollback` and the target `previous_api_revision`, `previous_web_revision`, and `previous_worker_digest` (`@sha256:` pinned).
 
 ### Option B: Direct Operator Rollback Commands
 Generate exact commands from the saved `ReleaseManifestV1` JSON:

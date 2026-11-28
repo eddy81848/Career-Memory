@@ -35,6 +35,14 @@ def test_repo_pr_conformance_workflow_passes_inf09_audit() -> None:
     assert pr_wf.openapi_pin_present is True
     assert pr_wf.secret_references == ()
 
+    nightly_wf = audit_workflow_file(WORKFLOWS_DIR / "nightly-ci.yml")
+    assert nightly_wf.passed is True, f"Unexpected INF-09 findings: {nightly_wf.findings}"
+    assert nightly_wf.top_level_permissions == {"contents": "read", "actions": "read"}
+    assert "schedule" in nightly_wf.triggers
+    assert "pull_request_target" not in nightly_wf.triggers
+    assert nightly_wf.openapi_pin_present is True
+    assert nightly_wf.secret_references == ()
+
 
 def test_ci_audit_rejects_write_all_id_token_write_and_missing_permissions() -> None:
     wf_write_all = f"""

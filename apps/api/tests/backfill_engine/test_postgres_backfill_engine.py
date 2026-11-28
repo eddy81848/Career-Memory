@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 import psycopg
 import pytest
 
+pytestmark = pytest.mark.postgres
+
 from career_memory_api.backfill_engine import (
     AssociationMatchMechanism,
     BackfillFailureReasonCode,

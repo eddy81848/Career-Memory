@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.postgres
+
 from career_memory_api.conformance.ai_schemas import render_canonical_json
 from career_memory_api.conformance.checks import (
     M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1,

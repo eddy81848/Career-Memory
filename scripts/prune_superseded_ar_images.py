@@ -14,6 +14,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project-id", required=True)
     parser.add_argument("--region", default="us-central1")
     parser.add_argument("--protect-revision", action="append", default=[])
+    parser.add_argument("--max-recent-per-service", type=int, default=2)
     args = parser.parse_args(argv)
 
     env = dict(os.environ)
@@ -46,13 +47,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         for tr in (svc_doc.get("status") or {}).get("traffic") or []:
-            if tr.get("revisionName"):
+            if tr.get("revisionName") and int(tr.get("percent") or 0) > 0:
                 protected_rev_names.add(str(tr["revisionName"]))
-        svc_containers = (((svc_doc.get("spec") or {}).get("template") or {}).get("spec") or {}).get(
-            "containers"
-        ) or []
-        if svc_containers and "@sha256:" in svc_containers[0].get("image", ""):
-            keep.add("sha256:" + svc_containers[0]["image"].split("@sha256:", 1)[1])
+        # Only protect spec.template image if no traffic split is reported yet
+        if not ((svc_doc.get("status") or {}).get("traffic") or []):
+            svc_containers = (((svc_doc.get("spec") or {}).get("template") or {}).get("spec") or {}).get(
+                "containers"
+            ) or []
+            if svc_containers and "@sha256:" in svc_containers[0].get("image", ""):
+                keep.add("sha256:" + svc_containers[0]["image"].split("@sha256:", 1)[1])
 
         revs = json.loads(
             subprocess.check_output(
@@ -74,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
                 text=True,
             )
         )
+        max_recent = max(0, int(args.max_recent_per_service))
         kept_recent = 0
         for rev in revs:
             rev_name = str((rev.get("metadata") or {}).get("name") or "")
@@ -81,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
             if not containers or "@sha256:" not in containers[0].get("image", ""):
                 continue
             digest = "sha256:" + containers[0]["image"].split("@sha256:", 1)[1]
-            if rev_name in protected_rev_names or kept_recent < 2:
+            if rev_name in protected_rev_names or kept_recent < max_recent:
                 keep.add(digest)
                 kept_recent += 1
 

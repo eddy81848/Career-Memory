@@ -1,0 +1,152 @@
+{
+  "bundle_id": "T-007F/T-106B",
+  "cloud_run_services": [
+    {
+      "active_revision": "cm-web-00004-ned",
+      "allow_unauthenticated": true,
+      "cpu": 1.0,
+      "image_digest": "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-web@sha256:1d95c981a17ef98fd35ae482cb9d0c63c6823ebc17ab01d3c63ddd2a20eb20a0",
+      "max_instances": 2,
+      "memory_mib": 512,
+      "min_instances": 0,
+      "public_url": "https://cm-web-oaxjehpcqq-uc.a.run.app",
+      "rollback_revision_verified": "cm-web-00003-fom",
+      "service_name": "cm-web"
+    },
+    {
+      "active_revision": "cm-api-00004-suy",
+      "allow_unauthenticated": true,
+      "cpu": 1.0,
+      "image_digest": "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:2679e38f4882c541a0cb5bb10ea877baed13c08cc0d3996e443adf3e88f808b0",
+      "max_instances": 2,
+      "memory_mib": 512,
+      "min_instances": 0,
+      "public_url": "https://cm-api-oaxjehpcqq-uc.a.run.app",
+      "rollback_revision_verified": "cm-api-00003-sev",
+      "service_name": "cm-api"
+    },
+    {
+      "active_revision": "cm-worker-00006-m4k",
+      "allow_unauthenticated": false,
+      "cpu": 1.0,
+      "image_digest": "us-central1-docker.pkg.dev/career-memory-516011/career-memory/cm-api@sha256:2679e38f4882c541a0cb5bb10ea877baed13c08cc0d3996e443adf3e88f808b0",
+      "max_instances": 1,
+      "memory_mib": 512,
+      "min_instances": 0,
+      "public_url": "https://cm-worker-oaxjehpcqq-uc.a.run.app",
+      "rollback_revision_verified": "cm-worker-00004-v6l",
+      "service_name": "cm-worker"
+    }
+  ],
+  "ingress_and_backup_posture": {
+    "bff_cookie_encryption": "AES-256-GCM",
+    "bff_cookie_flags": "__Host-cm_session; HttpOnly; Secure; SameSite=Lax; Path=/",
+    "direct_api_bypass_blocked_403": true,
+    "encrypted_pg_dump_runbook": "docs/m5/T505_BACKUP_RESTORE_DRILL_REPORT.md",
+    "ingress_mode": "CLOUD_RUN_SCALE_TO_ZERO_WITH_ORIGIN_HMAC_PROOF",
+    "live_subscription_llm_mode": "OFF_MANUAL_ONLY",
+    "paid_custom_domain_purchased": false,
+    "supabase_free_pitr_assumed": false,
+    "worker_ingress_mode": "CLOUD_RUN_IAM_OIDC_PRIVATE_NO_ALLOW_UNAUTHENTICATED"
+  },
+  "od015_preflight": {
+    "artifact_registry_max_allowed_mb": 250.0,
+    "artifact_registry_total_mb": 214.99,
+    "cap_violations_count": 0,
+    "checks_passed": 6,
+    "checks_total": 6,
+    "containerscanning_enabled": false,
+    "estimated_monthly_krw_worst_case": 0,
+    "hard_krw_monthly_ceiling": 20000,
+    "project_id": "career-memory-516011",
+    "region": "us-central1",
+    "secret_manager_enabled_versions": 4,
+    "secret_manager_max_allowed_versions": 4,
+    "verdict": "GO",
+    "vpc_connector_count": 0
+  },
+  "openapi_import_v1_blob_sha": "07594d75425744d6149250a9f7ff95ac24659f80",
+  "owner_decisions_confirmed": [
+    "OD-005",
+    "OD-006",
+    "OD-010",
+    "OD-012",
+    "OD-013",
+    "OD-015"
+  ],
+  "raw_latency_samples_ms": {
+    "api_direct_origin_blocked_403_ms": [
+      75.1,
+      79.86,
+      84.24,
+      262.64
+    ],
+    "api_health_200_ms": [
+      251.25,
+      343.58,
+      348.7
+    ],
+    "web_health_200_ms": [
+      269.11,
+      489.51,
+      561.18
+    ],
+    "worker_oidc_recover_200_cold_start_ms": 4605.14,
+    "worker_oidc_recover_200_warm_ms": [
+      230.25,
+      255.02
+    ],
+    "worker_unauthenticated_blocked_403_ms": [
+      148.16,
+      189.64,
+      194.56,
+      393.72
+    ]
+  },
+  "schema_version": "t007f-t106b-hosted-staging-evidence-v1",
+  "supabase_rls_and_pooler_audit": {
+    "anon_authenticated_public_grants": 0,
+    "force_rls_tables": 46,
+    "migrations_applied_range": "0010..0080",
+    "postgres_major_minor": "17.12",
+    "postgrest_domain_table_bypass_status": 401,
+    "prepare_threshold": null,
+    "prepared_statements_observed": 0,
+    "public_tables_total": 46,
+    "region": "ap-northeast-1",
+    "runtime_roles_nobypassrls": true,
+    "runtime_roles_owned_tables": 0,
+    "supavisor_session_migrator_port": 5432,
+    "supavisor_transaction_pooler_port": 6543
+  },
+  "task_ids": [
+    "T-007A",
+    "T-007B",
+    "T-007C",
+    "T-007D",
+    "T-007E",
+    "T-007F",
+    "T-106B"
+  ],
+  "wif_github_actions_runs": {
+    "deploy_run": {
+      "action": "deploy",
+      "conclusion": "success",
+      "run_id": 46143882856,
+      "smoke_checks_passed": 11,
+      "smoke_checks_total": 11,
+      "static_sa_keys_used": 0,
+      "workflow": ".github/workflows/staging-deploy.yml"
+    },
+    "rollback_run": {
+      "action": "rollback",
+      "conclusion": "success",
+      "post_rollback_od015_verdict": "GO",
+      "run_id": 46144193821,
+      "smoke_checks_passed": 11,
+      "smoke_checks_total": 11,
+      "static_sa_keys_used": 0,
+      "workflow": ".github/workflows/staging-deploy.yml"
+    }
+  }
+}

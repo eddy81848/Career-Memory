@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
+from career_memory_api.auth.redaction import SENSITIVE_KEY_NAMES
 from career_memory_api.conformance.checks import (
     M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1,
     compute_git_blob_sha1,
@@ -22,6 +24,9 @@ from career_memory_api.pilot_gate.models import (
     TierGateEvaluation,
     compute_gate_sha256,
 )
+from career_memory_api.schema_contracts.metadata_guard import assert_no_forbidden_raw_keys
+
+_HOSTED_DIGEST_RE = re.compile(r"^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$")
 
 
 class PilotGatePolicyViolationError(ValueError):
@@ -551,12 +556,143 @@ def _verify_t504a(repo_root: Path) -> BundleVerificationResult:
     )
 
 
+def _verify_t007f_t106b(repo_root: Path) -> BundleVerificationResult:
+    rel = "contracts/hosted-staging/t007f_t106b_staging_evidence.v1.json"
+    data, digest, err = _load_json_bundle(repo_root, rel)
+    if err or data is None:
+        return BundleVerificationResult(
+            bundle_id="T-007F/T-106B",
+            relative_path=rel,
+            present=False,
+            verified=False,
+            file_sha256=digest,
+            checks_passed=0,
+            checks_total=1,
+            findings=[err or "Missing bundle"],
+        )
+
+    findings: list[str] = []
+    checks = 0
+    passed = 0
+
+    def _check(cond: bool, msg: str) -> None:
+        nonlocal checks, passed
+        checks += 1
+        if cond:
+            passed += 1
+        else:
+            findings.append(msg)
+
+    raw_clean = True
+    try:
+        assert_no_forbidden_raw_keys(data, field_name=rel)
+    except Exception:  # noqa: BLE001
+        raw_clean = False
+    secret_key_hits = 0
+    stack: list[Any] = [data]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for k, v in cur.items():
+                if str(k).strip().lower() in SENSITIVE_KEY_NAMES:
+                    secret_key_hits += 1
+                stack.append(v)
+        elif isinstance(cur, list):
+            stack.extend(cur)
+
+    od015 = data.get("od015_preflight", {})
+    supa = data.get("supabase_rls_and_pooler_audit", {})
+    services = data.get("cloud_run_services", [])
+    wif = data.get("wif_github_actions_runs", {})
+    deploy_run = wif.get("deploy_run", {})
+    rollback_run = wif.get("rollback_run", {})
+    posture = data.get("ingress_and_backup_posture", {})
+
+    _check(
+        data.get("openapi_import_v1_blob_sha") == M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1,
+        "T-007F/T-106B openapi_import_v1_blob_sha mismatch",
+    )
+    _check(
+        raw_clean and secret_key_hits == 0,
+        "T-007F/T-106B must contain 0 raw-text keys and 0 sensitive secret keys",
+    )
+    _check(
+        od015.get("verdict") == "GO"
+        and int(od015.get("checks_passed", 0)) == 6
+        and od015.get("containerscanning_enabled") is False
+        and float(od015.get("artifact_registry_total_mb", 999.0)) <= 250.0
+        and int(od015.get("secret_manager_enabled_versions", 99)) <= 4
+        and int(od015.get("vpc_connector_count", 1)) == 0
+        and int(od015.get("estimated_monthly_krw_worst_case", 99999)) < 20000,
+        "T-007F/T-106B OD-015 Free-Tier pre-flight invariants failed",
+    )
+    _check(
+        int(supa.get("public_tables_total", 0)) == 46
+        and int(supa.get("force_rls_tables", 0)) == 46
+        and supa.get("runtime_roles_nobypassrls") is True
+        and int(supa.get("runtime_roles_owned_tables", 1)) == 0
+        and int(supa.get("anon_authenticated_public_grants", 1)) == 0
+        and int(supa.get("supavisor_transaction_pooler_port", 0)) == 6543
+        and supa.get("prepare_threshold") is None
+        and int(supa.get("prepared_statements_observed", 1)) == 0
+        and int(supa.get("postgrest_domain_table_bypass_status", 200)) in (401, 403, 404),
+        "T-007F/T-106B Supabase RLS / Supavisor :6543 / PostgREST audit failed",
+    )
+    svc_by_name = {str(s.get("service_name")): s for s in services if isinstance(s, dict)}
+    all_svc_ok = (
+        set(svc_by_name.keys()) == {"cm-web", "cm-api", "cm-worker"}
+        and svc_by_name["cm-worker"].get("allow_unauthenticated") is False
+        and all(
+            int(s.get("min_instances", 1)) == 0
+            and int(s.get("max_instances", 99)) <= 2
+            and float(s.get("cpu", 99.0)) <= 1.0
+            and int(s.get("memory_mib", 9999)) <= 512
+            and bool(_HOSTED_DIGEST_RE.match(str(s.get("image_digest", ""))))
+            for s in svc_by_name.values()
+        )
+    )
+    _check(all_svc_ok, "T-007F/T-106B Cloud Run service caps / IAM / @sha256 digest pin check failed")
+    _check(
+        deploy_run.get("conclusion") == "success"
+        and int(deploy_run.get("smoke_checks_passed", 0)) == 11
+        and int(deploy_run.get("static_sa_keys_used", 1)) == 0
+        and rollback_run.get("conclusion") == "success"
+        and int(rollback_run.get("smoke_checks_passed", 0)) == 11
+        and rollback_run.get("post_rollback_od015_verdict") == "GO"
+        and int(rollback_run.get("static_sa_keys_used", 1)) == 0,
+        "T-007F/T-106B WIF deploy and rollback verification runs failed",
+    )
+    _check(
+        posture.get("direct_api_bypass_blocked_403") is True
+        and posture.get("supabase_free_pitr_assumed") is False
+        and posture.get("live_subscription_llm_mode") == "OFF_MANUAL_ONLY",
+        "T-007F/T-106B ingress/backup/LLM posture check failed",
+    )
+
+    return BundleVerificationResult(
+        bundle_id="T-007F/T-106B",
+        relative_path=rel,
+        present=True,
+        verified=(len(findings) == 0),
+        file_sha256=digest,
+        checks_passed=passed,
+        checks_total=checks,
+        findings=findings,
+        metrics={
+            "od015_verdict": od015.get("verdict"),
+            "deploy_smoke_checks_passed": deploy_run.get("smoke_checks_passed", 0),
+            "rollback_smoke_checks_passed": rollback_run.get("smoke_checks_passed", 0),
+            "force_rls_tables": supa.get("force_rls_tables", 0),
+        },
+    )
+
+
 def evaluate_t506_pilot_gate(
     *,
     repo_root: Path | None = None,
     require_live_fe_be_tests_present: bool = True,
 ) -> T506ReleaseGateBundle:
-    """Programmatically verify all M0-M5 evidence bundles and evaluate the 3-tier release gates."""
+    """Programmatically verify all M0-M5 & Track 2 evidence bundles and evaluate the 3-tier release gates."""
     root = default_repo_root() if repo_root is None else repo_root.resolve()
     openapi_path = root / "contracts" / "import-v1" / "openapi.yaml"
     actual_openapi_sha = (
@@ -571,8 +707,10 @@ def evaluate_t506_pilot_gate(
     t507 = _verify_t507(root)
     t505 = _verify_t505(root)
     t504a = _verify_t504a(root)
+    t007f = _verify_t007f_t106b(root)
 
-    bundles = [b004, t306a, t407a, inf08, t507, t505, t504a]
+    local_bundles = [b004, t306a, t407a, inf08, t507, t505, t504a]
+    bundles = [*local_bundles, t007f]
     by_id = {b.bundle_id: b for b in bundles}
 
     fe_be_m4_exists = (
@@ -597,16 +735,16 @@ def evaluate_t506_pilot_gate(
         InvariantVerificationItem(
             invariant_id="M0-OPENAPI-PIN",
             category="CONTRACT_IMMUTABILITY",
-            passed=openapi_pin_verified and all(b.verified for b in bundles),
-            evidence_sources=["contracts/import-v1/openapi.yaml", "B-004", "T-306A", "T-407A", "T-408/INF-08", "T-507/INF-07", "T-505/INF-10", "T-504A"],
+            passed=openapi_pin_verified and all(b.verified for b in local_bundles) and (not t007f.present or t007f.verified),
+            evidence_sources=["contracts/import-v1/openapi.yaml", "B-004", "T-306A", "T-407A", "T-408/INF-08", "T-507/INF-07", "T-505/INF-10", "T-504A", "T-007F/T-106B"],
             summary=f"Immutable M0 OpenAPI blob SHA verified ({M0_IMMUTABLE_OPENAPI_GIT_BLOB_SHA1}).",
         ),
         InvariantVerificationItem(
             invariant_id="ADR-013-PLAN-C-ZERO-LEAKS",
             category="DATA_PRIVACY_PLAN_C",
-            passed=all(b.verified for b in bundles),
-            evidence_sources=["B-004", "T-306A", "T-407A", "T-408/INF-08", "T-505/INF-10", "T-504A"],
-            summary="0 raw source bodies persisted, 0 forbidden JSONB keys, and 0 canary/secret leaks across all 46 PG18 tables, logs, and exports.",
+            passed=all(b.verified for b in local_bundles) and (not t007f.present or t007f.verified),
+            evidence_sources=["B-004", "T-306A", "T-407A", "T-408/INF-08", "T-505/INF-10", "T-504A", "T-007F/T-106B"],
+            summary="0 raw source bodies persisted, 0 forbidden JSONB keys, and 0 canary/secret leaks across all 46 PG18/PG17 tables, logs, and exports.",
         ),
         InvariantVerificationItem(
             invariant_id="SEARCH-01..05+OD-008",
@@ -654,17 +792,18 @@ def evaluate_t506_pilot_gate(
             invariant_id="INF-01..10",
             category="INFRASTRUCTURE_AND_GOVERNANCE",
             passed=by_id["T-408/INF-08"].verified and by_id["T-507/INF-07"].verified and by_id["T-505/INF-10"].verified and by_id["T-504A"].verified,
-            evidence_sources=["T-408/INF-08", "T-507/INF-07", "T-505/INF-10", "T-504A"],
-            summary="All app-layer & local PG18 guards (FORCE RLS, edge origin/worker/cache/pause, CI trust audit, LLM hard-OFF policy gate, encrypted backup/restore drill) verified at ₩0.",
+            evidence_sources=["T-408/INF-08", "T-507/INF-07", "T-505/INF-10", "T-504A", "T-007F/T-106B"],
+            summary="All app-layer, local PG18, and hosted Cloud Run + Supabase PG17 guards (FORCE RLS, edge origin/worker/cache/pause, WIF release/rollback, LLM hard-OFF policy gate, encrypted backup/restore drill) verified.",
         ),
     ]
 
     all_local_verified = (
         openapi_pin_verified
         and fe_be_present
-        and all(b.verified for b in bundles)
+        and all(b.verified for b in local_bundles)
         and all(inv.passed for inv in invariants)
     )
+    hosted_verified = all_local_verified and t007f.verified
 
     # Strict, honest 3-tier release gate separation (ADR-018, ADR-019, ADR-020)
     release_gates = [
@@ -689,21 +828,32 @@ def evaluate_t506_pilot_gate(
         ),
         TierGateEvaluation(
             tier=ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE,
-            decision=ReleaseGateDecision.NO_GO,
-            status_code=ReleaseGateStatusCode.HELD_PENDING_OD013_OD015,
-            blocking_open_decisions=["OD-013", "OD-015"],
-            rationale=(
-                "App-layer guards (T-503 quotas/circuit breaker, T-505 encrypted PG18 backup/restore drill, "
-                "T-507 edge origin/worker/cache/pause middleware & CI trust audit) are verified locally, but "
-                "live external Cloud Run / Cloudflare / Supabase Free internet exposure is intentionally held OFF "
-                "until operator billing hard-caps, platform-level origin mTLS/IAM ingress locks, and Supabase Free "
-                "project/auth/backup checks are executed and approved under OD-013 and OD-015."
+            decision=ReleaseGateDecision.GO if hosted_verified else ReleaseGateDecision.NO_GO,
+            status_code=(
+                ReleaseGateStatusCode.PASSED
+                if hosted_verified
+                else ReleaseGateStatusCode.HELD_PENDING_OD013_OD015
             ),
-            required_operator_actions=[
-                "Verify GCP Cloud Billing hard cutoff / budget automation or explicit spend approval (OD-015, ADR-020).",
-                "Provision and live-probe Cloudflare Origin mTLS / Transform Rule + Cloud Run ingress/IAM blocking direct *.run.app access and isolating /internal/worker/** (INF-07, OD-013).",
-                "Provision Supabase Free project, verify Auth redirect allowlist, RLS roles, connection pooler caps, and scheduled encrypted logical pg_dump off-host storage (INF-10, OD-013).",
-            ],
+            blocking_open_decisions=[] if hosted_verified else ["OD-013", "OD-015"],
+            rationale=(
+                "Live Cloud Run (us-central1 scale-to-zero cm-web + cm-api + private IAM/OIDC cm-worker) + "
+                "Supabase PostgreSQL 17.12 (:5432 cm_migrator 0010..0080, 46/46 FORCE RLS, :6543 Supavisor "
+                "prepare_threshold=None, PostgREST 401 blocked) + keyless OIDC WIF deploy (Run 46143882856, 11/11) "
+                "& instant rollback drill (Run 46144193821, 11/11) + OD-015 Free-Tier pre-flight GO (₩0, 4/4 secrets, "
+                "214.99 MB AR) verified under owner-confirmed OD-005/006/010/012/013/015."
+                if hosted_verified
+                else (
+                    "Hosted staging verification bundle (T-007F/T-106B) or local prerequisite bundle missing/failed; "
+                    "failing closed until OD-013/OD-015 live cloud verification passes."
+                )
+            ),
+            required_operator_actions=(
+                []
+                if hosted_verified
+                else [
+                    "Execute OD-015 Free-Tier pre-flight, Supabase PG17 RLS/Pooler audit, and keyless WIF Cloud Run deploy & rollback verification (T-007A..F, T-106B)."
+                ]
+            ),
         ),
         TierGateEvaluation(
             tier=ReleaseGateTier.LIVE_SUBSCRIPTION_AI_PILOT_GATE,
@@ -757,13 +907,18 @@ def evaluate_t506_pilot_gate(
 
 
 def assert_strict_three_tier_honesty(bundle: T506ReleaseGateBundle) -> None:
-    """Fail closed if hosted cloud or live AI gates are falsely promoted to GO without external approvals."""
+    """Fail closed if hosted cloud is promoted without T-007F/T-106B or live AI is promoted while OD-002/OD-014 are OFF."""
     gate_by_tier = {g.tier: g for g in bundle.release_gates}
+    bundle_by_id = {b.bundle_id: b for b in bundle.evidence_bundles}
     hosted = gate_by_tier.get(ReleaseGateTier.PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE)
     live_ai = gate_by_tier.get(ReleaseGateTier.LIVE_SUBSCRIPTION_AI_PILOT_GATE)
-    if hosted is None or hosted.decision is ReleaseGateDecision.GO:
+    hosted_bundle = bundle_by_id.get("T-007F/T-106B")
+    if hosted is None or (
+        hosted.decision is ReleaseGateDecision.GO
+        and (hosted_bundle is None or not hosted_bundle.verified)
+    ):
         raise PilotGatePolicyViolationError(
-            "PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE cannot be promoted to GO while OD-013/OD-015 are HELD."
+            "PUBLIC_CLOUD_HOSTED_CLOSED_PILOT_GATE cannot be promoted to GO without verified T-007F/T-106B hosted evidence."
         )
     if live_ai is None or live_ai.decision is ReleaseGateDecision.GO:
         raise PilotGatePolicyViolationError(

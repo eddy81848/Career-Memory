@@ -6,3 +6,15 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .coverage
+
+# Local environment & secret material (never commit to Git)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*service-account*.json
+gcp-key*.json
+secrets/

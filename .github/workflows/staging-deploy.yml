@@ -2,6 +2,8 @@
 #
 # Security & Cost Controls:
 # - Manual `workflow_dispatch` ONLY (never runs on pull_request or pull_request_target).
+# - Bound to GitHub Environment `staging` with all sensitive values sourced strictly from
+#   GitHub Encrypted Secrets (`secrets.STAGING_*`) and GCP Secret Manager (`--set-secrets`).
 # - OIDC Workload Identity Federation (WIF) ONLY — zero static service account keys.
 # - Explicit minimal permissions (`contents: read`, `id-token: write`).
 # - Serialized deployments (`cancel-in-progress: false`).
@@ -126,20 +128,24 @@ jobs:
       - name: Run cm_migrator :5432 expand migrations & post-migration RLS/Data-API audit
         if: ${{ inputs.action == 'deploy' }}
         env:
-          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+          MIGRATION_DATABASE_URL: ${{ secrets.STAGING_MIGRATION_DATABASE_URL }}
         run: |
+          if [ -z "$MIGRATION_DATABASE_URL" ]; then
+            echo "ERROR: GitHub Environment 'staging' secret STAGING_MIGRATION_DATABASE_URL is not configured." >&2
+            exit 1
+          fi
           cd apps/api
           uv run python ../../scripts/run_staging_migrations.py
 
-      - name: Deploy cm-worker (private IAM, --no-allow-unauthenticated, @sha256 digest only)
+      - name: Deploy cm-worker (private IAM, --no-allow-unauthenticated, Secret Manager bindings, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
           WORKER_SA: ${{ vars.GCP_WORKER_RUNTIME_SA }}
+          API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
+          WORKER_WORKSPACE_IDS: ${{ vars.STAGING_WORKER_WORKSPACE_IDS }}
         run: |
-          # Canonical digest-pinned reference format:
-          # --image us-central1-docker.pkg.dev/career-memory-staging/career-memory/cm-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
           if ! [[ "$API_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
             echo "ERROR: API_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
             exit 1
@@ -151,7 +157,8 @@ jobs:
               --image "$API_IMAGE_DIGEST" \
               --service-account "$WORKER_SA" \
               --no-allow-unauthenticated \
-              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=worker" \
+              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=worker,CAREER_MEMORY_WORKER_SERVICE_ACCOUNTS=${API_SA},CAREER_MEMORY_WORKER_WORKSPACE_IDS=${WORKER_WORKSPACE_IDS}" \
+              --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
               --min-instances 0 \
               --max-instances 1 \
               --cpu 1 \
@@ -159,13 +166,19 @@ jobs:
               --concurrency 4 \
               --timeout 60
 
-      - name: Deploy cm-api no-traffic revision (@sha256 digest only)
+      - name: Deploy cm-api no-traffic revision (Secret Manager + GitHub Secrets, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           API_IMAGE_DIGEST: ${{ inputs.api_image_digest }}
           API_SA: ${{ vars.GCP_API_RUNTIME_SA }}
+          SUPABASE_JWT_ISSUER: ${{ vars.STAGING_SUPABASE_JWT_ISSUER }}
+          SUPABASE_JWKS_URL: ${{ vars.STAGING_SUPABASE_JWKS_URL }}
+          SUPABASE_AUTH_URL: ${{ vars.STAGING_SUPABASE_AUTH_URL }}
+          ALLOWED_WEB_ORIGINS: ${{ vars.STAGING_ALLOWED_WEB_ORIGINS }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
+          WORKER_URL="$(gcloud run services describe cm-worker --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run deploy cm-api \
               --project "$GCP_PROJECT_ID" \
@@ -175,7 +188,8 @@ jobs:
               --allow-unauthenticated \
               --no-traffic \
               --tag candidate \
-              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=api" \
+              --set-env-vars "CAREER_MEMORY_SERVICE_ROLE=api,SUPABASE_JWT_ISSUER=${SUPABASE_JWT_ISSUER},SUPABASE_JWKS_URL=${SUPABASE_JWKS_URL},SUPABASE_AUTH_URL=${SUPABASE_AUTH_URL},SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY},CAREER_MEMORY_ALLOWED_WEB_ORIGINS=${ALLOWED_WEB_ORIGINS},CAREER_MEMORY_WORKER_WAKE_URL=${WORKER_URL},CAREER_MEMORY_WORKER_WAKE_AUDIENCE=${WORKER_URL},CAREER_MEMORY_REQUIRE_ORIGIN_AUTH=true,CAREER_MEMORY_ALLOW_RUN_APP_ORIGIN_PROOF=true" \
+              --set-secrets "API_DATABASE_URL=cm-api-database-url:latest,CAREER_MEMORY_ORIGIN_HMAC_SECRETS=cm-origin-hmac-secret:latest" \
               --min-instances 0 \
               --max-instances 2 \
               --cpu 1 \
@@ -183,17 +197,20 @@ jobs:
               --concurrency 16 \
               --timeout 30
 
-      - name: Deploy cm-web no-traffic revision (@sha256 digest only)
+      - name: Deploy cm-web no-traffic revision (Secret Manager + GitHub Secrets, @sha256 digest only)
         if: ${{ inputs.action == 'deploy' }}
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           WEB_IMAGE_DIGEST: ${{ inputs.web_image_digest }}
           WEB_SA: ${{ vars.GCP_WEB_RUNTIME_SA }}
+          SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
           if ! [[ "$WEB_IMAGE_DIGEST" =~ ^us-central1-docker\.pkg\.dev/[a-z0-9._/\-]+@sha256:[0-9a-f]{64}$ ]]; then
             echo "ERROR: WEB_IMAGE_DIGEST must be a pinned us-central1 @sha256 digest." >&2
             exit 1
           fi
+          API_URL="$(gcloud run services describe cm-api --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
           CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity" \
             gcloud run deploy cm-web \
               --project "$GCP_PROJECT_ID" \
@@ -203,6 +220,8 @@ jobs:
               --allow-unauthenticated \
               --no-traffic \
               --tag candidate \
+              --set-env-vars "NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${STAGING_SUPABASE_ANON_KEY},CAREER_MEMORY_API_ORIGIN=${API_URL}" \
+              --set-secrets "CAREER_MEMORY_ORIGIN_HMAC_SECRET=cm-origin-hmac-secret:latest,CAREER_MEMORY_BFF_SESSION_SECRET=cm-bff-session-secret:latest" \
               --min-instances 0 \
               --max-instances 2 \
               --cpu 1 \
@@ -254,6 +273,7 @@ jobs:
               --region "$GCP_REGION" \
               --image "$PREV_WORKER_DIGEST" \
               --no-allow-unauthenticated \
+              --set-secrets "WORKER_DATABASE_URL=cm-worker-database-url:latest" \
               --min-instances 0 \
               --max-instances 1 \
               --cpu 1 \

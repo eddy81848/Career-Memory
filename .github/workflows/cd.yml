@@ -955,32 +955,9 @@ jobs:
                 gcloud run services update-traffic cm-web --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-latest
             fi
 
-            # Prune superseded Artifact Registry digests beyond active + 1 rollback per service
-            python3 - <<'PRUNE_PY'
-            import json, os, subprocess
-            project = os.environ["GCP_PROJECT_ID"]
-            region = os.environ["GCP_REGION"]
-            env = dict(os.environ)
-            existing = env.get("CLOUDSDK_METRICS_ENVIRONMENT", "").strip()
-            env["CLOUDSDK_METRICS_ENVIRONMENT"] = f"{existing} datacloud.antigravity" if existing else "datacloud.antigravity"
-            keep = set()
-            for svc in ("cm-api", "cm-worker", "cm-web"):
-                revs = json.loads(subprocess.check_output(["gcloud", "run", "revisions", "list", "--service", svc, "--project", project, "--region", region, "--limit=2", "--format=json"], env=env, text=True))
-                for r in revs:
-                    cs = r.get("spec", {}).get("containers", [])
-                    if cs and "@sha256:" in cs[0].get("image", ""):
-                        keep.add("sha256:" + cs[0]["image"].split("@sha256:", 1)[1])
-            for pkg in ("cm-api", "cm-web"):
-                repo_pkg = f"{region}-docker.pkg.dev/{project}/career-memory/{pkg}"
-                imgs = json.loads(subprocess.check_output(["gcloud", "artifacts", "docker", "images", "list", repo_pkg, "--format=json"], env=env, text=True))
-                todo = [i["version"] for i in imgs if i.get("version") not in keep]
-                for _ in (1, 2):
-                    rem = []
-                    for d in todo:
-                        if subprocess.run(["gcloud", "artifacts", "docker", "images", "delete", f"{repo_pkg}@{d}", "--delete-tags", "--quiet"], env=env, capture_output=True).returncode != 0:
-                            rem.append(d)
-                    todo = rem
-            PRUNE_PY
+            python3 "${REPO_ROOT}/scripts/prune_superseded_ar_images.py" \
+              --project-id "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" || true
           fi
 
           PUBLIC_EDGE_WEB_URL="${PUBLIC_WEB_ORIGIN:-$LIVE_WEB_URL}"

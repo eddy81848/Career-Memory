@@ -27,20 +27,23 @@ def test_docs_and_evidence_only_skips_heavy_pg18_web_and_deploy() -> None:
         ]
     )
     assert res.run_static_gate is True
+    assert res.run_api_unit is True
     assert res.run_api_pg18 is False
     assert res.run_m0_spike is False
     assert res.run_web_test is False
     assert res.run_web_build is False
+    assert res.run_web_e2e is False
     assert res.deploy_api is False
     assert res.deploy_web is False
     assert res.run_migrations is False
     assert res.any_cd_work is False
 
 
-def test_web_ui_change_runs_only_web_and_deploys_only_cm_web() -> None:
+def test_web_ui_change_runs_only_web_including_ui_e2e_and_deploys_only_cm_web() -> None:
     res = classify_changed_paths(["apps/web/src/components/LiveFullstackShell.tsx"])
     assert res.run_web_test is True
     assert res.run_web_build is True
+    assert res.run_web_e2e is True
     assert res.deploy_web is True
     assert res.run_api_unit is False
     assert res.run_api_pg18 is False
@@ -48,7 +51,7 @@ def test_web_ui_change_runs_only_web_and_deploys_only_cm_web() -> None:
     assert res.run_migrations is False
 
 
-def test_web_test_only_change_skips_next_build_and_skips_cloud_run_deploy() -> None:
+def test_web_unit_or_hosted_spec_change_skips_next_build_and_skips_cloud_run_deploy() -> None:
     res = classify_changed_paths(
         [
             "apps/web/src/components/HostedBffShell.test.tsx",
@@ -57,8 +60,18 @@ def test_web_test_only_change_skips_next_build_and_skips_cloud_run_deploy() -> N
     )
     assert res.run_web_test is True
     assert res.run_web_build is False
+    assert res.run_web_e2e is False
     assert res.deploy_web is False
     assert res.deploy_api is False
+    assert res.any_cd_work is False
+
+
+def test_web_local_e2e_spec_change_runs_local_e2e_without_deploying_cloud_run() -> None:
+    res = classify_changed_paths(["apps/web/e2e/event-review.spec.ts"])
+    assert res.run_web_test is True
+    assert res.run_web_build is True
+    assert res.run_web_e2e is True
+    assert res.deploy_web is False
     assert res.any_cd_work is False
 
 
@@ -95,5 +108,19 @@ def test_shared_openapi_contract_triggers_all_dependent_suites() -> None:
     assert res.run_m0_spike is True
     assert res.run_web_test is True
     assert res.run_web_contract_http is True
+    assert res.run_web_e2e is True
     assert res.deploy_api is True
     assert res.deploy_web is True
+
+
+def test_root_dockerignore_and_unknown_future_paths_fail_safe() -> None:
+    res_docker = classify_changed_paths([".dockerignore"])
+    assert res_docker.run_api_pg18 is True
+    assert res_docker.deploy_api is True
+
+    res_unknown = classify_changed_paths(["packages/new-shared-lib/index.ts"])
+    assert res_unknown.run_api_pg18 is True
+    assert res_unknown.run_web_test is True
+    assert res_unknown.run_web_contract_http is True
+    assert res_unknown.run_web_build is True
+    assert res_unknown.run_web_e2e is True

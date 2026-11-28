@@ -3,6 +3,12 @@
 
 Determines the minimal sound set of direct + indirect tests, builds, migrations,
 and Cloud Run deployments required for a given set of changed repository paths.
+
+Fail-safe invariant:
+- Known non-runtime paths (`docs/**`, `*.md`, `.gitignore`, offline evidence JSONs)
+  skip unrelated heavy suites and Cloud Run deployments.
+- Unrecognized top-level paths fail-safe to running full test suites rather than
+  silently skipping verification.
 """
 
 from __future__ import annotations
@@ -27,13 +33,23 @@ _WEB_TEST_ONLY_SUFFIXES = (
 
 
 def _norm(path: str) -> str:
-    return path.strip().replace("\\", "/").lstrip("./")
+    cleaned = path.strip().replace("\\", "/")
+    while cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    return cleaned.lstrip("/")
 
 
 def _is_web_test_or_config_only(path: str) -> bool:
     if not path.startswith("apps/web/"):
         return False
-    if path.startswith(("apps/web/tests/", "apps/web/e2e/", "apps/web/e2e-hosted/", "apps/web/src/test/")):
+    if path.startswith(
+        (
+            "apps/web/tests/",
+            "apps/web/e2e/",
+            "apps/web/e2e-hosted/",
+            "apps/web/src/test/",
+        )
+    ):
         return True
     if path.endswith(_WEB_TEST_ONLY_SUFFIXES):
         return True
@@ -67,6 +83,7 @@ class ChangeScopeResult:
     run_web_test: bool
     run_web_contract_http: bool
     run_web_build: bool
+    run_web_e2e: bool
     deploy_api: bool
     deploy_web: bool
     run_migrations: bool
@@ -92,6 +109,7 @@ class ChangeScopeResult:
             "run_web_test": self.run_web_test,
             "run_web_contract_http": self.run_web_contract_http,
             "run_web_build": self.run_web_build,
+            "run_web_e2e": self.run_web_e2e,
             "deploy_api": self.deploy_api,
             "deploy_web": self.deploy_web,
             "run_migrations": self.run_migrations,
@@ -125,6 +143,7 @@ def classify_changed_paths(
             run_web_test=True,
             run_web_contract_http=True,
             run_web_build=True,
+            run_web_e2e=True,
             deploy_api=True,
             deploy_web=True,
             run_migrations=True,
@@ -138,12 +157,24 @@ def classify_changed_paths(
     run_web_test = False
     run_web_contract_http = False
     run_web_build = False
+    run_web_e2e = False
     deploy_api = False
     deploy_web = False
     run_migrations = False
     sync_ar_policy = False
 
     for p in cleaned:
+        # 0. Known pure documentation & git metadata -> static conformance/gate check only
+        if p.startswith("docs/") or p.endswith(".md") or p in (".gitignore", "LICENSE"):
+            continue
+
+        # 0b. Root .dockerignore affects root-context `apps/api/Dockerfile` image build
+        if p == ".dockerignore":
+            run_api_unit = True
+            run_api_pg18 = True
+            deploy_api = True
+            continue
+
         # 1. Shared OpenAPI / Conformance / AI schemas -> direct + indirect impact across API & Web
         if p.startswith(("contracts/import-v1/", "contracts/conformance/", "contracts/ai-schemas/")):
             run_api_unit = True
@@ -154,7 +185,20 @@ def classify_changed_paths(
             if p.startswith("contracts/import-v1/"):
                 run_m0_spike = True
                 run_web_build = True
+                run_web_e2e = True
                 deploy_web = True
+            continue
+
+        # 1b. Offline gate/evidence contract JSONs -> verified by static gate + fast unit tests (< 1s)
+        if p.startswith(
+            (
+                "contracts/pilot-gate/",
+                "contracts/edge-guard/",
+                "contracts/llm-gate/",
+                "contracts/hosted-staging/",
+            )
+        ):
+            run_api_unit = True
             continue
 
         # 2. Database migrations -> API + PG18 + live staging migrations + API/Worker deploy + FE contract-http
@@ -173,24 +217,21 @@ def classify_changed_paths(
 
         # 4. Backend / Worker application & tests (apps/api/**)
         if p.startswith("apps/api/"):
+            if p == "apps/api/.gitignore":
+                continue
             run_api_unit = True
             if p.startswith("apps/api/tests/"):
                 if not _is_api_fast_only_test(p):
                     run_api_pg18 = True
                 continue
 
-            # Non-test files under apps/api/
-            if p in ("apps/api/.gitignore", "apps/api/README.md") or p.endswith(".md"):
-                continue
-
-            # Runtime/build files under apps/api/ (src, Dockerfile, pyproject.toml, uv.lock, .dockerignore)
             if p.startswith(
                 (
                     "apps/api/src/career_memory_api/pilot_gate/",
                     "apps/api/src/career_memory_api/edge_guard/ci_trust_audit.py",
                 )
             ):
-                # Pure offline gate/CI-audit modules do not alter runtime API/Worker behavior unless edge middleware changes
+                # Pure offline gate/CI-audit modules do not alter runtime API/Worker behavior
                 continue
 
             run_api_pg18 = True
@@ -206,13 +247,17 @@ def classify_changed_paths(
 
         # 5. Frontend / BFF application & tests (apps/web/**)
         if p.startswith("apps/web/"):
-            if p in ("apps/web/.gitignore", "apps/web/README.md") or p.endswith(".md"):
+            if p == "apps/web/.gitignore":
                 continue
             run_web_test = True
             if p.startswith("apps/web/tests/contract-http/") or p.startswith("apps/web/src/adapters/"):
                 run_web_contract_http = True
+            if p.startswith("apps/web/e2e/") or p == "apps/web/playwright.config.ts":
+                run_web_build = True
+                run_web_e2e = True
             if not _is_web_test_or_config_only(p):
                 run_web_build = True
+                run_web_e2e = True
                 deploy_web = True
             continue
 
@@ -226,7 +271,7 @@ def classify_changed_paths(
                 run_migrations = True
             continue
 
-        # 7. Artifact Registry cleanup policy
+        # 7. Artifact Registry cleanup policy & infra config
         if p == "infra/gcp/artifact-registry-cleanup-policy.json":
             sync_ar_policy = True
             continue
@@ -235,6 +280,14 @@ def classify_changed_paths(
         if p.startswith(".github/workflows/"):
             run_api_unit = True
             continue
+
+        # 9. Fail-safe fallback for any unrecognized future path: run full test suites (never skip silently)
+        run_api_unit = True
+        run_api_pg18 = True
+        run_web_test = True
+        run_web_contract_http = True
+        run_web_build = True
+        run_web_e2e = True
 
     if deploy_api or deploy_web:
         sync_ar_policy = True
@@ -248,6 +301,7 @@ def classify_changed_paths(
         run_web_test=run_web_test,
         run_web_contract_http=run_web_contract_http,
         run_web_build=run_web_build,
+        run_web_e2e=run_web_e2e,
         deploy_api=deploy_api,
         deploy_web=deploy_web,
         run_migrations=run_migrations,
@@ -255,9 +309,8 @@ def classify_changed_paths(
     )
 
 
-def _git_diff_files(base: str, head: str) -> list[str]:
+def _git_diff_files(base: str, head: str, *, use_merge_base: bool = False) -> list[str]:
     if not base or base == _ZERO_SHA:
-        # Initial push or missing base: inspect head~1..head if available, else full tree
         probe = subprocess.run(
             ["git", "rev-parse", "--verify", f"{head}^"],
             capture_output=True,
@@ -270,9 +323,20 @@ def _git_diff_files(base: str, head: str) -> list[str]:
             out = subprocess.check_output(["git", "ls-files"], text=True)
             return [line for line in out.splitlines() if line.strip()]
 
-    # Use merge-base for PRs (`base...head`) or direct range for push (`base..head`)
+    # Verify `base` commit exists in local git object store; fail-safe to full tree if unreachable
+    verify_base = subprocess.run(
+        ["git", "cat-file", "-e", f"{base}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if verify_base.returncode != 0:
+        out = subprocess.check_output(["git", "ls-files"], text=True)
+        return [line for line in out.splitlines() if line.strip()]
+
+    diff_spec = f"{base}...{head}" if use_merge_base else f"{base}..{head}"
     out = subprocess.check_output(
-        ["git", "diff", "--name-only", base, head],
+        ["git", "diff", "--name-only", diff_spec],
         text=True,
     )
     return [line for line in out.splitlines() if line.strip()]
@@ -282,6 +346,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Detect minimal sound CI/CD scope from git diff.")
     parser.add_argument("--base", default="", help="Base commit SHA or ref.")
     parser.add_argument("--head", default="HEAD", help="Head commit SHA or ref.")
+    parser.add_argument(
+        "--merge-base",
+        action="store_true",
+        help="Use three-dot merge-base diff (`base...head`), ideal for pull requests.",
+    )
     parser.add_argument("--force-all", action="store_true", help="Force all test/build/deploy scopes on.")
     parser.add_argument(
         "--files",
@@ -303,7 +372,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.files is not None:
         files = args.files
     else:
-        files = _git_diff_files(args.base.strip(), args.head.strip())
+        files = _git_diff_files(
+            args.base.strip(),
+            args.head.strip(),
+            use_merge_base=args.merge_base,
+        )
 
     result = classify_changed_paths(files, force_all=args.force_all)
     gh_out = args.github_output or (

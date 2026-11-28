@@ -9,7 +9,7 @@ const executablePath = fs.existsSync(CHROME_MAC_PATH)
   : undefined;
 
 const baseURL = (
-  process.env.HOSTED_WEB_URL || "https://cm-web-oaxjehpcqq-uc.a.run.app"
+  process.env.HOSTED_WEB_URL || "https://career-memory.site"
 ).replace(/\/+$/, "");
 
 export default defineConfig({

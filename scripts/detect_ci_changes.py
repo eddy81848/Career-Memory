@@ -271,9 +271,11 @@ def classify_changed_paths(
                 run_migrations = True
             continue
 
-        # 7. Artifact Registry cleanup policy & infra config
+        # 7. Artifact Registry cleanup policy & Cloudflare edge infra config
         if p == "infra/gcp/artifact-registry-cleanup-policy.json":
             sync_ar_policy = True
+            continue
+        if p.startswith("infra/cloudflare/"):
             continue
 
         # 8. CI/CD workflows -> audited by static gate (`detect-and-static` runs edge_guard + pilot_gate)
